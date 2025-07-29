@@ -21,11 +21,8 @@ use key_check::KeyCheckExt;
 mod mode;
 use mode::*;
 
-fn check_quit(window: Res<Window>, mut combiner: ResMut<Combiner>, mut running: ResMut<Running>) {
-    if window.combination(&mut combiner, crokey::key!(ctrl - c)) {
-        running.0 = false;
-    }
-}
+mod command_palette;
+use command_palette::*;
 
 fn update_window(mut window: ResMut<Window>) {
     window.update(Duration::from_millis(10)).unwrap();
@@ -49,10 +46,23 @@ fn main() {
 
     let buffers = Buffers {
         selected_buffer: 0,
-        buffers: vec![TextBuffer::open("hello.txt"), TextBuffer::scratch()],
+        buffers: vec![TextBuffer::scratch()],
     };
 
     let mut input_config = InputConfig::default();
+
+    // ----------------------- //
+    // Temporary Keybind Setup //
+    // ----------------------- //
+
+    // Command Palette
+    input_config.register_input(
+        ['n'],
+        // The ':' key is Shift + Semicolon on most US layouts
+        [key!(':')],
+        [EditorCommand::ChangeMode('c')],
+        "Command Palette",
+    );
 
     // Movement
     input_config.register_input(
@@ -198,16 +208,24 @@ fn main() {
 
     // History
     input_config.register_input([], [key!(u)], [EditorCommand::Undo], "Undo");
-    input_config.register_input([], [key!(ctrl - r)], [EditorCommand::Redo], "Redo");
+    input_config.register_input([], [key!(shift - u)], [EditorCommand::Redo], "Redo");
 
     let mut engine = Engine::new();
     engine.states((Running(true), Mode::default()));
     engine.states((window, combiner, buffers));
-    engine.states((input_config, InputState::default()));
+    engine.states((
+        input_config,
+        InputState::default(),
+        CommandPaletteState::new(),
+    ));
 
-    engine.systems((handle_inputs, render_buffers, render_help_menu));
-
-    engine.systems((check_quit,));
+    engine.systems((
+        handle_inputs,
+        render_buffers,
+        render_help_menu,
+        handle_command_palette_input,
+        render_command_palette,
+    ));
 
     while engine.get_state_mut::<Running>().0 == true {
         engine.update();

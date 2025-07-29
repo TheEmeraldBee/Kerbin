@@ -5,7 +5,6 @@ pub use buffers::*;
 
 use ascii_forge::prelude::*;
 
-// Represents the inverse of an action to be stored in a ChangeGroup
 #[derive(Clone)]
 pub enum UndoAction {
     // To undo an insertion, we delete characters at a position.
@@ -18,7 +17,6 @@ pub enum UndoAction {
     InsertLine(usize, String),
 }
 
-// A group of actions that should be undone/redone together.
 #[derive(Default, Clone)]
 pub struct ChangeGroup(Vec<UndoAction>);
 
@@ -26,11 +24,8 @@ pub struct TextBuffer {
     pub lines: Vec<String>,
     pub path: String,
     pub cursor_pos: Vec2,
-    // A stack of changes that can be undone.
     undo_stack: Vec<ChangeGroup>,
-    // A stack of changes that can be redone.
     redo_stack: Vec<ChangeGroup>,
-    // The current group of changes being recorded.
     current_change: Option<ChangeGroup>,
 }
 
@@ -70,17 +65,13 @@ impl TextBuffer {
     }
 
     pub fn start_change_group(&mut self) {
-        // When a new change is initiated, commit any pending changes.
         self.commit_change_group();
-        // Start a new group.
         self.current_change = Some(ChangeGroup::default());
-        // A new change invalidates the redo history.
         self.redo_stack.clear();
     }
 
     pub fn commit_change_group(&mut self) {
         if let Some(change) = self.current_change.take() {
-            // Only add non-empty change groups to the stack.
             if !change.0.is_empty() {
                 self.undo_stack.push(change);
             }
@@ -90,19 +81,18 @@ impl TextBuffer {
     pub fn undo(&mut self) {
         self.commit_change_group();
         if let Some(group) = self.undo_stack.pop() {
-            // Apply the inverse actions in reverse order.
+            let mut inverted_group = ChangeGroup::default();
             for action in group.0.iter().rev() {
-                self.apply_undo_action(action);
+                let inverse = self.apply_undo_action(action);
+                inverted_group.0.push(inverse);
             }
-            self.redo_stack.push(group);
+            self.redo_stack.push(inverted_group);
         }
     }
 
     pub fn redo(&mut self) {
         if let Some(group) = self.redo_stack.pop() {
-            // To redo, we need to reverse the undo actions.
             let mut inverted_group = ChangeGroup::default();
-            // Apply the actions in forward order.
             for action in group.0.iter() {
                 let inverse = self.apply_undo_action(action);
                 inverted_group.0.push(inverse);
@@ -146,13 +136,12 @@ impl TextBuffer {
         }
     }
 
-    pub fn write_file(&self, path: Option<impl ToString>) {
-        let path = match path {
-            Some(p) => p.to_string(),
-            None => self.path.clone(),
-        };
+    pub fn write_file(&mut self, path: Option<impl ToString>) {
+        if let Some(new_path) = path {
+            self.path = new_path.to_string();
+        }
 
-        std::fs::write(path, self.lines.join("\n")).unwrap();
+        std::fs::write(&self.path, self.lines.join("\n")).unwrap();
     }
 
     pub fn cur_line(&self) -> String {

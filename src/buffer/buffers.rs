@@ -24,6 +24,10 @@ impl Buffers {
             .clamp(0, self.buffers.len() - 1);
     }
 
+    pub fn set_selected_buffer(&mut self, id: usize) {
+        self.selected_buffer = id.clamp(0, self.buffers.len() - 1);
+    }
+
     pub fn close_current_buffer(&mut self) {
         self.buffers.remove(self.selected_buffer);
         if self.buffers.is_empty() {
@@ -41,6 +45,20 @@ impl Buffers {
 
         self.change_buffer(0);
     }
+
+    pub fn open(&mut self, path: String) {
+        if let Some(buffer_id) = self
+            .buffers
+            .iter()
+            .enumerate()
+            .find_map(|(i, x)| if x.path == path { Some(i) } else { None })
+        {
+            self.set_selected_buffer(buffer_id);
+        } else {
+            self.buffers.push(TextBuffer::open(path));
+            self.set_selected_buffer(self.buffers.len() - 1)
+        }
+    }
 }
 
 impl Render for Buffers {
@@ -53,8 +71,8 @@ impl Render for Buffers {
                 style = style.bold();
             }
             let title_width = buf.path.len();
-            render!(buffer, loc => ["   ", StyledContent::new(style, buf.path.as_str()), "  "]);
-            loc.x += title_width as u16 + 8;
+            render!(buffer, loc => ["   ", StyledContent::new(style, buf.path.as_str()), "   "]);
+            loc.x += title_width as u16 + 6;
         }
 
         loc = initial_loc;

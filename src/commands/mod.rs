@@ -78,9 +78,7 @@ impl Command for EditorCommand {
                     .cur_buffer_mut()
                     .write_file(path);
             }
-            EditorCommand::OpenFile(path) => engine
-                .get_state_mut::<Buffers>()
-                .push(TextBuffer::open(path)),
+            EditorCommand::OpenFile(path) => engine.get_state_mut::<Buffers>().open(path),
             EditorCommand::Quit => {
                 engine.get_state_mut::<Running>().0 = false;
             }

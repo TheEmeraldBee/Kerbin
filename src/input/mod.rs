@@ -129,6 +129,11 @@ pub fn handle_inputs(
     input_config: Res<InputConfig>,
     mode: Res<Mode>,
 ) {
+    // Defer all input handling to the command palette systems
+    if mode.0 == 'c' {
+        return;
+    }
+
     // First check on insert mode
     let mut consumed = false;
     if mode.0 == 'i' {
