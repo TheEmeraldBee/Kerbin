@@ -2,6 +2,7 @@ use ascii_forge::prelude::*;
 use rune::diagnostics::Diagnostic;
 use rune::runtime::RuntimeContext;
 use rune::{Any, Context, Diagnostics, Module, Source, Sources, Unit, Vm, runtime::VmError};
+use rune::{FromValue, Value};
 use stategine::prelude::*;
 use std::{fs, path::Path, sync::Arc};
 
@@ -24,11 +25,18 @@ impl PluginApi {
         self.draw_calls.push((x, y, text.to_string()))
     }
 
-    /// Dispatches an editor command to move the cursor.
+    /// Dispatches an editor command
     #[rune::function]
-    fn move_cursor(&mut self, x: i64, y: i64) {
-        self.commands
-            .push(EditorCommand::MoveCursor(x as i16, y as i16));
+    fn command(&mut self, command: Value) {
+        let command = match EditorCommand::from_value(command) {
+            Ok(t) => t,
+            Err(e) => {
+                tracing::error!("Failed to add command due to: {e}");
+                return;
+            }
+        };
+
+        self.commands.push(command)
     }
 }
 
@@ -45,8 +53,7 @@ pub struct PluginManager {
 }
 
 impl PluginManager {
-    /// Creates a new PluginManager and defines the script API.
-    pub fn new() -> Result<Self, anyhow::Error> {
+    pub fn context() -> Result<Context, anyhow::Error> {
         let mut context = rune::Context::with_default_modules()?;
         context.install(rune_modules::fs::module(true)?)?;
         context.install(rune_modules::http::module(true)?)?;
@@ -58,16 +65,23 @@ impl PluginManager {
         context.install(rune_modules::signal::module(true)?)?;
         context.install(rune_modules::process::module(true)?)?;
 
-        context.install(clock::module()?)?;
+        context.install(chrono::module()?)?;
 
         let mut module = Module::new();
 
         // Install our custom API
         module.ty::<PluginApi>()?;
         module.function_meta(PluginApi::draw_text)?;
-        module.function_meta(PluginApi::move_cursor)?;
+        module.function_meta(PluginApi::command)?;
 
         context.install(module)?;
+
+        Ok(context)
+    }
+
+    /// Creates a new PluginManager and defines the script API.
+    pub fn new() -> Result<Self, anyhow::Error> {
+        let context = Self::context()?;
 
         Ok(Self {
             plugins: Vec::new(),
@@ -147,6 +161,39 @@ impl PluginManager {
         }
         Ok(())
     }
+
+    /// Runs the `load` hook for all loaded plugins.
+    pub fn run_load_hooks(
+        &self,
+        window: &mut Window,
+        commands: &mut Commands,
+    ) -> Result<(), VmError> {
+        for plugin in &self.plugins {
+            let mut vm = Vm::new(self.runtime.clone(), plugin.unit.clone());
+
+            let mut api = PluginApi {
+                commands: vec![],
+                draw_calls: vec![],
+            };
+
+            // Call the `render` function in the script, if it exists.
+            let result = vm.call(["load"], (&mut api,));
+
+            // We ignore "missing function" errors to make the hook optional.
+            if let Err(e) = result {
+                return Err(e);
+            }
+
+            for (x, y, text) in api.draw_calls {
+                render!(window, (x, y) => [ text ]);
+            }
+
+            for command in api.commands.into_iter() {
+                commands.add(command);
+            }
+        }
+        Ok(())
+    }
 }
 
 /// A stategine system to run plugin render hooks each frame.
@@ -156,6 +203,17 @@ pub fn run_plugin_render_hooks(
     mut commands: ResMut<Commands>,
 ) {
     if let Err(e) = manager.run_render_hooks(&mut window, &mut commands) {
+        tracing::error!("Rune VM Error: {}", e);
+    }
+}
+
+/// A stategine system to run plugin render hooks each frame.
+pub fn run_plugin_load_hooks(
+    manager: Res<PluginManager>,
+    mut window: ResMut<Window>,
+    mut commands: ResMut<Commands>,
+) {
+    if let Err(e) = manager.run_load_hooks(&mut window, &mut commands) {
         tracing::error!("Rune VM Error: {}", e);
     }
 }

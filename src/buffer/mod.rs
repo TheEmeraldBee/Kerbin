@@ -235,7 +235,6 @@ impl TextBuffer {
 impl Render for TextBuffer {
     fn render(&self, mut loc: Vec2, buffer: &mut Buffer) -> Vec2 {
         let lines = &self.lines;
-        let mut cursor_pos = self.cursor_pos;
 
         loc.y += 1;
         for (_i, line) in lines.iter().enumerate() {

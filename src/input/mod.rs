@@ -10,6 +10,7 @@ pub enum InputResult {
     Complete,
 }
 
+#[derive(Clone, Debug)]
 pub struct Input {
     /// The modes that this input is valid in
     /// This can be any mode, but the built in modes are 'n' (the default "normal" mode) and 'i' (insert)

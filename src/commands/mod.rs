@@ -1,8 +1,12 @@
+use std::str::FromStr;
+
+use crokey::KeyCombination;
+use rune::FromValue;
 use stategine::prelude::Command;
 
-use crate::{Running, buffer::Buffers, mode::Mode};
+use crate::{Running, buffer::Buffers, input::InputConfig, mode::Mode};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, FromValue)]
 #[allow(unused)]
 pub enum EditorCommand {
     MoveCursor(i16, i16),
@@ -18,6 +22,8 @@ pub enum EditorCommand {
     WriteFile(Option<String>),
     OpenFile(String),
     Quit,
+
+    RegisterKeybinding(Vec<char>, Vec<String>, Vec<EditorCommand>, String),
 
     // History commands
     StartChangeGroup,
@@ -84,7 +90,25 @@ impl Command for EditorCommand {
                 engine.get_state_mut::<Running>().0 = false;
             }
 
-            // History command implementations
+            EditorCommand::RegisterKeybinding(modes, sequence, commands, desc) => {
+                let mut key_sequence = vec![];
+                for key in &sequence {
+                    key_sequence.push(match KeyCombination::from_str(key) {
+                        Ok(t) => t,
+                        Err(e) => {
+                            tracing::error!("Failed to add keybinding due to: {e}");
+                            return;
+                        }
+                    })
+                }
+                engine.get_state_mut::<InputConfig>().register_input(
+                    modes,
+                    key_sequence,
+                    commands,
+                    desc,
+                )
+            }
+
             EditorCommand::StartChangeGroup => engine
                 .get_state_mut::<Buffers>()
                 .cur_buffer_mut()

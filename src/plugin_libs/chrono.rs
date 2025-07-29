@@ -1,13 +1,10 @@
-#![allow(unused_variables)]
-
-use chrono::{Datelike, Duration, Timelike};
+use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime, Timelike, Utc};
 use rune::*;
 
 /// Represents a timezone-aware date and time in the local timezone.
-#[derive(Debug, Clone, Copy, Any)]
-#[rune(item = ::chrono)]
+#[derive(Any, Clone, Debug)]
 pub struct DateTimeLocal {
-    inner: chrono::DateTime<chrono::Local>,
+    inner: chrono::DateTime<Local>,
 }
 
 impl DateTimeLocal {
@@ -15,7 +12,7 @@ impl DateTimeLocal {
     #[rune::function(keep, path = Self::now)]
     pub fn now() -> Self {
         Self {
-            inner: chrono::Local::now(),
+            inner: Local::now(),
         }
     }
 
@@ -79,16 +76,9 @@ impl DateTimeLocal {
 }
 
 /// Represents a duration of time.
-#[derive(Debug, Clone, Copy, Any)]
-#[rune(item = ::chrono)]
+#[derive(Clone, Debug, Any)]
 pub struct DurationWrap {
     inner: Duration,
-}
-
-impl From<Duration> for DurationWrap {
-    fn from(inner: Duration) -> Self {
-        Self { inner }
-    }
 }
 
 impl DurationWrap {

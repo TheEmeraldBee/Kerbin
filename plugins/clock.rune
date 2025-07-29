@@ -1,8 +1,0 @@
-// Every plugin can optionally define a `render` function.
-// This function will be called on every frame.
-// The `api` object gives access to editor functions.
-pub fn render(api) {
-    let cur_time = chrono::DateTimeLocal::now(); 
-    let time_str = cur_time.format("%H:%M:%S");
-    api.draw_text(50, 1, time_str);
-}

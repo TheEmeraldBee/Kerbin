@@ -10,33 +10,10 @@ use crokey::{
     },
     key,
 };
-use derive_more::{Deref, DerefMut};
 use stategine::{prelude::*, system::into_system::IntoSystem};
 use tracing::Level;
 
-mod buffer;
-use buffer::*;
-
-mod commands;
-use commands::*;
-
-mod input;
-use input::*;
-
-mod key_check;
-
-mod buffer_extensions;
-
-mod plugin_manager;
-use plugin_manager::*;
-
-mod plugin_libs;
-
-mod mode;
-use mode::*;
-
-mod command_palette;
-use command_palette::*;
+use zellix::*;
 
 fn update_window(mut window: ResMut<Window>) {
     window.update(Duration::from_millis(10)).unwrap();
@@ -59,9 +36,6 @@ fn render_cursor(mut window: ResMut<Window>, mut buffers: ResMut<Buffers>, mode:
     )
     .unwrap();
 }
-
-#[derive(Deref, DerefMut)]
-struct Running(bool);
 
 fn main() {
     let log_file = File::options()
@@ -96,7 +70,6 @@ fn main() {
     // Command Palette
     input_config.register_input(
         ['n'],
-        // The ':' key is Shift + Semicolon on most US layouts
         [key!(':')],
         [EditorCommand::ChangeMode('c')],
         "Command Palette",
@@ -272,8 +245,13 @@ fn main() {
         run_plugin_render_hooks,
     ));
 
+    // Run load scripts on all plugins
+    engine.oneshot_system(run_plugin_load_hooks.into_system());
+
     while engine.get_state_mut::<Running>().0 == true {
         engine.update();
+
+        // These are updated seperately because they want commands to be applied
         engine.oneshot_system(update_window.into_system());
         engine.oneshot_system(render_cursor.into_system());
     }
