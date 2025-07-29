@@ -1,12 +1,9 @@
 use stategine::prelude::Command;
 
-use crate::{
-    Running,
-    buffer::{Buffers, TextBuffer},
-    mode::Mode,
-};
+use crate::{Running, buffer::Buffers, mode::Mode};
 
 #[derive(Clone, Debug)]
+#[allow(unused)]
 pub enum EditorCommand {
     MoveCursor(i16, i16),
     ChangeMode(char),
@@ -16,6 +13,7 @@ pub enum EditorCommand {
     CreateLine(i16),
     DeleteLine(i16),
     CloseCurrentBuffer,
+    CloseBuffer(usize),
     ChangeBuffer(isize),
     WriteFile(Option<String>),
     OpenFile(String),
@@ -68,6 +66,9 @@ impl Command for EditorCommand {
             }
             EditorCommand::CloseCurrentBuffer => {
                 engine.get_state_mut::<Buffers>().close_current_buffer();
+            }
+            EditorCommand::CloseBuffer(idx) => {
+                engine.get_state_mut::<Buffers>().close_buffer(idx);
             }
             EditorCommand::ChangeBuffer(dist) => {
                 engine.get_state_mut::<Buffers>().change_buffer(dist);

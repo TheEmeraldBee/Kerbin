@@ -137,6 +137,10 @@ impl TextBuffer {
     }
 
     pub fn write_file(&mut self, path: Option<impl ToString>) {
+        if self.path == "<scratch>" {
+            tracing::warn!("unable to save scratch files!");
+        }
+
         if let Some(new_path) = path {
             self.path = new_path.to_string();
         }
@@ -244,17 +248,6 @@ impl Render for TextBuffer {
             ]);
             loc.y += 1;
         }
-
-        cursor_pos.y += 1;
-
-        let style = buffer.get_mut(cursor_pos).style_mut();
-        *style = style
-            .on(Color::Rgb {
-                r: 245,
-                g: 224,
-                b: 220,
-            })
-            .black();
 
         loc
     }

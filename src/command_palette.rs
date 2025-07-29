@@ -1,7 +1,7 @@
-use crate::{commands::EditorCommand, mode::Mode};
+use crate::{buffer_extensions::BufferExtension, commands::EditorCommand, mode::Mode};
 use ascii_forge::prelude::*;
 use stategine::prelude::*;
-use std::{isize, str::SplitWhitespace};
+use std::str::SplitWhitespace;
 
 /// A descriptor for a command that can be executed from the palette.
 struct CommandInfo {
@@ -74,6 +74,9 @@ impl CommandPaletteState {
                 } else {
                     Err("open command requires a path".to_string())
                 }
+            }),
+            CommandInfo::new(["lo", "log-open"], |mut _args| {
+                Ok(vec![EditorCommand::OpenFile("zellix.log".to_string())])
             }),
             CommandInfo::new(["c", "close"], |mut _args| {
                 Ok(vec![EditorCommand::CloseCurrentBuffer])
@@ -186,5 +189,12 @@ pub fn render_command_palette(
     for i in 0..suggestion_count {
         let y = bottom_y.saturating_sub(suggestion_count as u16) + i as u16;
         render!(window, (2, y) => [palette.suggestions[i]]);
+        window.buffer_mut().style_line(y, |s| {
+            s.on(Color::Rgb {
+                r: 30,
+                g: 30,
+                b: 46,
+            })
+        })
     }
 }
