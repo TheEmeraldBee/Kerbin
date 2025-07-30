@@ -1,23 +1,2 @@
-2025-07-29T18:21:34.157761Z  WARN zellix::buffer: unable to save scratch files!
-2025-07-29T18:21:34.470064Z  WARN zellix::buffer: unable to save scratch files!
-2025-07-29T18:21:34.736514Z  WARN zellix::buffer: unable to save scratch files!
-2025-07-29T18:21:34.996635Z  WARN zellix::buffer: unable to save scratch files!
-2025-07-29T18:21:53.025251Z  WARN zellix::buffer: unable to save scratch files!
-2025-07-29T18:21:53.317017Z  WARN zellix::buffer: unable to save scratch files!
-2025-07-29T18:21:53.587490Z  WARN zellix::buffer: unable to save scratch files!
-2025-07-29T18:21:55.547068Z  WARN zellix::buffer: unable to save scratch files!
-2025-07-29T18:21:55.797983Z  WARN zellix::buffer: unable to save scratch files!
-2025-07-29T18:21:56.021680Z  WARN zellix::buffer: unable to save scratch files!
-2025-07-29T18:21:59.330789Z  WARN zellix::buffer: unable to save scratch files!
-2025-07-29T18:21:59.563689Z  WARN zellix::buffer: unable to save scratch files!
-2025-07-29T18:21:59.803455Z  WARN zellix::buffer: unable to save scratch files!
-2025-07-29T19:07:35.941197Z ERROR zellix::plugin_manager: Rune VM Error: Missing entry `load` with hash `0x469249ad681771ca`
-2025-07-29T19:10:27.002207Z ERROR zellix::plugin_manager: Unsupported field access
-2025-07-29T19:13:36.697441Z ERROR zellix::plugin_manager: Missing item MoveCursor
-2025-07-29T19:23:21.741171Z ERROR zellix::plugin_manager: Missing item RegisterKeybinding
-2025-07-29T19:27:12.660295Z ERROR zellix::commands: Failed to add keybinding due to: "shiftjo" can't be parsed as a key
-2025-07-29T19:27:25.866017Z ERROR zellix::plugin_manager: Wrong number of arguments 1, expected 2
-2025-07-29T19:27:33.851391Z ERROR zellix::plugin_manager: Wrong number of arguments 1, expected 2
-2025-07-29T21:15:27.275304Z ERROR zellix::plugin_manager: Rune VM Error: Missing entry `load` with hash `0x469249ad681771ca`
-2025-07-29T21:15:37.770405Z ERROR zellix::plugin_manager: Rune VM Error: Missing entry `load` with hash `0x469249ad681771ca`
-2025-07-29T21:30:30.275642Z ERROR zellix::plugin_manager: Rune VM Error: Missing entry `load` with hash `0x469249ad681771ca`
+2025-07-30T03:16:17.460226Z  WARN zellix::buffer: unable to save scratch files!
+2025-07-30T03:16:42.634972Z  WARN zellix::buffer: unable to save scratch files!

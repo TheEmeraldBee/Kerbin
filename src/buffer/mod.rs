@@ -139,6 +139,7 @@ impl TextBuffer {
     pub fn write_file(&mut self, path: Option<impl ToString>) {
         if self.path == "<scratch>" {
             tracing::warn!("unable to save scratch files!");
+            return;
         }
 
         if let Some(new_path) = path {

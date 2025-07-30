@@ -1,0 +1,176 @@
+pub enum EditorCommand {
+    MoveCursor(x, y),
+    ChangeMode(mode),
+    InsertChar(char),
+    DeleteChars(offset, count),
+    InsertLine(offset),
+    CreateLine(offset),
+    DeleteLine(offset),
+    CloseCurrentBuffer,
+    CloseBuffer(idx),
+    ChangeBuffer(offset),
+    WriteFile(path),
+    OpenFile(path),
+    Quit,
+
+    RegisterKeybinding(valid_modes, keys, commands, desc),
+
+    // History commands
+    StartChangeGroup,
+    CommitChangeGroup,
+    Undo,
+    Redo,
+}
+
+pub fn load(api) {
+    api.command(
+        EditorCommand::RegisterKeybinding([], ["h"], [EditorCommand::MoveCursor(-1, 0)], "Move Left"),
+    );
+    api.command(
+        EditorCommand::RegisterKeybinding([], ["j"], [EditorCommand::MoveCursor(0, 1)], "Move Down"),
+    );
+    api.command(
+        EditorCommand::RegisterKeybinding([], ["k"], [EditorCommand::MoveCursor(0, -1)], "Move Up"),
+    );
+    api.command(
+        EditorCommand::RegisterKeybinding([], ["l"], [EditorCommand::MoveCursor(1, 0)], "Move Right"),
+    );
+
+    api.command(
+        EditorCommand::RegisterKeybinding(
+            [],
+            ["d"],
+            [
+                EditorCommand::StartChangeGroup,
+                EditorCommand::DeleteChars(0, 1),
+                EditorCommand::CommitChangeGroup,
+            ],
+            "Delete",
+        ),
+    );
+
+    api.command(
+        EditorCommand::RegisterKeybinding(
+            [],
+            ["d"],
+            [
+                EditorCommand::StartChangeGroup,
+                EditorCommand::DeleteChars(0, std::u64::MAX),
+                EditorCommand::CommitChangeGroup,
+            ],
+            "Delete",
+        ),
+    );
+
+    // Insert Mode Bindings
+    api.command(
+        EditorCommand::RegisterKeybinding(
+            ['i'],
+            ["backspace"],
+            [EditorCommand::DeleteChars(-1, 1), EditorCommand::MoveCursor(-1, 0)],
+            "Delete back",
+        ),
+    );
+    api.command(
+        EditorCommand::RegisterKeybinding(
+            ['i'],
+            ["enter"],
+            [EditorCommand::InsertLine(0), EditorCommand::MoveCursor(-32000, 1)],
+            "New line",
+        ),
+    );
+
+    // File Commands
+    api.command(
+        EditorCommand::RegisterKeybinding([], [";", "w"], [EditorCommand::WriteFile(None)], "Write File"),
+    );
+
+    // Mode Switching
+    api.command(
+        EditorCommand::RegisterKeybinding(
+            ['n'],
+            ["i"],
+            [EditorCommand::StartChangeGroup, EditorCommand::ChangeMode('i')],
+            "Insert Mode",
+        ),
+    );
+    api.command(
+        EditorCommand::RegisterKeybinding(
+            [],
+            ["esc"],
+            [EditorCommand::CommitChangeGroup, EditorCommand::ChangeMode('n')],
+            "Exit to normal mode",
+        ),
+    );
+
+    // Buffer management
+    api.command(
+        EditorCommand::RegisterKeybinding(['n'], [";", "q"], [EditorCommand::CloseCurrentBuffer], "Close buffer"),
+    );
+    api.command(
+        EditorCommand::RegisterKeybinding(['n'], [";", "shift-q"], [EditorCommand::Quit], "Quit"),
+    );
+    api.command(
+        EditorCommand::RegisterKeybinding([], ["g", "n"], [EditorCommand::ChangeBuffer(1)], "Goto next buffer"),
+    );
+    api.command(
+        EditorCommand::RegisterKeybinding([], ["g", "p"], [EditorCommand::ChangeBuffer(-1)], "Goto prev buffer"),
+    );
+
+    // Quick actions
+    api.command(
+        EditorCommand::RegisterKeybinding([], ["g", "h"], [EditorCommand::MoveCursor(-32000, 0)], "Goto end of line"),
+    );
+    api.command(
+        EditorCommand::RegisterKeybinding([], ["g", "l"], [EditorCommand::MoveCursor(32000, 0)], "Goto beginning of line"),
+    );
+
+    api.command(
+        EditorCommand::RegisterKeybinding(
+            [],
+            ["shift-x"],
+            [
+                EditorCommand::StartChangeGroup,
+                EditorCommand::DeleteLine(0),
+                EditorCommand::CommitChangeGroup,
+            ],
+            "Delete Current Line",
+        ),
+    );
+
+    // History
+    api.command(EditorCommand::RegisterKeybinding([], ["u"], [EditorCommand::Undo], "Undo"));
+    api.command(EditorCommand::RegisterKeybinding([], ["shift-u"], [EditorCommand::Redo], "Redo"));
+
+    api.command(
+        EditorCommand::RegisterKeybinding(
+            ['n'],
+            ["o"],
+            [
+                EditorCommand::StartChangeGroup,
+                EditorCommand::CreateLine(1),
+                EditorCommand::MoveCursor(0, 1),
+                EditorCommand::ChangeMode('i'),
+            ],
+            "Edit on new line",
+        ),
+    );
+    api.command(
+        EditorCommand::RegisterKeybinding(
+            ['n'],
+            ["shift-o"],
+            [
+                EditorCommand::StartChangeGroup,
+                EditorCommand::CreateLine(0),
+                EditorCommand::MoveCursor(0, 0),
+                EditorCommand::ChangeMode('i'),
+            ],
+            "Edit on new line",
+        ),
+    );
+
+    api.command(EditorCommand::OpenFile("hello.txt"));
+}
+
+pub fn render(api) {
+}
