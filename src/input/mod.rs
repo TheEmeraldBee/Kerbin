@@ -84,7 +84,7 @@ impl InputConfig {
         let desc = desc.to_string();
 
         if desc.len() > MAX_DESC_LEN {
-            panic!("Description `{}` is too long", desc);
+            panic!("Description `{desc}` is too long");
         }
 
         self.inputs.push(Input {
@@ -201,10 +201,8 @@ pub fn handle_inputs(
             }
             InputResult::Complete => {
                 completed_input = true;
-                input_config.inputs[*idx].add_commands(
-                    &mut commands,
-                    usize::from_str_radix(&repeat_count, 10).unwrap_or(1),
-                );
+                input_config.inputs[*idx]
+                    .add_commands(&mut commands, repeat_count.parse().unwrap_or(1));
                 false
             }
         }
@@ -227,17 +225,14 @@ pub fn handle_inputs(
         match check.step(&window, &mut combiner, mode.0, 0) {
             InputResult::Step => input.active_inputs.push((i, 1)),
             InputResult::Complete => {
-                check.add_commands(
-                    &mut commands,
-                    usize::from_str_radix(&input.repeat_count, 10).unwrap_or(1),
-                );
+                check.add_commands(&mut commands, repeat_count.parse().unwrap_or(1));
                 break;
             }
             InputResult::Failed => {}
         }
     }
 
-    if input.active_inputs.len() == 0 {
+    if input.active_inputs.is_empty() {
         input.repeat_count = "".to_string();
     }
 }

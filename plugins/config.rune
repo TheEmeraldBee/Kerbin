@@ -14,6 +14,9 @@ pub enum EditorCommand {
     Quit,
 
     RegisterKeybinding(valid_modes, keys, commands, desc),
+    RegisterLanguageExt(ext, lang),
+
+    Scroll(dist),
 
     // History commands
     StartChangeGroup,
@@ -23,6 +26,30 @@ pub enum EditorCommand {
 }
 
 pub fn load(api) {
+
+    // Register all languages and their extensions
+
+    // Rust
+    api.command(EditorCommand::RegisterLanguageExt("rs", "rust"));
+
+    // Python
+    api.command(EditorCommand::RegisterLanguageExt("py", "python"));
+
+    // Rune
+    api.command(EditorCommand::RegisterLanguageExt("rn", "rune"));
+    api.command(EditorCommand::RegisterLanguageExt("rune", "rune"));
+
+    
+    // ----------- //
+    // Keybindings //
+    // ----------- //
+
+
+    // Scrolling
+    api.command(EditorCommand::RegisterKeybinding([], ["ctrl-u"], [EditorCommand::MoveCursor(0, -5), EditorCommand::Scroll(-5)], "Scroll Up"));
+    api.command(EditorCommand::RegisterKeybinding([], ["ctrl-d"], [EditorCommand::MoveCursor(0, 5), EditorCommand::Scroll(5)], "Scroll Down"));
+
+    // General Movement
     api.command(
         EditorCommand::RegisterKeybinding([], ["h"], [EditorCommand::MoveCursor(-1, 0)], "Move Left"),
     );
@@ -169,7 +196,7 @@ pub fn load(api) {
         ),
     );
 
-    api.command(EditorCommand::OpenFile("hello.txt"));
+    api.command(EditorCommand::OpenFile("src/main.rs"));
 }
 
 pub fn render(api) {

@@ -1,3 +1,10 @@
+#[macro_export]
+macro_rules! term_print {
+    ($format:expr $(,$args:expr)* $(,)?) => {
+        crokey::crossterm::execute!(std::io::stdout(), crokey::crossterm::cursor::MoveTo(50, 10), crokey::crossterm::style::Print(format!($format, $($args)*))).unwrap()
+    };
+}
+
 pub mod buffer;
 pub use buffer::*;
 
@@ -22,6 +29,12 @@ pub use mode::*;
 
 pub mod command_palette;
 pub use command_palette::*;
+
+pub mod grammar;
+pub use grammar::*;
+
+pub mod highlight;
+pub use highlight::*;
 
 #[derive(Deref, DerefMut)]
 pub struct Running(pub bool);

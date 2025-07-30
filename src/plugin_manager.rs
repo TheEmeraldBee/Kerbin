@@ -144,12 +144,7 @@ impl PluginManager {
             };
 
             // Call the `render` function in the script, if it exists.
-            let result = vm.call(["render"], (&mut api,));
-
-            // We ignore "missing function" errors to make the hook optional.
-            if let Err(e) = result {
-                return Err(e);
-            }
+            vm.call(["render"], (&mut api,))?;
 
             for (x, y, text) in api.draw_calls {
                 render!(window, (x, y) => [ text ]);
@@ -177,12 +172,7 @@ impl PluginManager {
             };
 
             // Call the `render` function in the script, if it exists.
-            let result = vm.call(["load"], (&mut api,));
-
-            // We ignore "missing function" errors to make the hook optional.
-            if let Err(e) = result {
-                return Err(e);
-            }
+            vm.call(["load"], (&mut api,))?;
 
             for (x, y, text) in api.draw_calls {
                 render!(window, (x, y) => [ text ]);

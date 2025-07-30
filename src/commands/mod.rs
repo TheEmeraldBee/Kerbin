@@ -4,7 +4,10 @@ use crokey::KeyCombination;
 use rune::FromValue;
 use stategine::prelude::Command;
 
-use crate::{Running, buffer::Buffers, input::InputConfig, mode::Mode};
+use crate::{
+    GrammarManager, HighlightConfiguration, Running, buffer::Buffers, input::InputConfig,
+    mode::Mode,
+};
 
 #[derive(Clone, Debug, FromValue)]
 #[allow(unused)]
@@ -24,6 +27,10 @@ pub enum EditorCommand {
     Quit,
 
     RegisterKeybinding(Vec<char>, Vec<String>, Vec<EditorCommand>, String),
+
+    RegisterLanguageExt(String, String),
+
+    Scroll(isize),
 
     // History commands
     StartChangeGroup,
@@ -85,7 +92,14 @@ impl Command for EditorCommand {
                     .cur_buffer_mut()
                     .write_file(path);
             }
-            EditorCommand::OpenFile(path) => engine.get_state_mut::<Buffers>().open(path),
+            EditorCommand::OpenFile(path) => {
+                let mut grammar = engine.get_state_mut::<GrammarManager>();
+                let hl_config = engine.get_state::<HighlightConfiguration>();
+
+                engine
+                    .get_state_mut::<Buffers>()
+                    .open(path, &mut grammar, &hl_config)
+            }
             EditorCommand::Quit => {
                 engine.get_state_mut::<Running>().0 = false;
             }
@@ -108,6 +122,17 @@ impl Command for EditorCommand {
                     desc,
                 )
             }
+
+            EditorCommand::RegisterLanguageExt(ext, lang) => {
+                engine
+                    .get_state_mut::<GrammarManager>()
+                    .register_extension(ext, lang);
+            }
+
+            EditorCommand::Scroll(dist) => engine
+                .get_state_mut::<Buffers>()
+                .cur_buffer_mut()
+                .scroll_lines(dist),
 
             EditorCommand::StartChangeGroup => engine
                 .get_state_mut::<Buffers>()

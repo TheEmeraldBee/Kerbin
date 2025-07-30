@@ -20,8 +20,7 @@ impl CommandInfo {
             valid_names: valid_names
                 .into_iter()
                 .map(|x| x.to_string())
-                .collect::<Vec<String>>()
-                .into(),
+                .collect::<Vec<String>>(),
             parser,
         }
     }
@@ -39,7 +38,7 @@ impl CommandInfo {
                     .unwrap_or_default()
             )
         } else {
-            format!("{}", self.valid_names[0])
+            self.valid_names[0].to_string()
         }
     }
 }
@@ -51,6 +50,12 @@ pub struct CommandPaletteState {
     pub suggestions: Vec<String>,
     /// The master list of all available commands.
     commands: Vec<CommandInfo>,
+}
+
+impl Default for CommandPaletteState {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CommandPaletteState {
@@ -108,7 +113,7 @@ impl CommandPaletteState {
 
     /// Parses and executes the current input string.
     fn execute(&self, commands: &mut Commands) {
-        let mut parts = self.input.trim().split_whitespace();
+        let mut parts = self.input.split_whitespace();
         if let Some(cmd_name) = parts.next() {
             if let Some(command_info) = self
                 .commands
@@ -143,8 +148,8 @@ pub fn handle_command_palette_input(
 
     let mut executed = false;
     for event in window.events() {
-        match event {
-            Event::Key(key) => match key.code {
+        if let Event::Key(key) = event {
+            match key.code {
                 KeyCode::Char(c) => palette.input.push(c),
                 KeyCode::Backspace => {
                     palette.input.pop();
@@ -155,8 +160,7 @@ pub fn handle_command_palette_input(
                 }
                 KeyCode::Esc => executed = true,
                 _ => {}
-            },
-            _ => {}
+            }
         }
     }
 

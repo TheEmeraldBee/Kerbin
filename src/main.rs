@@ -1,11 +1,11 @@
-use std::{fs::File, sync::Mutex, time::Duration, usize};
+use std::{fs::File, sync::Mutex, time::Duration};
 
 use ascii_forge::prelude::*;
 
 use crokey::{
     Combiner,
     crossterm::{
-        cursor::{MoveTo, SetCursorStyle, Show},
+        cursor::{Hide, MoveTo, SetCursorStyle, Show},
         *,
     },
     key,
@@ -21,7 +21,23 @@ fn update_window(mut window: ResMut<Window>) {
 
 fn render_cursor(mut window: ResMut<Window>, mut buffers: ResMut<Buffers>, mode: Res<Mode>) {
     let mut cursor_pos = buffers.cur_buffer_mut().cursor_pos;
+    let scroll = buffers.cur_buffer_mut().scroll;
+
+    if scroll as u16 > cursor_pos.y {
+        execute!(window.io(), Hide).unwrap();
+        return;
+    }
+
     cursor_pos.y += 1;
+
+    cursor_pos.y = cursor_pos
+        .y
+        .saturating_sub(buffers.cur_buffer_mut().scroll as u16);
+
+    if cursor_pos.y > window.size().y {
+        execute!(window.io(), Hide).unwrap();
+        return;
+    }
 
     let cursor_style = match mode.0 {
         'i' => SetCursorStyle::SteadyBar,
@@ -41,7 +57,6 @@ fn main() {
     let log_file = File::options()
         .create(true)
         .append(true)
-        .write(true)
         .open("zellix.log")
         .expect("file should be able to open");
 
@@ -75,6 +90,9 @@ fn main() {
         "Command Palette",
     );
 
+    let grammar_manager = GrammarManager::new();
+    let hl_config = HighlightConfiguration::default();
+
     let mut plugin_manager = PluginManager::new().expect("Failed to create plugin manager");
     plugin_manager
         .load_plugins()
@@ -90,11 +108,15 @@ fn main() {
         plugin_manager,
     ));
 
+    // Add grammar and highlighting configs to the engine
+    engine.states((grammar_manager, hl_config));
+
+    engine.systems((handle_inputs, handle_command_palette_input));
+
     engine.systems((
-        handle_inputs,
+        update_highlights,
         render_buffers,
         render_help_menu,
-        handle_command_palette_input,
         render_command_palette,
         run_plugin_render_hooks,
     ));
@@ -102,13 +124,15 @@ fn main() {
     // Run load scripts on all plugins
     engine.oneshot_system(run_plugin_load_hooks.into_system());
 
-    while engine.get_state_mut::<Running>().0 == true {
+    while engine.get_state_mut::<Running>().0 {
         engine.update();
 
         // These are updated seperately because they want commands to be applied
+        engine.oneshot_system(update_buffer.into_system());
         engine.oneshot_system(update_window.into_system());
         engine.oneshot_system(render_cursor.into_system());
     }
 
     engine.get_state_mut::<Window>().restore().unwrap();
 }
+
