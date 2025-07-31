@@ -13,7 +13,7 @@ use crokey::{
 use stategine::{prelude::*, system::into_system::IntoSystem};
 use tracing::Level;
 
-use zellix::*;
+use zellix::{buffer_extensions::BufferExtension, *};
 
 fn update_window(mut window: ResMut<Window>) {
     window.update(Duration::from_millis(10)).unwrap();
@@ -43,6 +43,14 @@ fn render_cursor(mut window: ResMut<Window>, mut buffers: ResMut<Buffers>, mode:
         'i' => SetCursorStyle::SteadyBar,
         _ => SetCursorStyle::SteadyBlock,
     };
+
+    window.buffer_mut().style_line(cursor_pos.y, |s| {
+        s.on(Color::Rgb {
+            r: 40,
+            g: 40,
+            b: 56,
+        })
+    });
 
     execute!(
         window.io(),
@@ -105,12 +113,14 @@ fn main() {
         input_config,
         InputState::default(),
         CommandPaletteState::new(),
+        CommandStatus::default(),
         plugin_manager,
     ));
 
     // Add grammar and highlighting configs to the engine
     engine.states((grammar_manager, hl_config));
 
+    // Add input and command palette handling
     engine.systems((handle_inputs, handle_command_palette_input));
 
     engine.systems((
@@ -122,15 +132,15 @@ fn main() {
     ));
 
     // Run load scripts on all plugins
-    engine.oneshot_system(run_plugin_load_hooks.into_system());
+    engine.oneshot_system(run_plugin_update_hooks.into_system());
 
     while engine.get_state_mut::<Running>().0 {
         engine.update();
 
         // These are updated seperately because they want commands to be applied
         engine.oneshot_system(update_buffer.into_system());
-        engine.oneshot_system(update_window.into_system());
         engine.oneshot_system(render_cursor.into_system());
+        engine.oneshot_system(update_window.into_system());
     }
 
     engine.get_state_mut::<Window>().restore().unwrap();

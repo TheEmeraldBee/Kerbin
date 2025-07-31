@@ -1,32 +1,4 @@
-pub enum EditorCommand {
-    MoveCursor(x, y),
-    ChangeMode(mode),
-    InsertChar(char),
-    DeleteChars(offset, count),
-    InsertLine(offset),
-    CreateLine(offset),
-    DeleteLine(offset),
-    CloseCurrentBuffer,
-    CloseBuffer(idx),
-    ChangeBuffer(offset),
-    WriteFile(path),
-    OpenFile(path),
-    Quit,
-
-    RegisterKeybinding(valid_modes, keys, commands, desc),
-    RegisterLanguageExt(ext, lang),
-
-    Scroll(dist),
-
-    // History commands
-    StartChangeGroup,
-    CommitChangeGroup,
-    Undo,
-    Redo,
-}
-
-pub fn load(api){
-
+pub fn load(api) {
     // Register all languages and their extensions
 
     // Rust
@@ -44,8 +16,22 @@ pub fn load(api){
     // ----------- //
 
     // Scrolling
-    api.command(EditorCommand::RegisterKeybinding([], ["ctrl-u"], [EditorCommand::MoveCursor(0, -5), EditorCommand::Scroll(-5)], "Scroll Up"));
-    api.command(EditorCommand::RegisterKeybinding([], ["ctrl-d"], [EditorCommand::MoveCursor(0, 5), EditorCommand::Scroll(5)], "Scroll Down"));
+    api.command(
+        EditorCommand::RegisterKeybinding(
+            [],
+            ["ctrl-u"],
+            [EditorCommand::MoveCursor(0, -5), EditorCommand::Scroll(-5)],
+            "Scroll Up",
+        ),
+    );
+    api.command(
+        EditorCommand::RegisterKeybinding(
+            [],
+            ["ctrl-d"],
+            [EditorCommand::MoveCursor(0, 5), EditorCommand::Scroll(5)],
+            "Scroll Down",
+        ),
+    );
 
     // General Movement
     api.command(

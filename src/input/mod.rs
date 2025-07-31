@@ -10,19 +10,11 @@ pub enum InputResult {
     Complete,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Input {
-    /// The modes that this input is valid in
-    /// This can be any mode, but the built in modes are 'n' (the default "normal" mode) and 'i' (insert)
     pub valid_modes: Vec<char>,
-
-    /// The expected sequence of keys to be pressed
     pub key_sequence: Vec<KeyCombination>,
-
-    /// The commands to be executed (in order) after being pressed
     pub commands: Vec<EditorCommand>,
-
-    /// A Short description of what the command does (< 20 chars)
     pub description: String,
 }
 
@@ -46,14 +38,6 @@ impl Input {
             }
         } else {
             InputResult::Failed
-        }
-    }
-
-    pub fn add_commands(&self, commands: &mut Commands, repeat: usize) {
-        for _ in 0..repeat {
-            for command in &self.commands {
-                commands.add(command.clone());
-            }
         }
     }
 
@@ -130,12 +114,10 @@ pub fn handle_inputs(
     input_config: Res<InputConfig>,
     mode: Res<Mode>,
 ) {
-    // Defer all input handling to the command palette systems
     if mode.0 == 'c' {
         return;
     }
 
-    // First check on insert mode
     let mut consumed = false;
     if mode.0 == 'i' {
         for event in window.events() {
@@ -162,7 +144,6 @@ pub fn handle_inputs(
 
     let mut found_num = false;
 
-    // Check for numbers
     for event in window.events() {
         let Event::Key(KeyEvent {
             code: KeyCode::Char(ch),
@@ -180,7 +161,6 @@ pub fn handle_inputs(
         }
     }
 
-    // Number was typed, which is only used for repeating events
     if found_num {
         return;
     }
@@ -188,7 +168,7 @@ pub fn handle_inputs(
     let no_inputs = input.active_inputs.is_empty();
     let mut completed_input = false;
 
-    let repeat_count = input.repeat_count.clone();
+    let repeat_count = input.repeat_count.clone().parse().unwrap_or(1);
     input.active_inputs.retain_mut(|(idx, step)| {
         if completed_input {
             return false;
@@ -201,31 +181,45 @@ pub fn handle_inputs(
             }
             InputResult::Complete => {
                 completed_input = true;
-                input_config.inputs[*idx]
-                    .add_commands(&mut commands, repeat_count.parse().unwrap_or(1));
+                let cmds = &input_config.inputs[*idx].commands;
+                if repeat_count > 1 {
+                    commands.add(EditorCommand::Repeat(
+                        rune::alloc::Vec::<EditorCommand>::try_from(cmds.to_vec()).unwrap(),
+                        repeat_count,
+                    ));
+                } else {
+                    for command in cmds {
+                        commands.add(command.clone());
+                    }
+                }
                 false
             }
         }
     });
 
-    // Clear all inputs if input was valid
-    // Makes something like ';m' and ';mr' input collisions not valid
     if completed_input {
         input.active_inputs.clear();
     }
 
-    // There were inputs we were checking, so don't start another input
-    // Prevents something like ';m' and 'm' colliding when typing the 'm' key.
     if !no_inputs {
         return;
     }
 
-    // Iterate through each input and check the 0th step
     for (i, check) in input_config.inputs.iter().enumerate() {
         match check.step(&window, &mut combiner, mode.0, 0) {
             InputResult::Step => input.active_inputs.push((i, 1)),
             InputResult::Complete => {
-                check.add_commands(&mut commands, repeat_count.parse().unwrap_or(1));
+                if repeat_count > 1 {
+                    commands.add(EditorCommand::Repeat(
+                        rune::alloc::Vec::<EditorCommand>::try_from(check.commands.to_vec())
+                            .unwrap(),
+                        repeat_count,
+                    ));
+                } else {
+                    for command in &check.commands {
+                        commands.add(command.clone());
+                    }
+                }
                 break;
             }
             InputResult::Failed => {}

@@ -12,7 +12,6 @@ use tree_sitter::{InputEdit, Parser, Point, Query, Tree};
 pub mod action;
 use action::*;
 
-/// Converts a character-based column index to a byte-based one for a given string.
 fn char_to_byte_index(s: &str, char_index: usize) -> usize {
     s.char_indices()
         .nth(char_index)
@@ -33,7 +32,6 @@ pub struct TextBuffer {
 
     pub scroll: usize,
 
-    // Tree-sitter fields
     parser: Option<Parser>,
     tree: Option<Tree>,
 
@@ -85,7 +83,7 @@ impl TextBuffer {
                 let mut p = Parser::new();
                 p.set_language(&language).unwrap();
                 parser = Some(p);
-                query = Some(q.clone()); // Clone the query to store it.
+                query = Some(q.clone());
             }
         }
 
@@ -128,8 +126,7 @@ impl TextBuffer {
         }
     }
 
-    /// Executes an action, records its inverse for undo, and clears the redo stack.
-    pub fn action(&mut self, action: impl BufferAction) {
+    pub fn action(&mut self, action: impl BufferAction) -> bool {
         if self.current_change.is_none() {
             self.start_change_group();
         }
@@ -142,16 +139,17 @@ impl TextBuffer {
             }
             self.redo_stack.clear();
         }
+        success
     }
 
-    pub fn insert_char_at_cursor(&mut self, chr: char) {
+    pub fn insert_char_at_cursor(&mut self, chr: char) -> bool {
         self.action(Insert {
             pos: self.cursor_pos,
             content: chr.to_string(),
-        });
+        })
     }
 
-    pub fn remove_chars_relative(&mut self, offset: i16, mut count: usize) {
+    pub fn remove_chars_relative(&mut self, offset: i16, mut count: usize) -> bool {
         let mut pos = self.cursor_pos;
         let mut new_pos = pos.x as i16 + offset;
         if new_pos < 0 {
@@ -160,34 +158,33 @@ impl TextBuffer {
         }
         pos.x = new_pos as u16;
         if count == 0 {
-            // We've checked positions, and we aren't really deleting anything
-            return;
+            return true;
         }
-        self.action(Delete { pos, len: count });
+        self.action(Delete { pos, len: count })
     }
 
-    pub fn insert_newline_relative(&mut self, offset: i16) {
+    pub fn insert_newline_relative(&mut self, offset: i16) -> bool {
         let mut pos = self.cursor_pos;
         pos.x = pos.x.saturating_add_signed(offset);
-        self.action(InsertNewline { pos });
+        self.action(InsertNewline { pos })
     }
 
-    pub fn create_line(&mut self, offset: i16) {
+    pub fn create_line(&mut self, offset: i16) -> bool {
         let line_idx = (self.cursor_pos.y as i16 + offset) as usize;
         self.action(InsertLine {
             line_idx,
             content: String::new(),
-        });
+        })
     }
 
-    pub fn delete_line(&mut self, offset: i16) {
+    pub fn delete_line(&mut self, offset: i16) -> bool {
         let line_idx = (self.cursor_pos.y as i16 + offset) as usize;
-        self.action(DeleteLine { line_idx });
+        self.action(DeleteLine { line_idx })
     }
 
-    pub fn join_line_relative(&mut self, offset: i16) {
+    pub fn join_line_relative(&mut self, offset: i16) -> bool {
         let line_idx = (self.cursor_pos.y as i16 + offset) as usize;
-        self.action(JoinLine { line_idx });
+        self.action(JoinLine { line_idx })
     }
 
     pub fn start_change_group(&mut self) {
@@ -265,11 +262,16 @@ impl TextBuffer {
         }
     }
 
-    pub fn scroll_lines(&mut self, delta: isize) {
+    pub fn scroll_lines(&mut self, delta: isize) -> bool {
+        if delta == 0 {
+            return true;
+        }
+        let old_scroll = self.scroll;
         self.scroll = self
             .scroll
             .saturating_add_signed(delta)
             .clamp(0, self.lines.len().saturating_sub(1));
+        self.scroll != old_scroll
     }
 
     pub fn write_file(&mut self, path: Option<impl ToString>) {
@@ -296,7 +298,12 @@ impl TextBuffer {
         self.lines.get_mut(self.cursor_pos.y as usize)
     }
 
-    pub fn move_cursor(&mut self, x: i16, y: i16) {
+    pub fn move_cursor(&mut self, x: i16, y: i16) -> bool {
+        if x == 0 && y == 0 {
+            return true;
+        }
+        let old_pos = self.cursor_pos;
+
         self.cursor_pos.x = self.cursor_pos.x.saturating_add_signed(x);
         self.cursor_pos.y = self
             .cursor_pos
@@ -307,10 +314,9 @@ impl TextBuffer {
         let line_length = self.cur_line().len();
 
         self.cursor_pos.x = self.cursor_pos.x.clamp(0, line_length as u16);
+        self.cursor_pos != old_pos
     }
 }
-
-// In src/buffer/mod.rs, replace the existing Render impl
 
 impl Render for TextBuffer {
     fn render(&self, mut loc: Vec2, buffer: &mut Buffer) -> Vec2 {
@@ -381,6 +387,7 @@ impl Render for TextBuffer {
         loc
     }
 }
+
 /// A system that processes any pending changes in the active buffer
 /// to update its syntax highlighting.
 pub fn update_highlights(mut buffers: ResMut<Buffers>, hl_config: Res<HighlightConfiguration>) {

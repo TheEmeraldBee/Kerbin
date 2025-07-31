@@ -183,22 +183,25 @@ pub fn render_command_palette(
     }
 
     let size = window.size();
-    let bottom_y = size.y.saturating_sub(1);
-
-    // Render the input line
-    render!(window, (0, bottom_y) => [":", palette.input.as_str()]);
+    let bottom_y = size.y.saturating_sub(2);
 
     // Render suggestions above the input line
     let suggestion_count = palette.suggestions.len().min(5);
     for i in 0..suggestion_count {
         let y = bottom_y.saturating_sub(suggestion_count as u16) + i as u16;
+        // Clear the line's text
+        render!(window, (2, y) => [" ".repeat(window.size().x as usize / 2)]);
         render!(window, (2, y) => [palette.suggestions[i]]);
+
         window.buffer_mut().style_line(y, |s| {
             s.on(Color::Rgb {
-                r: 30,
-                g: 30,
-                b: 46,
+                r: 40,
+                g: 40,
+                b: 56,
             })
         })
     }
+
+    // Render the input line
+    render!(window, (0, window.size().y - 1) => [":", palette.input.as_str()]);
 }
