@@ -1,4 +1,4 @@
-use std::{io::ErrorKind, ops::Range, path::Path, sync::Arc};
+use std::{collections::BTreeMap, io::ErrorKind, path::Path, sync::Arc};
 
 mod buffers;
 pub use buffers::*;
@@ -39,7 +39,7 @@ pub struct TextBuffer {
 
     query: Option<Arc<Query>>,
 
-    highlights: Vec<(Range<usize>, ContentStyle)>,
+    highlights: BTreeMap<usize, ContentStyle>,
 
     tree_sitter_dirty: bool,
     tree_sitter_full_clean: bool,
@@ -61,7 +61,7 @@ impl TextBuffer {
             parser: None,
             tree: None,
             query: None,
-            highlights: vec![],
+            highlights: BTreeMap::new(),
 
             tree_sitter_dirty: false,
             tree_sitter_full_clean: false,
@@ -78,7 +78,7 @@ impl TextBuffer {
         let mut parser = None;
         let mut tree = None;
         let mut query = None;
-        let mut highlights = Vec::new();
+        let mut highlights = BTreeMap::new();
 
         if let Some(ext) = Path::new(&path_str).extension().and_then(|s| s.to_str()) {
             if let Some((language, q)) = grammar_manager.get_language_and_query_for_ext(ext) {
@@ -183,6 +183,11 @@ impl TextBuffer {
     pub fn delete_line(&mut self, offset: i16) {
         let line_idx = (self.cursor_pos.y as i16 + offset) as usize;
         self.action(DeleteLine { line_idx });
+    }
+
+    pub fn join_line_relative(&mut self, offset: i16) {
+        let line_idx = (self.cursor_pos.y as i16 + offset) as usize;
+        self.action(JoinLine { line_idx });
     }
 
     pub fn start_change_group(&mut self) {
@@ -305,8 +310,16 @@ impl TextBuffer {
     }
 }
 
+// In src/buffer/mod.rs, replace the existing Render impl
+
 impl Render for TextBuffer {
     fn render(&self, mut loc: Vec2, buffer: &mut Buffer) -> Vec2 {
+        let default_style = ContentStyle::new().with(Color::Rgb {
+            r: 205,
+            g: 214,
+            b: 244,
+        });
+
         let mut byte_offset: usize = self
             .lines
             .iter()
@@ -314,31 +327,51 @@ impl Render for TextBuffer {
             .map(|l| l.len() + 1)
             .sum();
 
-        for line in self.lines.iter().skip(self.scroll) {
-            let current_style = ContentStyle::new().with(Color::Rgb {
-                r: 205,
-                g: 214,
-                b: 244,
-            });
-            let mut last_byte = 0;
-
-            for (range, style) in &self.highlights {
-                if range.start > byte_offset + line.len() || range.end <= byte_offset {
-                    continue;
-                }
-
-                let start = range.start.saturating_sub(byte_offset);
-                let end = range.end.saturating_sub(byte_offset);
-
-                if start > last_byte {
-                    render!(buffer, loc + vec2(last_byte as u16, 0) => [StyledContent::new(current_style, &line[last_byte..start])]);
-                }
-                render!(buffer, loc + vec2(start as u16, 0) => [StyledContent::new(*style, &line[start..end.min(line.len())])]);
-                last_byte = end.min(line.len());
+        for (i, line) in self.lines.iter().enumerate().skip(self.scroll) {
+            let mut num_line = i.to_string();
+            if num_line.len() > 5 {
+                num_line = num_line[0..5].to_string();
+            }
+            if i == self.cursor_pos.y as usize {
+                num_line = format!(
+                    "{}{}",
+                    " ".repeat(4usize.saturating_sub(num_line.len())),
+                    num_line
+                );
+            } else {
+                num_line = format!(
+                    "{}{}",
+                    " ".repeat(5usize.saturating_sub(num_line.len())),
+                    num_line
+                );
             }
 
-            if last_byte < line.len() {
-                render!(buffer, loc + vec2(last_byte as u16, 0) => [StyledContent::new(current_style, &line[last_byte..])]);
+            render!(buffer, loc => [num_line]);
+
+            let mut current_style = self
+                .highlights
+                .range(..=byte_offset)
+                .next_back()
+                .map(|(_, style)| *style)
+                .unwrap_or(default_style);
+
+            for (current_char_col, (char_byte_idx, ch)) in (0u16..).zip(line.char_indices()) {
+                let absolute_char_byte_idx = byte_offset + char_byte_idx;
+
+                if let Some(new_style) = self.highlights.get(&absolute_char_byte_idx) {
+                    if new_style.foreground_color.is_none() {
+                        current_style = self
+                            .highlights
+                            .range(..=absolute_char_byte_idx)
+                            .next_back()
+                            .map(|(_, s)| *s)
+                            .unwrap_or(default_style);
+                    } else {
+                        current_style = *new_style;
+                    }
+                }
+
+                render!(buffer, loc + vec2(current_char_col + 6, 0) => [StyledContent::new(current_style, ch)]);
             }
 
             loc.y += 1;
@@ -348,7 +381,6 @@ impl Render for TextBuffer {
         loc
     }
 }
-
 /// A system that processes any pending changes in the active buffer
 /// to update its syntax highlighting.
 pub fn update_highlights(mut buffers: ResMut<Buffers>, hl_config: Res<HighlightConfiguration>) {

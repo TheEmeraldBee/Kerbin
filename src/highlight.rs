@@ -2,7 +2,7 @@ use ascii_forge::{
     prelude::Color,
     window::{ContentStyle, Stylize},
 };
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use tree_sitter::{Query, QueryCursor, StreamingIterator, Tree};
 
 /// Maps Tree-sitter capture names (e.g., "keyword") to a style.
@@ -80,8 +80,8 @@ pub fn highlight(
     tree: &Tree,
     query: &Query,
     config: &HighlightConfiguration,
-) -> Vec<(std::ops::Range<usize>, ContentStyle)> {
-    let mut highlights = Vec::new();
+) -> BTreeMap<usize, ContentStyle> {
+    let mut highlight_map = BTreeMap::new();
     let mut query_cursor = QueryCursor::new();
 
     let joined = text.join("\n");
@@ -91,15 +91,20 @@ pub fn highlight(
 
     while let Some(m) = matches.next() {
         for capture in m.captures {
-            // Get the capture name (e.g., "keyword") from the query.
             let capture_name = &query.capture_names()[capture.index as usize];
-            // Find the corresponding style in our config.
             #[allow(clippy::unnecessary_to_owned)]
             if let Some(style) = config.captures.get(&capture_name.to_string()) {
-                highlights.push((capture.node.byte_range(), *style));
+                let range = capture.node.byte_range();
+
+                // Only take the first style we find
+                highlight_map.entry(range.start).or_insert(*style);
+
+                highlight_map
+                    .entry(range.end)
+                    .or_insert(ContentStyle::default());
             }
         }
     }
 
-    highlights
+    highlight_map
 }

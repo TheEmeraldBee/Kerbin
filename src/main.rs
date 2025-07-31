@@ -46,7 +46,7 @@ fn render_cursor(mut window: ResMut<Window>, mut buffers: ResMut<Buffers>, mode:
 
     execute!(
         window.io(),
-        MoveTo(cursor_pos.x, cursor_pos.y),
+        MoveTo(cursor_pos.x + 6, cursor_pos.y),
         cursor_style,
         Show,
     )

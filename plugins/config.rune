@@ -25,7 +25,7 @@ pub enum EditorCommand {
     Redo,
 }
 
-pub fn load(api) {
+pub fn load(api){
 
     // Register all languages and their extensions
 
@@ -39,17 +39,28 @@ pub fn load(api) {
     api.command(EditorCommand::RegisterLanguageExt("rn", "rune"));
     api.command(EditorCommand::RegisterLanguageExt("rune", "rune"));
 
-    
     // ----------- //
     // Keybindings //
     // ----------- //
-
 
     // Scrolling
     api.command(EditorCommand::RegisterKeybinding([], ["ctrl-u"], [EditorCommand::MoveCursor(0, -5), EditorCommand::Scroll(-5)], "Scroll Up"));
     api.command(EditorCommand::RegisterKeybinding([], ["ctrl-d"], [EditorCommand::MoveCursor(0, 5), EditorCommand::Scroll(5)], "Scroll Down"));
 
     // General Movement
+    api.command(
+        EditorCommand::RegisterKeybinding([], ["left"], [EditorCommand::MoveCursor(-1, 0)], "Move Left"),
+    );
+    api.command(
+        EditorCommand::RegisterKeybinding([], ["down"], [EditorCommand::MoveCursor(0, 1)], "Move Down"),
+    );
+    api.command(
+        EditorCommand::RegisterKeybinding([], ["up"], [EditorCommand::MoveCursor(0, -1)], "Move Up"),
+    );
+    api.command(
+        EditorCommand::RegisterKeybinding([], ["left"], [EditorCommand::MoveCursor(1, 0)], "Move Right"),
+    );
+
     api.command(
         EditorCommand::RegisterKeybinding([], ["h"], [EditorCommand::MoveCursor(-1, 0)], "Move Left"),
     );

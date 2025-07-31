@@ -2,14 +2,9 @@ use crate::buffer::{TextBuffer, char_to_byte_index};
 use ascii_forge::prelude::*;
 use tree_sitter::{InputEdit, Point};
 
-/// Represents a single, reversible action on a TextBuffer.
 pub trait BufferAction {
-    /// Applies the action to the buffer and returns its inverse.
-    /// The boolean indicates success.
     fn apply(&self, buf: &mut TextBuffer) -> (bool, Box<dyn BufferAction>);
 }
-
-// --- Action Implementations ---
 
 #[derive(Clone)]
 pub struct Insert {
@@ -96,6 +91,56 @@ impl BufferAction for Delete {
 }
 
 #[derive(Clone)]
+pub struct JoinLine {
+    /// The index of the first line (the one that will be kept).
+    pub line_idx: usize,
+}
+
+impl BufferAction for JoinLine {
+    fn apply(&self, buf: &mut TextBuffer) -> (bool, Box<dyn BufferAction>) {
+        if self.line_idx + 1 >= buf.lines.len() {
+            return (false, Box::new(NoOp));
+        }
+
+        let line0_len_chars = buf.lines[self.line_idx].chars().count();
+        let line0_len_bytes = buf.lines[self.line_idx].len();
+        let line1_content = buf.lines[self.line_idx + 1].clone();
+        let line1_len_bytes = line1_content.len();
+
+        let start_pos = Point::new(self.line_idx, line0_len_bytes);
+        let start_byte = buf.get_byte_offset(start_pos);
+
+        let old_end_byte = start_byte + 1 + line1_len_bytes;
+        let old_end_pos = Point::new(self.line_idx + 1, line1_len_bytes);
+
+        let new_end_byte = start_byte + line1_len_bytes;
+        let new_end_pos = Point::new(self.line_idx, line0_len_bytes + line1_len_bytes);
+
+        buf.lines.remove(self.line_idx + 1);
+        buf.lines[self.line_idx].push_str(&line1_content);
+
+        buf.move_cursor(0, 0);
+
+        let edit = InputEdit {
+            start_byte,
+            old_end_byte,
+            new_end_byte,
+            start_position: start_pos,
+            old_end_position: old_end_pos,
+            new_end_position: new_end_pos,
+        };
+        buf.changes.push(edit);
+        buf.tree_sitter_dirty = true;
+
+        let inverse = Box::new(InsertNewline {
+            pos: vec2(line0_len_chars as u16, self.line_idx as u16),
+        });
+
+        (true, inverse)
+    }
+}
+
+#[derive(Clone)]
 pub struct InsertNewline {
     pub pos: Vec2,
 }
@@ -123,9 +168,7 @@ impl BufferAction for InsertNewline {
         buf.changes.push(edit);
         buf.tree_sitter_dirty = true;
 
-        let inverse = Box::new(DeleteLine {
-            line_idx: line_idx + 1,
-        });
+        let inverse = Box::new(JoinLine { line_idx });
         (true, inverse)
     }
 }
