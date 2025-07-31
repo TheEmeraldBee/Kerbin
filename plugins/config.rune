@@ -79,7 +79,7 @@ pub fn load(api) {
     api.command(
         EditorCommand::RegisterKeybinding(
             [],
-            ["d"],
+            ["shift-d"],
             [
                 EditorCommand::StartChangeGroup,
                 EditorCommand::DeleteChars(0, std::u64::MAX),

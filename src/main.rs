@@ -135,4 +135,3 @@ fn main() {
 
     engine.get_state_mut::<Window>().restore().unwrap();
 }
-

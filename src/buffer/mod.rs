@@ -9,6 +9,9 @@ use crate::*;
 use ascii_forge::prelude::*;
 use tree_sitter::{InputEdit, Parser, Point, Query, Tree};
 
+pub mod action;
+use action::*;
+
 /// Converts a character-based column index to a byte-based one for a given string.
 fn char_to_byte_index(s: &str, char_index: usize) -> usize {
     s.char_indices()
@@ -17,20 +20,8 @@ fn char_to_byte_index(s: &str, char_index: usize) -> usize {
         .unwrap_or(s.len())
 }
 
-#[derive(Clone)]
-pub enum UndoAction {
-    // To undo an insertion, we delete characters at a position.
-    DeleteChars(Vec2, usize),
-    // To undo a deletion, we insert characters at a position.
-    InsertChars(Vec2, String),
-    // To undo a line insertion, we delete the line.
-    DeleteLine(usize),
-    // To undo a line deletion, we re-insert it with its content.
-    InsertLine(usize, String),
-}
-
-#[derive(Default, Clone)]
-pub struct ChangeGroup(Vec<UndoAction>);
+#[derive(Default)]
+pub struct ChangeGroup(Vec<Box<dyn BufferAction>>);
 
 pub struct TextBuffer {
     pub lines: Vec<String>,
@@ -137,6 +128,101 @@ impl TextBuffer {
         }
     }
 
+    /// Executes an action, records its inverse for undo, and clears the redo stack.
+    pub fn action(&mut self, action: impl BufferAction) {
+        if self.current_change.is_none() {
+            self.start_change_group();
+        }
+
+        let (success, inverse) = action.apply(self);
+
+        if success {
+            if let Some(group) = self.current_change.as_mut() {
+                group.0.push(inverse);
+            }
+            self.redo_stack.clear();
+        }
+    }
+
+    pub fn insert_char_at_cursor(&mut self, chr: char) {
+        self.action(Insert {
+            pos: self.cursor_pos,
+            content: chr.to_string(),
+        });
+    }
+
+    pub fn remove_chars_relative(&mut self, offset: i16, mut count: usize) {
+        let mut pos = self.cursor_pos;
+        let mut new_pos = pos.x as i16 + offset;
+        if new_pos < 0 {
+            count = count.saturating_add_signed(new_pos as isize);
+            new_pos = 0;
+        }
+        pos.x = new_pos as u16;
+        if count == 0 {
+            // We've checked positions, and we aren't really deleting anything
+            return;
+        }
+        self.action(Delete { pos, len: count });
+    }
+
+    pub fn insert_newline_relative(&mut self, offset: i16) {
+        let mut pos = self.cursor_pos;
+        pos.x = pos.x.saturating_add_signed(offset);
+        self.action(InsertNewline { pos });
+    }
+
+    pub fn create_line(&mut self, offset: i16) {
+        let line_idx = (self.cursor_pos.y as i16 + offset) as usize;
+        self.action(InsertLine {
+            line_idx,
+            content: String::new(),
+        });
+    }
+
+    pub fn delete_line(&mut self, offset: i16) {
+        let line_idx = (self.cursor_pos.y as i16 + offset) as usize;
+        self.action(DeleteLine { line_idx });
+    }
+
+    pub fn start_change_group(&mut self) {
+        self.commit_change_group();
+        self.current_change = Some(ChangeGroup(Vec::new()));
+    }
+
+    pub fn commit_change_group(&mut self) {
+        if let Some(group) = self.current_change.take() {
+            if !group.0.is_empty() {
+                self.undo_stack.push(group);
+            }
+        }
+    }
+
+    pub fn undo(&mut self) {
+        self.commit_change_group();
+        if let Some(group) = self.undo_stack.pop() {
+            let mut redo_group = Vec::new();
+            for action in group.0.iter().rev() {
+                let (_, inverse) = action.apply(self);
+                redo_group.push(inverse);
+            }
+            redo_group.reverse();
+            self.redo_stack.push(ChangeGroup(redo_group));
+        }
+    }
+
+    pub fn redo(&mut self) {
+        if let Some(group) = self.redo_stack.pop() {
+            let mut undo_group = Vec::new();
+            for action in group.0.iter().rev() {
+                let (_, inverse) = action.apply(self);
+                undo_group.push(inverse);
+            }
+            undo_group.reverse();
+            self.undo_stack.push(ChangeGroup(undo_group));
+        }
+    }
+
     fn get_byte_offset(&self, point: Point) -> usize {
         self.lines[..point.row]
             .iter()
@@ -181,94 +267,6 @@ impl TextBuffer {
             .clamp(0, self.lines.len().saturating_sub(1));
     }
 
-    pub fn start_change_group(&mut self) {
-        self.commit_change_group();
-        self.current_change = Some(ChangeGroup::default());
-        self.redo_stack.clear();
-    }
-
-    pub fn commit_change_group(&mut self) {
-        if let Some(change) = self.current_change.take() {
-            if !change.0.is_empty() {
-                self.undo_stack.push(change);
-            }
-        }
-    }
-
-    pub fn undo(&mut self) {
-        // First, commit any pending changes from insert mode, etc.
-        self.commit_change_group();
-
-        if let Some(group) = self.undo_stack.pop() {
-            let mut redo_group = ChangeGroup::default();
-            // Apply the undo actions in reverse to correctly restore state.
-            for action in group.0.iter().rev() {
-                // apply_undo_action modifies the text and returns the inverse action.
-                let inverse_action = self.apply_undo_action(action);
-                redo_group.0.push(inverse_action);
-            }
-            // The actions to redo are the inverses, but in forward order.
-            self.redo_stack.push(redo_group);
-
-            // The tree is now in an arbitrary state. A full re-parse is required.
-            // We signal this by clearing incremental changes and setting the dirty flag.
-            self.changes.clear();
-            self.tree_sitter_full_clean = true;
-        }
-    }
-
-    pub fn redo(&mut self) {
-        if let Some(group) = self.redo_stack.pop() {
-            let mut undo_group = ChangeGroup::default();
-            // Apply the redo actions in reverse.
-            for action in group.0.iter().rev() {
-                let inverse_action = self.apply_undo_action(action);
-                undo_group.0.push(inverse_action);
-            }
-            // The actions to undo the redo are the inverses, in forward order.
-            self.undo_stack.push(undo_group);
-
-            // The tree is dirty, signal a full re-parse.
-            self.changes.clear();
-            self.tree_sitter_full_clean = true;
-        }
-    }
-
-    // Applies an undo action and returns its inverse.
-    fn apply_undo_action(&mut self, action: &UndoAction) -> UndoAction {
-        match action {
-            UndoAction::DeleteChars(pos, count) => {
-                let line = &mut self.lines[pos.y as usize];
-                let start = pos.x as usize;
-                let end = start + count;
-                let removed: String = line.drain(start..end).collect();
-                self.cursor_pos = *pos;
-                UndoAction::InsertChars(*pos, removed)
-            }
-            UndoAction::InsertChars(pos, text) => {
-                self.lines[pos.y as usize].insert_str(pos.x as usize, text);
-                self.cursor_pos = *pos;
-                UndoAction::DeleteChars(*pos, text.len())
-            }
-            UndoAction::DeleteLine(y) => {
-                let content = self.lines.remove(*y);
-                self.move_cursor(0, 0);
-                UndoAction::InsertLine(*y, content)
-            }
-            UndoAction::InsertLine(y, content) => {
-                self.lines.insert(*y, content.clone());
-                self.move_cursor(0, 0);
-                UndoAction::DeleteLine(*y)
-            }
-        }
-    }
-
-    fn record_action(&mut self, action: UndoAction) {
-        if let Some(change) = &mut self.current_change {
-            change.0.push(action);
-        }
-    }
-
     pub fn write_file(&mut self, path: Option<impl ToString>) {
         if self.path == "<scratch>" {
             tracing::warn!("unable to save scratch files!");
@@ -304,134 +302,6 @@ impl TextBuffer {
         let line_length = self.cur_line().len();
 
         self.cursor_pos.x = self.cursor_pos.x.clamp(0, line_length as u16);
-    }
-
-    pub fn insert_char_at_cursor(&mut self, chr: char) -> bool {
-        let pos = self.cursor_pos;
-        let line_idx = pos.y as usize;
-        if let Some(line) = self.lines.get_mut(line_idx) {
-            line.insert(pos.x as usize, chr);
-
-            let start_byte_col = char_to_byte_index(line, pos.x as usize);
-            let start_pos = Point::new(line_idx, start_byte_col);
-            let start_byte_offset = self.get_byte_offset(start_pos);
-
-            self.record_action(UndoAction::DeleteChars(pos, 1));
-
-            let new_end_byte_col = start_byte_col + chr.len_utf8();
-            let edit = InputEdit {
-                start_byte: start_byte_offset,
-                old_end_byte: start_byte_offset,
-                new_end_byte: start_byte_offset + chr.len_utf8(),
-                start_position: start_pos,
-                old_end_position: start_pos,
-                new_end_position: Point::new(line_idx, new_end_byte_col),
-            };
-            self.changes.push(edit);
-            self.tree_sitter_dirty = true;
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn remove_chars_relative(&mut self, offset: i16, count: usize) -> bool {
-        let line_idx = self.cursor_pos.y as usize;
-        if let Some(line) = self.lines.get_mut(line_idx) {
-            let start_char = (self.cursor_pos.x as i16 + offset) as usize;
-            let end_char = start_char + count;
-
-            let start_byte_col = char_to_byte_index(line, start_char);
-            let end_byte_col = char_to_byte_index(line, end_char);
-
-            let removed: String = line.drain(start_byte_col..end_byte_col).collect();
-
-            if start_byte_col >= line.len() {
-                return false;
-            }
-
-            let start_pos = Point::new(line_idx, start_byte_col);
-            let start_byte_offset = self.get_byte_offset(start_pos);
-            let old_end_pos = Point::new(line_idx, end_byte_col);
-            let old_end_byte_offset = self.get_byte_offset(old_end_pos);
-
-            self.record_action(UndoAction::InsertChars(self.cursor_pos, removed));
-
-            let edit = InputEdit {
-                start_byte: start_byte_offset,
-                old_end_byte: old_end_byte_offset,
-                new_end_byte: start_byte_offset,
-                start_position: start_pos,
-                old_end_position: old_end_pos,
-                new_end_position: start_pos,
-            };
-            self.changes.push(edit);
-            self.tree_sitter_dirty = true;
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn insert_newline_relative(&mut self, offset: i16) {
-        let line_idx = self.cursor_pos.y as usize;
-        let char_col = (self.cursor_pos.x as i16 + offset) as usize;
-        let byte_col = char_to_byte_index(&self.lines[line_idx], char_col);
-
-        let start_pos = Point::new(line_idx, byte_col);
-        let start_byte_offset = self.get_byte_offset(start_pos);
-
-        let (lhs, rhs) = self.lines[line_idx].split_at(byte_col);
-        let (lhs, rhs) = (lhs.to_string(), rhs.to_string());
-        *self.lines.get_mut(line_idx).unwrap() = lhs.to_string();
-        self.lines.insert(line_idx + 1, rhs.to_string());
-        self.record_action(UndoAction::DeleteLine(line_idx + 1));
-
-        let edit = InputEdit {
-            start_byte: start_byte_offset,
-            old_end_byte: start_byte_offset,
-            new_end_byte: start_byte_offset + 1, // for the newline
-            start_position: start_pos,
-            old_end_position: start_pos,
-            new_end_position: Point::new(line_idx + 1, 0),
-        };
-        self.changes.push(edit);
-        self.tree_sitter_dirty = true;
-    }
-
-    pub fn delete_line(&mut self, offset: i16) {
-        let line_idx = (self.cursor_pos.y as i16 + offset) as usize;
-        if line_idx >= self.lines.len() {
-            return;
-        }
-
-        let start_pos = Point::new(line_idx, 0);
-        let start_byte_offset = self.get_byte_offset(start_pos);
-        let removed_len = self.lines[line_idx].len() + 1;
-
-        let removed = self.lines.remove(line_idx);
-        self.record_action(UndoAction::InsertLine(line_idx, removed));
-        self.move_cursor(0, 0);
-
-        let edit = InputEdit {
-            start_byte: start_byte_offset,
-            old_end_byte: start_byte_offset + removed_len,
-            new_end_byte: start_byte_offset,
-            start_position: start_pos,
-            old_end_position: Point::new(line_idx + 1, 0),
-            new_end_position: start_pos,
-        };
-        self.changes.push(edit);
-        self.tree_sitter_dirty = true;
-    }
-
-    pub fn create_line(&mut self, offset: i16) {
-        let line_idx = (self.cursor_pos.y as i16).saturating_add(offset) as usize;
-
-        self.lines.insert(line_idx, String::default());
-
-        self.tree_sitter_full_clean = true;
-        self.record_action(UndoAction::DeleteLine(line_idx));
     }
 }
 
