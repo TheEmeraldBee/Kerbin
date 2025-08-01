@@ -36,5 +36,8 @@ pub use grammar::*;
 pub mod highlight;
 pub use highlight::*;
 
+pub mod theme;
+pub use theme::*;
+
 #[derive(Deref, DerefMut)]
 pub struct Running(pub bool);

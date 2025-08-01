@@ -1,18 +1,16 @@
 use ascii_forge::prelude::*;
-use rune::alloc::borrow::TryToOwned;
+use ref_cast::RefCast;
 use rune::compile::meta::Kind;
 use rune::compile::{CompileVisitor, MetaError, MetaRef};
 use rune::diagnostics::Diagnostic;
-use rune::hash::IntoHash;
 use rune::runtime::RuntimeContext;
 use rune::{Any, Context, Diagnostics, Module, Source, Sources, Unit, Vm, runtime::VmError};
-use rune::{FromValue, Hash, ItemBuf, Value};
 use stategine::prelude::*;
 use std::{fs, path::Path, sync::Arc};
 
-use crate::commands::EditorCommand;
-
 use crate::plugin_libs::*;
+
+use crate::*;
 
 /// A compile visitor that collects functions with a specific attribute.
 pub struct FunctionVisitor {
@@ -51,33 +49,57 @@ impl CompileVisitor for FunctionVisitor {
     }
 }
 
-/// A wrapper for the API provided to plugins.
-/// This struct gives scripts safe access to parts of the editor.
-#[derive(Any)]
+macro_rules! wrap_type {
+    ($new_name:ident, $type:ty, $($name:ident ($($arg_name:ident: $arg_ty:ty),*) -> $ret_type:ty)*) => {
+        #[derive(Any, RefCast)]
+        #[repr(transparent)]
+        struct $new_name {
+            inner: $type,
+        }
+
+        impl $new_name {
+            pub fn new(inner: &mut $type) -> &mut Self {
+                Self::ref_cast_mut(inner)
+            }
+
+            $(
+            #[rune::function]
+            pub fn $name (&mut self, $($arg_name: $arg_ty),*) -> $ret_type {
+                self.inner.$name($($arg_name),*)
+            }
+
+            )*
+        }
+    };
+}
+
+wrap_type! {
+    WrappedTheme,
+    Theme,
+    register(name: String, style: EditorStyle) -> ()
+    get(name: &str) -> Option<EditorStyle>
+}
+
+#[derive(Any, RefCast)]
+#[repr(transparent)]
 struct PluginApi {
-    commands: Vec<EditorCommand>,
-    draw_calls: Vec<(u16, u16, String)>,
+    engine: Engine,
 }
 
 impl PluginApi {
-    /// Draws text to the screen buffer at a specific location.
-    #[rune::function]
-    fn draw_text(&mut self, x: u16, y: u16, text: &str) {
-        self.draw_calls.push((x, y, text.to_string()))
+    pub fn new(engine: &mut Engine) -> &mut Self {
+        Self::ref_cast_mut(engine)
     }
 
-    /// Dispatches an editor command
     #[rune::function]
-    fn command(&mut self, command: Value) {
-        let command = match EditorCommand::from_value(command) {
-            Ok(t) => t,
-            Err(e) => {
-                tracing::error!("Failed to add command due to: {e}");
-                return;
-            }
-        };
+    pub fn command(&mut self, command: EditorCommand) {
+        self.engine.get_state_mut::<Commands>().add(command);
+    }
 
-        self.commands.push(command)
+    #[rune::function]
+    pub fn render(&mut self, x: u16, y: u16, text: String) {
+        let mut window = self.engine.get_state_mut::<Window>();
+        render!(window, (x, y) => [ text ]);
     }
 }
 
@@ -113,10 +135,12 @@ impl PluginManager {
         let mut module = Module::new();
 
         module.ty::<PluginApi>()?;
-        module.function_meta(PluginApi::draw_text)?;
+        module.function_meta(PluginApi::render)?;
         module.function_meta(PluginApi::command)?;
 
         module.ty::<EditorCommand>()?;
+
+        module.ty::<EditorStyle>()?;
 
         context.install(module)?;
 
@@ -197,84 +221,32 @@ impl PluginManager {
     }
 
     /// Runs the `update` hook for all loaded plugins.
-    pub fn run_update_hooks(
-        &self,
-        window: &mut Window,
-        commands: &mut Commands,
-    ) -> Result<(), VmError> {
+    pub fn run_update_hooks(&self, engine: &mut Engine) -> Result<(), VmError> {
         for plugin in &self.plugins {
             let mut vm = Vm::new(self.runtime.clone(), plugin.unit.clone());
 
-            let mut api = PluginApi {
-                commands: vec![],
-                draw_calls: vec![],
-            };
+            let api = PluginApi::new(engine);
 
             // Call the `render` function in the script, if it exists.
             if plugin.has_update {
-                vm.call(["update"], (&mut api,))?;
-            }
-
-            for (x, y, text) in api.draw_calls {
-                render!(window, (x, y) => [ text ]);
-            }
-
-            for command in api.commands.into_iter() {
-                commands.add(command);
+                vm.call(["update"], (api,))?;
             }
         }
         Ok(())
     }
 
     /// Runs the `load` hook for all loaded plugins.
-    pub fn run_load_hooks(
-        &self,
-        window: &mut Window,
-        commands: &mut Commands,
-    ) -> Result<(), VmError> {
+    pub fn run_load_hooks(&self, engine: &mut Engine) -> Result<(), VmError> {
         for plugin in &self.plugins {
             let mut vm = Vm::new(self.runtime.clone(), plugin.unit.clone());
 
-            let mut api = PluginApi {
-                commands: vec![],
-                draw_calls: vec![],
-            };
+            let api = PluginApi::new(engine);
 
             // Call the `render` function in the script, if it exists.
             if plugin.has_load {
-                vm.call(["load"], (&mut api,))?;
-            }
-
-            for (x, y, text) in api.draw_calls {
-                render!(window, (x, y) => [ text ]);
-            }
-
-            for command in api.commands.into_iter() {
-                commands.add(command);
+                vm.call(["load"], (api,))?;
             }
         }
         Ok(())
-    }
-}
-
-/// A stategine system to run plugin render hooks each frame.
-pub fn run_plugin_render_hooks(
-    manager: Res<PluginManager>,
-    mut window: ResMut<Window>,
-    mut commands: ResMut<Commands>,
-) {
-    if let Err(e) = manager.run_update_hooks(&mut window, &mut commands) {
-        tracing::error!("Rune VM Error: {}", e);
-    }
-}
-
-/// A stategine system to run plugin render hooks each frame.
-pub fn run_plugin_update_hooks(
-    manager: Res<PluginManager>,
-    mut window: ResMut<Window>,
-    mut commands: ResMut<Commands>,
-) {
-    if let Err(e) = manager.run_load_hooks(&mut window, &mut commands) {
-        tracing::error!("Rune VM Error: {}", e);
     }
 }

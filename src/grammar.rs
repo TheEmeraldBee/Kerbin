@@ -1,8 +1,10 @@
 use libloading::{Library, Symbol};
+use rune::Any;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tree_sitter::{Language, Query};
 
 /// Manages loading and caching Tree-sitter grammars from shared libraries.
+#[derive(Any)]
 pub struct GrammarManager {
     /// Base path where grammars are stored, e.g., `runtime/grammars`
     base_path: PathBuf,
@@ -34,8 +36,9 @@ impl GrammarManager {
     }
 
     /// Register an extension to a given language.
-    pub fn register_extension(&mut self, ext: impl ToString, lang: impl ToString) {
-        self.extension_map.insert(ext.to_string(), lang.to_string());
+    #[rune::function(keep)]
+    pub fn register_extension(&mut self, ext: String, lang: String) {
+        self.extension_map.insert(ext, lang);
     }
 
     /// Gets a language for a given file extension, loading it if necessary.

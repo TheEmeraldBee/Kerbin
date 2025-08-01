@@ -1,0 +1,14 @@
+2025-08-01T01:11:40.506005Z ERROR zellix: Rune VM Error: Cannot take, value is M-000000
+2025-08-01T01:11:43.074524Z ERROR zellix: Rune VM Error: Cannot take, value is M-000000
+2025-08-01T01:14:24.120132Z ERROR zellix: Rune VM Error: Cannot take, value is M-000000
+2025-08-01T01:14:26.861136Z ERROR zellix: Rune VM Error: Cannot take, value is M-000000
+2025-08-01T01:15:42.356196Z ERROR zellix: Rune VM Error: Missing instance function `0xd8a6c03c97175844` for `EditorColor`
+2025-08-01T01:15:44.678138Z ERROR zellix: Rune VM Error: Missing instance function `0xd8a6c03c97175844` for `EditorColor`
+2025-08-01T01:18:16.512944Z ERROR zellix: Rune VM Error: Field `clone` not available on `EditorColor`
+2025-08-01T01:18:42.460925Z ERROR zellix: Rune VM Error: Field `clone` not available on `EditorColor`
+2025-08-01T01:19:16.246565Z ERROR zellix: Rune VM Error: Field `clone` not available on `EditorColor`
+2025-08-01T01:19:26.589612Z ERROR zellix: Rune VM Error: Cannot take, value is M-0000002025-08-01T01:19:59.070278Z ERROR zellix: Rune VM Error: Expected type `EditorColor` but found `::std::object::Object`
+2025-08-01T01:22:55.223262Z ERROR zellix: Rune VM Error: Cannot take, value is M-000000
+2025-08-01T01:34:35.879745Z ERROR zellix: Rune VM Error: Wrong number of arguments 3, expected 2
+2025-08-01T01:34:38.445722Z ERROR zellix: Rune VM Error: Wrong number of arguments 3, expected 2
+2025-08-01T01:35:00.278544Z ERROR zellix: Rune VM Error: Wrong number of arguments 3, expected 2

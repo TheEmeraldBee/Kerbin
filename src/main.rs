@@ -99,7 +99,7 @@ fn main() {
     );
 
     let grammar_manager = GrammarManager::new();
-    let hl_config = HighlightConfiguration::default();
+    let theme = Theme::default();
 
     let mut plugin_manager = PluginManager::new().expect("Failed to create plugin manager");
     plugin_manager
@@ -114,13 +114,10 @@ fn main() {
         InputState::default(),
         CommandPaletteState::new(),
         CommandStatus::default(),
-        plugin_manager,
     ));
 
-    // Add grammar and highlighting configs to the engine
-    engine.states((grammar_manager, hl_config));
+    engine.states((grammar_manager, theme));
 
-    // Add input and command palette handling
     engine.systems((handle_inputs, handle_command_palette_input));
 
     engine.systems((
@@ -128,14 +125,18 @@ fn main() {
         render_buffers,
         render_help_menu,
         render_command_palette,
-        run_plugin_render_hooks,
     ));
 
-    // Run load scripts on all plugins
-    engine.oneshot_system(run_plugin_update_hooks.into_system());
+    if let Err(e) = plugin_manager.run_load_hooks(&mut engine) {
+        tracing::error!("Rune VM Error: {}", e);
+    }
 
     while engine.get_state_mut::<Running>().0 {
         engine.update();
+
+        if let Err(e) = plugin_manager.run_update_hooks(&mut engine) {
+            tracing::error!("Rune VM Error: {}", e);
+        }
 
         // These are updated seperately because they want commands to be applied
         engine.oneshot_system(update_buffer.into_system());

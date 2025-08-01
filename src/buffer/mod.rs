@@ -67,11 +67,7 @@ impl TextBuffer {
         }
     }
 
-    pub fn open(
-        path: impl ToString,
-        grammar_manager: &mut GrammarManager,
-        hl_config: &HighlightConfiguration,
-    ) -> Self {
+    pub fn open(path: impl ToString, grammar_manager: &mut GrammarManager, theme: &Theme) -> Self {
         let path_str = path.to_string();
         let mut parser = None;
         let mut tree = None;
@@ -101,7 +97,7 @@ impl TextBuffer {
             let text = lines.join("\n");
             tree = p.parse(&text, None);
             if let Some(t) = &tree {
-                highlights = highlight(&lines, t, q, hl_config);
+                highlights = highlight(&lines, t, q, theme);
             }
         }
 
@@ -233,7 +229,7 @@ impl TextBuffer {
             + point.column
     }
 
-    fn update_tree_and_highlights(&mut self, hl_config: &HighlightConfiguration) {
+    fn update_tree_and_highlights(&mut self, theme: &Theme) {
         if !self.tree_sitter_dirty && !self.tree_sitter_full_clean {
             return;
         }
@@ -253,7 +249,7 @@ impl TextBuffer {
                 self.tree = parser.parse(&text, self.tree.as_ref());
             }
             if let (Some(t), Some(q)) = (self.tree.as_ref(), self.query.as_ref()) {
-                self.highlights = highlight(&self.lines, t, q, hl_config);
+                self.highlights = highlight(&self.lines, t, q, theme);
             }
 
             self.tree_sitter_dirty = false;
@@ -390,8 +386,6 @@ impl Render for TextBuffer {
 
 /// A system that processes any pending changes in the active buffer
 /// to update its syntax highlighting.
-pub fn update_highlights(mut buffers: ResMut<Buffers>, hl_config: Res<HighlightConfiguration>) {
-    buffers
-        .cur_buffer_mut()
-        .update_tree_and_highlights(&hl_config);
+pub fn update_highlights(mut buffers: ResMut<Buffers>, theme: Res<Theme>) {
+    buffers.cur_buffer_mut().update_tree_and_highlights(&theme);
 }

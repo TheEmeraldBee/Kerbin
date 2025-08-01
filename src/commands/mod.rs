@@ -5,8 +5,7 @@ use rune::{Any, alloc::clone::TryClone};
 use stategine::prelude::Command;
 
 use crate::{
-    GrammarManager, HighlightConfiguration, Running, buffer::Buffers, input::InputConfig,
-    mode::Mode,
+    EditorStyle, GrammarManager, Running, Theme, buffer::Buffers, input::InputConfig, mode::Mode,
 };
 
 #[derive(Default)]
@@ -54,6 +53,9 @@ pub enum EditorCommand {
 
     #[rune(constructor)]
     RegisterLanguageExt(#[rune(get, set)] String, #[rune(get, set)] String),
+
+    #[rune(constructor)]
+    RegisterTheme(#[rune(get, set)] String, #[rune(get, set)] EditorStyle),
 
     #[rune(constructor)]
     Scroll(#[rune(get, set)] isize),
@@ -144,11 +146,11 @@ impl Command for EditorCommand {
             }
             EditorCommand::OpenFile(path) => {
                 let mut grammar = engine.get_state_mut::<GrammarManager>();
-                let hl_config = engine.get_state::<HighlightConfiguration>();
+                let theme = engine.get_state::<Theme>();
 
                 engine
                     .get_state_mut::<Buffers>()
-                    .open(path, &mut grammar, &hl_config)
+                    .open(path, &mut grammar, &theme)
             }
             EditorCommand::Quit => {
                 engine.get_state_mut::<Running>().0 = false;
@@ -177,6 +179,10 @@ impl Command for EditorCommand {
                 engine
                     .get_state_mut::<GrammarManager>()
                     .register_extension(ext, lang);
+            }
+
+            EditorCommand::RegisterTheme(key, style) => {
+                engine.get_state_mut::<Theme>().register(key, style);
             }
 
             EditorCommand::Scroll(dist) => {

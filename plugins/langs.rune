@@ -1,2 +1,11 @@
 pub fn load(api) {
+    // Rust
+    api.command(EditorCommand::RegisterLanguageExt("rs", "rust"));
+
+    // Python
+    api.command(EditorCommand::RegisterLanguageExt("py", "python"));
+
+    // Rune
+    api.command(EditorCommand::RegisterLanguageExt("rn", "rune"));
+    api.command(EditorCommand::RegisterLanguageExt("rune", "rune"));
 }

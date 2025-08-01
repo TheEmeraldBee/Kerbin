@@ -1,11 +1,12 @@
-use crate::{GrammarManager, HighlightConfiguration};
+use crate::{GrammarManager, Theme};
 
 use super::TextBuffer;
 use ascii_forge::prelude::*;
 use derive_more::*;
+use rune::Any;
 use stategine::prelude::*;
 
-#[derive(Deref, DerefMut, Default)]
+#[derive(Deref, DerefMut, Default, Any)]
 pub struct Buffers {
     pub selected_buffer: usize,
 
@@ -48,12 +49,7 @@ impl Buffers {
         self.change_buffer(0);
     }
 
-    pub fn open(
-        &mut self,
-        path: String,
-        grammar: &mut GrammarManager,
-        hl_conf: &HighlightConfiguration,
-    ) {
+    pub fn open(&mut self, path: String, grammar: &mut GrammarManager, theme: &Theme) {
         if let Some(buffer_id) = self
             .buffers
             .iter()
@@ -62,7 +58,7 @@ impl Buffers {
         {
             self.set_selected_buffer(buffer_id);
         } else {
-            self.buffers.push(TextBuffer::open(path, grammar, hl_conf));
+            self.buffers.push(TextBuffer::open(path, grammar, theme));
             self.set_selected_buffer(self.buffers.len() - 1)
         }
     }
