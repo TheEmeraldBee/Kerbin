@@ -229,6 +229,11 @@ impl TextBuffer {
             + point.column
     }
 
+    pub fn refresh_highlights(&mut self, theme: &Theme) {
+        self.tree_sitter_full_clean = true;
+        self.update_tree_and_highlights(theme);
+    }
+
     fn update_tree_and_highlights(&mut self, theme: &Theme) {
         if !self.tree_sitter_dirty && !self.tree_sitter_full_clean {
             return;

@@ -307,7 +307,7 @@ checksum = "b94f61472cee1439c0b966b47e3aca9ae07e45d070759512cd390ea2bebc6675"
 name = "cli"
 version = "0.1.0"
 dependencies = [
- "rune",
+ "rune 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "zellix",
 ]
 
@@ -317,6 +317,17 @@ version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3538270d33cc669650c4b093848450d380def10c331d38c768e34cac80576e6e"
 dependencies = [
+ "termcolor",
+ "unicode-width",
+]
+
+[[package]]
+name = "codespan-reporting"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe6d2e5af09e8c8ad56c969f2157a3d4238cebc7c55f0a517728c38f7b200f81"
+dependencies = [
+ "serde",
  "termcolor",
  "unicode-width",
 ]
@@ -1250,7 +1261,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b310b280353d9e1c92861820321f8742b02666acaf984a29cd8946965444384"
 dependencies = [
  "loom",
- "musli-core",
+ "musli-core 0.0.124",
+ "serde",
+ "simdutf8",
+]
+
+[[package]]
+name = "musli"
+version = "0.0.131"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73db912f61beab22204a8d3a908b4bc6903ae86e05f614bb418b2f45ef4549df"
+dependencies = [
+ "loom",
+ "musli-core 0.0.131",
  "serde",
  "simdutf8",
 ]
@@ -1261,7 +1284,16 @@ version = "0.0.124"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d00e227a374e92550ce2eb5002ae116e02a43926d7243c95997138406ae4e157"
 dependencies = [
- "musli-macros",
+ "musli-macros 0.0.124",
+]
+
+[[package]]
+name = "musli-core"
+version = "0.0.131"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e57ddb0fac1b85c4aa0f46526eb2d1c07295ef9f5f25ced9e93fda4a1b8adb0"
+dependencies = [
+ "musli-macros 0.0.131",
 ]
 
 [[package]]
@@ -1276,12 +1308,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "nanorand"
-version = "0.7.0"
+name = "musli-macros"
+version = "0.0.131"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a51313c5820b0b02bd422f4b44776fbf47961755c74ce64afc73bfad10226c3"
+checksum = "f53a6d4406d4983e6ec9718b78906b4e7678348ec54b8a017f7ba6cdedad12ca"
 dependencies = [
- "getrandom 0.2.16",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -1892,6 +1926,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "relative-path"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bca40a312222d8ba74837cb474edef44b37f561da5f773981007a10bbaa992b0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "reqwest"
 version = "0.12.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1966,7 +2009,7 @@ dependencies = [
  "base64",
  "bincode",
  "clap",
- "codespan-reporting",
+ "codespan-reporting 0.11.1",
  "futures-core",
  "futures-util",
  "handlebars",
@@ -1974,7 +2017,7 @@ dependencies = [
  "linked-hash-map",
  "lsp-types",
  "memchr",
- "musli",
+ "musli 0.0.124",
  "num",
  "once_cell",
  "parking_lot",
@@ -1983,12 +2026,12 @@ dependencies = [
  "pulldown-cmark",
  "pulldown-cmark-escape",
  "rand 0.8.5",
- "relative-path",
+ "relative-path 1.9.3",
  "ropey",
- "rune-alloc",
- "rune-core",
- "rune-macros",
- "rune-tracing",
+ "rune-alloc 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rune-core 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rune-macros 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rune-tracing 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust-embed",
  "ryu",
  "semver",
@@ -2008,6 +2051,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "rune"
+version = "0.14.0"
+source = "git+https://github.com/rune-rs/rune.git#a51a6a9aba598b719ff174106c4a6ed14d8ddb88"
+dependencies = [
+ "anyhow",
+ "codespan-reporting 0.12.0",
+ "futures-core",
+ "futures-util",
+ "itoa",
+ "musli 0.0.131",
+ "num",
+ "once_cell",
+ "pin-project",
+ "relative-path 2.0.1",
+ "rune-alloc 0.14.0 (git+https://github.com/rune-rs/rune.git)",
+ "rune-core 0.14.0 (git+https://github.com/rune-rs/rune.git)",
+ "rune-macros 0.14.0 (git+https://github.com/rune-rs/rune.git)",
+ "rune-tracing 0.14.0 (git+https://github.com/rune-rs/rune.git)",
+ "ryu",
+ "serde",
+ "syntree",
+ "unicode-ident",
+]
+
+[[package]]
 name = "rune-alloc"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2015,7 +2083,19 @@ checksum = "fe726c4e1f60fbdac2f03d833d0b743ccad31297f4d2d38cf8d6508df7c7829c"
 dependencies = [
  "ahash",
  "pin-project",
- "rune-alloc-macros",
+ "rune-alloc-macros 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde",
+]
+
+[[package]]
+name = "rune-alloc"
+version = "0.14.0"
+source = "git+https://github.com/rune-rs/rune.git#a51a6a9aba598b719ff174106c4a6ed14d8ddb88"
+dependencies = [
+ "ahash",
+ "musli 0.0.131",
+ "pin-project",
+ "rune-alloc-macros 0.14.0 (git+https://github.com/rune-rs/rune.git)",
  "serde",
 ]
 
@@ -2031,13 +2111,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "rune-alloc-macros"
+version = "0.14.0"
+source = "git+https://github.com/rune-rs/rune.git#a51a6a9aba598b719ff174106c4a6ed14d8ddb88"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "rune-core"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8383788fd0a290e28219167f5d51cacc0cc8292a55a8e0afb89bca89d7286484"
 dependencies = [
- "musli",
- "rune-alloc",
+ "musli 0.0.124",
+ "rune-alloc 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde",
+ "twox-hash",
+]
+
+[[package]]
+name = "rune-core"
+version = "0.14.0"
+source = "git+https://github.com/rune-rs/rune.git#a51a6a9aba598b719ff174106c4a6ed14d8ddb88"
+dependencies = [
+ "rune-alloc 0.14.0 (git+https://github.com/rune-rs/rune.git)",
  "serde",
  "twox-hash",
 ]
@@ -2050,20 +2150,31 @@ checksum = "848ebe26cf7595e7934853c0a604548282d55d6ac511a1e892b3fac12f3979b4"
 dependencies = [
  "proc-macro2",
  "quote",
- "rune-core",
+ "rune-core 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn",
+]
+
+[[package]]
+name = "rune-macros"
+version = "0.14.0"
+source = "git+https://github.com/rune-rs/rune.git#a51a6a9aba598b719ff174106c4a6ed14d8ddb88"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "rune-core 0.14.0 (git+https://github.com/rune-rs/rune.git)",
  "syn",
 ]
 
 [[package]]
 name = "rune-modules"
 version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e1fe63c510380e3a1b7e5f2a416001e74d38d6fa040a080a7a7c2f2a1f465ba"
+source = "git+https://github.com/rune-rs/rune.git#a51a6a9aba598b719ff174106c4a6ed14d8ddb88"
 dependencies = [
  "base64",
- "nanorand",
+ "getrandom 0.3.3",
+ "rand 0.9.2",
  "reqwest",
- "rune",
+ "rune 0.14.0 (git+https://github.com/rune-rs/rune.git)",
  "serde_json",
  "tokio",
  "toml",
@@ -2075,7 +2186,15 @@ version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0f989e6dbe1182c4f04500d38f3191460eb4a8a9710f5c8a98ee31951afce2db"
 dependencies = [
- "rune-tracing-macros",
+ "rune-tracing-macros 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "rune-tracing"
+version = "0.14.0"
+source = "git+https://github.com/rune-rs/rune.git#a51a6a9aba598b719ff174106c4a6ed14d8ddb88"
+dependencies = [
+ "rune-tracing-macros 0.14.0 (git+https://github.com/rune-rs/rune.git)",
 ]
 
 [[package]]
@@ -2083,6 +2202,16 @@ name = "rune-tracing-macros"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b948165587fbbc114d861d83f3a4361ad223f3e3e613316c1fe6f5fd867e134"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "rune-tracing-macros"
+version = "0.14.0"
+source = "git+https://github.com/rune-rs/rune.git#a51a6a9aba598b719ff174106c4a6ed14d8ddb88"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3529,7 +3658,7 @@ dependencies = [
  "dirs",
  "libloading",
  "ref-cast",
- "rune",
+ "rune 0.14.0 (git+https://github.com/rune-rs/rune.git)",
  "rune-modules",
  "stategine",
  "tracing",

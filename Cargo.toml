@@ -15,8 +15,8 @@ derive_more = { version = "2.0.1", features = ["deref", "deref_mut"] }
 dirs = "6.0.0"
 libloading = "0.8.8"
 ref-cast = "1.0.24"
-rune = "0.14.0"
-rune-modules = { version = "0.14.0", features = ["full"] }
+rune = { git = "https://github.com/rune-rs/rune.git" }
+rune-modules = { git = "https://github.com/rune-rs/rune.git", features = ["full"] }
 stategine = "0.3.0"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"

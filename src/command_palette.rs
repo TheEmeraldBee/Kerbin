@@ -86,6 +86,9 @@ impl CommandPaletteState {
             CommandInfo::new(["c", "close"], |mut _args| {
                 Ok(vec![EditorCommand::CloseCurrentBuffer])
             }),
+            CommandInfo::new(["r", "reload"], |mut _args| {
+                Ok(vec![EditorCommand::RefreshHighlights])
+            }),
         ];
         Self {
             input: String::new(),

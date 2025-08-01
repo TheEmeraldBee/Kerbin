@@ -140,8 +140,8 @@ fn main() {
 
         // These are updated seperately because they want commands to be applied
         engine.oneshot_system(update_buffer.into_system());
-        engine.oneshot_system(render_cursor.into_system());
         engine.oneshot_system(update_window.into_system());
+        engine.oneshot_system(render_cursor.into_system());
     }
 
     engine.get_state_mut::<Window>().restore().unwrap();

@@ -60,6 +60,9 @@ pub enum EditorCommand {
     #[rune(constructor)]
     Scroll(#[rune(get, set)] isize),
 
+    #[rune(constructor)]
+    RefreshHighlights,
+
     // History commands
     #[rune(constructor)]
     StartChangeGroup,
@@ -173,6 +176,13 @@ impl Command for EditorCommand {
                     commands.to_vec(),
                     desc,
                 )
+            }
+
+            EditorCommand::RefreshHighlights => {
+                engine
+                    .get_state_mut::<Buffers>()
+                    .cur_buffer_mut()
+                    .refresh_highlights(&engine.get_state::<Theme>());
             }
 
             EditorCommand::RegisterLanguageExt(ext, lang) => {

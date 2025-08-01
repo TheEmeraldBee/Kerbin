@@ -4,40 +4,6 @@ use tree_sitter::{Query, QueryCursor, StreamingIterator, Tree};
 
 use crate::Theme;
 
-/// Maps Tree-sitter capture names (e.g., "keyword") to a style.
-// pub struct HighlightConfiguration {
-//     pub captures: HashMap<String, ContentStyle>,
-// }
-
-// impl Default for HighlightConfiguration {
-//     fn default() -> Self {
-//         let mut captures = HashMap::new();
-
-//         // Standard captures from common highlight queries
-//         captures.insert("keyword".into(), ContentStyle::new().with(purple));
-//         captures.insert("function".into(), ContentStyle::new().with(blue));
-//         captures.insert("function.builtin".into(), ContentStyle::new().with(blue));
-//         captures.insert("function.macro".into(), ContentStyle::new().with(blue));
-//         captures.insert("string".into(), ContentStyle::new().with(green));
-//         captures.insert("comment".into(), ContentStyle::new().with(grey).italic());
-//         captures.insert("type".into(), ContentStyle::new().with(yellow));
-//         captures.insert("type.builtin".into(), ContentStyle::new().with(yellow));
-//         captures.insert("constant".into(), ContentStyle::new().with(orange));
-//         captures.insert("constant.builtin".into(), ContentStyle::new().with(orange));
-//         captures.insert("variable".into(), ContentStyle::new().with(red));
-//         captures.insert("variable.parameter".into(), ContentStyle::new().with(red));
-//         captures.insert("property".into(), ContentStyle::new().with(red));
-//         captures.insert("punctuation.bracket".into(), ContentStyle::new().with(grey));
-//         captures.insert(
-//             "punctuation.delimiter".into(),
-//             ContentStyle::new().with(grey),
-//         );
-//         captures.insert("operator".into(), ContentStyle::new().with(purple));
-
-//         Self { captures }
-//     }
-// }
-
 /// Traverses a tree using a query and returns a list of styled ranges.
 pub fn highlight(
     text: &[String],
@@ -58,7 +24,7 @@ pub fn highlight(
             let capture_name = &query.capture_names()[capture.index as usize];
             #[allow(clippy::unnecessary_to_owned)]
             if let Some(style) = theme
-                .get(&format!("ts.{}", capture_name))
+                .get(&format!("ts.{capture_name}"))
                 .map(|x| x.to_content_style())
             {
                 let range = capture.node.byte_range();
