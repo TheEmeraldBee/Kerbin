@@ -13,7 +13,7 @@ pub fn load(api) {
     api.input.register_input(
         [],
         [":"],
-        |api, _i| api.commands.add(EditorCommand::ChangeMode('c')),
+        |api, _i| api.mode.set('c'),
         "Command Palette",
     );
 
@@ -232,4 +232,11 @@ pub fn load(api) {
         ),
         "Edit on new line",
     );
+
+    api.input.register_input([], ["shift-j"], |api, i| {
+        api.buffers.current().start_change_group();
+        api.buffers.current().join_line_relative(0);
+        api.buffers.current().commit_change_group();
+    },
+    "Join Line");
 }

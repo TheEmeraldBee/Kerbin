@@ -1,11 +1,10 @@
 use std::rc::Rc;
 
 use rune::{Any, Value, alloc::clone::TryClone, runtime::Function};
+use serde::{Deserialize, Serialize};
 use stategine::prelude::Command;
 
-use crate::{
-    ConfigManager, EditorStyle, GrammarManager, Running, Theme, buffer::Buffers, mode::Mode,
-};
+use crate::{ConfigManager, GrammarManager, Running, Theme, buffer::Buffers, mode::Mode};
 
 #[derive(Default)]
 pub struct CommandStatus {
@@ -30,7 +29,7 @@ impl Command for SpecialCommand {
     }
 }
 
-#[derive(Debug, Any, TryClone)]
+#[derive(Debug, Any, TryClone, Serialize, Deserialize)]
 #[allow(unused)]
 pub enum EditorCommand {
     #[rune(constructor)]
@@ -59,9 +58,6 @@ pub enum EditorCommand {
     OpenFile(#[rune(get, set)] String),
     #[rune(constructor)]
     Quit,
-
-    #[rune(constructor)]
-    RegisterTheme(#[rune(get, set)] String, #[rune(get, set)] EditorStyle),
 
     #[rune(constructor)]
     Scroll(#[rune(get, set)] isize),
@@ -99,43 +95,48 @@ impl Command for EditorCommand {
 
         match *self {
             EditorCommand::MoveCursor(x, y) => {
-                let mut buffers = engine.get_state_mut::<Buffers>();
-                let success = buffers.cur_buffer_mut().move_cursor(x, y);
+                let buffers = engine.get_state_mut::<Buffers>();
+                let success = buffers.cur_buffer().borrow_mut().move_cursor(x, y);
                 engine.get_state_mut::<CommandStatus>().success = success;
             }
             EditorCommand::ChangeMode(m) => engine.get_state_mut::<Mode>().0 = m,
             EditorCommand::InsertChar(chr) => {
                 let success = engine
                     .get_state_mut::<Buffers>()
-                    .cur_buffer_mut()
+                    .cur_buffer()
+                    .borrow_mut()
                     .insert_char_at_cursor(chr);
                 engine.get_state_mut::<CommandStatus>().success = success;
             }
             EditorCommand::DeleteChars(offset, count) => {
                 let success = engine
                     .get_state_mut::<Buffers>()
-                    .cur_buffer_mut()
+                    .cur_buffer()
+                    .borrow_mut()
                     .remove_chars_relative(offset, count);
                 engine.get_state_mut::<CommandStatus>().success = success;
             }
             EditorCommand::InsertLine(offset) => {
                 let success = engine
                     .get_state_mut::<Buffers>()
-                    .cur_buffer_mut()
+                    .cur_buffer()
+                    .borrow_mut()
                     .insert_newline_relative(offset);
                 engine.get_state_mut::<CommandStatus>().success = success;
             }
             EditorCommand::CreateLine(offset) => {
                 let success = engine
                     .get_state_mut::<Buffers>()
-                    .cur_buffer_mut()
+                    .cur_buffer()
+                    .borrow_mut()
                     .create_line(offset);
                 engine.get_state_mut::<CommandStatus>().success = success;
             }
             EditorCommand::DeleteLine(offset) => {
                 let success = engine
                     .get_state_mut::<Buffers>()
-                    .cur_buffer_mut()
+                    .cur_buffer()
+                    .borrow_mut()
                     .delete_line(offset);
                 engine.get_state_mut::<CommandStatus>().success = success;
             }
@@ -151,7 +152,8 @@ impl Command for EditorCommand {
             EditorCommand::WriteFile(path) => {
                 engine
                     .get_state_mut::<Buffers>()
-                    .cur_buffer_mut()
+                    .cur_buffer()
+                    .borrow_mut()
                     .write_file(path);
             }
             EditorCommand::OpenFile(path) => {
@@ -169,32 +171,40 @@ impl Command for EditorCommand {
             EditorCommand::RefreshHighlights => {
                 engine
                     .get_state_mut::<Buffers>()
-                    .cur_buffer_mut()
+                    .cur_buffer()
+                    .borrow_mut()
                     .refresh_highlights(&engine.get_state::<Theme>());
-            }
-
-            EditorCommand::RegisterTheme(key, style) => {
-                engine.get_state_mut::<Theme>().register(key, style);
             }
 
             EditorCommand::Scroll(dist) => {
                 let success = engine
                     .get_state_mut::<Buffers>()
-                    .cur_buffer_mut()
+                    .cur_buffer()
+                    .borrow_mut()
                     .scroll_lines(dist);
                 engine.get_state_mut::<CommandStatus>().success = success;
             }
 
             EditorCommand::StartChangeGroup => engine
                 .get_state_mut::<Buffers>()
-                .cur_buffer_mut()
+                .cur_buffer()
+                .borrow_mut()
                 .start_change_group(),
             EditorCommand::CommitChangeGroup => engine
                 .get_state_mut::<Buffers>()
-                .cur_buffer_mut()
+                .cur_buffer()
+                .borrow_mut()
                 .commit_change_group(),
-            EditorCommand::Undo => engine.get_state_mut::<Buffers>().cur_buffer_mut().undo(),
-            EditorCommand::Redo => engine.get_state_mut::<Buffers>().cur_buffer_mut().redo(),
+            EditorCommand::Undo => engine
+                .get_state_mut::<Buffers>()
+                .cur_buffer()
+                .borrow_mut()
+                .undo(),
+            EditorCommand::Redo => engine
+                .get_state_mut::<Buffers>()
+                .cur_buffer()
+                .borrow_mut()
+                .redo(),
             EditorCommand::Repeat(commands, count) => {
                 for _ in 0..count {
                     for command in &commands {

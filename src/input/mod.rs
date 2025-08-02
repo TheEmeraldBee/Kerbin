@@ -115,10 +115,10 @@ pub fn render_help_menu(
     for i in 0..input.active_inputs.len().min(10) {
         let active = input.active_inputs[i];
         let binding = &input_config.inputs[active.0];
-        render!(window, window.size() - vec2(39, 12 - i as u16) => [ binding.sequence_str(active.1), " - ", binding.description ]);
+        render!(window, window.size() - vec2(39, 14 - i as u16) => [ binding.sequence_str(active.1), " - ", binding.description ]);
     }
 
-    render!(window, window.size() - vec2(40, 13) => [border]);
+    render!(window, window.size() - vec2(40, 15) => [border]);
 }
 
 pub fn handle_inputs(

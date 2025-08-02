@@ -1,4 +1,4 @@
-use std::{fs::File, sync::Mutex, time::Duration};
+use std::{cell::RefCell, fs::File, path::PathBuf, rc::Rc, sync::Mutex, time::Duration};
 
 use ascii_forge::prelude::*;
 
@@ -9,6 +9,7 @@ use crokey::{
         *,
     },
 };
+use ipmpsc::SharedRingBuffer;
 use stategine::{prelude::*, system::into_system::IntoSystem};
 use tracing::Level;
 
@@ -18,9 +19,9 @@ fn update_window(mut window: ResMut<Window>) {
     window.update(Duration::from_millis(10)).unwrap();
 }
 
-fn render_cursor(mut window: ResMut<Window>, mut buffers: ResMut<Buffers>, mode: Res<Mode>) {
-    let mut cursor_pos = buffers.cur_buffer_mut().cursor_pos;
-    let scroll = buffers.cur_buffer_mut().scroll;
+fn render_cursor(mut window: ResMut<Window>, buffers: Res<Buffers>, mode: Res<Mode>) {
+    let mut cursor_pos = buffers.cur_buffer().borrow().cursor_pos;
+    let scroll = buffers.cur_buffer().borrow().scroll;
 
     if scroll as u16 > cursor_pos.y {
         execute!(window.io(), Hide).unwrap();
@@ -31,7 +32,7 @@ fn render_cursor(mut window: ResMut<Window>, mut buffers: ResMut<Buffers>, mode:
 
     cursor_pos.y = cursor_pos
         .y
-        .saturating_sub(buffers.cur_buffer_mut().scroll as u16);
+        .saturating_sub(buffers.cur_buffer().borrow().scroll as u16);
 
     if cursor_pos.y > window.size().y {
         execute!(window.io(), Hide).unwrap();
@@ -61,6 +62,27 @@ fn render_cursor(mut window: ResMut<Window>, mut buffers: ResMut<Buffers>, mode:
 }
 
 fn main() {
+    // Generate the session id that will be passed to all sh calls.
+    let session_id = uuid::Uuid::new_v4().to_string();
+
+    let path = format!(
+        "{}/kerbin/sessions/{}",
+        dirs::data_dir().unwrap().display(),
+        session_id
+    );
+
+    let mut dir = PathBuf::from(&path);
+    dir.pop();
+
+    let _ = std::fs::create_dir_all(&dir);
+
+    let receiver = ipmpsc::Receiver::new(SharedRingBuffer::create(&path, 32 * 1024).unwrap());
+
+    let link = ShellLink {
+        session_id,
+        receiver,
+    };
+
     let log_file = File::options()
         .create(true)
         .append(true)
@@ -80,7 +102,7 @@ fn main() {
 
     let buffers = Buffers {
         selected_buffer: 0,
-        buffers: vec![TextBuffer::scratch()],
+        buffers: vec![Rc::new(RefCell::new(TextBuffer::scratch()))],
     };
 
     let input_config = InputConfig::default();
@@ -115,6 +137,8 @@ fn main() {
 
     engine.states((grammar_manager, theme));
 
+    engine.state(link);
+
     engine.systems((handle_inputs, handle_command_palette_input));
 
     engine.systems((
@@ -123,6 +147,8 @@ fn main() {
         render_help_menu,
         render_command_palette,
     ));
+
+    engine.systems((catch_events,));
 
     if let Err(e) = plugin_manager.run_load_hook(&mut engine) {
         tracing::error!("Rune VM Error: {}", e);
@@ -140,6 +166,12 @@ fn main() {
         engine.oneshot_system(update_window.into_system());
         engine.oneshot_system(render_cursor.into_system());
     }
+
+    let _ = std::fs::remove_file(&format!(
+        "{}/kerbin/sessions/{}",
+        dirs::data_dir().unwrap().display(),
+        engine.take_state::<ShellLink>().session_id
+    ));
 
     engine.get_state_mut::<Window>().restore().unwrap();
 }

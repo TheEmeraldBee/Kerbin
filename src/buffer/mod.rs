@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, io::ErrorKind, path::Path, sync::Arc};
 
 mod buffers;
 pub use buffers::*;
-use stategine::prelude::{Res, ResMut};
+use stategine::prelude::Res;
 
 use crate::*;
 
@@ -22,6 +22,7 @@ fn char_to_byte_index(s: &str, char_index: usize) -> usize {
 #[derive(Default)]
 pub struct ChangeGroup(Vec<Box<dyn BufferAction>>);
 
+#[derive(rune::Any)]
 pub struct TextBuffer {
     pub lines: Vec<String>,
     pub path: String,
@@ -67,7 +68,7 @@ impl TextBuffer {
         }
     }
 
-    pub fn open(path: impl ToString, grammar_manager: &mut GrammarManager, theme: &Theme) -> Self {
+    pub fn open(path: String, grammar_manager: &mut GrammarManager, theme: &Theme) -> Self {
         let path_str = path.to_string();
         let mut parser = None;
         let mut tree = None;
@@ -275,7 +276,7 @@ impl TextBuffer {
         self.scroll != old_scroll
     }
 
-    pub fn write_file(&mut self, path: Option<impl ToString>) {
+    pub fn write_file(&mut self, path: Option<String>) {
         if self.path == "<scratch>" {
             tracing::warn!("unable to save scratch files!");
             return;
@@ -293,6 +294,12 @@ impl TextBuffer {
             .get(self.cursor_pos.y as usize)
             .cloned()
             .unwrap_or_default()
+    }
+
+    pub fn set_cur_line(&mut self, line: String) {
+        self.lines
+            .get_mut(self.cursor_pos.y as usize)
+            .map(|x| *x = line);
     }
 
     pub fn cur_line_mut(&mut self) -> Option<&mut String> {
@@ -317,15 +324,18 @@ impl TextBuffer {
         self.cursor_pos.x = self.cursor_pos.x.clamp(0, line_length as u16);
         self.cursor_pos != old_pos
     }
-}
 
-impl Render for TextBuffer {
-    fn render(&self, mut loc: Vec2, buffer: &mut Buffer) -> Vec2 {
+    fn render(&self, mut loc: Vec2, buffer: &mut Buffer, theme: &Theme) -> Vec2 {
         let default_style = ContentStyle::new().with(Color::Rgb {
             r: 205,
             g: 214,
             b: 244,
         });
+
+        let line_style = theme
+            .get("ui.linenum")
+            .map(|x| x.to_content_style())
+            .unwrap_or(ContentStyle::new().dark_grey());
 
         let mut byte_offset: usize = self
             .lines
@@ -359,7 +369,7 @@ impl Render for TextBuffer {
                 );
             }
 
-            render!(buffer, loc => [num_line]);
+            render!(buffer, loc => [StyledContent::new(line_style, num_line.to_string())]);
 
             let mut current_style = self
                 .highlights
@@ -384,6 +394,10 @@ impl Render for TextBuffer {
                     }
                 }
 
+                if current_char_col + 6 >= buffer.size().x {
+                    continue;
+                }
+
                 render!(buffer, loc + vec2(current_char_col + 6, 0) => [StyledContent::new(current_style, ch)]);
             }
 
@@ -397,6 +411,9 @@ impl Render for TextBuffer {
 
 /// A system that processes any pending changes in the active buffer
 /// to update its syntax highlighting.
-pub fn update_highlights(mut buffers: ResMut<Buffers>, theme: Res<Theme>) {
-    buffers.cur_buffer_mut().update_tree_and_highlights(&theme);
+pub fn update_highlights(buffers: Res<Buffers>, theme: Res<Theme>) {
+    buffers
+        .cur_buffer()
+        .borrow_mut()
+        .update_tree_and_highlights(&theme);
 }

@@ -1,12 +1,12 @@
 [package]
-name = "cli"
+name = "kerbin-cli"
 version = "0.1.0"
 edition = "2024"
 
-[[bin]]
-name = "rune"
-path = "src/main.rs"
-
 [dependencies]
-rune = {workspace = true, features = ["cli"]}
 zellix = { path = "../" }
+
+ipmpsc.workspace = true
+serde.workspace = true
+dirs.workspace = true
+ron = "0.10.1"

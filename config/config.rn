@@ -4,14 +4,44 @@ mod theme;
 
 mod modeline;
 
-pub fn load(api) {
+pub struct Conf {
+  modeline
+}
+
+impl Conf {
+  pub fn load(api) {
     langs::load(api);
     theme::load(api);
     keybindings::load(api);
 
-    modeline::load(api);
-}
+    // Command Palette
+    api.input.register_input(
+        [],
+        [";", "s"],
+        |api, _i| {
+          let session = api.shell.id();
+          api.shell.spawn("nu", `zellij run -c -f -x 10% -y 10% --width 80% --height 80% -- nu -c "KERBIN_SESSION=${session} nu"`);
+        },
+        "New Shell Window"
+    );
 
-pub fn update(api) {
-    modeline::update(api);
+    api.input.register_input(
+        [],
+        ["space", "f", "t"],
+        |api, _i| {
+          let session = api.shell.id();
+          api.shell.spawn("nu", `zellij run -c -f -x 10% -y 10% --width 80% --height 80% -- nu -c "KERBIN_SESSION=${session} nu ./config/test.nu"`);
+        },
+        "Yazi"
+    );
+
+    let modeline = modeline::Modeline::load(api);
+    Conf {
+      modeline
+    }
+  }
+
+  pub fn update(self, api) {
+    self.modeline.update(api);
+  }
 }

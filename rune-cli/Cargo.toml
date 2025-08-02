@@ -1,0 +1,12 @@
+[package]
+name = "rune-cli"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "rune-cli"
+path = "src/main.rs"
+
+[dependencies]
+rune = {workspace = true, features = ["cli"]}
+zellix = { path = "../" }

@@ -1,26 +1,55 @@
 use crate::EditorStyle;
 
-pub fn load(api) {
-  api.config.register("modeline.name.n", "NORMAL");
-  api.config.register("modeline.style.n", (100, 100, 255));
+pub struct Modeline {}
 
-  api.config.register("modeline.name.i", "INSERT");
-  api.config.register("modeline.style.i", (100, 255, 100));
+impl Modeline {
+  pub fn load(api) {
 
-  api.config.register("modeline.name.c", "COMMAND");
-  api.config.register("modeline.style.c", (255, 100, 100));
-}
+    api.config.register("modeline.name.n", "NORMAL");
+    api.config.register("modeline.style.n", (100, 100, 255));
 
-pub fn update(api) {
-  let cur_mode = api.mode.get();
-  let height = api.window.height();
+    api.config.register("modeline.name.i", "INSERT");
+    api.config.register("modeline.style.i", (100, 255, 100));
 
-  let name = match api.config.get(`modeline.name.${cur_mode}`) {
-    Some(t) => t,
-    None => cur_mode,
-  };
+    api.config.register("modeline.name.c", "COMMAND");
+    api.config.register("modeline.style.c", (255, 100, 100));
 
-  let bg = api.config.get(`modeline.style.${cur_mode}`);
+    api.config.register("modeline.filepath.style", (80, 95, 60));
+    Modeline {}
+  }
 
-  api.window.render(0, height - 2, `   ${name}   `, Some(EditorStyle { fg: Some((255, 255, 255)), bg: Some(bg.unwrap_or((80, 80, 80)))}));
+  pub fn update(self, api) {
+    let cur_mode = api.mode.get();
+    let height = api.window.height();
+    let width = api.window.width();
+
+    let name = match api.config.get(`modeline.name.${cur_mode}`) {
+      Some(t) => t,
+      None => cur_mode,
+    };
+
+    let bg = api.config.get(`modeline.style.${cur_mode}`);
+
+    let line_contents = api.buffers.current().cur_line();
+    let file_path = api.buffers.current().path();
+
+    let file_path_width = file_path.len() + 2;
+
+    let name = `   ${name}   `;
+    let name_length = name.len();
+
+    api.window.render(0, height - 2, name, Some(EditorStyle { fg: Some((255, 255, 255)), bg: Some(bg.unwrap_or((30, 30, 30))) }));
+
+    let file_path_style = api.config.get("modeline.filepath.style");
+
+    api.window.render(name_length + 1, height - 2, `  ${file_path}  `, Some(EditorStyle { fg: Some((255, 255, 255)), bg: Some(file_path_style.unwrap_or((30, 30, 30))) }));
+    
+    let row = api.buffers.current().row();
+    let col = api.buffers.current().col();
+
+    let pos_text = `  ${row}:${col}  `;
+    let pos_len = pos_text.len();
+
+    api.window.render(width - pos_len, height - 2, pos_text, Some(EditorStyle { fg: Some((255, 255, 255)), bg: Some(bg.unwrap_or((30, 30, 30))) }));
+  }
 }

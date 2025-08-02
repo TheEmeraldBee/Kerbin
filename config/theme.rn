@@ -9,6 +9,10 @@ pub fn load(api) {
     let orange = (209, 154, 102);
     let red = (224, 108, 117);
 
+    let dark_grey = (80, 90, 96);
+
+    api.theme.register("ui.linenum", EditorStyle { fg: Some(dark_grey), bg: None });
+
     api.theme.register("ts.keyword", EditorStyle { fg: Some(purple), bg: None });
 
     api.theme.register("ts.function", EditorStyle { fg: Some(blue), bg: None });
