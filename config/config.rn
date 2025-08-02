@@ -1,0 +1,13 @@
+mod keybindings;
+mod langs;
+mod theme;
+
+pub fn load(api) {
+    langs::load(api);
+    theme::load(api);
+    keybindings::load(api);
+}
+
+pub fn update(api) {
+
+}

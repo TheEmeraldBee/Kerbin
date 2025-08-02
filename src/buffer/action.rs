@@ -63,6 +63,8 @@ impl BufferAction for Delete {
 
             let removed: String = line.drain(start_char..end_char).collect();
 
+            buf.move_cursor(0, 0);
+
             let start_pos = Point::new(line_idx, start_byte_col);
             let start_byte = buf.get_byte_offset(start_pos);
             let old_end_pos = Point::new(line_idx, end_byte_col);
@@ -119,8 +121,6 @@ impl BufferAction for JoinLine {
         buf.lines.remove(self.line_idx + 1);
         buf.lines[self.line_idx].push_str(&line1_content);
 
-        buf.move_cursor(0, 0);
-
         let edit = InputEdit {
             start_byte,
             old_end_byte,
@@ -131,6 +131,8 @@ impl BufferAction for JoinLine {
         };
         buf.changes.push(edit);
         buf.tree_sitter_dirty = true;
+
+        buf.move_cursor(0, 0);
 
         let inverse = Box::new(InsertNewline {
             pos: vec2(line0_len_chars as u16, self.line_idx as u16),
@@ -168,6 +170,8 @@ impl BufferAction for InsertNewline {
         buf.changes.push(edit);
         buf.tree_sitter_dirty = true;
 
+        buf.move_cursor(0, 0);
+
         let inverse = Box::new(JoinLine { line_idx });
         (true, inverse)
     }
@@ -188,7 +192,6 @@ impl BufferAction for DeleteLine {
         let removed_len = buf.lines[self.line_idx].len() + 1;
 
         let removed = buf.lines.remove(self.line_idx);
-        buf.move_cursor(0, 0);
 
         let edit = InputEdit {
             start_byte,
@@ -201,10 +204,18 @@ impl BufferAction for DeleteLine {
         buf.changes.push(edit);
         buf.tree_sitter_dirty = true;
 
+        buf.move_cursor(0, 0);
+
         let inverse = Box::new(InsertLine {
             line_idx: self.line_idx,
             content: removed,
         });
+
+        if buf.lines.is_empty() {
+            buf.lines.push(String::new());
+            return (false, inverse);
+        }
+
         (true, inverse)
     }
 }
@@ -238,6 +249,8 @@ impl BufferAction for InsertLine {
         };
         buf.changes.push(edit);
         buf.tree_sitter_dirty = true;
+
+        buf.move_cursor(0, 0);
 
         let inverse = Box::new(DeleteLine {
             line_idx: self.line_idx,

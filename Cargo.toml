@@ -6,6 +6,9 @@ edition = "2024"
 [workspace]
 members = ["cli"]
 
+[workspace.dependencies]
+rune = { git = "https://github.com/rune-rs/rune.git" }
+
 [dependencies]
 anyhow = "1.0.98"
 ascii-forge = { version = "1.2.1", features = ["serde"] }
@@ -15,7 +18,7 @@ derive_more = { version = "2.0.1", features = ["deref", "deref_mut"] }
 dirs = "6.0.0"
 libloading = "0.8.8"
 ref-cast = "1.0.24"
-rune = { git = "https://github.com/rune-rs/rune.git" }
+rune.workspace = true
 rune-modules = { git = "https://github.com/rune-rs/rune.git", features = ["full"] }
 stategine = "0.3.0"
 tracing = "0.1.41"

@@ -1,6 +1,2 @@
-import test
-
-print("Hello, world")
-
-def main():
-    print("Hello Momma")
+if x == 0:
+   print("Hello, World")

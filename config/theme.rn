@@ -1,0 +1,29 @@
+use crate::EditorStyle;
+
+pub fn load(api) {
+    let blue = (97, 175, 239);
+    let purple = (198, 120, 221);
+    let green = (152, 195, 121);
+    let grey = (92, 99, 112);
+    let yellow = (229, 192, 123);
+    let orange = (209, 154, 102);
+    let red = (224, 108, 117);
+
+    api.theme.register("ts.keyword", EditorStyle { fg: Some(purple), bg: None });
+
+    api.theme.register("ts.function", EditorStyle { fg: Some(blue), bg: None });
+    api.theme.register("ts.function.builtin", EditorStyle { fg: Some(blue), bg: None });
+    api.theme.register("ts.function.macro", EditorStyle { fg: Some(blue), bg: None });
+    api.theme.register("ts.string", EditorStyle { fg: Some(green), bg: None });
+    api.theme.register("ts.comment", EditorStyle { fg: Some(grey), bg: None });
+    api.theme.register("ts.type", EditorStyle { fg: Some(yellow), bg: None });
+    api.theme.register("ts.type.builtin", EditorStyle { fg: Some(yellow), bg: None });
+    api.theme.register("ts.type.constant", EditorStyle { fg: Some(orange), bg: None });
+    api.theme.register("ts.constant.builtin", EditorStyle { fg: Some(orange), bg: None });
+    api.theme.register("ts.variable", EditorStyle { fg: Some(red), bg: None });
+    api.theme.register("ts.variable.parameter", EditorStyle { fg: Some(red), bg: None });
+    api.theme.register("ts.property", EditorStyle { fg: Some(red), bg: None });
+    api.theme.register("ts.punctuation.bracket", EditorStyle { fg: Some(grey), bg: None });
+    api.theme.register("ts.punctuation.delimiter", EditorStyle { fg: Some(grey), bg: None });
+    api.theme.register("ts.operator", EditorStyle { fg: Some(purple), bg: None });
+}

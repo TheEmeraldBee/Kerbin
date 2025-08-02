@@ -334,7 +334,13 @@ impl Render for TextBuffer {
             .map(|l| l.len() + 1)
             .sum();
 
-        for (i, line) in self.lines.iter().enumerate().skip(self.scroll) {
+        for (i, line) in self
+            .lines
+            .iter()
+            .enumerate()
+            .skip(self.scroll)
+            .take(buffer.size().y as usize)
+        {
             let mut num_line = i.to_string();
             if num_line.len() > 5 {
                 num_line = num_line[0..5].to_string();

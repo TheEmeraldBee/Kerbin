@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use ascii_forge::{prelude::*, widgets::border::Border};
 use crokey::{Combiner, KeyCombination};
 use stategine::prelude::*;
@@ -50,7 +52,7 @@ impl Input {
             .join("")
     }
 }
-#[derive(Default)]
+#[derive(Default, rune::Any)]
 pub struct InputConfig {
     pub inputs: Vec<Input>,
 }
@@ -58,23 +60,35 @@ pub struct InputConfig {
 const MAX_DESC_LEN: usize = 30;
 
 impl InputConfig {
+    #[rune::function(keep)]
     pub fn register_input(
         &mut self,
-        modes: impl Into<Vec<char>>,
-        sequence: impl Into<Vec<KeyCombination>>,
-        commands: impl Into<Vec<EditorCommand>>,
-        desc: impl ToString,
+        modes: Vec<char>,
+        sequence: Vec<String>,
+        commands: Vec<EditorCommand>,
+        desc: String,
     ) {
         let desc = desc.to_string();
+
+        let mut key_sequence = vec![];
+        for key in sequence {
+            match KeyCombination::from_str(&key) {
+                Ok(t) => key_sequence.push(t),
+                Err(e) => {
+                    tracing::error!("Failed to add key: `{e}`");
+                    return;
+                }
+            }
+        }
 
         if desc.len() > MAX_DESC_LEN {
             panic!("Description `{desc}` is too long");
         }
 
         self.inputs.push(Input {
-            valid_modes: modes.into(),
-            key_sequence: sequence.into(),
-            commands: commands.into(),
+            valid_modes: modes,
+            key_sequence,
+            commands,
             description: desc,
         });
     }

@@ -8,7 +8,6 @@ use crokey::{
         cursor::{Hide, MoveTo, SetCursorStyle, Show},
         *,
     },
-    key,
 };
 use stategine::{prelude::*, system::into_system::IntoSystem};
 use tracing::Level;
@@ -92,19 +91,24 @@ fn main() {
 
     // Command Palette
     input_config.register_input(
-        ['n'],
-        [key!(':')],
-        [EditorCommand::ChangeMode('c')],
-        "Command Palette",
+        ['n'].to_vec(),
+        [":".to_string()].to_vec(),
+        [EditorCommand::ChangeMode('c')].to_vec(),
+        "Command Palette".to_string(),
     );
 
     let grammar_manager = GrammarManager::new();
     let theme = Theme::default();
 
-    let mut plugin_manager = PluginManager::new().expect("Failed to create plugin manager");
-    plugin_manager
-        .load_plugins()
-        .expect("Failed to load plugins");
+    let mut plugin_manager = ConfigManager::new().expect("Failed to create plugin manager");
+    let res = plugin_manager.load_config();
+
+    match res {
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!("{e}");
+        }
+    }
 
     let mut engine = Engine::new();
     engine.states((Running(true), Mode::default()));
@@ -127,14 +131,14 @@ fn main() {
         render_command_palette,
     ));
 
-    if let Err(e) = plugin_manager.run_load_hooks(&mut engine) {
+    if let Err(e) = plugin_manager.run_load_hook(&mut engine) {
         tracing::error!("Rune VM Error: {}", e);
     }
 
     while engine.get_state_mut::<Running>().0 {
         engine.update();
 
-        if let Err(e) = plugin_manager.run_update_hooks(&mut engine) {
+        if let Err(e) = plugin_manager.run_update_hook(&mut engine) {
             tracing::error!("Rune VM Error: {}", e);
         }
 

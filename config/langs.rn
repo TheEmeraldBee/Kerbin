@@ -1,3 +1,5 @@
+use crate::EditorCommand;
+
 pub fn load(api) {
     // Rust
     api.commands.add(EditorCommand::RegisterLanguageExt("rs", "rust"));
@@ -7,5 +9,4 @@ pub fn load(api) {
 
     // Rune
     api.commands.add(EditorCommand::RegisterLanguageExt("rn", "rune"));
-    api.commands.add(EditorCommand::RegisterLanguageExt("rune", "rune"));
 }

@@ -1,6 +1,0 @@
-pub fn load(api) {
-}
-
-pub fn update(api) {
-    api.window.render(0, 0, "Hello, World!");
-}

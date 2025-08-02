@@ -1,6 +1,3 @@
-use std::str::FromStr;
-
-use crokey::KeyCombination;
 use rune::{Any, alloc::clone::TryClone};
 use stategine::prelude::Command;
 
@@ -159,24 +156,9 @@ impl Command for EditorCommand {
                 engine.get_state_mut::<Running>().0 = false;
             }
 
-            EditorCommand::RegisterKeybinding(modes, sequence, commands, desc) => {
-                let mut key_sequence = vec![];
-                for key in &sequence {
-                    key_sequence.push(match KeyCombination::from_str(key) {
-                        Ok(t) => t,
-                        Err(e) => {
-                            tracing::error!("Failed to add keybinding due to: {e}");
-                            return;
-                        }
-                    })
-                }
-                engine.get_state_mut::<InputConfig>().register_input(
-                    modes.to_vec(),
-                    key_sequence.to_vec(),
-                    commands.to_vec(),
-                    desc,
-                )
-            }
+            EditorCommand::RegisterKeybinding(modes, sequence, commands, desc) => engine
+                .get_state_mut::<InputConfig>()
+                .register_input(modes.to_vec(), sequence.to_vec(), commands.to_vec(), desc),
 
             EditorCommand::RefreshHighlights => {
                 engine

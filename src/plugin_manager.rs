@@ -1,16 +1,14 @@
 use ascii_forge::prelude::*;
-use rune::ContextError;
 use rune::alloc::clone::TryClone;
 use rune::compile::meta::Kind;
-use rune::compile::{CompileVisitor, MetaError, MetaRef};
-use rune::diagnostics::Diagnostic;
+use rune::compile::{CompileVisitor, FileSourceLoader, MetaError, MetaRef};
 use rune::runtime::RuntimeContext;
 use rune::sync::Arc;
-use rune::{Any, Context, Diagnostics, Module, Source, Sources, Unit, Vm, runtime::VmError};
+use rune::{Any, Context, Diagnostics, Module, Source, Sources, Vm, runtime::VmError};
+use rune::{ContextError, Options};
 use stategine::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::{fs, path::Path};
 
 use crate::plugin_libs::*;
 
@@ -135,7 +133,8 @@ build_api! {
     Api,
     (CommandWrapper, Commands, commands, add(command: EditorCommand) -> ()),
     (ThemeWrapper, Theme, theme, register(name: String, style: EditorStyle) -> ()),
-    (WindowWrapper, Window, window, :render)
+    (WindowWrapper, Window, window, :render),
+    (InputWrapper, InputConfig, input, register_input(modes: Vec<char>, sequence: Vec<String>, commands: Vec<EditorCommand>, desc: String) -> ())
 }
 
 impl WindowWrapper {
@@ -146,20 +145,20 @@ impl WindowWrapper {
 }
 
 /// Represents a single loaded and compiled plugin.
-pub struct Plugin {
-    unit: Arc<Unit>,
+pub struct Config {
+    vm: Vm,
     has_load: bool,
     has_update: bool,
 }
 
 /// Manages all plugins, including loading and execution.
-pub struct PluginManager {
-    plugins: Vec<Plugin>,
+pub struct ConfigManager {
+    config: Option<Config>,
     context: Arc<Context>,
     runtime: Arc<RuntimeContext>,
 }
 
-impl PluginManager {
+impl ConfigManager {
     pub fn context() -> Result<Context, anyhow::Error> {
         let mut context = rune::Context::with_default_modules()?;
         context.install(rune_modules::fs::module(true)?)?;
@@ -174,15 +173,12 @@ impl PluginManager {
 
         context.install(chrono::module()?)?;
 
-        context.install(Api::module()?)?;
+        let mut api_module = Api::module()?;
 
-        let mut module = Module::new();
+        api_module.ty::<EditorCommand>()?;
+        api_module.ty::<EditorStyle>()?;
 
-        module.ty::<EditorCommand>()?;
-
-        module.ty::<EditorStyle>()?;
-
-        context.install(module)?;
+        context.install(api_module)?;
 
         Ok(context)
     }
@@ -192,115 +188,106 @@ impl PluginManager {
         let context = Self::context()?;
 
         Ok(Self {
-            plugins: Vec::new(),
+            config: None,
             runtime: Arc::try_new(context.runtime()?)?,
             context: Arc::try_new(context)?,
         })
     }
 
-    /// Loads all `.rune` scripts from the `plugins/` directory.
-    pub fn load_plugins(&mut self) -> Result<(), anyhow::Error> {
-        let dir = Path::new("plugins");
-        if !dir.exists() {
-            fs::create_dir(dir)?;
-        }
+    /// Loads the main `config.rn` file from the config directory
+    pub fn load_config(&mut self) -> Result<(), anyhow::Error> {
+        let file_path = "config/config.rn";
+        if std::fs::exists(file_path)? {
+            let mut sources = Sources::new();
+            sources.insert(Source::from_path(file_path)?)?;
+            let mut diagnostics = Diagnostics::new();
 
-        for entry in fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
+            let mut func_visitor = FunctionVisitor::default();
 
-            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("rune") {
-                let mut sources = Sources::new();
-                sources.insert(Source::from_path(&path)?)?;
-                let mut diagnostics = Diagnostics::new();
+            let mut source_loader = FileSourceLoader::new();
 
-                let mut func_visitor = FunctionVisitor::default();
+            let mut options = Options::default();
+            options.script(false);
 
-                let unit = rune::prepare(&mut sources)
-                    .with_context(&self.context)
-                    .with_diagnostics(&mut diagnostics)
-                    .with_visitor(&mut func_visitor)?
-                    .build();
+            let unit = rune::prepare(&mut sources)
+                .with_options(&options)
+                .with_context(&self.context)
+                .with_diagnostics(&mut diagnostics)
+                .with_visitor(&mut func_visitor)?
+                .with_source_loader(&mut source_loader)
+                .build();
 
-                if !diagnostics.is_empty() {
-                    for diagnostic in diagnostics.into_diagnostics() {
-                        match diagnostic {
-                            Diagnostic::Fatal(f) => tracing::error!("{f}"),
-                            Diagnostic::Warning(w) => tracing::warn!("{w}"),
-                            Diagnostic::RuntimeWarning(rw) => tracing::warn!("{rw}"),
-                            d => tracing::warn!("{d:#?}"),
-                        }
-                    }
-                }
+            if !diagnostics.is_empty() {
+                let mut out = rune::termcolor::Buffer::no_color();
 
-                let unit = Arc::try_new(unit?)?;
+                diagnostics.emit(&mut out, &sources)?;
 
-                let mut has_update = false;
-                let mut has_load = false;
-
-                for function in func_visitor.into_functions() {
-                    if has_load && has_update {
-                        break;
-                    }
-
-                    if function.as_str() == "load" {
-                        has_load = true;
-                    } else if function.as_str() == "update" {
-                        has_update = true;
-                    }
-                }
-
-                self.plugins.push(Plugin {
-                    unit,
-                    has_load,
-                    has_update,
-                });
+                tracing::error!("\n{}", String::from_utf8(out.into_inner())?);
             }
+
+            let unit = Arc::try_new(unit?)?;
+
+            let mut has_update = false;
+            let mut has_load = false;
+
+            for function in func_visitor.into_functions() {
+                if has_load && has_update {
+                    break;
+                }
+
+                if function.as_str() == "load" {
+                    has_load = true;
+                } else if function.as_str() == "update" {
+                    has_update = true;
+                }
+            }
+
+            let vm = Vm::new(self.runtime.clone(), unit);
+
+            self.config = Some(Config {
+                vm,
+                has_load,
+                has_update,
+            });
         }
         Ok(())
     }
 
-    /// Runs the `update` hook for all loaded plugins.
-    pub fn run_update_hooks(&self, engine: &mut Engine) -> Result<(), VmError> {
-        let mut api = Api::new(engine);
+    /// Runs the `update` hook for the config.
+    pub fn run_update_hook(&mut self, engine: &mut Engine) -> Result<(), VmError> {
+        if let Some(conf) = &mut self.config {
+            let mut api = Api::new(engine);
 
-        for plugin in &self.plugins {
-            let mut vm = Vm::new(self.runtime.clone(), plugin.unit.clone());
-
-            // Call the `render` function in the script, if it exists.
-            if plugin.has_update {
-                let res = vm.call(["update"], (&mut api,));
+            // Call the `update` function in the script, if it exists.
+            if conf.has_update {
+                let res = conf.vm.call(["update"], (&mut api,));
 
                 if let Err(e) = res {
                     api.finish_api(engine);
                     return Err(e);
                 }
             }
+            api.finish_api(engine);
         }
-
-        api.finish_api(engine);
         Ok(())
     }
 
-    /// Runs the `load` hook for all loaded plugins.
-    pub fn run_load_hooks(&self, engine: &mut Engine) -> Result<(), VmError> {
-        let mut api = Api::new(engine);
+    /// Runs the `update` hook for the config.
+    pub fn run_load_hook(&mut self, engine: &mut Engine) -> Result<(), VmError> {
+        if let Some(conf) = &mut self.config {
+            let mut api = Api::new(engine);
 
-        for plugin in &self.plugins {
-            let mut vm = Vm::new(self.runtime.clone(), plugin.unit.clone());
-
-            // Call the `render` function in the script, if it exists.
-            if plugin.has_load {
-                let res = vm.call(["load"], (&mut api,));
+            // Call the `load` function in the script, if it exists.
+            if conf.has_load {
+                let res = conf.vm.call(["load"], (&mut api,));
 
                 if let Err(e) = res {
                     api.finish_api(engine);
                     return Err(e);
                 }
             }
+            api.finish_api(engine);
         }
-
-        api.finish_api(engine);
         Ok(())
     }
 }
