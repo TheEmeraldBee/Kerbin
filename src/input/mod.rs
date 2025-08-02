@@ -1,10 +1,11 @@
-use std::str::FromStr;
+use std::{rc::Rc, str::FromStr};
 
 use ascii_forge::{prelude::*, widgets::border::Border};
 use crokey::{Combiner, KeyCombination};
+use rune::{Value, runtime::Function};
 use stategine::prelude::*;
 
-use crate::{commands::EditorCommand, key_check::KeyCheckExt, mode::Mode};
+use crate::{SpecialCommand, commands::EditorCommand, key_check::KeyCheckExt, mode::Mode};
 
 pub enum InputResult {
     Failed,
@@ -16,7 +17,7 @@ pub enum InputResult {
 pub struct Input {
     pub valid_modes: Vec<char>,
     pub key_sequence: Vec<KeyCombination>,
-    pub commands: Vec<EditorCommand>,
+    pub func: Rc<Function>,
     pub description: String,
 }
 
@@ -65,7 +66,7 @@ impl InputConfig {
         &mut self,
         modes: Vec<char>,
         sequence: Vec<String>,
-        commands: Vec<EditorCommand>,
+        func: Function,
         desc: String,
     ) {
         let desc = desc.to_string();
@@ -88,7 +89,7 @@ impl InputConfig {
         self.inputs.push(Input {
             valid_modes: modes,
             key_sequence,
-            commands,
+            func: Rc::new(func),
             description: desc,
         });
     }
@@ -171,7 +172,6 @@ pub fn handle_inputs(
         if ch.is_numeric() {
             input.repeat_count.push(*ch);
             found_num = true;
-            continue;
         }
     }
 
@@ -195,17 +195,12 @@ pub fn handle_inputs(
             }
             InputResult::Complete => {
                 completed_input = true;
-                let cmds = &input_config.inputs[*idx].commands;
-                if repeat_count > 1 {
-                    commands.add(EditorCommand::Repeat(
-                        rune::alloc::Vec::<EditorCommand>::try_from(cmds.to_vec()).unwrap(),
-                        repeat_count,
-                    ));
-                } else {
-                    for command in cmds {
-                        commands.add(command.clone());
-                    }
-                }
+
+                commands.add(SpecialCommand::RunFunction(
+                    input_config.inputs[*idx].func.clone(),
+                    Value::from(repeat_count as u64),
+                ));
+
                 false
             }
         }
@@ -223,17 +218,11 @@ pub fn handle_inputs(
         match check.step(&window, &mut combiner, mode.0, 0) {
             InputResult::Step => input.active_inputs.push((i, 1)),
             InputResult::Complete => {
-                if repeat_count > 1 {
-                    commands.add(EditorCommand::Repeat(
-                        rune::alloc::Vec::<EditorCommand>::try_from(check.commands.to_vec())
-                            .unwrap(),
-                        repeat_count,
-                    ));
-                } else {
-                    for command in &check.commands {
-                        commands.add(command.clone());
-                    }
-                }
+                commands.add(SpecialCommand::RunFunction(
+                    check.func.clone(),
+                    Value::from(repeat_count as u64),
+                ));
+
                 break;
             }
             InputResult::Failed => {}

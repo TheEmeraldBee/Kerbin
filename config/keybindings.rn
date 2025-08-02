@@ -1,54 +1,63 @@
 use crate::EditorCommand;
 
+pub fn commands(commands) {
+  |api, i| api.commands.add_all(commands)
+}
+
 pub fn load(api) {
     // ----------- //
     // Keybindings //
     // ----------- //
 
+    // Command Palette
+    api.input.register_input([], [":"], |api, _i| api.commands.add(EditorCommand::ChangeMode('c')), "Command Palette");
+
     // Scrolling
     api.input.register_input(
         [],
         ["ctrl-u"],
-        [EditorCommand::MoveCursor(0, -5), EditorCommand::Scroll(-5)],
+        commands([
+          EditorCommand::MoveCursor(0, -5), EditorCommand::Scroll(-5),
+        ]),
         "Scroll Up",
     );
     api.input.register_input(
         [],
         ["ctrl-d"],
-        [EditorCommand::MoveCursor(0, 5), EditorCommand::Scroll(5)],
+        commands([EditorCommand::MoveCursor(0, 5), EditorCommand::Scroll(5)]),
         "Scroll Down",
     );
 
     // General Movement
-    api.input.register_input([], ["left"], [EditorCommand::MoveCursor(-1, 0)], "Move Left");
-    api.input.register_input([], ["down"], [EditorCommand::MoveCursor(0, 1)], "Move Down");
-    api.input.register_input([], ["up"], [EditorCommand::MoveCursor(0, -1)], "Move Up");
-    api.input.register_input([], ["left"], [EditorCommand::MoveCursor(1, 0)], "Move Right");
+    api.input.register_input([], ["left"], commands([EditorCommand::MoveCursor(-1, 0)]), "Move Left");
+    api.input.register_input([], ["down"], commands([EditorCommand::MoveCursor(0, 1)]), "Move Down");
+    api.input.register_input([], ["up"], commands([EditorCommand::MoveCursor(0, -1)]), "Move Up");
+    api.input.register_input([], ["left"], commands([EditorCommand::MoveCursor(1, 0)]), "Move Right");
 
-    api.input.register_input([], ["h"], [EditorCommand::MoveCursor(-1, 0)], "Move Left");
-    api.input.register_input([], ["j"], [EditorCommand::MoveCursor(0, 1)], "Move Down");
-    api.input.register_input([], ["k"], [EditorCommand::MoveCursor(0, -1)], "Move Up");
-    api.input.register_input([], ["l"], [EditorCommand::MoveCursor(1, 0)], "Move Right");
+    api.input.register_input([], ["h"], commands([EditorCommand::MoveCursor(-1, 0)]), "Move Left");
+    api.input.register_input([], ["j"], commands([EditorCommand::MoveCursor(0, 1)]), "Move Down");
+    api.input.register_input([], ["k"], commands([EditorCommand::MoveCursor(0, -1)]), "Move Up");
+    api.input.register_input([], ["l"], commands([EditorCommand::MoveCursor(1, 0)]), "Move Right");
 
     api.input.register_input(
         [],
         ["d"],
-        [
+        commands([
             EditorCommand::StartChangeGroup,
             EditorCommand::DeleteChars(0, 1),
             EditorCommand::CommitChangeGroup,
-        ],
+        ]),
         "Delete",
     );
 
     api.input.register_input(
         [],
         ["shift-d"],
-        [
+        commands([
             EditorCommand::StartChangeGroup,
             EditorCommand::DeleteChars(0, std::u64::MAX),
             EditorCommand::CommitChangeGroup,
-        ],
+        ]),
         "Delete",
     );
 
@@ -56,78 +65,78 @@ pub fn load(api) {
     api.input.register_input(
         ['i'],
         ["backspace"],
-        [EditorCommand::DeleteChars(-1, 1), EditorCommand::MoveCursor(-1, 0)],
+        commands([EditorCommand::DeleteChars(-1, 1), EditorCommand::MoveCursor(-1, 0)]),
         "Delete back",
     );
     api.input.register_input(
         ['i'],
         ["enter"],
-        [EditorCommand::InsertLine(0), EditorCommand::MoveCursor(-32000, 1)],
+        commands([EditorCommand::InsertLine(0), EditorCommand::MoveCursor(-32000, 1)]),
         "New line",
     );
 
     // File Commands
-    api.input.register_input([], [";", "w"], [EditorCommand::WriteFile(None)], "Write File");
+    api.input.register_input([], [";", "w"], commands([EditorCommand::WriteFile(None)]), "Write File");
 
     // Mode Switching
     api.input.register_input(
         ['n'],
         ["i"],
-        [EditorCommand::StartChangeGroup, EditorCommand::ChangeMode('i')],
+        commands([EditorCommand::StartChangeGroup, EditorCommand::ChangeMode('i')]),
         "Insert Mode",
     );
     api.input.register_input(
         [],
         ["esc"],
-        [EditorCommand::CommitChangeGroup, EditorCommand::ChangeMode('n')],
+        commands([EditorCommand::CommitChangeGroup, EditorCommand::ChangeMode('n')]),
         "Exit to normal mode",
     );
 
     // Buffer management
-    api.input.register_input(['n'], [";", "q"], [EditorCommand::CloseCurrentBuffer], "Close buffer");
-    api.input.register_input(['n'], [";", "shift-q"], [EditorCommand::Quit], "Quit");
-    api.input.register_input([], ["g", "n"], [EditorCommand::ChangeBuffer(1)], "Goto next buffer");
-    api.input.register_input([], ["g", "p"], [EditorCommand::ChangeBuffer(-1)], "Goto prev buffer");
+    api.input.register_input(['n'], [";", "q"], commands([EditorCommand::CloseCurrentBuffer]), "Close buffer");
+    api.input.register_input(['n'], [";", "shift-q"], commands([EditorCommand::Quit]), "Quit");
+    api.input.register_input([], ["g", "n"], commands([EditorCommand::ChangeBuffer(1)]), "Goto next buffer");
+    api.input.register_input([], ["g", "p"], commands([EditorCommand::ChangeBuffer(-1)]), "Goto prev buffer");
 
     // Quick actions
-    api.input.register_input([], ["g", "h"], [EditorCommand::MoveCursor(-32000, 0)], "Goto end of line");
-    api.input.register_input([], ["g", "l"], [EditorCommand::MoveCursor(32000, 0)], "Goto beginning of line");
+    api.input.register_input([], ["g", "h"], commands([EditorCommand::MoveCursor(-32000, 0)]), "Goto end of line");
+    api.input.register_input([], ["g", "l"], commands([EditorCommand::MoveCursor(32000, 0)]), "Goto beginning of line");
 
     api.input.register_input(
         [],
         ["shift-x"],
-        [
+        commands([
             EditorCommand::StartChangeGroup,
             EditorCommand::DeleteLine(0),
             EditorCommand::CommitChangeGroup,
-        ],
+        ]),
         "Delete Current Line",
     );
 
     // History
-    api.input.register_input([], ["u"], [EditorCommand::Undo], "Undo");
-    api.input.register_input([], ["shift-u"], [EditorCommand::Redo], "Redo");
+    api.input.register_input([], ["u"], commands([EditorCommand::Undo]), "Undo");
+    api.input.register_input([], ["shift-u"], commands([EditorCommand::Redo]), "Redo");
 
     api.input.register_input(
         ['n'],
         ["o"],
-        [
+        commands([
             EditorCommand::StartChangeGroup,
             EditorCommand::CreateLine(1),
             EditorCommand::MoveCursor(0, 1),
             EditorCommand::ChangeMode('i'),
-        ],
+        ]),
         "Edit on new line",
     );
     api.input.register_input(
         ['n'],
         ["shift-o"],
-        [
+        commands([
             EditorCommand::StartChangeGroup,
             EditorCommand::CreateLine(0),
             EditorCommand::MoveCursor(0, 0),
             EditorCommand::ChangeMode('i'),
-        ],
+        ]),
         "Edit on new line",
     );
 }

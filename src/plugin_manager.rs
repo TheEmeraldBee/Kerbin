@@ -2,10 +2,10 @@ use ascii_forge::prelude::*;
 use rune::alloc::clone::TryClone;
 use rune::compile::meta::Kind;
 use rune::compile::{CompileVisitor, FileSourceLoader, MetaError, MetaRef};
-use rune::runtime::RuntimeContext;
+use rune::runtime::{Function, GuardedArgs, RuntimeContext, Shared};
 use rune::sync::Arc;
 use rune::{Any, Context, Diagnostics, Module, Source, Sources, Vm, runtime::VmError};
-use rune::{ContextError, Options};
+use rune::{ContextError, FromValue, Options, Ref, ToValue, Value};
 use stategine::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -131,10 +131,20 @@ macro_rules! build_api {
 
 build_api! {
     Api,
-    (CommandWrapper, Commands, commands, add(command: EditorCommand) -> ()),
+    (CommandWrapper, Commands, commands, add(command: EditorCommand) -> (), :add_all),
     (ThemeWrapper, Theme, theme, register(name: String, style: EditorStyle) -> ()),
+    (GrammarWrapper, GrammarManager, grammar, register_extension(ext: String, lang: String) -> ()),
     (WindowWrapper, Window, window, :render),
-    (InputWrapper, InputConfig, input, register_input(modes: Vec<char>, sequence: Vec<String>, commands: Vec<EditorCommand>, desc: String) -> ())
+    (InputWrapper, InputConfig, input, register_input(modes: Vec<char>, sequence: Vec<String>, func: Function, desc: String) -> ())
+}
+
+impl CommandWrapper {
+    #[rune::function]
+    pub fn add_all(&mut self, commands: Vec<EditorCommand>) {
+        for command in commands {
+            self.inner.borrow_mut().as_mut().unwrap().add(command);
+        }
+    }
 }
 
 impl WindowWrapper {
@@ -289,5 +299,19 @@ impl ConfigManager {
             api.finish_api(engine);
         }
         Ok(())
+    }
+
+    pub fn run_function(
+        engine: &mut Engine,
+        function: Rc<Function>,
+        extra_arg: Value,
+    ) -> Result<Value, anyhow::Error> {
+        let mut api = Api::new(engine);
+
+        let res = function.call((&mut api, extra_arg));
+
+        api.finish_api(engine);
+
+        Ok(res?)
     }
 }

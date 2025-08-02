@@ -2361,9 +2361,9 @@ checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
 name = "stategine"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a55ce9eb76b19e4f0ac9b0d88763273a0982a0c43c80cc13e0eedc9a495785ae"
+checksum = "10bf652a16859d78d21d2fcca1ab21dd682151efd5d1c58aa5c04bbe26ec4a4a"
 dependencies = [
  "uuid",
 ]

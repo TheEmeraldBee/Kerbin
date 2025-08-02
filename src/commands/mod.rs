@@ -1,13 +1,37 @@
-use rune::{Any, alloc::clone::TryClone};
+use std::rc::Rc;
+
+use rune::{
+    Any, Ref, Value,
+    alloc::clone::TryClone,
+    runtime::{Function, Shared},
+};
 use stategine::prelude::Command;
 
 use crate::{
-    EditorStyle, GrammarManager, Running, Theme, buffer::Buffers, input::InputConfig, mode::Mode,
+    ConfigManager, EditorStyle, GrammarManager, Running, Theme, buffer::Buffers, mode::Mode,
 };
 
 #[derive(Default)]
 pub struct CommandStatus {
     pub success: bool,
+}
+
+#[derive(Debug)]
+pub enum SpecialCommand {
+    RunFunction(Rc<Function>, Value),
+}
+
+impl Command for SpecialCommand {
+    fn apply(self: Box<Self>, engine: &mut stategine::Engine) {
+        match *self {
+            SpecialCommand::RunFunction(f, a) => match ConfigManager::run_function(engine, f, a) {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!("{e}");
+                }
+            },
+        }
+    }
 }
 
 #[derive(Debug, Any, TryClone)]
@@ -41,17 +65,6 @@ pub enum EditorCommand {
     Quit,
 
     #[rune(constructor)]
-    RegisterKeybinding(
-        #[rune(get, set)] rune::alloc::Vec<char>,
-        #[rune(get, set)] rune::alloc::Vec<String>,
-        #[rune(get, set)] rune::alloc::Vec<EditorCommand>,
-        #[rune(get, set)] String,
-    ),
-
-    #[rune(constructor)]
-    RegisterLanguageExt(#[rune(get, set)] String, #[rune(get, set)] String),
-
-    #[rune(constructor)]
     RegisterTheme(#[rune(get, set)] String, #[rune(get, set)] EditorStyle),
 
     #[rune(constructor)]
@@ -71,6 +84,7 @@ pub enum EditorCommand {
     Redo,
 
     // Repetition command
+    #[rune(constructor)]
     Repeat(
         #[rune(get, set)] rune::alloc::Vec<EditorCommand>,
         #[rune(get, set)] usize,
@@ -156,21 +170,11 @@ impl Command for EditorCommand {
                 engine.get_state_mut::<Running>().0 = false;
             }
 
-            EditorCommand::RegisterKeybinding(modes, sequence, commands, desc) => engine
-                .get_state_mut::<InputConfig>()
-                .register_input(modes.to_vec(), sequence.to_vec(), commands.to_vec(), desc),
-
             EditorCommand::RefreshHighlights => {
                 engine
                     .get_state_mut::<Buffers>()
                     .cur_buffer_mut()
                     .refresh_highlights(&engine.get_state::<Theme>());
-            }
-
-            EditorCommand::RegisterLanguageExt(ext, lang) => {
-                engine
-                    .get_state_mut::<GrammarManager>()
-                    .register_extension(ext, lang);
             }
 
             EditorCommand::RegisterTheme(key, style) => {

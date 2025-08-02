@@ -2,7 +2,13 @@ mod keybindings;
 mod langs;
 mod theme;
 
+pub fn test_fn() {}
+
 pub fn load(api) {
+  
+    let my_fn = test_fn;
+
+    my_fn();
     langs::load(api);
     theme::load(api);
     keybindings::load(api);

@@ -83,19 +83,11 @@ fn main() {
         buffers: vec![TextBuffer::scratch()],
     };
 
-    let mut input_config = InputConfig::default();
+    let input_config = InputConfig::default();
 
     // ----------------------- //
     // Temporary Keybind Setup //
     // ----------------------- //
-
-    // Command Palette
-    input_config.register_input(
-        ['n'].to_vec(),
-        [":".to_string()].to_vec(),
-        [EditorCommand::ChangeMode('c')].to_vec(),
-        "Command Palette".to_string(),
-    );
 
     let grammar_manager = GrammarManager::new();
     let theme = Theme::default();
