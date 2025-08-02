@@ -1,10 +1,6 @@
 use std::rc::Rc;
 
-use rune::{
-    Any, Ref, Value,
-    alloc::clone::TryClone,
-    runtime::{Function, Shared},
-};
+use rune::{Any, Value, alloc::clone::TryClone, runtime::Function};
 use stategine::prelude::Command;
 
 use crate::{

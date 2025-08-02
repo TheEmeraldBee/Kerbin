@@ -2,12 +2,13 @@ use ascii_forge::prelude::*;
 use rune::alloc::clone::TryClone;
 use rune::compile::meta::Kind;
 use rune::compile::{CompileVisitor, FileSourceLoader, MetaError, MetaRef};
-use rune::runtime::{Function, GuardedArgs, RuntimeContext, Shared};
+use rune::runtime::{Function, RuntimeContext};
 use rune::sync::Arc;
 use rune::{Any, Context, Diagnostics, Module, Source, Sources, Vm, runtime::VmError};
-use rune::{ContextError, FromValue, Options, Ref, ToValue, Value};
+use rune::{ContextError, Options, Value};
 use stategine::prelude::*;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::plugin_libs::*;
@@ -18,6 +19,21 @@ use crate::*;
 #[derive(Default)]
 pub struct FunctionVisitor {
     functions: Vec<String>,
+}
+
+#[derive(Any, Default)]
+pub struct PluginConfig {
+    values: HashMap<String, Value>,
+}
+
+impl PluginConfig {
+    pub fn register(&mut self, name: String, value: Value) {
+        self.values.insert(name, value);
+    }
+
+    pub fn get(&mut self, name: &str) -> Option<Value> {
+        self.values.get(name).cloned()
+    }
 }
 
 impl FunctionVisitor {
@@ -60,6 +76,8 @@ macro_rules! build_api {
                 , :$extra_func_name:ident
             )*
         )),*
+
+        $(,)?
     ) => {
         $(
             #[derive(Any, TryClone)]
@@ -131,11 +149,20 @@ macro_rules! build_api {
 
 build_api! {
     Api,
+    (WindowWrapper, Window, window, :render, :width, :height),
     (CommandWrapper, Commands, commands, add(command: EditorCommand) -> (), :add_all),
-    (ThemeWrapper, Theme, theme, register(name: String, style: EditorStyle) -> ()),
+    (InputWrapper, InputConfig, input, register_input(modes: Vec<char>, sequence: Vec<String>, func: Function, desc: String) -> ()),
+    (ThemeWrapper, Theme, theme, register(name: String, style: EditorStyle) -> (), get(name: &str) -> Option<EditorStyle>),
     (GrammarWrapper, GrammarManager, grammar, register_extension(ext: String, lang: String) -> ()),
-    (WindowWrapper, Window, window, :render),
-    (InputWrapper, InputConfig, input, register_input(modes: Vec<char>, sequence: Vec<String>, func: Function, desc: String) -> ())
+    (ModeWrapper, Mode, mode, :get),
+    (PluginConfigWrapper, PluginConfig, config, register(name: String, value: Value) -> (), get(name: &str) -> Option<Value>),
+}
+
+impl ModeWrapper {
+    #[rune::function]
+    fn get(&self) -> char {
+        self.inner.borrow().as_ref().unwrap().0
+    }
 }
 
 impl CommandWrapper {
@@ -149,8 +176,18 @@ impl CommandWrapper {
 
 impl WindowWrapper {
     #[rune::function]
-    pub fn render(&mut self, x: u16, y: u16, text: String) {
-        render!(self.inner.borrow_mut().as_mut().unwrap(), (x, y) => [ text ]);
+    pub fn width(&self) -> u16 {
+        self.inner.borrow().as_ref().unwrap().size().x
+    }
+
+    #[rune::function]
+    pub fn height(&self) -> u16 {
+        self.inner.borrow().as_ref().unwrap().size().y
+    }
+
+    #[rune::function]
+    pub fn render(&mut self, x: u16, y: u16, text: String, style: Option<EditorStyle>) {
+        render!(self.inner.borrow_mut().as_mut().unwrap(), (x, y) => [ StyledContent::new(style.unwrap_or_default().to_content_style(), text) ]);
     }
 }
 
@@ -216,8 +253,7 @@ impl ConfigManager {
 
             let mut source_loader = FileSourceLoader::new();
 
-            let mut options = Options::default();
-            options.script(false);
+            let options = Options::default();
 
             let unit = rune::prepare(&mut sources)
                 .with_options(&options)

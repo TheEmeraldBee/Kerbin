@@ -1,0 +1,26 @@
+use crate::EditorStyle;
+
+pub fn load(api) {
+  api.config.register("modeline.name.n", "NORMAL");
+  api.config.register("modeline.style.n", (100, 100, 255));
+
+  api.config.register("modeline.name.i", "INSERT");
+  api.config.register("modeline.style.i", (100, 255, 100));
+
+  api.config.register("modeline.name.c", "COMMAND");
+  api.config.register("modeline.style.c", (255, 100, 100));
+}
+
+pub fn update(api) {
+  let cur_mode = api.mode.get();
+  let height = api.window.height();
+
+  let name = match api.config.get(`modeline.name.${cur_mode}`) {
+    Some(t) => t,
+    None => cur_mode,
+  };
+
+  let bg = api.config.get(`modeline.style.${cur_mode}`);
+
+  api.window.render(0, height - 2, `   ${name}   `, Some(EditorStyle { fg: Some((255, 255, 255)), bg: Some(bg.unwrap_or((80, 80, 80)))}));
+}

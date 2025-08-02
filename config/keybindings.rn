@@ -1,7 +1,7 @@
 use crate::EditorCommand;
 
-pub fn commands(commands) {
-  |api, i| api.commands.add_all(commands)
+pub fn repeat(api, commands, i) {
+  api.commands.add(EditorCommand::Repeat(commands, i));
 }
 
 pub fn load(api) {
@@ -10,54 +10,103 @@ pub fn load(api) {
     // ----------- //
 
     // Command Palette
-    api.input.register_input([], [":"], |api, _i| api.commands.add(EditorCommand::ChangeMode('c')), "Command Palette");
+    api.input.register_input(
+        [],
+        [":"],
+        |api, _i| api.commands.add(EditorCommand::ChangeMode('c')),
+        "Command Palette",
+    );
 
     // Scrolling
     api.input.register_input(
         [],
         ["ctrl-u"],
-        commands([
-          EditorCommand::MoveCursor(0, -5), EditorCommand::Scroll(-5),
-        ]),
+        |api, i| repeat(api, [EditorCommand::MoveCursor(0, -5), EditorCommand::Scroll(-5)], i),
         "Scroll Up",
     );
     api.input.register_input(
         [],
         ["ctrl-d"],
-        commands([EditorCommand::MoveCursor(0, 5), EditorCommand::Scroll(5)]),
+        |api, i| repeat(api, [EditorCommand::MoveCursor(0, 5), EditorCommand::Scroll(5)], i),
         "Scroll Down",
     );
 
     // General Movement
-    api.input.register_input([], ["left"], commands([EditorCommand::MoveCursor(-1, 0)]), "Move Left");
-    api.input.register_input([], ["down"], commands([EditorCommand::MoveCursor(0, 1)]), "Move Down");
-    api.input.register_input([], ["up"], commands([EditorCommand::MoveCursor(0, -1)]), "Move Up");
-    api.input.register_input([], ["left"], commands([EditorCommand::MoveCursor(1, 0)]), "Move Right");
+    api.input.register_input(
+        [],
+        ["left"],
+        |api, i| repeat(api, [EditorCommand::MoveCursor(-1, 0)], i),
+        "Move Left",
+    );
+    api.input.register_input(
+        [],
+        ["down"],
+        |api, i| repeat(api, [EditorCommand::MoveCursor(0, 1)], i),
+        "Move Down",
+    );
+    api.input.register_input(
+        [],
+        ["up"],
+        |api, i| repeat(api, [EditorCommand::MoveCursor(0, -1)], i),
+        "Move Up",
+    );
+    api.input.register_input(
+        [],
+        ["left"],
+        |api, i| repeat(api, [EditorCommand::MoveCursor(1, 0)], i),
+        "Move Right",
+    );
 
-    api.input.register_input([], ["h"], commands([EditorCommand::MoveCursor(-1, 0)]), "Move Left");
-    api.input.register_input([], ["j"], commands([EditorCommand::MoveCursor(0, 1)]), "Move Down");
-    api.input.register_input([], ["k"], commands([EditorCommand::MoveCursor(0, -1)]), "Move Up");
-    api.input.register_input([], ["l"], commands([EditorCommand::MoveCursor(1, 0)]), "Move Right");
+    api.input.register_input(
+        [],
+        ["h"],
+        |api, i| repeat(api, [EditorCommand::MoveCursor(-1, 0)], i),
+        "Move Left",
+    );
+    api.input.register_input(
+        [],
+        ["j"],
+        |api, i| repeat(api, [EditorCommand::MoveCursor(0, 1)], i),
+        "Move Down",
+    );
+    api.input.register_input(
+        [],
+        ["k"],
+        |api, i| repeat(api, [EditorCommand::MoveCursor(0, -1)], i),
+        "Move Up",
+    );
+    api.input.register_input(
+        [],
+        ["l"],
+        |api, i| repeat(api, [EditorCommand::MoveCursor(1, 0)], i),
+        "Move Right",
+    );
 
     api.input.register_input(
         [],
         ["d"],
-        commands([
-            EditorCommand::StartChangeGroup,
-            EditorCommand::DeleteChars(0, 1),
-            EditorCommand::CommitChangeGroup,
-        ]),
+        |api, i| repeat(api, 
+            [
+                EditorCommand::StartChangeGroup,
+                EditorCommand::DeleteChars(0, 1),
+                EditorCommand::CommitChangeGroup,
+            ],
+            i,
+        ),
         "Delete",
     );
 
     api.input.register_input(
         [],
         ["shift-d"],
-        commands([
-            EditorCommand::StartChangeGroup,
-            EditorCommand::DeleteChars(0, std::u64::MAX),
-            EditorCommand::CommitChangeGroup,
-        ]),
+        |api, i| repeat(api,
+            [
+                EditorCommand::StartChangeGroup,
+                EditorCommand::DeleteChars(0, std::u64::MAX),
+                EditorCommand::CommitChangeGroup,
+            ],
+            i,
+        ),
         "Delete",
     );
 
@@ -65,78 +114,122 @@ pub fn load(api) {
     api.input.register_input(
         ['i'],
         ["backspace"],
-        commands([EditorCommand::DeleteChars(-1, 1), EditorCommand::MoveCursor(-1, 0)]),
+        |api, i| repeat(api, [EditorCommand::DeleteChars(-1, 1), EditorCommand::MoveCursor(-1, 0)], i),
         "Delete back",
     );
     api.input.register_input(
         ['i'],
         ["enter"],
-        commands([EditorCommand::InsertLine(0), EditorCommand::MoveCursor(-32000, 1)]),
+        |api, i| repeat(api, [EditorCommand::InsertLine(0), EditorCommand::MoveCursor(-32000, 1)], i),
         "New line",
     );
 
     // File Commands
-    api.input.register_input([], [";", "w"], commands([EditorCommand::WriteFile(None)]), "Write File");
+    api.input.register_input(
+        [],
+        [";", "w"],
+        |api, i| repeat(api, [EditorCommand::WriteFile(None)], i),
+        "Write File",
+    );
 
     // Mode Switching
     api.input.register_input(
         ['n'],
         ["i"],
-        commands([EditorCommand::StartChangeGroup, EditorCommand::ChangeMode('i')]),
+        |api, i| repeat(api, [EditorCommand::StartChangeGroup, EditorCommand::ChangeMode('i')], i),
         "Insert Mode",
     );
     api.input.register_input(
         [],
         ["esc"],
-        commands([EditorCommand::CommitChangeGroup, EditorCommand::ChangeMode('n')]),
+        |api, i| repeat(api, [EditorCommand::CommitChangeGroup, EditorCommand::ChangeMode('n')], i),
         "Exit to normal mode",
     );
 
     // Buffer management
-    api.input.register_input(['n'], [";", "q"], commands([EditorCommand::CloseCurrentBuffer]), "Close buffer");
-    api.input.register_input(['n'], [";", "shift-q"], commands([EditorCommand::Quit]), "Quit");
-    api.input.register_input([], ["g", "n"], commands([EditorCommand::ChangeBuffer(1)]), "Goto next buffer");
-    api.input.register_input([], ["g", "p"], commands([EditorCommand::ChangeBuffer(-1)]), "Goto prev buffer");
+    api.input.register_input(
+        ['n'],
+        [";", "q"],
+        |api, i| repeat(api, [EditorCommand::CloseCurrentBuffer], i),
+        "Close buffer",
+    );
+    api.input.register_input(
+        ['n'],
+        [";", "shift-q"],
+        |api, i| repeat(api, [EditorCommand::Quit], i),
+        "Quit",
+    );
+    api.input.register_input(
+        [],
+        ["g", "n"],
+        |api, i| repeat(api, [EditorCommand::ChangeBuffer(1)], i),
+        "Goto next buffer",
+    );
+    api.input.register_input(
+        [],
+        ["g", "p"],
+        |api, i| repeat(api, [EditorCommand::ChangeBuffer(-1)], i),
+        "Goto prev buffer",
+    );
 
     // Quick actions
-    api.input.register_input([], ["g", "h"], commands([EditorCommand::MoveCursor(-32000, 0)]), "Goto end of line");
-    api.input.register_input([], ["g", "l"], commands([EditorCommand::MoveCursor(32000, 0)]), "Goto beginning of line");
+    api.input.register_input(
+        [],
+        ["g", "h"],
+        |api, i| repeat(api, [EditorCommand::MoveCursor(-32000, 0)], i),
+        "Goto end of line",
+    );
+    api.input.register_input(
+        [],
+        ["g", "l"],
+        |api, i| repeat(api, [EditorCommand::MoveCursor(32000, 0)], i),
+        "Goto beginning of line",
+    );
 
     api.input.register_input(
         [],
         ["shift-x"],
-        commands([
-            EditorCommand::StartChangeGroup,
-            EditorCommand::DeleteLine(0),
-            EditorCommand::CommitChangeGroup,
-        ]),
+        |api, i| repeat(api, 
+            [
+                EditorCommand::StartChangeGroup,
+                EditorCommand::DeleteLine(0),
+                EditorCommand::CommitChangeGroup,
+            ],
+            i,
+        ),
         "Delete Current Line",
     );
 
     // History
-    api.input.register_input([], ["u"], commands([EditorCommand::Undo]), "Undo");
-    api.input.register_input([], ["shift-u"], commands([EditorCommand::Redo]), "Redo");
+    api.input.register_input([], ["u"], |api, i| repeat(api, [EditorCommand::Undo], i), "Undo");
+    api.input.register_input([], ["shift-u"], |api, i| repeat(api, [EditorCommand::Redo], i), "Redo");
 
     api.input.register_input(
         ['n'],
         ["o"],
-        commands([
-            EditorCommand::StartChangeGroup,
-            EditorCommand::CreateLine(1),
-            EditorCommand::MoveCursor(0, 1),
-            EditorCommand::ChangeMode('i'),
-        ]),
+        |api, i| repeat(api, 
+            [
+                EditorCommand::StartChangeGroup,
+                EditorCommand::CreateLine(1),
+                EditorCommand::MoveCursor(0, 1),
+                EditorCommand::ChangeMode('i'),
+            ],
+            i,
+        ),
         "Edit on new line",
     );
     api.input.register_input(
         ['n'],
         ["shift-o"],
-        commands([
-            EditorCommand::StartChangeGroup,
-            EditorCommand::CreateLine(0),
-            EditorCommand::MoveCursor(0, 0),
-            EditorCommand::ChangeMode('i'),
-        ]),
+        |api, i| repeat(api, 
+            [
+                EditorCommand::StartChangeGroup,
+                EditorCommand::CreateLine(0),
+                EditorCommand::MoveCursor(0, 0),
+                EditorCommand::ChangeMode('i'),
+            ],
+            i,
+        ),
         "Edit on new line",
     );
 }

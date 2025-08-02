@@ -110,6 +110,7 @@ fn main() {
         InputState::default(),
         CommandPaletteState::new(),
         CommandStatus::default(),
+        PluginConfig::default(),
     ));
 
     engine.states((grammar_manager, theme));
