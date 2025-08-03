@@ -333,7 +333,8 @@ impl ConfigManager {
         let mut api_module = Api::module()?;
 
         api_module.ty::<EditorCommand>()?;
-        api_module.ty::<EditorStyle>()?;
+
+        context.install(EditorStyle::module()?)?;
 
         context.install(api_module)?;
 

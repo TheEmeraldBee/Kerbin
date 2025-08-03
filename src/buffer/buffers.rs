@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{GrammarManager, Theme};
+use crate::{GrammarManager, Theme, buffer_extensions::BufferExtension};
 
 use super::TextBuffer;
 use ascii_forge::prelude::*;
@@ -82,11 +82,18 @@ impl Buffers {
             .collect();
         let unique_paths = get_unique_paths(paths);
 
-        for (i, buf) in self.buffers.iter().enumerate() {
-            let mut style = ContentStyle::new();
-            if self.selected_buffer == i {
-                style = style.bold();
-            }
+        for (i, _buf) in self.buffers.iter().enumerate() {
+            let style = if self.selected_buffer == i {
+                theme
+                    .get("ui.bufferline.active")
+                    .map(|style| style.to_content_style())
+                    .unwrap_or_default()
+            } else {
+                theme
+                    .get("ui.bufferline.inactive")
+                    .map(|style| style.to_content_style())
+                    .unwrap_or_default()
+            };
             let title = format!("   {}   ", unique_paths[i]);
             let title_width = title.chars().count();
 
@@ -132,7 +139,7 @@ fn get_unique_paths(paths: Vec<String>) -> Vec<String> {
     for i in 0..paths.len() {
         let mut depth = 1;
         loop {
-            let mut truncated_parts: Vec<&str> = path_components[i]
+            let truncated_parts: Vec<&str> = path_components[i]
                 .iter()
                 .rev()
                 .take(depth)
@@ -169,6 +176,13 @@ fn get_unique_paths(paths: Vec<String>) -> Vec<String> {
 }
 
 pub fn render_buffers(mut window: ResMut<Window>, buffers: Res<Buffers>, theme: Res<Theme>) {
+    let style = theme
+        .get("ui.bufferline")
+        .map(|style| style.to_content_style())
+        .unwrap_or_default();
+    let mut top_bar = Buffer::new(vec2(window.size().x, 1));
+    top_bar.style_line(0, |_| style);
+    render!(window.buffer_mut(), vec2(0, 0) => [top_bar]);
     buffers.render(vec2(0, 0), window.buffer_mut(), &theme);
 }
 

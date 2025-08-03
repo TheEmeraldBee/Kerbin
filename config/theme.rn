@@ -11,23 +11,25 @@ pub fn load(api) {
 
     let dark_grey = (80, 90, 96);
 
-    api.theme.register("ui.linenum", EditorStyle { fg: Some(dark_grey), bg: None });
+    api.theme.register("ui.linenum", EditorStyle::new().fg(dark_grey));
+    api.theme.register("ui.bufferline.active", EditorStyle::new().underline(green).bold());
+    api.theme.register("ui.bufferline.inactive", EditorStyle::new().fg(grey).italic());
 
-    api.theme.register("ts.keyword", EditorStyle { fg: Some(purple), bg: None });
+    api.theme.register("ts.keyword", EditorStyle::new().fg(purple));
 
-    api.theme.register("ts.function", EditorStyle { fg: Some(blue), bg: None });
-    api.theme.register("ts.function.builtin", EditorStyle { fg: Some(blue), bg: None });
-    api.theme.register("ts.function.macro", EditorStyle { fg: Some(blue), bg: None });
-    api.theme.register("ts.string", EditorStyle { fg: Some(green), bg: None });
-    api.theme.register("ts.comment", EditorStyle { fg: Some(grey), bg: None });
-    api.theme.register("ts.type", EditorStyle { fg: Some(yellow), bg: None });
-    api.theme.register("ts.type.builtin", EditorStyle { fg: Some(yellow), bg: None });
-    api.theme.register("ts.type.constant", EditorStyle { fg: Some(orange), bg: None });
-    api.theme.register("ts.constant.builtin", EditorStyle { fg: Some(orange), bg: None });
-    api.theme.register("ts.variable", EditorStyle { fg: Some(red), bg: None });
-    api.theme.register("ts.variable.parameter", EditorStyle { fg: Some(red), bg: None });
-    api.theme.register("ts.property", EditorStyle { fg: Some(red), bg: None });
-    api.theme.register("ts.punctuation.bracket", EditorStyle { fg: Some(grey), bg: None });
-    api.theme.register("ts.punctuation.delimiter", EditorStyle { fg: Some(grey), bg: None });
-    api.theme.register("ts.operator", EditorStyle { fg: Some(purple), bg: None });
+    api.theme.register("ts.function", EditorStyle::new().fg(blue));
+    api.theme.register("ts.function.builtin", EditorStyle::new().fg(blue));
+    api.theme.register("ts.function.macro", EditorStyle::new().fg(blue));
+    api.theme.register("ts.string", EditorStyle::new().fg(green));
+    api.theme.register("ts.comment", EditorStyle::new().fg(grey));
+    api.theme.register("ts.type", EditorStyle::new().fg(yellow));
+    api.theme.register("ts.type.builtin", EditorStyle::new().fg(yellow));
+    api.theme.register("ts.type.constant", EditorStyle::new().fg(orange));
+    api.theme.register("ts.constant.builtin", EditorStyle::new().fg(orange));
+    api.theme.register("ts.variable", EditorStyle::new().fg(red));
+    api.theme.register("ts.variable.parameter", EditorStyle::new().fg(red));
+    api.theme.register("ts.property", EditorStyle::new().fg(red));
+    api.theme.register("ts.punctuation.bracket", EditorStyle::new().fg(grey));
+    api.theme.register("ts.punctuation.delimiter", EditorStyle::new().fg(grey));
+    api.theme.register("ts.operator", EditorStyle::new().fg(purple));
 }

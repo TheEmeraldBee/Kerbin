@@ -38,11 +38,11 @@ impl Modeline {
     let name = `   ${name}   `;
     let name_length = name.len();
 
-    api.window.render(0, height - 2, name, Some(EditorStyle { fg: Some((255, 255, 255)), bg: Some(bg.unwrap_or((30, 30, 30))) }));
+    api.window.render(0, height - 2, name, Some(EditorStyle::new().fg((255, 255, 255)).bg(bg.unwrap_or((30, 30, 30)))));
 
     let file_path_style = api.config.get("modeline.filepath.style");
 
-    api.window.render(name_length + 1, height - 2, `  ${file_path}  `, Some(EditorStyle { fg: Some((255, 255, 255)), bg: Some(file_path_style.unwrap_or((30, 30, 30))) }));
+    api.window.render(name_length + 1, height - 2, `  ${file_path}  `, Some(EditorStyle::new().fg((255, 255, 255)).bg(file_path_style.unwrap_or((30, 30, 30)))));
     
     let row = api.buffers.current().row();
     let col = api.buffers.current().col();
@@ -50,6 +50,6 @@ impl Modeline {
     let pos_text = `  ${row}:${col}  `;
     let pos_len = pos_text.len();
 
-    api.window.render(width - pos_len, height - 2, pos_text, Some(EditorStyle { fg: Some((255, 255, 255)), bg: Some(bg.unwrap_or((30, 30, 30))) }));
+    api.window.render(width - pos_len, height - 2, pos_text, Some(EditorStyle::new().fg((255, 255, 255)).bg(bg.unwrap_or((30, 30, 30)))));
   }
 }
