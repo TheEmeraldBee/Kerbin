@@ -114,7 +114,19 @@ pub fn load(api) {
     api.input.register_input(
         ['i'],
         ["backspace"],
-        |api, i| repeat(api, [EditorCommand::DeleteChars(-1, 1), EditorCommand::MoveCursor(-1, 0)], i),
+        |api, i| {
+          if api.buffers.current().col() == 0 {
+            api.buffers.current().move_cursor(-32000, -1);
+            let line_len = api.buffers.current().cur_line().len();
+
+            api.buffers.current().join_line_relative(0);
+            api.buffers.current().move_cursor(line_len, 0);
+            api.window.render(50, 50, "Worked!", None);
+          } else {
+            api.buffers.current().remove_chars_relative(-1, 1);
+            api.buffers.current().move_cursor(-1, 0);
+          }
+        },
         "Delete back",
     );
     api.input.register_input(

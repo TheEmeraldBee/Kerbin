@@ -9,9 +9,9 @@ and the power and extensibility of neovim
 
 - [x] Tree-Sitter powered syntax highlighting
 
-- [ ] Builtin Nvim, Helix, or Visual configuration defaults
-- [ ] Built for use in the terminal with a cli to send commands to the editor itself
-    - Will allow for creating "plugins" by using terminal multiplexers to run seperate commands
+- [ ] Built in LSP support
+- [ ] Built in Multicursor support
 
-### Disclaimer
-This project is still under development, and ideas could change quickly
+- [ ] Builtin Nvim, Helix, or Visual configuration defaults
+- [x] Built for use in the terminal with a cli to send commands to the editor itself
+    - Allows for creating "plugins" by using terminal multiplexers to run seperate commands
