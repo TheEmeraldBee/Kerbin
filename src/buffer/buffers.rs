@@ -11,6 +11,7 @@ use stategine::prelude::*;
 #[derive(Deref, DerefMut, Default, Any)]
 pub struct Buffers {
     pub selected_buffer: usize,
+    pub tab_scroll: usize,
 
     #[deref]
     #[deref_mut]
@@ -69,31 +70,46 @@ impl Buffers {
             self.set_selected_buffer(self.buffers.len() - 1)
         }
     }
-    fn render(
-        &self,
-        mut loc: Vec2,
-        buffer: &mut ascii_forge::prelude::Buffer,
-        theme: &Theme,
-    ) -> Vec2 {
+    fn render(&self, loc: Vec2, buffer: &mut ascii_forge::prelude::Buffer, theme: &Theme) -> Vec2 {
         let mut inner_buffer = Buffer::new(buffer.size() - vec2(0, 3));
         let initial_loc = loc;
+        let mut current_char_offset = 0;
+
         for (i, buf) in self.buffers.iter().enumerate() {
-            // Render Filename
             let mut style = ContentStyle::new();
             if self.selected_buffer == i {
                 style = style.bold();
             }
-            let title_width = buf.borrow().path.len();
-            render!(buffer, loc => ["   ", StyledContent::new(style, buf.borrow().path.as_str()), "   "]);
-            loc.x += title_width as u16 + 6;
+            let title = format!("   {}   ", buf.borrow().path);
+            let title_width = title.chars().count();
+
+            let visible_range_start = self.tab_scroll;
+            let visible_range_end = self.tab_scroll + buffer.size().x as usize;
+            let tab_range_start = current_char_offset;
+            let tab_range_end = current_char_offset + title_width;
+
+            let overlap_start = visible_range_start.max(tab_range_start);
+            let overlap_end = visible_range_end.min(tab_range_end);
+
+            if overlap_start < overlap_end {
+                let slice_start = overlap_start - tab_range_start;
+                let slice_len = overlap_end - overlap_start;
+                let visible_part: String =
+                    title.chars().skip(slice_start).take(slice_len).collect();
+
+                let render_x = (overlap_start - self.tab_scroll) as u16;
+                render!(buffer, initial_loc + vec2(render_x, 0) => [StyledContent::new(style, visible_part)]);
+            }
+
+            current_char_offset += title_width;
         }
 
-        loc = initial_loc;
-        loc.y += 1;
+        let mut content_loc = initial_loc;
+        content_loc.y += 1;
         self.buffers[self.selected_buffer]
             .borrow()
             .render(vec2(0, 0), &mut inner_buffer, theme);
-        render!(buffer, loc => [ inner_buffer ])
+        render!(buffer, content_loc => [ inner_buffer ])
     }
 }
 
@@ -101,18 +117,68 @@ pub fn render_buffers(mut window: ResMut<Window>, buffers: Res<Buffers>, theme: 
     buffers.render(vec2(0, 0), window.buffer_mut(), &theme);
 }
 
+pub fn update_bufferline_scroll(mut buffers: ResMut<Buffers>, window: Res<Window>) {
+    if buffers.is_empty() {
+        buffers.tab_scroll = 0;
+        return;
+    }
+
+    let tab_widths: Vec<usize> = buffers.iter().map(|b| b.borrow().path.len() + 6).collect();
+
+    let tab_starts: Vec<usize> = tab_widths
+        .iter()
+        .scan(0, |acc, &w| {
+            let start = *acc;
+            *acc += w;
+            Some(start)
+        })
+        .collect();
+
+    let selected_idx = buffers.selected_buffer;
+    let selected_tab_start = tab_starts[selected_idx];
+    let selected_tab_end = selected_tab_start + tab_widths[selected_idx];
+
+    let view_width = window.size().x as usize;
+    let view_start = buffers.tab_scroll;
+    let view_end = view_start + view_width;
+
+    if selected_tab_end > view_end {
+        buffers.tab_scroll = selected_tab_end.saturating_sub(view_width);
+    }
+
+    if selected_tab_start < view_start {
+        buffers.tab_scroll = selected_tab_start;
+    }
+
+    let total_width: usize = tab_widths.iter().sum();
+    if total_width < view_width {
+        buffers.tab_scroll = 0;
+    } else {
+        buffers.tab_scroll = buffers
+            .tab_scroll
+            .min(total_width.saturating_sub(view_width));
+    }
+}
+
 pub fn update_buffer(window: Res<Window>, buffers: Res<Buffers>) {
     let viewport_height = window.size().y.saturating_sub(3);
+    let viewport_width = window.size().x.saturating_sub(7);
     let buffer = buffers.cur_buffer();
     let mut buffer = buffer.borrow_mut();
 
-    // If cursor is above the visible area, scroll up to bring it into view.
     if buffer.cursor_pos.y < buffer.scroll as u16 {
         buffer.scroll = buffer.cursor_pos.y as usize;
     }
 
-    // If cursor is below the visible area, scroll down to bring it into view.
     if buffer.cursor_pos.y >= buffer.scroll as u16 + viewport_height {
         buffer.scroll = buffer.cursor_pos.y as usize - viewport_height as usize + 1;
+    }
+
+    if buffer.cursor_pos.x < buffer.h_scroll as u16 {
+        buffer.h_scroll = buffer.cursor_pos.x as usize;
+    }
+
+    if buffer.cursor_pos.x >= buffer.h_scroll as u16 + viewport_width {
+        buffer.h_scroll = buffer.cursor_pos.x as usize - viewport_width as usize + 1;
     }
 }

@@ -10,6 +10,6 @@ def main [] {
     exit 0
   }
 
-  $command | each {|p| "OpenFile\(" ++ $"\"($p)\"" ++ ")" } | each { |x| ./target/release/kerbin-cli $x}
+  $command | each {|p| ./target/release/kerbin-cli ("OpenFile\(" ++ $"\"($p)\"" ++ ")") }
 }
 

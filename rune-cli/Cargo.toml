@@ -9,4 +9,4 @@ path = "src/main.rs"
 
 [dependencies]
 rune = {workspace = true, features = ["cli"]}
-zellix = { path = "../" }
+kerbin = { path = "../" }

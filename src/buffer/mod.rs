@@ -32,6 +32,7 @@ pub struct TextBuffer {
     current_change: Option<ChangeGroup>,
 
     pub scroll: usize,
+    pub h_scroll: usize,
 
     parser: Option<Parser>,
     tree: Option<Tree>,
@@ -56,6 +57,7 @@ impl TextBuffer {
             current_change: None,
 
             scroll: 0,
+            h_scroll: 0,
 
             parser: None,
             tree: None,
@@ -111,6 +113,7 @@ impl TextBuffer {
             current_change: None,
 
             scroll: 0,
+            h_scroll: 0,
 
             parser,
             tree,
@@ -276,6 +279,15 @@ impl TextBuffer {
         self.scroll != old_scroll
     }
 
+    pub fn scroll_horizontal(&mut self, delta: isize) -> bool {
+        if delta == 0 {
+            return true;
+        }
+        let old_scroll = self.h_scroll;
+        self.h_scroll = self.h_scroll.saturating_add_signed(delta);
+        self.h_scroll != old_scroll
+    }
+
     pub fn write_file(&mut self, path: Option<String>) {
         if self.path == "<scratch>" {
             tracing::warn!("unable to save scratch files!");
@@ -319,7 +331,7 @@ impl TextBuffer {
             .saturating_add_signed(y)
             .clamp(0, (self.lines.len() as u16).saturating_sub(1));
 
-        let line_length = self.cur_line().len();
+        let line_length = self.cur_line().chars().count();
 
         self.cursor_pos.x = self.cursor_pos.x.clamp(0, line_length as u16);
         self.cursor_pos != old_pos
@@ -343,6 +355,8 @@ impl TextBuffer {
             .take(self.scroll)
             .map(|l| l.len() + 1)
             .sum();
+
+        let gutter_width = 6;
 
         for (i, line) in self
             .lines
@@ -378,7 +392,7 @@ impl TextBuffer {
                 .map(|(_, style)| *style)
                 .unwrap_or(default_style);
 
-            for (current_char_col, (char_byte_idx, ch)) in (0u16..).zip(line.char_indices()) {
+            for (current_char_col, (char_byte_idx, ch)) in (0usize..).zip(line.char_indices()) {
                 let absolute_char_byte_idx = byte_offset + char_byte_idx;
 
                 if let Some(new_style) = self.highlights.get(&absolute_char_byte_idx) {
@@ -394,11 +408,15 @@ impl TextBuffer {
                     }
                 }
 
-                if current_char_col + 6 >= buffer.size().x {
-                    continue;
-                }
+                if current_char_col >= self.h_scroll {
+                    let render_col = (current_char_col - self.h_scroll) as u16 + gutter_width;
 
-                render!(buffer, loc + vec2(current_char_col + 6, 0) => [StyledContent::new(current_style, ch)]);
+                    if render_col >= buffer.size().x {
+                        break;
+                    }
+
+                    render!(buffer, loc + vec2(render_col, 0) => [StyledContent::new(current_style, ch)]);
+                }
             }
 
             loc.y += 1;

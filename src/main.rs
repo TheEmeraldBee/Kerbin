@@ -13,7 +13,7 @@ use ipmpsc::SharedRingBuffer;
 use stategine::{prelude::*, system::into_system::IntoSystem};
 use tracing::Level;
 
-use zellix::{buffer_extensions::BufferExtension, *};
+use kerbin::{buffer_extensions::BufferExtension, *};
 
 fn update_window(mut window: ResMut<Window>) {
     window.update(Duration::from_millis(10)).unwrap();
@@ -33,6 +33,10 @@ fn render_cursor(mut window: ResMut<Window>, buffers: Res<Buffers>, mode: Res<Mo
     cursor_pos.y = cursor_pos
         .y
         .saturating_sub(buffers.cur_buffer().borrow().scroll as u16);
+
+    cursor_pos.x = cursor_pos
+        .x
+        .saturating_sub(buffers.cur_buffer().borrow().h_scroll as u16);
 
     if cursor_pos.y > window.size().y {
         execute!(window.io(), Hide).unwrap();
@@ -102,6 +106,7 @@ fn main() {
 
     let buffers = Buffers {
         selected_buffer: 0,
+        tab_scroll: 0,
         buffers: vec![Rc::new(RefCell::new(TextBuffer::scratch()))],
     };
 
@@ -163,6 +168,7 @@ fn main() {
 
         // These are updated seperately because they want commands to be applied
         engine.oneshot_system(update_buffer.into_system());
+        engine.oneshot_system(update_bufferline_scroll.into_system());
         engine.oneshot_system(update_window.into_system());
         engine.oneshot_system(render_cursor.into_system());
     }

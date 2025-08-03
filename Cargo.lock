@@ -1170,14 +1170,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "kerbin"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ascii-forge",
+ "chrono",
+ "clap",
+ "crokey",
+ "derive_more",
+ "dirs",
+ "ipmpsc",
+ "libloading",
+ "ref-cast",
+ "rune",
+ "rune-modules",
+ "serde",
+ "stategine",
+ "tracing",
+ "tracing-subscriber",
+ "tree-sitter",
+ "uuid",
+]
+
+[[package]]
 name = "kerbin-cli"
 version = "0.1.0"
 dependencies = [
  "dirs",
  "ipmpsc",
+ "kerbin",
  "ron",
  "serde",
- "zellix",
 ]
 
 [[package]]
@@ -2068,8 +2092,8 @@ dependencies = [
 name = "rune-cli"
 version = "0.1.0"
 dependencies = [
+ "kerbin",
  "rune",
- "zellix",
 ]
 
 [[package]]
@@ -3599,30 +3623,6 @@ dependencies = [
  "quote",
  "syn",
  "synstructure",
-]
-
-[[package]]
-name = "zellix"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ascii-forge",
- "chrono",
- "clap",
- "crokey",
- "derive_more",
- "dirs",
- "ipmpsc",
- "libloading",
- "ref-cast",
- "rune",
- "rune-modules",
- "serde",
- "stategine",
- "tracing",
- "tracing-subscriber",
- "tree-sitter",
- "uuid",
 ]
 
 [[package]]
