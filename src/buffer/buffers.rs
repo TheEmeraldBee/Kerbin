@@ -75,12 +75,19 @@ impl Buffers {
         let initial_loc = loc;
         let mut current_char_offset = 0;
 
+        let paths: Vec<String> = self
+            .buffers
+            .iter()
+            .map(|b| b.borrow().path.clone())
+            .collect();
+        let unique_paths = get_unique_paths(paths);
+
         for (i, buf) in self.buffers.iter().enumerate() {
             let mut style = ContentStyle::new();
             if self.selected_buffer == i {
                 style = style.bold();
             }
-            let title = format!("   {}   ", buf.borrow().path);
+            let title = format!("   {}   ", unique_paths[i]);
             let title_width = title.chars().count();
 
             let visible_range_start = self.tab_scroll;
@@ -113,6 +120,54 @@ impl Buffers {
     }
 }
 
+fn get_unique_paths(paths: Vec<String>) -> Vec<String> {
+    if paths.is_empty() {
+        return vec![];
+    }
+
+    let path_components: Vec<Vec<&str>> = paths.iter().map(|p| p.split('/').collect()).collect();
+
+    let mut truncated_paths: Vec<String> = paths.iter().map(|_| String::new()).collect();
+
+    for i in 0..paths.len() {
+        let mut depth = 1;
+        loop {
+            let mut truncated_parts: Vec<&str> = path_components[i]
+                .iter()
+                .rev()
+                .take(depth)
+                .rev()
+                .cloned()
+                .collect();
+            let truncated = truncated_parts.join("/");
+
+            let is_unique = path_components
+                .iter()
+                .enumerate()
+                .filter(|(j, _)| *j != i)
+                .all(|(_, other_components)| {
+                    let other_truncated = other_components
+                        .iter()
+                        .rev()
+                        .take(depth)
+                        .rev()
+                        .cloned()
+                        .collect::<Vec<&str>>()
+                        .join("/");
+                    truncated != other_truncated
+                });
+
+            if is_unique || depth >= path_components[i].len() {
+                truncated_paths[i] = truncated;
+                break;
+            }
+            depth += 1;
+        }
+    }
+
+    truncated_paths
+}
+
 pub fn render_buffers(mut window: ResMut<Window>, buffers: Res<Buffers>, theme: Res<Theme>) {
     buffers.render(vec2(0, 0), window.buffer_mut(), &theme);
 }
@@ -123,7 +178,9 @@ pub fn update_bufferline_scroll(mut buffers: ResMut<Buffers>, window: Res<Window
         return;
     }
 
-    let tab_widths: Vec<usize> = buffers.iter().map(|b| b.borrow().path.len() + 6).collect();
+    let paths: Vec<String> = buffers.iter().map(|b| b.borrow().path.clone()).collect();
+    let unique_paths = get_unique_paths(paths);
+    let tab_widths: Vec<usize> = unique_paths.iter().map(|p| p.len() + 6).collect();
 
     let tab_starts: Vec<usize> = tab_widths
         .iter()
