@@ -56,7 +56,9 @@ impl BufferAction for Delete {
         let line_idx = self.pos.y as usize;
         if let Some(line) = buf.lines.get_mut(line_idx) {
             let start_char = self.pos.x as usize;
-            let end_char = (start_char + self.len).min(line.chars().count());
+            let end_char = start_char
+                .saturating_add(self.len)
+                .min(line.chars().count());
 
             let start_byte_col = char_to_byte_index(line, start_char);
             let end_byte_col = char_to_byte_index(line, end_char);
@@ -96,6 +98,7 @@ impl BufferAction for Delete {
 pub struct JoinLine {
     /// The index of the first line (the one that will be kept).
     pub line_idx: usize,
+    pub undo_indent: Option<usize>,
 }
 
 impl BufferAction for JoinLine {
@@ -104,10 +107,23 @@ impl BufferAction for JoinLine {
             return (false, Box::new(NoOp));
         }
 
-        let line0_len_chars = buf.lines[self.line_idx].chars().count();
-        let line0_len_bytes = buf.lines[self.line_idx].len();
-        let line1_content = buf.lines[self.line_idx + 1].clone();
+        let mut line1_content = buf.lines[self.line_idx + 1].clone();
+        if let Some(indent_len) = self.undo_indent {
+            line1_content.drain(..indent_len);
+        } else {
+            line1_content = line1_content.trim_start().to_string();
+        }
         let line1_len_bytes = line1_content.len();
+
+        let line0 = &mut buf.lines[self.line_idx];
+        if self.undo_indent.is_none() {
+            let line0_trimmed_len = line0.trim_end().len();
+            line0.truncate(line0_trimmed_len);
+            line0.push(' ');
+        }
+
+        let line0_len_chars = line0.chars().count();
+        let line0_len_bytes = line0.len();
 
         let start_pos = Point::new(self.line_idx, line0_len_bytes);
         let start_byte = buf.get_byte_offset(start_pos);
@@ -115,8 +131,8 @@ impl BufferAction for JoinLine {
         let old_end_byte = start_byte + 1 + line1_len_bytes;
         let old_end_pos = Point::new(self.line_idx + 1, line1_len_bytes);
 
-        let new_end_byte = start_byte + line1_len_bytes;
-        let new_end_pos = Point::new(self.line_idx, line0_len_bytes + line1_len_bytes);
+        let new_end_byte = start_byte + line1_content.len();
+        let new_end_pos = Point::new(self.line_idx, line0_len_bytes + line1_content.len());
 
         buf.lines.remove(self.line_idx + 1);
         buf.lines[self.line_idx].push_str(&line1_content);
@@ -154,8 +170,14 @@ impl BufferAction for InsertNewline {
         let start_pos = Point::new(line_idx, byte_col);
         let start_byte = buf.get_byte_offset(start_pos);
 
-        let (lhs, rhs) = buf.lines[line_idx].split_at(byte_col);
-        let (lhs, rhs) = (lhs.to_string(), rhs.to_string());
+        let current_line = &buf.lines[line_idx];
+        let indent = current_line
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .collect::<String>();
+
+        let (lhs, rhs) = current_line.split_at(byte_col);
+        let (lhs, rhs) = (lhs.to_string(), format!("{indent}{rhs}"));
         buf.lines[line_idx] = lhs;
         buf.lines.insert(line_idx + 1, rhs);
 
@@ -171,8 +193,14 @@ impl BufferAction for InsertNewline {
         buf.tree_sitter_dirty = true;
 
         buf.move_cursor(0, 0);
+        buf.move_cursor(32000, 0);
+        buf.move_cursor(-32000, 1);
+        buf.move_cursor(indent.len() as i16, 0);
 
-        let inverse = Box::new(JoinLine { line_idx });
+        let inverse = Box::new(JoinLine {
+            line_idx,
+            undo_indent: Some(indent.len()),
+        });
         (true, inverse)
     }
 }
@@ -236,7 +264,14 @@ impl BufferAction for InsertLine {
         let start_pos = Point::new(edit_line_row, edit_line_len);
         let start_byte = buf.get_byte_offset(start_pos);
 
-        buf.lines.insert(self.line_idx, self.content.clone());
+        let current_line = &buf.lines[edit_line_row];
+        let indent = current_line
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .collect::<String>();
+
+        buf.lines
+            .insert(self.line_idx, format!("{indent}{}", self.content));
 
         let new_end_pos = Point::new(self.line_idx, 0);
         let edit = InputEdit {
@@ -250,7 +285,9 @@ impl BufferAction for InsertLine {
         buf.changes.push(edit);
         buf.tree_sitter_dirty = true;
 
-        buf.move_cursor(0, 0);
+        buf.move_cursor(32000, 0);
+        buf.move_cursor(-32000, 0);
+        buf.move_cursor(indent.len() as i16, 0);
 
         let inverse = Box::new(DeleteLine {
             line_idx: self.line_idx,

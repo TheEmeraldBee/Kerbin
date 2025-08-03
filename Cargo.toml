@@ -8,23 +8,20 @@ members = ["rune-cli", "cli"]
 
 [workspace.dependencies]
 rune = { git = "https://github.com/rune-rs/rune.git" }
-serde = { version = "1.0.219", features = ["derive"] }
-clap = { version = "4.5.42", features = ["derive"] }
+serde = { version = "1.0.197", features = ["derive"] }
 ipmpsc = "0.5.1"
 dirs = "6.0.0"
+anyhow = "1.0.98"
 
 [dependencies]
 dirs.workspace = true
-clap.workspace = true
-serde.workspace = true
-anyhow = "1.0.98"
+anyhow.workspace = true
 ascii-forge = { version = "1.2.1", features = ["serde"] }
 chrono = "0.4.41"
 crokey = "1.2.0"
 derive_more = { version = "2.0.1", features = ["deref", "deref_mut"] }
 ipmpsc.workspace = true
 libloading = "0.8.8"
-ref-cast = "1.0.24"
 rune.workspace = true
 rune-modules = { git = "https://github.com/rune-rs/rune.git", features = ["full"] }
 stategine = "0.3.1"
@@ -32,3 +29,4 @@ tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 tree-sitter = "0.25.8"
 uuid = { version = "1.17.0", features = ["v4"] }
+serde = { workspace = true }

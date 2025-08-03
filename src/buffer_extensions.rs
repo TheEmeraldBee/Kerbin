@@ -1,8 +1,9 @@
 use ascii_forge::window::{Buffer, ContentStyle};
 
 pub trait BufferExtension {
-    fn style_line(&mut self, y_line: u16, style_fn: impl Fn(ContentStyle) -> ContentStyle);
+  fn style_line(&mut self, y_line: u16, style_fn: impl Fn(ContentStyle) -> ContentStyle);
 }
+
 
 impl BufferExtension for Buffer {
     fn style_line(&mut self, y_line: u16, style_fn: impl Fn(ContentStyle) -> ContentStyle) {

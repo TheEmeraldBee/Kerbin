@@ -12,7 +12,7 @@ use tree_sitter::{InputEdit, Parser, Point, Query, Tree};
 pub mod action;
 use action::*;
 
-fn char_to_byte_index(s: &str, char_index: usize) -> usize {
+pub(crate) fn char_to_byte_index(s: &str, char_index: usize) -> usize {
     s.char_indices()
         .nth(char_index)
         .map(|(idx, _)| idx)
@@ -184,7 +184,10 @@ impl TextBuffer {
 
     pub fn join_line_relative(&mut self, offset: i16) -> bool {
         let line_idx = (self.cursor_pos.y as i16 + offset) as usize;
-        self.action(JoinLine { line_idx })
+        self.action(JoinLine {
+            line_idx,
+            undo_indent: None,
+        })
     }
 
     pub fn start_change_group(&mut self) {
@@ -309,9 +312,16 @@ impl TextBuffer {
     }
 
     pub fn set_cur_line(&mut self, line: String) {
-        self.lines
-            .get_mut(self.cursor_pos.y as usize)
-            .map(|x| *x = line);
+        if self.lines.get(self.cursor_pos.y as usize).is_some() {
+            self.action(DeleteLine {
+                line_idx: self.cursor_pos.y as usize,
+            });
+
+            self.action(InsertLine {
+                line_idx: self.cursor_pos.y as usize,
+                content: line,
+            });
+        }
     }
 
     pub fn cur_line_mut(&mut self) -> Option<&mut String> {

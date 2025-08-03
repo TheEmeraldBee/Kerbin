@@ -118,7 +118,6 @@ pub fn load(api) {
           if api.buffers.current().col() == 0 {
             api.buffers.current().move_cursor(-32000, -1);
             let line_len = api.buffers.current().cur_line().len();
-
             api.buffers.current().join_line_relative(0);
             api.buffers.current().move_cursor(line_len, 0);
             api.window.render(50, 50, "Worked!", None);
@@ -132,7 +131,7 @@ pub fn load(api) {
     api.input.register_input(
         ['i'],
         ["enter"],
-        |api, i| repeat(api, [EditorCommand::InsertLine(0), EditorCommand::MoveCursor(-32000, 1)], i),
+        |api, i| repeat(api, [EditorCommand::InsertLine(0)], i),
         "New line",
     );
 

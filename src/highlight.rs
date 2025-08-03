@@ -6,7 +6,7 @@ use crate::Theme;
 
 /// Traverses a tree using a query and returns a list of styled ranges.
 pub fn highlight(
-    text: &[String],
+    text: &[String],        
     tree: &Tree,
     query: &Query,
     theme: &Theme,

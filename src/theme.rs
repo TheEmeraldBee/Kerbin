@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use ascii_forge::window::{Attribute, Attributes, Color, ContentStyle, Stylize};
+use ascii_forge::window::{Attributes, Color, ContentStyle, Stylize};
 use rune::{Any, ContextError, Module, alloc::clone::TryClone};
 
 /// The style that can be put on content.
@@ -42,7 +42,7 @@ impl EditorStyle {
 
     #[rune::function]
     pub fn cloned(&self) -> Self {
-        self.clone()
+        *self
     }
 
     #[rune::function(keep, path = Self::new)]

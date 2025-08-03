@@ -159,6 +159,10 @@ fn main() {
         tracing::error!("Rune VM Error: {}", e);
     }
 
+    if let Err(e) = plugin_manager.run_load_languages_hook(&mut engine) {
+        tracing::error!("Rune VM Error: {}", e);
+    }
+
     while engine.get_state_mut::<Running>().0 {
         engine.update();
 
@@ -173,7 +177,7 @@ fn main() {
         engine.oneshot_system(render_cursor.into_system());
     }
 
-    let _ = std::fs::remove_file(&format!(
+    let _ = std::fs::remove_file(format!(
         "{}/kerbin/sessions/{}",
         dirs::data_dir().unwrap().display(),
         engine.take_state::<ShellLink>().session_id

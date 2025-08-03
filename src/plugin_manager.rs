@@ -479,6 +479,39 @@ impl ConfigManager {
         Ok(())
     }
 
+    pub fn run_load_languages_hook(&mut self, engine: &mut Engine) -> Result<(), anyhow::Error> {
+        let file_path = "config/langs.rn";
+        if std::fs::exists(file_path)? {
+            let mut sources = Sources::new();
+            sources.insert(Source::from_path(file_path)?)?;
+            let mut diagnostics = Diagnostics::new();
+
+            let unit = rune::prepare(&mut sources)
+                .with_context(&self.context)
+                .with_diagnostics(&mut diagnostics)
+                .build();
+
+            if !diagnostics.is_empty() {
+                let mut out = rune::termcolor::Buffer::no_color();
+                diagnostics.emit(&mut out, &sources)?;
+                tracing::error!("\n{}", String::from_utf8(out.into_inner())?);
+            }
+
+            let unit = Arc::try_new(unit?)?;
+            let vm = Vm::new(self.runtime.clone(), unit.clone());
+
+            if let Ok(load_lsp) = vm.lookup_function(["load_lsp"]) {
+                let mut api = Api::new(engine);
+                if let Err(e) = load_lsp.call::<()>((&mut api,)) {
+                    api.finish_api(engine);
+                    return Err(e.into());
+                }
+                api.finish_api(engine);
+            }
+        }
+        Ok(())
+    }
+
     pub fn run_function(
         engine: &mut Engine,
         function: Rc<Function>,
