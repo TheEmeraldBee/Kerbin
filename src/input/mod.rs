@@ -1,11 +1,14 @@
-use std::{rc::Rc, str::FromStr};
+use std::{
+    rc::Rc,
+    str::FromStr,
+    sync::{Arc, atomic::Ordering},
+};
 
 use ascii_forge::{prelude::*, widgets::border::Border};
 use crokey::{Combiner, KeyCombination};
-use rune::{Value, runtime::Function};
-use stategine::prelude::*;
+use rune::runtime::Function;
 
-use crate::{SpecialCommand, commands::EditorCommand, key_check::KeyCheckExt, mode::Mode};
+use crate::{AppState, commands::EditorCommand, key_check::KeyCheckExt};
 
 pub enum InputResult {
     Failed,
@@ -101,11 +104,10 @@ pub struct InputState {
     pub active_inputs: Vec<(usize, usize)>,
 }
 
-pub fn render_help_menu(
-    mut window: ResMut<Window>,
-    input: Res<InputState>,
-    input_config: Res<InputConfig>,
-) {
+pub fn render_help_menu(state: Arc<AppState>) {
+    let input = state.input_state.read().unwrap();
+    let input_config = state.input.read().unwrap();
+    let mut window = state.window.write().unwrap();
     if input.active_inputs.is_empty() {
         return;
     }
@@ -121,20 +123,23 @@ pub fn render_help_menu(
     render!(window, window.size() - vec2(40, 15) => [border]);
 }
 
-pub fn handle_inputs(
-    mut commands: ResMut<Commands>,
-    window: Res<Window>,
-    mut combiner: ResMut<Combiner>,
-    mut input: ResMut<InputState>,
-    input_config: Res<InputConfig>,
-    mode: Res<Mode>,
-) {
-    if mode.0 == 'c' {
+pub fn handle_inputs(state: Arc<AppState>) {
+    let window = state.window.read().unwrap();
+    let mut combiner = state.combiner.write().unwrap();
+
+    let commands = &state.commands;
+
+    let mut input = state.input_state.write().unwrap();
+
+    let input_config = state.input.read().unwrap();
+
+    let mode = char::from_u32(state.mode.load(Ordering::Relaxed)).unwrap_or_default();
+    if mode == 'c' {
         return;
     }
 
     let mut consumed = false;
-    if mode.0 == 'i' {
+    if mode == 'i' {
         for event in window.events() {
             let Event::Key(KeyEvent {
                 code: KeyCode::Char(chr),
@@ -144,8 +149,8 @@ pub fn handle_inputs(
                 continue;
             };
 
-            commands.add(EditorCommand::InsertChar(*chr));
-            commands.add(EditorCommand::MoveCursor(1, 0));
+            commands.send(EditorCommand::InsertChar(*chr)).unwrap();
+            commands.send(EditorCommand::MoveCursor(1, 0)).unwrap();
             consumed = true;
         }
     }
@@ -182,12 +187,12 @@ pub fn handle_inputs(
     let no_inputs = input.active_inputs.is_empty();
     let mut completed_input = false;
 
-    let repeat_count = input.repeat_count.clone().parse().unwrap_or(1);
+    let _repeat_count = input.repeat_count.clone().parse().unwrap_or(1);
     input.active_inputs.retain_mut(|(idx, step)| {
         if completed_input {
             return false;
         }
-        match input_config.inputs[*idx].step(&window, &mut combiner, mode.0, *step) {
+        match input_config.inputs[*idx].step(&window, &mut combiner, mode, *step) {
             InputResult::Failed => false,
             InputResult::Step => {
                 *step += 1;
@@ -196,10 +201,12 @@ pub fn handle_inputs(
             InputResult::Complete => {
                 completed_input = true;
 
-                commands.add(SpecialCommand::RunFunction(
-                    input_config.inputs[*idx].func.clone(),
-                    Value::from(repeat_count as u64),
-                ));
+                //commands
+                //    .send(SpecialCommand::RunFunction(
+                //       input_config.inputs[*idx].func.clone(),
+                //        Value::from(repeat_count as u64),
+                //    ))
+                //    .unwrap();
 
                 false
             }
@@ -215,13 +222,13 @@ pub fn handle_inputs(
     }
 
     for (i, check) in input_config.inputs.iter().enumerate() {
-        match check.step(&window, &mut combiner, mode.0, 0) {
+        match check.step(&window, &mut combiner, mode, 0) {
             InputResult::Step => input.active_inputs.push((i, 1)),
             InputResult::Complete => {
-                commands.add(SpecialCommand::RunFunction(
-                    check.func.clone(),
-                    Value::from(repeat_count as u64),
-                ));
+                //commands.send(SpecialCommand::RunFunction(
+                //    check.func.clone(),
+                //    Value::from(repeat_count as u64),
+                //)).unwrap();
 
                 break;
             }

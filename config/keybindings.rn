@@ -27,7 +27,11 @@ pub fn load(api) {
     api.input.register_input(
         [],
         ["ctrl-d"],
-        |api, i| repeat(api, [EditorCommand::MoveCursor(0, 5), EditorCommand::Scroll(5)], i),
+        |api, i| {
+            let line_height = api.window.height() - 3;
+            api.buffers.current().scroll_lines(line_height);
+            api.buffers.current().move_cursor(0, line_height);
+        },
         "Scroll Down",
     );
 

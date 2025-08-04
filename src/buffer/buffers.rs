@@ -1,12 +1,11 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-use crate::{GrammarManager, Theme, buffer_extensions::BufferExtension};
+use crate::{AppState, GrammarManager, Theme, buffer_extensions::BufferExtension};
 
 use super::TextBuffer;
 use ascii_forge::prelude::*;
 use derive_more::*;
 use rune::Any;
-use stategine::prelude::*;
 
 #[derive(Deref, DerefMut, Default, Any)]
 pub struct Buffers {
@@ -175,7 +174,11 @@ fn get_unique_paths(paths: Vec<String>) -> Vec<String> {
     truncated_paths
 }
 
-pub fn render_buffers(mut window: ResMut<Window>, buffers: Res<Buffers>, theme: Res<Theme>) {
+pub fn render_buffers(state: Arc<AppState>) {
+    let theme = state.theme.read().unwrap();
+    let mut window = state.window.write().unwrap();
+    let buffers = state.buffers.read().unwrap();
+
     let style = theme
         .get("ui.bufferline")
         .map(|style| style.to_content_style())
@@ -186,7 +189,10 @@ pub fn render_buffers(mut window: ResMut<Window>, buffers: Res<Buffers>, theme: 
     buffers.render(vec2(0, 0), window.buffer_mut(), &theme);
 }
 
-pub fn update_bufferline_scroll(mut buffers: ResMut<Buffers>, window: Res<Window>) {
+pub fn update_bufferline_scroll(state: Arc<AppState>) {
+    let mut buffers = state.buffers.write().unwrap();
+    let window = state.window.read().unwrap();
+
     if buffers.is_empty() {
         buffers.tab_scroll = 0;
         return;
@@ -231,7 +237,10 @@ pub fn update_bufferline_scroll(mut buffers: ResMut<Buffers>, window: Res<Window
     }
 }
 
-pub fn update_buffer(window: Res<Window>, buffers: Res<Buffers>) {
+pub fn update_buffer(state: Arc<AppState>) {
+    let window = state.window.read().unwrap();
+    let buffers = state.buffers.read().unwrap();
+
     let viewport_height = window.size().y.saturating_sub(3);
     let viewport_width = window.size().x.saturating_sub(7);
     let buffer = buffers.cur_buffer();

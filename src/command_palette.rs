@@ -1,7 +1,9 @@
-use crate::{buffer_extensions::BufferExtension, commands::EditorCommand, mode::Mode};
+use crate::{AppState, buffer_extensions::BufferExtension, commands::EditorCommand};
 use ascii_forge::prelude::*;
-use stategine::prelude::*;
-use std::str::SplitWhitespace;
+use std::{
+    str::SplitWhitespace,
+    sync::{Arc, atomic::Ordering},
+};
 
 /// A descriptor for a command that can be executed from the palette.
 struct CommandInfo {
@@ -115,7 +117,7 @@ impl CommandPaletteState {
     }
 
     /// Parses and executes the current input string.
-    fn execute(&self, commands: &mut Commands) {
+    fn execute(&self, state: Arc<AppState>) {
         let mut parts = self.input.split_whitespace();
         if let Some(cmd_name) = parts.next() {
             if let Some(command_info) = self
@@ -126,7 +128,7 @@ impl CommandPaletteState {
                 match (command_info.parser)(parts) {
                     Ok(cmds) => {
                         for cmd in cmds {
-                            commands.add(cmd)
+                            state.commands.send(cmd).unwrap();
                         }
                     }
                     Err(_e) => {
@@ -139,13 +141,13 @@ impl CommandPaletteState {
 }
 
 /// Handles user input when the command palette is active.
-pub fn handle_command_palette_input(
-    mut commands: ResMut<Commands>,
-    window: Res<Window>,
-    mut palette: ResMut<CommandPaletteState>,
-    mut mode: ResMut<Mode>,
-) {
-    if mode.0 != 'c' {
+pub fn handle_command_palette_input(state: Arc<AppState>) {
+    let window = state.window.read().unwrap();
+
+    let mut palette = state.palette.write().unwrap();
+
+    let mode = state.get_mode();
+    if mode != 'c' {
         return;
     }
 
@@ -158,7 +160,7 @@ pub fn handle_command_palette_input(
                     palette.input.pop();
                 }
                 KeyCode::Enter => {
-                    palette.execute(&mut commands);
+                    palette.execute(state.clone());
                     executed = true;
                 }
                 KeyCode::Esc => executed = true,
@@ -169,19 +171,21 @@ pub fn handle_command_palette_input(
 
     if executed {
         palette.input.clear();
-        mode.0 = 'n'; // Return to normal mode
+        state.mode.store(u32::from('n'), Ordering::Relaxed); // Return to normal mode
     }
 
     palette.update_suggestions();
 }
 
 /// Renders the command palette UI at the bottom of the screen.
-pub fn render_command_palette(
-    mut window: ResMut<Window>,
-    palette: Res<CommandPaletteState>,
-    mode: Res<Mode>,
-) {
-    if mode.0 != 'c' {
+pub fn render_command_palette(state: Arc<AppState>) {
+    let mut window = state.window.write().unwrap();
+
+    let palette = state.palette.read().unwrap();
+
+    let mode = char::from_u32(state.mode.load(Ordering::Relaxed)).unwrap();
+
+    if mode != 'c' {
         return;
     }
 

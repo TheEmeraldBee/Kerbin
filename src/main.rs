@@ -1,25 +1,34 @@
-use std::{cell::RefCell, fs::File, path::PathBuf, rc::Rc, sync::Mutex, time::Duration};
+use std::{
+    cell::RefCell,
+    fs::File,
+    rc::Rc,
+    sync::{Arc, Mutex, atomic::Ordering},
+    time::Duration,
+};
 
 use ascii_forge::prelude::*;
 
 use crokey::{
     Combiner,
-    crossterm::{
-        cursor::{Hide, MoveTo, SetCursorStyle, Show},
-        *,
-    },
+    crossterm::cursor::{Hide, MoveTo, SetCursorStyle, Show},
 };
-use ipmpsc::SharedRingBuffer;
-use stategine::{prelude::*, system::into_system::IntoSystem};
+
+use crossterm::execute;
+
+use tokio::sync::mpsc;
 use tracing::Level;
 
 use kerbin::{buffer_extensions::BufferExtension, *};
 
-fn update_window(mut window: ResMut<Window>) {
+fn update_window(state: Arc<AppState>) {
+    let mut window = state.window.write().unwrap();
     window.update(Duration::from_millis(10)).unwrap();
 }
 
-fn render_cursor(mut window: ResMut<Window>, buffers: Res<Buffers>, mode: Res<Mode>) {
+fn render_cursor(state: Arc<AppState>) {
+    let mut window = state.window.write().unwrap();
+    let buffers = state.buffers.read().unwrap();
+
     let mut cursor_pos = buffers.cur_buffer().borrow().cursor_pos;
     let scroll = buffers.cur_buffer().borrow().scroll;
 
@@ -43,7 +52,7 @@ fn render_cursor(mut window: ResMut<Window>, buffers: Res<Buffers>, mode: Res<Mo
         return;
     }
 
-    let cursor_style = match mode.0 {
+    let cursor_style = match state.get_mode() {
         'i' => SetCursorStyle::SteadyBar,
         _ => SetCursorStyle::SteadyBlock,
     };
@@ -65,28 +74,8 @@ fn render_cursor(mut window: ResMut<Window>, buffers: Res<Buffers>, mode: Res<Mo
     .unwrap();
 }
 
-fn main() {
-    // Generate the session id that will be passed to all sh calls.
-    let session_id = uuid::Uuid::new_v4().to_string();
-
-    let path = format!(
-        "{}/kerbin/sessions/{}",
-        dirs::data_dir().unwrap().display(),
-        session_id
-    );
-
-    let mut dir = PathBuf::from(&path);
-    dir.pop();
-
-    let _ = std::fs::create_dir_all(&dir);
-
-    let receiver = ipmpsc::Receiver::new(SharedRingBuffer::create(&path, 32 * 1024).unwrap());
-
-    let link = ShellLink {
-        session_id,
-        receiver,
-    };
-
+#[tokio::main]
+async fn main() {
     let log_file = File::options()
         .create(true)
         .append(true)
@@ -104,84 +93,92 @@ fn main() {
 
     let combiner = Combiner::default();
 
-    let buffers = Buffers {
-        selected_buffer: 0,
-        tab_scroll: 0,
-        buffers: vec![Rc::new(RefCell::new(TextBuffer::scratch()))],
-    };
+    //let mut plugin_manager = ConfigManager::new().expect("Failed to create plugin manager");
+    //let res = plugin_manager.load_config();
 
-    let input_config = InputConfig::default();
+    //match res {
+    //    Ok(_) => {}
+    //    Err(e) => {
+    //        tracing::error!("{e}");
+    //    }
+    //}
 
-    // ----------------------- //
-    // Temporary Keybind Setup //
-    // ----------------------- //
+    let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<EditorCommand>();
 
-    let grammar_manager = GrammarManager::new();
-    let theme = Theme::default();
+    let state = AppState::new(window, combiner, cmd_tx);
+    state
+        .buffers
+        .write()
+        .unwrap()
+        .buffers
+        .push(Rc::new(RefCell::new(TextBuffer::scratch())));
 
-    let mut plugin_manager = ConfigManager::new().expect("Failed to create plugin manager");
-    let res = plugin_manager.load_config();
+    //let mut event_stream = EventStream::new();
 
-    match res {
-        Ok(_) => {}
-        Err(e) => {
-            tracing::error!("{e}");
+    while state.running.load(Ordering::Relaxed) {
+        tokio::select! {
+            //Some(Ok(event)) = event_stream.next() => {
+                // Register the events here
+            //},
+            Some(cmd) = cmd_rx.recv() => {
+                cmd.apply(state.clone())
+            }
+            _ = tokio::time::sleep(Duration::from_millis(16)) => {
+                // Basic terminal render tick
+
+                handle_inputs(state.clone());
+                render_buffers(state.clone());
+                render_help_menu(state.clone());
+                render_command_palette(state.clone());
+                catch_events(state.clone());
+
+                update_buffer(state.clone());
+                update_bufferline_scroll(state.clone());
+                update_window(state.clone());
+                render_cursor(state.clone());
+            }
         }
     }
 
-    let mut engine = Engine::new();
-    engine.states((Running(true), Mode::default()));
-    engine.states((window, combiner, buffers));
-    engine.states((
-        input_config,
-        InputState::default(),
-        CommandPaletteState::new(),
-        CommandStatus::default(),
-        PluginConfig::default(),
-    ));
+    //engine.systems((handle_inputs, handle_command_palette_input));
 
-    engine.states((grammar_manager, theme));
+    //engine.systems((
+    //    update_highlights,
+    //    render_buffers,
+    //    render_help_menu,
+    //    render_command_palette,
+    //));
 
-    engine.state(link);
+    //engine.systems((catch_events,));
 
-    engine.systems((handle_inputs, handle_command_palette_input));
+    //if let Err(e) = plugin_manager.run_load_hook(&mut engine) {
+    //    tracing::error!("Rune VM Error: {}", e);
+    //}
 
-    engine.systems((
-        update_highlights,
-        render_buffers,
-        render_help_menu,
-        render_command_palette,
-    ));
+    //if let Err(e) = plugin_manager.run_load_languages_hook(&mut engine) {
+    //    tracing::error!("Rune VM Error: {}", e);
+    //}
 
-    engine.systems((catch_events,));
+    //while engine.get_state_mut::<Running>().0 {
+    //    engine.update();
+    //
+    //    if let Err(e) = plugin_manager.run_update_hook(&mut engine) {
+    //        tracing::error!("Rune VM Error: {}", e);
+    //    }
+    //
+    //    // These are updated seperately because they want commands to be applied
+    //    engine.oneshot_system(update_buffer.into_system());
+    //    engine.oneshot_system(update_bufferline_scroll.into_system());
+    //    engine.oneshot_system(update_window.into_system());
+    //    engine.oneshot_system(render_cursor.into_system());
+    //}
 
-    if let Err(e) = plugin_manager.run_load_hook(&mut engine) {
-        tracing::error!("Rune VM Error: {}", e);
-    }
+    //let _ = std::fs::remove_file(format!(
+    //"{}/kerbin/sessions/{}",
+    //dirs::data_dir().unwrap().display(),
+    //engine.take_state::<ShellLink>().session_id
+    //));
 
-    if let Err(e) = plugin_manager.run_load_languages_hook(&mut engine) {
-        tracing::error!("Rune VM Error: {}", e);
-    }
-
-    while engine.get_state_mut::<Running>().0 {
-        engine.update();
-
-        if let Err(e) = plugin_manager.run_update_hook(&mut engine) {
-            tracing::error!("Rune VM Error: {}", e);
-        }
-
-        // These are updated seperately because they want commands to be applied
-        engine.oneshot_system(update_buffer.into_system());
-        engine.oneshot_system(update_bufferline_scroll.into_system());
-        engine.oneshot_system(update_window.into_system());
-        engine.oneshot_system(render_cursor.into_system());
-    }
-
-    let _ = std::fs::remove_file(format!(
-        "{}/kerbin/sessions/{}",
-        dirs::data_dir().unwrap().display(),
-        engine.take_state::<ShellLink>().session_id
-    ));
-
-    engine.get_state_mut::<Window>().restore().unwrap();
+    state.shell.write().unwrap().cleanup();
+    state.window.write().unwrap().restore().unwrap();
 }

@@ -2,7 +2,6 @@ use std::{collections::BTreeMap, io::ErrorKind, path::Path, sync::Arc};
 
 mod buffers;
 pub use buffers::*;
-use stategine::prelude::Res;
 
 use crate::*;
 
@@ -439,9 +438,12 @@ impl TextBuffer {
 
 /// A system that processes any pending changes in the active buffer
 /// to update its syntax highlighting.
-pub fn update_highlights(buffers: Res<Buffers>, theme: Res<Theme>) {
-    buffers
+pub fn update_highlights(state: Arc<AppState>) {
+    state
+        .buffers
+        .read()
+        .unwrap()
         .cur_buffer()
         .borrow_mut()
-        .update_tree_and_highlights(&theme);
+        .update_tree_and_highlights(&state.theme.read().unwrap());
 }
