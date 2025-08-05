@@ -1,6 +1,6 @@
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc};
 
-use crate::{AppState, GrammarManager, Theme, buffer_extensions::BufferExtension};
+use crate::{AppState, Arc, GrammarManager, Theme, buffer_extensions::BufferExtension};
 
 use super::TextBuffer;
 use ascii_forge::prelude::*;

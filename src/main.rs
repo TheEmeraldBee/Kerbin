@@ -2,7 +2,7 @@ use std::{
     cell::RefCell,
     fs::File,
     rc::Rc,
-    sync::{Arc, Mutex, atomic::Ordering},
+    sync::{Mutex, atomic::Ordering},
     time::Duration,
 };
 
@@ -93,17 +93,17 @@ async fn main() {
 
     let combiner = Combiner::default();
 
-    //let mut plugin_manager = ConfigManager::new().expect("Failed to create plugin manager");
-    //let res = plugin_manager.load_config();
+    let mut plugin_manager = ConfigManager::new().expect("Failed to create plugin manager");
+    let res = plugin_manager.load_config();
 
-    //match res {
-    //    Ok(_) => {}
-    //    Err(e) => {
-    //        tracing::error!("{e}");
-    //    }
-    //}
+    match res {
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!("{e}");
+        }
+    }
 
-    let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<EditorCommand>();
+    let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<Box<dyn Command>>();
 
     let state = AppState::new(window, combiner, cmd_tx);
     state
@@ -112,6 +112,10 @@ async fn main() {
         .unwrap()
         .buffers
         .push(Rc::new(RefCell::new(TextBuffer::scratch())));
+
+    if let Err(e) = plugin_manager.run_load_hook(state.clone()) {
+        tracing::error!("Rune VM Error: {}", e);
+    }
 
     //let mut event_stream = EventStream::new();
 
@@ -125,10 +129,17 @@ async fn main() {
             }
             _ = tokio::time::sleep(Duration::from_millis(16)) => {
                 // Basic terminal render tick
+                if let Err(e) = plugin_manager.run_update_hook(state.clone()) {
+                    tracing::error!("Rune VM Error: {}", e);
+                }
 
                 handle_inputs(state.clone());
+
+                update_highlights(state.clone().clone());
                 render_buffers(state.clone());
+
                 render_help_menu(state.clone());
+                handle_command_palette_input(state.clone());
                 render_command_palette(state.clone());
                 catch_events(state.clone());
 
@@ -139,45 +150,6 @@ async fn main() {
             }
         }
     }
-
-    //engine.systems((handle_inputs, handle_command_palette_input));
-
-    //engine.systems((
-    //    update_highlights,
-    //    render_buffers,
-    //    render_help_menu,
-    //    render_command_palette,
-    //));
-
-    //engine.systems((catch_events,));
-
-    //if let Err(e) = plugin_manager.run_load_hook(&mut engine) {
-    //    tracing::error!("Rune VM Error: {}", e);
-    //}
-
-    //if let Err(e) = plugin_manager.run_load_languages_hook(&mut engine) {
-    //    tracing::error!("Rune VM Error: {}", e);
-    //}
-
-    //while engine.get_state_mut::<Running>().0 {
-    //    engine.update();
-    //
-    //    if let Err(e) = plugin_manager.run_update_hook(&mut engine) {
-    //        tracing::error!("Rune VM Error: {}", e);
-    //    }
-    //
-    //    // These are updated seperately because they want commands to be applied
-    //    engine.oneshot_system(update_buffer.into_system());
-    //    engine.oneshot_system(update_bufferline_scroll.into_system());
-    //    engine.oneshot_system(update_window.into_system());
-    //    engine.oneshot_system(render_cursor.into_system());
-    //}
-
-    //let _ = std::fs::remove_file(format!(
-    //"{}/kerbin/sessions/{}",
-    //dirs::data_dir().unwrap().display(),
-    //engine.take_state::<ShellLink>().session_id
-    //));
 
     state.shell.write().unwrap().cleanup();
     state.window.write().unwrap().restore().unwrap();

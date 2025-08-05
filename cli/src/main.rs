@@ -1,5 +1,5 @@
 use ipmpsc::SharedRingBuffer;
-use zellix::EditorCommand;
+use kerbin::EditorCommand;
 
 fn main() {
     let session_id = std::env::var("KERBIN_SESSION").unwrap();
@@ -16,3 +16,4 @@ fn main() {
 
     sender.send(&command).unwrap();
 }
+

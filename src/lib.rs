@@ -6,8 +6,9 @@ macro_rules! term_print {
 }
 
 pub mod buffer;
+pub use rune::sync::Arc;
 use std::sync::{
-    Arc, RwLock,
+    RwLock,
     atomic::{AtomicBool, AtomicU32, Ordering},
 };
 
@@ -19,6 +20,7 @@ pub use commands::*;
 
 pub mod input;
 use crokey::Combiner;
+use derive_more::{Deref, DerefMut};
 pub use input::*;
 
 pub mod key_check;
@@ -48,19 +50,21 @@ pub use theme::*;
 pub mod shell;
 pub use shell::*;
 
-pub mod engine;
-pub use engine::*;
-
 use tokio::sync::mpsc::UnboundedSender;
+
+#[derive(rune::Any, Deref, DerefMut)]
+pub struct AnyWindow(Window);
 
 #[derive(rune::Any)]
 pub struct AppState {
     pub running: AtomicBool,
 
-    pub window: RwLock<Window>,
+    pub config: RwLock<PluginConfig>,
+
+    pub window: RwLock<AnyWindow>,
     pub combiner: RwLock<Combiner>,
 
-    pub commands: UnboundedSender<EditorCommand>,
+    pub commands: UnboundedSender<Box<dyn Command>>,
     pub command_success: AtomicBool,
 
     pub palette: RwLock<CommandPaletteState>,
@@ -80,12 +84,14 @@ impl AppState {
     pub fn new(
         window: Window,
         combiner: Combiner,
-        command_sender: UnboundedSender<EditorCommand>,
+        command_sender: UnboundedSender<Box<dyn Command>>,
     ) -> Arc<Self> {
-        Arc::new(Self {
+        Arc::try_new(Self {
             running: AtomicBool::new(true),
 
-            window: RwLock::new(window),
+            config: RwLock::new(PluginConfig::default()),
+
+            window: RwLock::new(AnyWindow(window)),
             combiner: RwLock::new(combiner),
 
             commands: command_sender,
@@ -105,6 +111,7 @@ impl AppState {
             input: RwLock::new(InputConfig::default()),
             input_state: RwLock::new(InputState::default()),
         })
+        .unwrap()
     }
 
     pub fn set_mode(&self, mode: char) {

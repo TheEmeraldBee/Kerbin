@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, io::ErrorKind, path::Path, sync::Arc};
+use std::{collections::BTreeMap, io::ErrorKind, path::Path};
 
 mod buffers;
 pub use buffers::*;
@@ -36,7 +36,7 @@ pub struct TextBuffer {
     parser: Option<Parser>,
     tree: Option<Tree>,
 
-    query: Option<Arc<Query>>,
+    query: Option<std::sync::Arc<Query>>,
 
     highlights: BTreeMap<usize, ContentStyle>,
 

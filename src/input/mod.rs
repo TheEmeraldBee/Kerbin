@@ -1,12 +1,10 @@
-use std::{
-    rc::Rc,
-    str::FromStr,
-    sync::{Arc, atomic::Ordering},
-};
+use std::{str::FromStr, sync::atomic::Ordering};
+
+use crate::{Arc, SpecialCommand};
 
 use ascii_forge::{prelude::*, widgets::border::Border};
 use crokey::{Combiner, KeyCombination};
-use rune::runtime::Function;
+use rune::{Value, runtime::Function};
 
 use crate::{AppState, commands::EditorCommand, key_check::KeyCheckExt};
 
@@ -20,7 +18,7 @@ pub enum InputResult {
 pub struct Input {
     pub valid_modes: Vec<char>,
     pub key_sequence: Vec<KeyCombination>,
-    pub func: Rc<Function>,
+    pub func: Arc<Function>,
     pub description: String,
 }
 
@@ -92,7 +90,7 @@ impl InputConfig {
         self.inputs.push(Input {
             valid_modes: modes,
             key_sequence,
-            func: Rc::new(func),
+            func: Arc::try_new(func).unwrap(),
             description: desc,
         });
     }
@@ -149,8 +147,12 @@ pub fn handle_inputs(state: Arc<AppState>) {
                 continue;
             };
 
-            commands.send(EditorCommand::InsertChar(*chr)).unwrap();
-            commands.send(EditorCommand::MoveCursor(1, 0)).unwrap();
+            commands
+                .send(Box::new(EditorCommand::InsertChar(*chr)))
+                .unwrap();
+            commands
+                .send(Box::new(EditorCommand::MoveCursor(1, 0)))
+                .unwrap();
             consumed = true;
         }
     }
@@ -187,7 +189,7 @@ pub fn handle_inputs(state: Arc<AppState>) {
     let no_inputs = input.active_inputs.is_empty();
     let mut completed_input = false;
 
-    let _repeat_count = input.repeat_count.clone().parse().unwrap_or(1);
+    let repeat_count = input.repeat_count.clone().parse().unwrap_or(1);
     input.active_inputs.retain_mut(|(idx, step)| {
         if completed_input {
             return false;
@@ -201,12 +203,12 @@ pub fn handle_inputs(state: Arc<AppState>) {
             InputResult::Complete => {
                 completed_input = true;
 
-                //commands
-                //    .send(SpecialCommand::RunFunction(
-                //       input_config.inputs[*idx].func.clone(),
-                //        Value::from(repeat_count as u64),
-                //    ))
-                //    .unwrap();
+                commands
+                    .send(Box::new(SpecialCommand::RunFunction(
+                        input_config.inputs[*idx].func.clone(),
+                        Value::from(repeat_count as u64),
+                    )))
+                    .unwrap();
 
                 false
             }
@@ -225,10 +227,12 @@ pub fn handle_inputs(state: Arc<AppState>) {
         match check.step(&window, &mut combiner, mode, 0) {
             InputResult::Step => input.active_inputs.push((i, 1)),
             InputResult::Complete => {
-                //commands.send(SpecialCommand::RunFunction(
-                //    check.func.clone(),
-                //    Value::from(repeat_count as u64),
-                //)).unwrap();
+                commands
+                    .send(Box::new(SpecialCommand::RunFunction(
+                        check.func.clone(),
+                        Value::from(repeat_count as u64),
+                    )))
+                    .unwrap();
 
                 break;
             }

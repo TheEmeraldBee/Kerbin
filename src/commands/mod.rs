@@ -1,32 +1,36 @@
-use std::sync::{Arc, atomic::Ordering};
+use std::sync::atomic::Ordering;
 
-use rune::{Any, alloc::clone::TryClone};
+use rune::{Any, Value, alloc::clone::TryClone, runtime::Function, sync::Arc};
 use serde::{Deserialize, Serialize};
 
-use crate::AppState;
+use crate::{AppState, ConfigManager};
 
 #[derive(Default)]
 pub struct CommandStatus {
     pub success: bool,
 }
 
-//#[derive(Debug)]
-//pub enum SpecialCommand {
-//    RunFunction(Rc<Function>, Value),
-//}
+#[derive(Debug)]
+pub enum SpecialCommand {
+    RunFunction(Arc<Function>, Value),
+}
 
-//impl Command for SpecialCommand {
-//    fn apply(self: Box<Self>, state: Arc<AppState>) {
-//        match *self {
-//            SpecialCommand::RunFunction(f, a) => match ConfigManager::run_function(engine, f, a) {
-//                Ok(_) => {}
-//                Err(e) => {
-//                    tracing::error!("{e}");
-//                }
-//            },
-//        }
-//    }
-//}
+pub trait Command {
+    fn apply(self: Box<Self>, state: Arc<AppState>);
+}
+
+impl Command for SpecialCommand {
+    fn apply(self: Box<Self>, state: Arc<AppState>) {
+        match *self {
+            SpecialCommand::RunFunction(f, a) => match ConfigManager::run_function(state, f, a) {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!("{e}");
+                }
+            },
+        }
+    }
+}
 
 #[derive(Debug, Any, TryClone, Serialize, Deserialize)]
 #[allow(unused)]
@@ -88,11 +92,11 @@ impl Clone for EditorCommand {
     }
 }
 
-impl EditorCommand {
-    pub fn apply(self, state: Arc<AppState>) {
-        //state.get_state_mut::<CommandStatus>().success = true;
+impl Command for EditorCommand {
+    fn apply(self: Box<Self>, state: Arc<AppState>) {
+        state.command_success.store(true, Ordering::Relaxed);
 
-        match self {
+        match *self {
             EditorCommand::MoveCursor(x, y) => {
                 let buffers = state.buffers.read().unwrap();
                 let success = buffers.cur_buffer().borrow_mut().move_cursor(x, y);
@@ -233,7 +237,7 @@ impl EditorCommand {
             EditorCommand::Repeat(commands, count) => {
                 for _ in 0..count {
                     for command in &commands {
-                        command.clone().apply(state.clone());
+                        Box::new(command.clone()).apply(state.clone());
                         if !state.command_success.load(Ordering::Relaxed) {
                             state.command_success.store(false, Ordering::Relaxed);
                             return;

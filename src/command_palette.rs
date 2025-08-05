@@ -1,9 +1,6 @@
-use crate::{AppState, buffer_extensions::BufferExtension, commands::EditorCommand};
+use crate::{AppState, Arc, buffer_extensions::BufferExtension, commands::EditorCommand};
 use ascii_forge::prelude::*;
-use std::{
-    str::SplitWhitespace,
-    sync::{Arc, atomic::Ordering},
-};
+use std::{str::SplitWhitespace, sync::atomic::Ordering};
 
 /// A descriptor for a command that can be executed from the palette.
 struct CommandInfo {
@@ -128,7 +125,7 @@ impl CommandPaletteState {
                 match (command_info.parser)(parts) {
                     Ok(cmds) => {
                         for cmd in cmds {
-                            state.commands.send(cmd).unwrap();
+                            state.commands.send(Box::new(cmd)).unwrap();
                         }
                     }
                     Err(_e) => {

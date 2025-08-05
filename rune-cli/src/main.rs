@@ -1,4 +1,4 @@
-use zellix::*;
+use kerbin::*;
 
 fn main() {
     rune::cli::Entry::new()

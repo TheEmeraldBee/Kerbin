@@ -1,6 +1,6 @@
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
-use crate::{AppState, EditorCommand};
+use crate::{AppState, Arc, EditorCommand};
 use ipmpsc::SharedRingBuffer;
 
 #[derive(rune::Any)]
@@ -70,7 +70,7 @@ pub fn catch_events(state: Arc<AppState>) {
     match link.receiver.try_recv::<EditorCommand>() {
         Ok(t) => {
             if let Some(t) = t {
-                state.commands.send(t).unwrap();
+                state.commands.send(Box::new(t)).unwrap();
             }
         }
         Err(e) => {

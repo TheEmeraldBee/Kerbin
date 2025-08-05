@@ -2,11 +2,10 @@ use ascii_forge::prelude::*;
 use rune::alloc::clone::TryClone;
 use rune::compile::meta::Kind;
 use rune::compile::{CompileVisitor, FileSourceLoader, MetaError, MetaRef};
-use rune::runtime::{Function, RuntimeContext};
+use rune::runtime::{Function, Protocol, RuntimeContext};
 use rune::sync::Arc;
 use rune::{Any, Context, Diagnostics, Module, Source, Sources, Vm, runtime::VmError};
 use rune::{ContextError, Options, Value};
-use stategine::prelude::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -110,8 +109,7 @@ macro_rules! build_api {
         $api_name:ident,
         $((
             $wrapper_name:ident,
-            $type:ident
-            $( => $type_field_name:ident)?
+            $field_name:ident
             $(
                 , $func_name:ident ($($arg_name:ident: $arg_type:ty),*) -> $return_type:ty
             )*
@@ -128,44 +126,32 @@ macro_rules! build_api {
     ) => {
         $(
             #[derive(Any, TryClone)]
+            #[repr(transparent)]
             struct $wrapper_name {
-                inner: Rc<RefCell<Option<$type>>>,
+                inner: Arc<AppState>,
             }
 
             impl $wrapper_name {
                 $(
                     #[rune::function]
                     fn $func_name (&mut self, $($arg_name: $arg_type),*) -> $return_type {
-                        self.inner.borrow_mut().as_mut().unwrap().$func_name($($arg_name),*)
+                        self.inner.$field_name.write().unwrap().$func_name($($arg_name),*)
                     }
                 )*
             }
         )*
 
         #[derive(Any)]
+        #[repr(transparent)]
         struct $api_name {
-            $(
-                $(#[rune(get)]
-                $type_field_name: $wrapper_name)?
-            ),*
+             inner: Arc<AppState>,
         }
 
         impl $api_name {
-            pub fn new(engine: &mut Engine) -> Self {
-                $($(
-                    let $type_field_name = engine.take_state::<$type>();
-                    let $type_field_name = $wrapper_name { inner: Rc::new(RefCell::new(Some($type_field_name))) };
-                )?)*
-
+            pub fn new(state: Arc<AppState>) -> Self {
                 Self {
-                    $($($type_field_name)?),*
+                    inner: state,
                 }
-            }
-
-            pub fn finish_api(self, engine: &mut Engine) {
-                $($(
-                    engine.state(self.$type_field_name.inner.take().unwrap());
-                )?)*
             }
 
             pub fn module() -> Result<Module, ContextError> {
@@ -176,6 +162,13 @@ macro_rules! build_api {
                 $(
 
                     module.ty::<$wrapper_name>()?;
+
+                    module.field_function(&Protocol::GET, stringify!($field_name), |api: &$api_name| {
+                        $wrapper_name {
+                            inner: api.inner.clone(),
+                        }
+                    })?;
+
                     $(
                         // Register already known functions
                         module.function_meta($wrapper_name::$func_name)?;
@@ -200,15 +193,15 @@ macro_rules! build_api {
 
 build_api! {
     Api,
-    (WindowWrapper, Window => window, :render, :width, :height),
-    (CommandWrapper, Commands => commands, add(command: EditorCommand) -> (), :add_all),
-    (InputWrapper, InputConfig => input, register_input(modes: Vec<char>, sequence: Vec<String>, func: Function, desc: String) -> ()),
-    (ThemeWrapper, Theme => theme, register(name: String, style: EditorStyle) -> (), get(name: &str) -> Option<EditorStyle>),
-    (GrammarWrapper, GrammarManager => grammar, register_extension(ext: String, lang: String) -> ()),
-    (ModeWrapper, Mode => mode, :get, :set),
-    (PluginConfigWrapper, PluginConfig => config, register(name: String, value: Value) -> (), get(name: &str) -> Option<Value>),
-    (BuffersWrapper, Buffers => buffers, :current),
-    (ShellLinkWrapper, ShellLink => shell, id() -> String, spawn(shell: String, command: String) -> ())
+    (WindowWrapper, window, :render, :width, :height),
+    (CommandWrapper, commands, :add, :add_all),
+    (InputWrapper, input, register_input(modes: Vec<char>, sequence: Vec<String>, func: Function, desc: String) -> ()),
+    (ThemeWrapper, theme, register(name: String, style: EditorStyle) -> (), get(name: &str) -> Option<EditorStyle>),
+    (GrammarWrapper, grammar, register_extension(ext: String, lang: String) -> ()),
+    (ModeWrapper, mode, :get, :set),
+    (PluginConfigWrapper, config, register(name: String, value: Value) -> (), get(name: &str) -> Option<Value>),
+    (BuffersWrapper, buffers, :current),
+    (ShellLinkWrapper, shell, id() -> String, spawn(shell: String, command: String) -> ())
 
     => :BufferWrapper,
 }
@@ -256,7 +249,7 @@ impl BuffersWrapper {
     #[rune::function]
     fn current(&self) -> BufferWrapper {
         BufferWrapper {
-            inner: self.inner.borrow().as_ref().unwrap().cur_buffer(),
+            inner: self.inner.buffers.read().unwrap().cur_buffer(),
         }
     }
 }
@@ -264,20 +257,25 @@ impl BuffersWrapper {
 impl ModeWrapper {
     #[rune::function]
     fn get(&self) -> char {
-        self.inner.borrow().as_ref().unwrap().0
+        self.inner.get_mode()
     }
 
     #[rune::function]
     fn set(&self, mode: char) {
-        self.inner.borrow_mut().as_mut().unwrap().0 = mode;
+        self.inner.set_mode(mode)
     }
 }
 
 impl CommandWrapper {
     #[rune::function]
+    pub fn add(&mut self, command: EditorCommand) {
+        self.inner.commands.send(Box::new(command)).unwrap();
+    }
+
+    #[rune::function]
     pub fn add_all(&mut self, commands: Vec<EditorCommand>) {
         for command in commands {
-            self.inner.borrow_mut().as_mut().unwrap().add(command);
+            self.inner.commands.send(Box::new(command)).unwrap();
         }
     }
 }
@@ -285,17 +283,17 @@ impl CommandWrapper {
 impl WindowWrapper {
     #[rune::function]
     pub fn width(&self) -> u16 {
-        self.inner.borrow().as_ref().unwrap().size().x
+        self.inner.window.read().unwrap().size().x
     }
 
     #[rune::function]
     pub fn height(&self) -> u16 {
-        self.inner.borrow().as_ref().unwrap().size().y
+        self.inner.window.read().unwrap().size().y
     }
 
     #[rune::function]
     pub fn render(&mut self, x: u16, y: u16, text: String, style: Option<EditorStyle>) {
-        render!(self.inner.borrow_mut().as_mut().unwrap(), (x, y) => [ StyledContent::new(style.unwrap_or_default().to_content_style(), text) ]);
+        render!(self.inner.window.write().unwrap(), (x, y) => [ StyledContent::new(style.unwrap_or_default().to_content_style(), text) ]);
     }
 }
 
@@ -437,49 +435,41 @@ impl ConfigManager {
     }
 
     /// Runs the `update` hook for the config.
-    pub fn run_update_hook(&mut self, engine: &mut Engine) -> Result<(), VmError> {
+    pub fn run_update_hook(&mut self, state: Arc<AppState>) -> Result<(), VmError> {
         if let Some(conf) = &mut self.config {
-            let mut api = Api::new(engine);
+            let mut api = Api::new(state);
 
             // Call the `update` function in the script, if it exists.
             if let Some(inner) = &conf.value {
                 if let Some(update) = &conf.update {
-                    let res = update.call::<()>((inner, &mut api));
-
-                    if let Err(e) = res {
-                        api.finish_api(engine);
-                        return Err(e);
-                    }
+                    update.call::<()>((inner, &mut api))?;
                 }
             }
-            api.finish_api(engine);
         }
         Ok(())
     }
 
     /// Runs the `update` hook for the config.
-    pub fn run_load_hook(&mut self, engine: &mut Engine) -> Result<(), VmError> {
+    pub fn run_load_hook(&mut self, state: Arc<AppState>) -> Result<(), VmError> {
         if let Some(conf) = &mut self.config {
-            let mut api = Api::new(engine);
+            let mut api = Api::new(state);
 
             // Call the `load` function in the script, if it exists.
             if let Some(load) = &conf.load {
                 let res = match load.call((&mut api,)) {
                     Ok(t) => t,
                     Err(e) => {
-                        api.finish_api(engine);
                         return Err(e);
                     }
                 };
 
                 conf.value = Some(res);
             }
-            api.finish_api(engine);
         }
         Ok(())
     }
 
-    pub fn run_load_languages_hook(&mut self, engine: &mut Engine) -> Result<(), anyhow::Error> {
+    pub fn run_load_languages_hook(&mut self, state: Arc<AppState>) -> Result<(), anyhow::Error> {
         let file_path = "config/langs.rn";
         if std::fs::exists(file_path)? {
             let mut sources = Sources::new();
@@ -501,27 +491,21 @@ impl ConfigManager {
             let vm = Vm::new(self.runtime.clone(), unit.clone());
 
             if let Ok(load_lsp) = vm.lookup_function(["load_lsp"]) {
-                let mut api = Api::new(engine);
-                if let Err(e) = load_lsp.call::<()>((&mut api,)) {
-                    api.finish_api(engine);
-                    return Err(e.into());
-                }
-                api.finish_api(engine);
+                let mut api = Api::new(state);
+                load_lsp.call::<()>((&mut api,))?;
             }
         }
         Ok(())
     }
 
     pub fn run_function(
-        engine: &mut Engine,
-        function: Rc<Function>,
+        state: Arc<AppState>,
+        function: Arc<Function>,
         extra_arg: Value,
     ) -> Result<Value, anyhow::Error> {
-        let mut api = Api::new(engine);
+        let mut api = Api::new(state);
 
         let res = function.call((&mut api, extra_arg));
-
-        api.finish_api(engine);
 
         Ok(res?)
     }
