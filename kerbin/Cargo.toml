@@ -1,0 +1,14 @@
+[package]
+name = "kerbin"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+kerbin-core = { path = "../kerbin-core" }
+kerbin-plugin = { path = "../kerbin-plugin" }
+
+kerbin-macros.workspace = true
+
+tokio = {workspace = true, features = ["full"]}
+
+ascii-forge.workspace = true

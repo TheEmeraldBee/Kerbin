@@ -1,0 +1,9 @@
+[package]
+name = "kerbin-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+async-ffi.workspace = true
+kerbin-macros.workspace = true
+ascii-forge.workspace = true

@@ -1,0 +1,16 @@
+[workspace]
+resolver = "3"
+members = [ "kerbin", "kerbin-core", "kerbin-macros", "kerbin-plugin", "plugins/*" ]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+kerbin-macros = { path = "./kerbin-macros" }
+
+tokio = "1.47.1"
+
+async-ffi = { version = "0.5.0", features = [ "macros" ] }
+
+ascii-forge = { version = "1.2.1", features = [ "serde" ] }

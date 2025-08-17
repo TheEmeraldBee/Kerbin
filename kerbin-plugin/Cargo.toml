@@ -1,0 +1,8 @@
+[package]
+name = "kerbin-plugin"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+async-ffi.workspace = true
+libloading = "0.8.8"
