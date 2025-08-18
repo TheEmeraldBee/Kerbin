@@ -248,6 +248,8 @@ pub fn update_buffer(state: Arc<State>) {
     let buffer = buffers.cur_buffer();
     let mut buffer = buffer.write().unwrap();
 
+    buffer.update(&state.theme.read().unwrap());
+
     if buffer.row < buffer.scroll {
         buffer.scroll = buffer.row;
     }

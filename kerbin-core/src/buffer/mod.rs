@@ -10,6 +10,7 @@ pub mod buffers;
 pub use buffers::*;
 
 pub mod tree_sitter;
+use ::tree_sitter::{InputEdit, Point};
 use tree_sitter::*;
 
 use ascii_forge::prelude::*;
@@ -111,6 +112,48 @@ impl TextBuffer {
 
             scroll: 0,
             h_scroll: 0,
+        }
+    }
+
+    pub fn get_edit_part(&self, row: usize, col: usize) -> (Point, usize) {
+        (
+            Point::new(row, col),
+            self.get_byte_offset_from_char_coords(row, col),
+        )
+    }
+
+    pub fn get_byte_offset_from_char_coords(&self, row: usize, col: usize) -> usize {
+        let mut byte_offset = 0;
+        for i in 0..row {
+            byte_offset += self.lines[i].len() + 1;
+        }
+        byte_offset += self
+            .lines
+            .get(row)
+            .and_then(|line| line.char_indices().nth(col))
+            .map(|(idx, _)| idx)
+            .unwrap_or_else(|| self.lines.get(row).map_or(0, |l| l.len()));
+        byte_offset
+    }
+
+    pub fn register_input_edit(
+        &mut self,
+        start: (Point, usize),
+        old_end: (Point, usize),
+        new_end: (Point, usize),
+    ) {
+        if let Some(ts) = &mut self.ts_state {
+            ts.tree_sitter_dirty = true;
+            ts.changes.push(InputEdit {
+                start_position: start.0,
+                start_byte: start.1,
+
+                old_end_position: old_end.0,
+                old_end_byte: old_end.1,
+
+                new_end_position: new_end.0,
+                new_end_byte: new_end.1,
+            })
         }
     }
 
@@ -239,6 +282,13 @@ impl TextBuffer {
         self.col = self.col.clamp(0, line_length);
         self.row != old_row || self.col != old_col
     }
+
+    pub fn update(&mut self, theme: &Theme) {
+        if let Some(s) = &mut self.ts_state {
+            s.update_tree_and_highlights(&self.lines.join("\n"), theme);
+        }
+    }
+
     fn render(&self, mut loc: Vec2, buffer: &mut Buffer, theme: &Theme) -> Vec2 {
         let default_style = theme
             .get("ui.text")

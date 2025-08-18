@@ -28,9 +28,16 @@ pub struct Insert {
 
 impl BufferAction for Insert {
     extern "C" fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
-        if let Some(line) = buf.lines.get_mut(self.row) {
-            // Borrow string as core rust string
-            line.insert_str(self.col, &self.content);
+        if self.row > buf.lines.len() {
+            ActionResult::none(false)
+        } else {
+            let start = buf.get_edit_part(self.row, self.col);
+
+            buf.lines[self.row].insert_str(self.col, &self.content);
+
+            let end = buf.get_edit_part(self.row, self.col + self.content.len());
+
+            buf.register_input_edit(start, start, end);
 
             let inverse = Box::new(Delete {
                 row: self.row,
@@ -40,8 +47,6 @@ impl BufferAction for Insert {
             });
 
             ActionResult::new(true, inverse)
-        } else {
-            ActionResult::none(false)
         }
     }
 }
@@ -55,11 +60,21 @@ pub struct Delete {
 
 impl BufferAction for Delete {
     extern "C" fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
-        if let Some(line) = buf.lines.get_mut(self.row) {
-            let end = self.col.saturating_add(self.len).min(line.chars().count());
+        if self.row > buf.lines.len() {
+            ActionResult::none(false)
+        } else {
+            let end = self
+                .col
+                .saturating_add(self.len)
+                .min(buf.lines[self.row].chars().count());
+
+            let start_edit = buf.get_edit_part(self.row, self.col);
+            let end_edit = buf.get_edit_part(self.row, end);
 
             // Remove the chars from the string
-            let removed: String = line.drain(self.col..end).collect::<String>();
+            let removed: String = buf.lines[self.row].drain(self.col..end).collect::<String>();
+
+            buf.register_input_edit(start_edit, end_edit, start_edit);
 
             let inverse = Box::new(Insert {
                 row: self.row,
@@ -68,8 +83,6 @@ impl BufferAction for Delete {
             });
 
             ActionResult::new(true, inverse)
-        } else {
-            ActionResult::none(false)
         }
     }
 }
