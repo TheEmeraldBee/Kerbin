@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::*;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub enum BufferCommand {
     MoveCursor { rows: isize, cols: isize },
     ChangeMode(char),
@@ -46,4 +46,3 @@ impl Command for BufferCommand {
         }
     }
 }
-

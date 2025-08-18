@@ -6,7 +6,10 @@ use kerbin_core::*;
 use kerbin_macros::*;
 
 use ascii_forge::prelude::*;
+use serde::Deserialize;
 
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum QuitCommand {
     Quit,
 }
@@ -19,16 +22,6 @@ impl Command for QuitCommand {
                 .store(false, std::sync::atomic::Ordering::Relaxed),
         }
         true
-    }
-}
-
-impl CommandFromStr for QuitCommand {
-    fn from_str(val: &str) -> Option<Box<dyn Command>> {
-        if val == "quit" {
-            Some(Box::new(Self::Quit))
-        } else {
-            None
-        }
     }
 }
 
@@ -54,6 +47,10 @@ pub async fn init(state: Arc<State>) {
         .write()
         .unwrap()
         .open("kerbin/src/main.rs".to_string());
+
+    state.register_command_deserializer::<QuitCommand>();
+
+    state.call_command("quit");
 
     let mut conf = state.input_config.write().unwrap();
 
@@ -111,5 +108,7 @@ pub async fn init(state: Arc<State>) {
 
 #[kerbin]
 pub async fn update(state: Arc<State>) {
+    state.call_command("quit");
+
     render!(state.window.write().unwrap(), (0, 10) => ["Hello".red()]);
 }

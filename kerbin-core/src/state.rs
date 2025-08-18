@@ -23,7 +23,7 @@ pub struct State {
     pub commands: UnboundedSender<Box<dyn Command>>,
 
     pub deser_command_registry:
-        RwLock<Vec<Box<dyn Fn(&str) -> Option<Box<dyn Command>> + Send + Sync>>>,
+        RwLock<Vec<Box<dyn Fn(&[String]) -> Option<Box<dyn Command>> + Send + Sync>>>,
 }
 
 impl State {
@@ -46,9 +46,11 @@ impl State {
         }
     }
 
-    pub fn call_command(self: &Arc<Self>, command: String) {
+    pub fn call_command(self: &Arc<Self>, command: &str) {
+        let words = shellwords::split(command).unwrap();
+
         for registry in self.deser_command_registry.read().unwrap().iter() {
-            if let Some(cmd) = registry(&command) {
+            if let Some(cmd) = registry(&words) {
                 cmd.apply(self.clone());
             }
         }

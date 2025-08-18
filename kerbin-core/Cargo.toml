@@ -9,5 +9,8 @@ kerbin-macros.workspace = true
 ascii-forge.workspace = true
 
 tokio.workspace = true
-serde = { version = "1.0.219", features = ["derive"] }
-toml = "0.9.5"
+
+kerbin-serde.workspace = true
+
+shellwords = "1.1.0"
+serde.workspace = true
