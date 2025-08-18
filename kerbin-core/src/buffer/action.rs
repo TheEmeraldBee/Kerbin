@@ -59,10 +59,7 @@ impl BufferAction for Delete {
             let end = self.col.saturating_add(self.len).min(line.chars().count());
 
             // Remove the chars from the string
-            let removed: String = line
-                .drain(self.col..end)
-                .collect::<std::string::String>()
-                .into();
+            let removed: String = line.drain(self.col..end).collect::<String>();
 
             let inverse = Box::new(Insert {
                 row: self.row,

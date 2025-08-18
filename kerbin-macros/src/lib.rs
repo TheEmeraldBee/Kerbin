@@ -1,7 +1,6 @@
 use darling::*;
-use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Item, ItemFn, Visibility, parse_macro_input};
+use syn::{ItemFn, parse_macro_input};
 
 #[derive(Debug, FromMeta, Default)]
 #[darling(derive_syn_parse, default)]

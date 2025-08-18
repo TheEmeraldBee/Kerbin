@@ -11,3 +11,6 @@ pub use input::*;
 
 pub mod commands;
 pub use commands::*;
+
+pub mod theme;
+pub use theme::*;

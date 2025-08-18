@@ -84,7 +84,7 @@ async fn main() {
             _ = tokio::time::sleep(Duration::from_millis(16)) => {
                 // Basic Frame update
 
-                state.buffers.write().unwrap().render(vec2(0, 0), state.window.write().unwrap().buffer_mut());
+                state.buffers.write().unwrap().render(vec2(0, 0), state.window.write().unwrap().buffer_mut(), &state.theme.read().unwrap());
 
                 my_plugin.call_async_func::<_, ()>(b"update\0", state.clone()).await;
 

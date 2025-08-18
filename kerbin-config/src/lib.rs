@@ -1,10 +1,127 @@
-use ascii_forge::prelude::{KeyCode, KeyModifiers};
+use ascii_forge::prelude::*;
 use kerbin_core::{InputEvent, State};
 use serde::Deserialize;
-use serde::de::{self, Deserializer, Visitor};
+use serde::de::{self, Deserializer, MapAccess, Visitor};
+use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::sync::Arc;
+
+fn deserialize_color<E>(value: &str) -> Result<Color, E>
+where
+    E: de::Error,
+{
+    let value = value.to_lowercase();
+    match value.as_str() {
+        "black" => Ok(Color::Black),
+        "darkgrey" => Ok(Color::DarkGrey),
+        "red" => Ok(Color::Red),
+        "darkred" => Ok(Color::DarkRed),
+        "green" => Ok(Color::Green),
+        "darkgreen" => Ok(Color::DarkGreen),
+        "yellow" => Ok(Color::Yellow),
+        "darkyellow" => Ok(Color::DarkYellow),
+        "blue" => Ok(Color::Blue),
+        "darkblue" => Ok(Color::DarkBlue),
+        "magenta" => Ok(Color::Magenta),
+        "darkmagenta" => Ok(Color::DarkMagenta),
+        "cyan" => Ok(Color::Cyan),
+        "darkcyan" => Ok(Color::DarkCyan),
+        "white" => Ok(Color::White),
+        "grey" => Ok(Color::Grey),
+        s if s.starts_with('#') && s.len() == 7 => {
+            let r =
+                u8::from_str_radix(&s[1..3], 16).map_err(|_| E::custom("Invalid hex for red"))?;
+            let g =
+                u8::from_str_radix(&s[3..5], 16).map_err(|_| E::custom("Invalid hex for green"))?;
+            let b =
+                u8::from_str_radix(&s[5..7], 16).map_err(|_| E::custom("Invalid hex for blue"))?;
+            Ok(Color::Rgb { r, g, b })
+        }
+        _ => Err(E::custom(format!("Unknown color: {}", value))),
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct InnerStyle(ContentStyle);
+
+impl InnerStyle {
+    pub fn to_style(self) -> ContentStyle {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for InnerStyle {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct ContentStyleVisitor;
+
+        impl<'de> Visitor<'de> for ContentStyleVisitor {
+            type Value = InnerStyle;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a style table with 'fg', 'bg', 'underline', and 'attrs'")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let mut style = ContentStyle::new();
+                let mut attrs = Attributes::none();
+
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "fg" => {
+                            let color_str: String = map.next_value()?;
+                            style.foreground_color = Some(deserialize_color(&color_str)?);
+                        }
+                        "bg" => {
+                            let color_str: String = map.next_value()?;
+                            style.background_color = Some(deserialize_color(&color_str)?);
+                        }
+                        "underline" => {
+                            let color_str: String = map.next_value()?;
+                            style.underline_color = Some(deserialize_color(&color_str)?);
+                        }
+                        "attrs" => {
+                            let attr_list: Vec<String> = map.next_value()?;
+                            for attr_str in attr_list {
+                                let attr = match attr_str.to_lowercase().as_str() {
+                                    "bold" => Attribute::Bold,
+                                    "dim" => Attribute::Dim,
+                                    "italic" => Attribute::Italic,
+                                    "underlined" => Attribute::Underlined,
+                                    "slowblink" => Attribute::SlowBlink,
+                                    "rapidblink" => Attribute::RapidBlink,
+                                    "reversed" => Attribute::Reverse,
+                                    "hidden" => Attribute::Hidden,
+                                    "crossedout" => Attribute::CrossedOut,
+                                    _ => {
+                                        return Err(de::Error::custom(format!(
+                                            "Unknown attribute: {}",
+                                            attr_str
+                                        )));
+                                    }
+                                };
+                                attrs.set(attr);
+                            }
+                        }
+                        _ => {
+                            let _: serde_value::Value = map.next_value()?;
+                        }
+                    }
+                }
+                style.attributes = attrs;
+                Ok(InnerStyle(style))
+            }
+        }
+
+        deserializer.deserialize_map(ContentStyleVisitor)
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct KeyBind {
@@ -94,9 +211,12 @@ pub struct Input {
 }
 
 #[derive(Debug, Default, Deserialize)]
+#[serde(default)]
 pub struct Config {
     #[serde(rename = "keybind")]
     keybindings: Vec<Input>,
+
+    theme: HashMap<String, InnerStyle>,
 }
 
 impl Config {
@@ -116,6 +236,11 @@ impl Config {
                 event: InputEvent::Command(input.command),
                 desc: input.desc,
             });
+        }
+
+        let mut theme = state.theme.write().unwrap();
+        for (name, style) in self.theme.into_iter() {
+            theme.register(name, style.to_style());
         }
     }
 }

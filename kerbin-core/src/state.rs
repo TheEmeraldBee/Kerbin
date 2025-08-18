@@ -6,7 +6,9 @@ use std::sync::{
 use ascii_forge::prelude::*;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{Command, CommandFromStr, InputConfig, InputState, buffer::Buffers};
+use crate::{Command, CommandFromStr, InputConfig, InputState, Theme, buffer::Buffers};
+
+type CommandFn = Box<dyn Fn(&[String]) -> Option<Box<dyn Command>> + Send + Sync>;
 
 pub struct State {
     pub running: AtomicBool,
@@ -20,10 +22,11 @@ pub struct State {
     pub input_config: RwLock<InputConfig>,
     pub input_state: RwLock<InputState>,
 
+    pub theme: RwLock<Theme>,
+
     pub commands: UnboundedSender<Box<dyn Command>>,
 
-    pub deser_command_registry:
-        RwLock<Vec<Box<dyn Fn(&[String]) -> Option<Box<dyn Command>> + Send + Sync>>>,
+    pub deser_command_registry: RwLock<Vec<CommandFn>>,
 }
 
 impl State {
@@ -39,6 +42,8 @@ impl State {
 
             input_config: RwLock::new(InputConfig::default()),
             input_state: RwLock::new(InputState::default()),
+
+            theme: RwLock::new(Theme::default()),
 
             commands: cmd_sender,
 

@@ -24,8 +24,8 @@ impl Plugin {
         }
     }
 
-    pub async fn call_async_func<'a, I: 'static + Send + Sync, R: 'static + Send + Sync>(
-        &'a self,
+    pub async fn call_async_func<I: 'static + Send + Sync, R: 'static + Send + Sync>(
+        &self,
         symbol: &[u8],
         input: I,
     ) -> R {

@@ -11,12 +11,14 @@ pub use buffers::*;
 
 use ascii_forge::prelude::*;
 
-pub(crate) fn char_to_byte_index(s: &str, char_index: usize) -> usize {
-    s.char_indices()
-        .nth(char_index)
-        .map(|(idx, _)| idx)
-        .unwrap_or(s.len())
-}
+use crate::Theme;
+
+//pub(crate) fn char_to_byte_index(s: &str, char_index: usize) -> usize {
+//    s.char_indices()
+//        .nth(char_index)
+//        .map(|(idx, _)| idx)
+//        .unwrap_or(s.len())
+//}
 
 #[derive(Default)]
 pub struct ChangeGroup(Vec<Box<dyn BufferAction>>);
@@ -42,7 +44,7 @@ pub struct TextBuffer {
 impl TextBuffer {
     pub fn scratch() -> Self {
         Self {
-            lines: Vec::from_iter(["".into()].into_iter()),
+            lines: Vec::from_iter(["".into()]),
 
             path: "<scratch>".into(),
             ext: "".into(),
@@ -61,7 +63,7 @@ impl TextBuffer {
     }
 
     pub fn open(path_str: String) -> Self {
-        let mut found_ext = "".to_string();
+        let found_ext = "".to_string();
 
         let path = Path::new(&path_str)
             .canonicalize()
@@ -146,10 +148,10 @@ impl TextBuffer {
     }
 
     pub fn commit_change_group(&mut self) {
-        if let Some(group) = self.current_change.take() {
-            if !group.0.is_empty() {
-                self.undo_stack.push(group)
-            }
+        if let Some(group) = self.current_change.take()
+            && !group.0.is_empty()
+        {
+            self.undo_stack.push(group)
         }
     }
 
@@ -220,13 +222,17 @@ impl TextBuffer {
         self.row != old_row || self.col != old_col
     }
 
-    pub fn render(&self, mut loc: Vec2, buffer: &mut Buffer) {
-        let mut byte_offset: usize = self
-            .lines
-            .iter()
-            .take(self.scroll)
-            .map(|l| l.len() + 1)
-            .sum();
+    pub fn render(&self, mut loc: Vec2, buffer: &mut Buffer, theme: &Theme) {
+        //let mut byte_offset: usize = self
+        //    .lines
+        //    .iter()
+        //    .take(self.scroll)
+        //    .map(|l| l.len() + 1)
+        //    .sum();
+
+        let line_theme = theme
+            .get("ui.linenum")
+            .unwrap_or(ContentStyle::new().dark_grey());
 
         let gutter_width = 6;
         let start_x = loc.x;
@@ -244,7 +250,7 @@ impl TextBuffer {
                 num_line = num_line[0..5].to_string();
             }
 
-            if i == self.row as usize {
+            if i == self.row {
                 num_line = format!(
                     "{}{}",
                     " ".repeat(4usize.saturating_sub(num_line.len())),
@@ -258,13 +264,13 @@ impl TextBuffer {
                 );
             }
 
-            render!(buffer, loc => [num_line]);
+            render!(buffer, loc => [StyledContent::new(line_theme, num_line)]);
             loc.x += gutter_width;
 
             render!(buffer, loc => [line]);
 
             loc.y += 1;
-            byte_offset += line.len() + 1;
+            //byte_offset += line.len() + 1;
         }
     }
 }

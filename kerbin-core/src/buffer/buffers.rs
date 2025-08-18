@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use crate::state::State;
+use crate::{Theme, state::State};
 
 use super::TextBuffer;
 use ascii_forge::prelude::*;
@@ -67,7 +67,12 @@ impl Buffers {
         self.buffers.len() - 1
     }
 
-    pub fn render(&self, loc: Vec2, buffer: &mut ascii_forge::prelude::Buffer) -> Vec2 {
+    pub fn render(
+        &self,
+        loc: Vec2,
+        buffer: &mut ascii_forge::prelude::Buffer,
+        theme: &Theme,
+    ) -> Vec2 {
         let mut inner_buffer = Buffer::new(buffer.size() - vec2(0, 3));
         let initial_loc = loc;
         let mut current_char_offset = 0;
@@ -106,10 +111,11 @@ impl Buffers {
 
         let mut content_loc = initial_loc;
         content_loc.y += 1;
-        self.buffers[self.selected_buffer]
-            .read()
-            .unwrap()
-            .render(vec2(0, 0), &mut inner_buffer);
+        self.buffers[self.selected_buffer].read().unwrap().render(
+            vec2(0, 0),
+            &mut inner_buffer,
+            theme,
+        );
         render!(buffer, content_loc => [ inner_buffer ])
     }
 }
@@ -163,14 +169,14 @@ fn get_unique_paths(paths: Vec<String>) -> Vec<String> {
 }
 
 pub fn render_buffers(state: Arc<State>) {
-    //let theme = state.theme.read().unwrap();
+    let theme = state.theme.read().unwrap();
     let mut window = state.window.write().unwrap();
     let buffers = state.buffers.read().unwrap();
 
-    let mut top_bar = Buffer::new(vec2(window.size().x, 1));
+    //let mut top_bar = Buffer::new(vec2(window.size().x, 1));
     //top_bar.style_line(0, |_| style);
-    render!(window.buffer_mut(), vec2(0, 0) => [top_bar]);
-    buffers.render(vec2(0, 0), window.buffer_mut());
+    //render!(window.buffer_mut(), vec2(0, 0) => [top_bar]);
+    buffers.render(vec2(0, 0), window.buffer_mut(), &theme);
 }
 
 pub fn update_bufferline_scroll(state: Arc<State>) {

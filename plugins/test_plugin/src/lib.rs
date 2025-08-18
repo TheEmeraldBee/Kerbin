@@ -84,4 +84,4 @@ pub async fn init(state: Arc<State>) {
 }
 
 #[kerbin]
-pub async fn update(state: Arc<State>) {}
+pub async fn update(_state: Arc<State>) {}

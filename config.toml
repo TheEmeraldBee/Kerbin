@@ -57,3 +57,6 @@ modes = ["n"]
 keys = [";", "shift-q"]
 command = "quit"
 desc = "Quit"
+
+[theme]
+"ui.linenum" = { fg = "#000000" }

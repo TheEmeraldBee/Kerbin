@@ -13,7 +13,7 @@ pub enum BufferCommand {
 
 impl Command for BufferCommand {
     fn apply(&self, state: std::sync::Arc<crate::State>) -> bool {
-        let buffers = state.buffers.write().unwrap();
+        let buffers = state.buffers.read().unwrap();
 
         let cur_buffer = buffers.cur_buffer();
         let mut cur_buffer = cur_buffer.write().unwrap();

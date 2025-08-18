@@ -10,4 +10,5 @@ serde.workspace = true
 ascii-forge.workspace = true
 
 toml = "0.9.5"
+serde-value = "0.7.0"
 

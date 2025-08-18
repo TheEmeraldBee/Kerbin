@@ -26,9 +26,7 @@ pub struct Input {
 /// Wierd ass function that is required thanks to crossterm being kinda wierd
 pub fn check_key_code(a: KeyCode, b: KeyCode) -> bool {
     match (a, b) {
-        (KeyCode::Char(aa), KeyCode::Char(bb)) => {
-            aa.to_ascii_lowercase() == bb.to_ascii_lowercase()
-        }
+        (KeyCode::Char(aa), KeyCode::Char(bb)) => aa.eq_ignore_ascii_case(&bb),
         _ => a == b,
     }
 }
