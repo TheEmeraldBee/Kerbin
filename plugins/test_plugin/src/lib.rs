@@ -74,13 +74,20 @@ pub fn repeat(
 
 #[kerbin]
 pub async fn init(state: Arc<State>) {
-    state
-        .buffers
-        .write()
-        .unwrap()
-        .open("kerbin/src/main.rs".to_string());
-
     state.register_command_deserializer::<CustomCommand>();
+
+    // Register Grammars
+    // state
+    //     .grammar
+    //     .write()
+    //     .unwrap()
+    //     .register_extension("rs", "rust");
+
+    // state.buffers.write().unwrap().open(
+    //     "kerbin/src/main.rs".to_string(),
+    //     &mut state.grammar.write().unwrap(),
+    //     &state.theme.read().unwrap(),
+    // );
 }
 
 #[kerbin]

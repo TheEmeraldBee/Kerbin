@@ -9,9 +9,12 @@ pub use action::*;
 pub mod buffers;
 pub use buffers::*;
 
+pub mod tree_sitter;
+use tree_sitter::*;
+
 use ascii_forge::prelude::*;
 
-use crate::Theme;
+use crate::{GrammarManager, Theme};
 
 //pub(crate) fn char_to_byte_index(s: &str, char_index: usize) -> usize {
 //    s.char_indices()
@@ -37,6 +40,8 @@ pub struct TextBuffer {
     undo_stack: Vec<ChangeGroup>,
     redo_stack: Vec<ChangeGroup>,
 
+    pub ts_state: Option<TSState>,
+
     pub scroll: usize,
     pub h_scroll: usize,
 }
@@ -57,27 +62,38 @@ impl TextBuffer {
             undo_stack: vec![],
             redo_stack: vec![],
 
+            ts_state: None,
+
             scroll: 0,
             h_scroll: 0,
         }
     }
 
-    pub fn open(path_str: String) -> Self {
-        let found_ext = "".to_string();
+    pub fn open(path_str: String, grammar_manager: &mut GrammarManager, theme: &Theme) -> Self {
+        let mut found_ext = "".to_string();
 
         let path = Path::new(&path_str)
             .canonicalize()
             .unwrap_or(PathBuf::from(&path_str));
 
-        let lines = match std::fs::read_to_string(&path_str) {
-            Ok(t) => t.lines().map(|x| x.to_string()).collect::<Vec<String>>(),
+        let text = match std::fs::read_to_string(&path_str) {
+            Ok(t) => t,
             Err(e) => {
                 if e.kind() != ErrorKind::NotFound {
                     // TODO: tracing::error!("{e} when opening file, {path_str}");
                 }
-                vec!["".to_string()]
+                "".to_string()
             }
         };
+
+        let mut ts_state = None;
+
+        if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+            found_ext = ext.to_string();
+            ts_state = TSState::init(ext, &text, grammar_manager, theme);
+        }
+
+        let lines = text.lines().map(|x| x.to_string()).collect::<Vec<String>>();
 
         Self {
             lines,
@@ -90,6 +106,8 @@ impl TextBuffer {
             undo_stack: vec![],
             redo_stack: vec![],
             current_change: None,
+
+            ts_state,
 
             scroll: 0,
             h_scroll: 0,
@@ -221,21 +239,25 @@ impl TextBuffer {
         self.col = self.col.clamp(0, line_length);
         self.row != old_row || self.col != old_col
     }
+    fn render(&self, mut loc: Vec2, buffer: &mut Buffer, theme: &Theme) -> Vec2 {
+        let default_style = theme
+            .get("ui.text")
+            .unwrap_or_else(|| ContentStyle::new().with(Color::Rgb { r: 0, g: 0, b: 0 }));
 
-    pub fn render(&self, mut loc: Vec2, buffer: &mut Buffer, theme: &Theme) {
-        //let mut byte_offset: usize = self
-        //    .lines
-        //    .iter()
-        //    .take(self.scroll)
-        //    .map(|l| l.len() + 1)
-        //    .sum();
-
-        let line_theme = theme
+        let line_style = theme
             .get("ui.linenum")
             .unwrap_or(ContentStyle::new().dark_grey());
 
+        let mut byte_offset: usize = self
+            .lines
+            .iter()
+            .take(self.scroll)
+            .map(|l| l.len() + 1) // +1 for the newline character
+            .sum();
+
         let gutter_width = 6;
         let start_x = loc.x;
+
         for (i, line) in self
             .lines
             .iter()
@@ -244,8 +266,7 @@ impl TextBuffer {
             .take(buffer.size().y as usize)
         {
             loc.x = start_x;
-            let mut num_line = i.to_string();
-
+            let mut num_line = (i + 1).to_string(); // Line numbers are 1-based
             if num_line.len() > 5 {
                 num_line = num_line[0..5].to_string();
             }
@@ -264,13 +285,47 @@ impl TextBuffer {
                 );
             }
 
-            render!(buffer, loc => [StyledContent::new(line_theme, num_line)]);
+            render!(buffer, loc => [StyledContent::new(line_style, num_line)]);
+
             loc.x += gutter_width;
 
-            render!(buffer, loc => [line]);
+            if let Some(ts) = &self.ts_state {
+                // 1. Get the style active at the very beginning of this line.
+                let mut current_style = ts
+                    .highlights
+                    .range(..=byte_offset)
+                    .next_back()
+                    .map(|(_, style)| *style)
+                    .unwrap_or(default_style);
+
+                for (char_col, (char_byte_idx, ch)) in line.char_indices().enumerate() {
+                    let absolute_byte_idx = byte_offset + char_byte_idx;
+
+                    // 2. Check if the style changes AT this character's position.
+                    if let Some(new_style) = ts.highlights.get(&absolute_byte_idx) {
+                        current_style = *new_style;
+                    }
+
+                    // 3. Render the character with the now-correct style, handling horizontal scroll.
+                    if char_col >= self.h_scroll {
+                        let render_col = (char_col - self.h_scroll) as u16;
+
+                        if render_col >= buffer.size().x {
+                            break; // Stop rendering if we go off-screen
+                        }
+
+                        render!(buffer, loc + vec2(render_col, 0) => [StyledContent::new(current_style, ch)]);
+                    }
+                }
+            } else {
+                // Fallback for files with no syntax highlighting
+                render!(buffer, loc => [ line ]);
+            }
 
             loc.y += 1;
-            //byte_offset += line.len() + 1;
+            byte_offset += line.len() + 1; // Account for newline
         }
+
+        loc
     }
 }

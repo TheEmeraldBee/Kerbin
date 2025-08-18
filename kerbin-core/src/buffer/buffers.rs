@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use crate::{Theme, state::State};
+use crate::{GrammarManager, Theme, state::State};
 
 use super::TextBuffer;
 use ascii_forge::prelude::*;
@@ -49,7 +49,12 @@ impl Buffers {
         self.change_buffer(0);
     }
 
-    pub fn open(&mut self, path: String) -> usize {
+    pub fn open(
+        &mut self,
+        path: String,
+        grammar_manager: &mut GrammarManager,
+        theme: &Theme,
+    ) -> usize {
         if let Some(buffer_id) = self.buffers.iter().enumerate().find_map(|(i, x)| {
             if x.read().unwrap().path == path {
                 Some(i)
@@ -59,8 +64,11 @@ impl Buffers {
         }) {
             self.set_selected_buffer(buffer_id);
         } else {
-            self.buffers
-                .push(Arc::new(RwLock::new(TextBuffer::open(path))));
+            self.buffers.push(Arc::new(RwLock::new(TextBuffer::open(
+                path,
+                grammar_manager,
+                theme,
+            ))));
             self.set_selected_buffer(self.buffers.len() - 1);
         }
 

@@ -8,9 +8,12 @@ async-ffi.workspace = true
 kerbin-macros.workspace = true
 ascii-forge.workspace = true
 
+libloading.workspace = true
+
 tokio.workspace = true
 
 kerbin-serde.workspace = true
 
 shellwords = "1.1.0"
 serde.workspace = true
+tree-sitter = "0.25.8"

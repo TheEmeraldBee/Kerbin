@@ -64,17 +64,29 @@ async fn main() {
     let (command_sender, mut command_reciever) = unbounded_channel();
 
     let state = Arc::new(State::new(window, command_sender));
-    my_plugin
-        .call_async_func::<_, ()>(b"init\0", state.clone())
-        .await;
+    let config = Config::load(None).unwrap();
+    config.apply(state.clone());
 
     // Register Command States
     state.register_command_deserializer::<BufferCommand>();
     state.register_command_deserializer::<ModeCommand>();
     state.register_command_deserializer::<StateCommand>();
 
-    let config = Config::load(None).unwrap();
-    config.apply(state.clone());
+    state
+        .grammar
+        .write()
+        .unwrap()
+        .register_extension("rs", "rust");
+
+    state.buffers.write().unwrap().open(
+        "kerbin/src/main.rs".to_string(),
+        &mut state.grammar.write().unwrap(),
+        &state.theme.read().unwrap(),
+    );
+
+    my_plugin
+        .call_async_func::<_, ()>(b"init\0", state.clone())
+        .await;
 
     loop {
         tokio::select! {

@@ -6,7 +6,9 @@ use std::sync::{
 use ascii_forge::prelude::*;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{Command, CommandFromStr, InputConfig, InputState, Theme, buffer::Buffers};
+use crate::{
+    Command, CommandFromStr, GrammarManager, InputConfig, InputState, Theme, buffer::Buffers,
+};
 
 type CommandFn = Box<dyn Fn(&[String]) -> Option<Box<dyn Command>> + Send + Sync>;
 
@@ -22,6 +24,7 @@ pub struct State {
     pub input_config: RwLock<InputConfig>,
     pub input_state: RwLock<InputState>,
 
+    pub grammar: RwLock<GrammarManager>,
     pub theme: RwLock<Theme>,
 
     pub commands: UnboundedSender<Box<dyn Command>>,
@@ -43,6 +46,7 @@ impl State {
             input_config: RwLock::new(InputConfig::default()),
             input_state: RwLock::new(InputState::default()),
 
+            grammar: RwLock::new(GrammarManager::new()),
             theme: RwLock::new(Theme::default()),
 
             commands: cmd_sender,

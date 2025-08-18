@@ -1,4 +1,4 @@
-run:
+run: build-test-plugin
 	cargo run
 
 build-test-plugin:

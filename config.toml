@@ -59,4 +59,93 @@ command = "quit"
 desc = "Quit"
 
 [theme]
-"ui.linenum" = { fg = "#000000" }
+"ui.linenum" = { fg = "#555555" }
+
+"ts.attribute" = "yellow"
+
+"ts.type" = "yellow"
+"ts.type.enum.variant" = "teal"
+
+"ts.constructor" = "sapphire"
+
+"ts.constant" = "peach"
+"ts.constant.character" = "teal"
+"ts.constant.character.escape" = "pink"
+
+"ts.string" = "green"
+"ts.string.regexp" = "pink"
+"ts.string.special" = "blue"
+"ts.string.special.symbol" = "red"
+
+"ts.comment" = { fg = "overlay2", modifiers = ["italic"] }
+
+"ts.variable" = "text"
+"ts.variable.parameter" = { fg = "maroon", modifiers = ["italic"] }
+"ts.variable.builtin" = "red"
+"ts.variable.other.member" = "blue"
+
+"ts.label" = "sapphire" # used for lifetimes
+
+"ts.punctuation" = "overlay2"
+"ts.punctuation.special" = "sky"
+
+"ts.keyword" = "mauve"
+"ts.keyword.control.conditional" = { fg = "mauve", modifiers = ["italic"] }
+
+"ts.operator" = "sky"
+
+"ts.function" = "blue"
+"ts.function.macro" = "rosewater"
+
+"ts.tag" = "blue"
+
+"ts.namespace" = { fg = "yellow", modifiers = ["italic"] }
+
+"ts.special" = "blue" # fuzzy highlight
+
+"ts.markup.heading.1" = "red"
+"ts.markup.heading.2" = "peach"
+"ts.markup.heading.3" = "yellow"
+"ts.markup.heading.4" = "green"
+"ts.markup.heading.5" = "sapphire"
+"ts.markup.heading.6" = "lavender"
+"ts.markup.list" = "teal"
+"ts.markup.list.unchecked" = "overlay2"
+"ts.markup.list.checked" = "green"
+"ts.markup.bold" = { fg = "red", modifiers = ["bold"] }
+"ts.markup.italic" = { fg = "red", modifiers = ["italic"] }
+"ts.markup.link.url" = { fg = "blue", modifiers = ["italic", "underlined"] }
+"ts.markup.link.text" = "lavender"
+"ts.markup.link.label" = "sapphire"
+"ts.markup.raw" = "green"
+"ts.markup.quote" = "pink"
+
+"ui.text" = "text"
+
+[palette]
+rosewater = "#f5e0dc"
+flamingo = "#f2cdcd"
+pink = "#f5c2e7"
+mauve = "#cba6f7"
+red = "#f38ba8"
+maroon = "#eba0ac"
+peach = "#fab387"
+yellow = "#f9e2af"
+green = "#a6e3a1"
+teal = "#94e2d5"
+sky = "#89dceb"
+sapphire = "#74c7ec"
+blue = "#89b4fa"
+lavender = "#b4befe"
+text = "#cdd6f4"
+subtext1 = "#bac2de"
+subtext0 = "#a6adc8"
+overlay2 = "#9399b2"
+overlay1 = "#7f849c"
+overlay0 = "#6c7086"
+surface2 = "#585b70"
+surface1 = "#45475a"
+surface0 = "#313244"
+base = "#1e1e2e"
+mantle = "#181825"
+crust = "#11111b"

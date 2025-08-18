@@ -3,14 +3,41 @@ use kerbin_core::{InputEvent, State};
 use serde::Deserialize;
 use serde::de::{self, Deserializer, MapAccess, Visitor};
 use std::collections::HashMap;
+use std::error::Error;
 use std::fmt;
 use std::fs;
 use std::sync::Arc;
 
-fn deserialize_color<E>(value: &str) -> Result<Color, E>
-where
-    E: de::Error,
-{
+#[derive(Debug)]
+pub enum ThemeError {
+    InvalidColor(String),
+    UnknownAttribute(String),
+    UnresolvedPaletteReference(String),
+    CyclicPaletteReference(String),
+}
+
+impl fmt::Display for ThemeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ThemeError::InvalidColor(c) => {
+                write!(f, "invalid color value: '{}'", c)
+            }
+            ThemeError::UnknownAttribute(a) => {
+                write!(f, "unknown attribute: '{}'", a)
+            }
+            ThemeError::UnresolvedPaletteReference(r) => {
+                write!(f, "unresolved palette reference: '{}'", r)
+            }
+            ThemeError::CyclicPaletteReference(r) => {
+                write!(f, "cyclic palette reference involving: '{}'", r)
+            }
+        }
+    }
+}
+
+impl Error for ThemeError {}
+
+fn color_from_str(value: &str) -> Result<Color, ThemeError> {
     let value = value.to_lowercase();
     match value.as_str() {
         "black" => Ok(Color::Black),
@@ -30,96 +57,115 @@ where
         "white" => Ok(Color::White),
         "grey" => Ok(Color::Grey),
         s if s.starts_with('#') && s.len() == 7 => {
-            let r =
-                u8::from_str_radix(&s[1..3], 16).map_err(|_| E::custom("Invalid hex for red"))?;
-            let g =
-                u8::from_str_radix(&s[3..5], 16).map_err(|_| E::custom("Invalid hex for green"))?;
-            let b =
-                u8::from_str_radix(&s[5..7], 16).map_err(|_| E::custom("Invalid hex for blue"))?;
+            let r = u8::from_str_radix(&s[1..3], 16)
+                .map_err(|_| ThemeError::InvalidColor(s.to_string()))?;
+            let g = u8::from_str_radix(&s[3..5], 16)
+                .map_err(|_| ThemeError::InvalidColor(s.to_string()))?;
+            let b = u8::from_str_radix(&s[5..7], 16)
+                .map_err(|_| ThemeError::InvalidColor(s.to_string()))?;
             Ok(Color::Rgb { r, g, b })
         }
-        _ => Err(E::custom(format!("Unknown color: {}", value))),
+        _ => Err(ThemeError::InvalidColor(value.to_string())),
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct InnerStyle(ContentStyle);
-
-impl InnerStyle {
-    pub fn to_style(self) -> ContentStyle {
-        self.0
-    }
+#[derive(Debug, Default)]
+pub struct UnresolvedStyle {
+    fg: Option<String>,
+    bg: Option<String>,
+    underline: Option<String>,
+    attrs: Vec<String>,
 }
 
-impl<'de> Deserialize<'de> for InnerStyle {
+impl<'de> Deserialize<'de> for UnresolvedStyle {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        struct ContentStyleVisitor;
+        struct UnresolvedStyleVisitor;
 
-        impl<'de> Visitor<'de> for ContentStyleVisitor {
-            type Value = InnerStyle;
+        impl<'de> Visitor<'de> for UnresolvedStyleVisitor {
+            type Value = UnresolvedStyle;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a style table with 'fg', 'bg', 'underline', and 'attrs'")
+                formatter.write_str("a string for foreground color, or a style table")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(UnresolvedStyle {
+                    fg: Some(value.to_string()),
+                    ..Default::default()
+                })
             }
 
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
             where
                 A: MapAccess<'de>,
             {
-                let mut style = ContentStyle::new();
-                let mut attrs = Attributes::none();
-
+                let mut style = UnresolvedStyle::default();
                 while let Some(key) = map.next_key::<String>()? {
                     match key.as_str() {
-                        "fg" => {
-                            let color_str: String = map.next_value()?;
-                            style.foreground_color = Some(deserialize_color(&color_str)?);
-                        }
-                        "bg" => {
-                            let color_str: String = map.next_value()?;
-                            style.background_color = Some(deserialize_color(&color_str)?);
-                        }
-                        "underline" => {
-                            let color_str: String = map.next_value()?;
-                            style.underline_color = Some(deserialize_color(&color_str)?);
-                        }
-                        "attrs" => {
-                            let attr_list: Vec<String> = map.next_value()?;
-                            for attr_str in attr_list {
-                                let attr = match attr_str.to_lowercase().as_str() {
-                                    "bold" => Attribute::Bold,
-                                    "dim" => Attribute::Dim,
-                                    "italic" => Attribute::Italic,
-                                    "underlined" => Attribute::Underlined,
-                                    "slowblink" => Attribute::SlowBlink,
-                                    "rapidblink" => Attribute::RapidBlink,
-                                    "reversed" => Attribute::Reverse,
-                                    "hidden" => Attribute::Hidden,
-                                    "crossedout" => Attribute::CrossedOut,
-                                    _ => {
-                                        return Err(de::Error::custom(format!(
-                                            "Unknown attribute: {}",
-                                            attr_str
-                                        )));
-                                    }
-                                };
-                                attrs.set(attr);
-                            }
-                        }
+                        "fg" => style.fg = Some(map.next_value()?),
+                        "bg" => style.bg = Some(map.next_value()?),
+                        "underline" => style.underline = Some(map.next_value()?),
+                        "attrs" => style.attrs = map.next_value()?,
                         _ => {
-                            let _: serde_value::Value = map.next_value()?;
+                            let _: de::IgnoredAny = map.next_value()?;
                         }
                     }
                 }
-                style.attributes = attrs;
-                Ok(InnerStyle(style))
+                Ok(style)
             }
         }
 
-        deserializer.deserialize_map(ContentStyleVisitor)
+        deserializer.deserialize_any(UnresolvedStyleVisitor)
+    }
+}
+
+impl UnresolvedStyle {
+    pub fn resolve(self, palette: &HashMap<String, Color>) -> Result<ContentStyle, ThemeError> {
+        let mut style = ContentStyle::new();
+        let mut attributes = Attributes::none();
+
+        let resolve_color = |name: &str| {
+            if let Some(color) = palette.get(name) {
+                Ok(*color)
+            } else {
+                color_from_str(name)
+            }
+        };
+
+        if let Some(fg) = self.fg {
+            style.foreground_color = Some(resolve_color(&fg)?);
+        }
+        if let Some(bg) = self.bg {
+            style.background_color = Some(resolve_color(&bg)?);
+        }
+        if let Some(underline) = self.underline {
+            style.underline_color = Some(resolve_color(&underline)?);
+        }
+
+        for attr_str in self.attrs {
+            let attr = match attr_str.to_lowercase().as_str() {
+                "bold" => Attribute::Bold,
+                "dim" => Attribute::Dim,
+                "italic" => Attribute::Italic,
+                "underlined" => Attribute::Underlined,
+                "slowblink" => Attribute::SlowBlink,
+                "rapidblink" => Attribute::RapidBlink,
+                "reversed" => Attribute::Reverse,
+                "hidden" => Attribute::Hidden,
+                "crossedout" => Attribute::CrossedOut,
+                _ => return Err(ThemeError::UnknownAttribute(attr_str)),
+            };
+            attributes.set(attr);
+        }
+        style.attributes = attributes;
+
+        Ok(style)
     }
 }
 
@@ -215,8 +261,8 @@ pub struct Input {
 pub struct Config {
     #[serde(rename = "keybind")]
     keybindings: Vec<Input>,
-
-    theme: HashMap<String, InnerStyle>,
+    palette: HashMap<String, String>,
+    theme: HashMap<String, UnresolvedStyle>,
 }
 
 impl Config {
@@ -226,9 +272,51 @@ impl Config {
         toml::from_str(&file_content)
     }
 
+    fn resolve_palette(&self) -> Result<HashMap<String, Color>, ThemeError> {
+        let mut resolved = HashMap::new();
+        let mut unresolved = self.palette.clone();
+        let mut last_unresolved_count = unresolved.len() + 1;
+
+        while !unresolved.is_empty() && unresolved.len() < last_unresolved_count {
+            last_unresolved_count = unresolved.len();
+            unresolved.retain(|name, value| {
+                if let Ok(color) = color_from_str(value) {
+                    resolved.insert(name.clone(), color);
+                    false
+                } else if let Some(color) = resolved.get(value) {
+                    resolved.insert(name.clone(), *color);
+                    false
+                } else {
+                    true
+                }
+            });
+        }
+
+        if !unresolved.is_empty() {
+            let key = unresolved.keys().next().unwrap();
+            if self.palette.contains_key(unresolved.get(key).unwrap()) {
+                return Err(ThemeError::CyclicPaletteReference(key.clone()));
+            } else {
+                return Err(ThemeError::UnresolvedPaletteReference(
+                    unresolved.get(key).unwrap().clone(),
+                ));
+            }
+        }
+
+        Ok(resolved)
+    }
+
     pub fn apply(self, state: Arc<State>) {
-        // Register inputs
         let mut inputs = state.input_config.write().unwrap();
+
+        let palette = match self.resolve_palette() {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("Error resolving color palette: {}", e);
+                return;
+            }
+        };
+
         for input in self.keybindings {
             inputs.register_input(kerbin_core::Input {
                 valid_modes: input.modes,
@@ -239,8 +327,11 @@ impl Config {
         }
 
         let mut theme = state.theme.write().unwrap();
-        for (name, style) in self.theme.into_iter() {
-            theme.register(name, style.to_style());
+        for (name, unresolved_style) in self.theme.into_iter() {
+            match unresolved_style.resolve(&palette) {
+                Ok(style) => theme.register(name, style),
+                Err(e) => eprintln!("Error resolving theme item '{}': {}", name, e),
+            }
         }
     }
 }
