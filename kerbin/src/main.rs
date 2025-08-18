@@ -11,6 +11,7 @@ use ascii_forge::{
     },
 };
 
+use kerbin_config::Config;
 use kerbin_core::*;
 use kerbin_plugin::Plugin;
 use tokio::sync::mpsc::unbounded_channel;
@@ -67,6 +68,14 @@ async fn main() {
         .call_async_func::<_, ()>(b"init\0", state.clone())
         .await;
 
+    // Register Command States
+    state.register_command_deserializer::<BufferCommand>();
+    state.register_command_deserializer::<ModeCommand>();
+    state.register_command_deserializer::<StateCommand>();
+
+    let config = Config::load(None).unwrap();
+    config.apply(state.clone());
+
     loop {
         tokio::select! {
             Some(cmd) = command_reciever.recv() => {
@@ -82,17 +91,14 @@ async fn main() {
                 handle_inputs(state.clone());
                 render_help_menu(state.clone());
 
+                update_buffer(state.clone());
 
-                if event!(state.window.write().unwrap(), Event::Key(k) => k.code == KeyCode::Char('q')) {
-                    break;
-                }
+                state.window.write().unwrap().update(Duration::ZERO).unwrap();
+                render_cursor(state.clone());
 
                 if !state.running.load(Ordering::Relaxed) {
                     break
                 }
-
-                state.window.write().unwrap().update(Duration::ZERO).unwrap();
-                render_cursor(state.clone());
             }
         };
     }

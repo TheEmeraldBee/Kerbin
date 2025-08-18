@@ -3,8 +3,9 @@ use serde::Deserialize;
 use crate::*;
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BufferCommand {
-    MoveCursor { rows: isize, cols: isize },
+    MoveCursor { cols: isize, rows: isize },
     ChangeMode(char),
     InsertChar(char),
     DeleteChars { offset: isize, count: usize },

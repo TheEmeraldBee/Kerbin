@@ -46,14 +46,15 @@ impl State {
         }
     }
 
-    pub fn call_command(self: &Arc<Self>, command: &str) {
+    pub fn call_command(self: &Arc<Self>, command: &str) -> bool {
         let words = shellwords::split(command).unwrap();
 
         for registry in self.deser_command_registry.read().unwrap().iter() {
             if let Some(cmd) = registry(&words) {
-                cmd.apply(self.clone());
+                return cmd.apply(self.clone());
             }
         }
+        false
     }
 
     pub fn register_command_deserializer<T: CommandFromStr + 'static>(&self) {

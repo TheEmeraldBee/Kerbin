@@ -10,12 +10,27 @@ pub enum InputResult {
     Complete,
 }
 
-pub struct Input {
-    valid_modes: Vec<char>,
-    key_sequence: Vec<(KeyModifiers, KeyCode)>,
-    event: Box<dyn Fn(Arc<State>, usize) -> bool + Send + Sync>,
+pub enum InputEvent {
+    Command(String),
+    Func(Box<dyn Fn(Arc<State>, usize) -> bool + Send + Sync>),
+}
 
-    desc: String,
+pub struct Input {
+    pub valid_modes: Vec<char>,
+    pub key_sequence: Vec<(KeyModifiers, KeyCode)>,
+    pub event: InputEvent,
+
+    pub desc: String,
+}
+
+/// Wierd ass function that is required thanks to crossterm being kinda wierd
+pub fn check_key_code(a: KeyCode, b: KeyCode) -> bool {
+    match (a, b) {
+        (KeyCode::Char(aa), KeyCode::Char(bb)) => {
+            aa.to_ascii_lowercase() == bb.to_ascii_lowercase()
+        }
+        _ => a == b,
+    }
 }
 
 impl Input {
@@ -29,7 +44,7 @@ impl Input {
         Self {
             valid_modes: modes.into_iter().collect(),
             key_sequence: sequence.into_iter().collect(),
-            event,
+            event: InputEvent::Func(event),
 
             desc,
         }
@@ -40,7 +55,7 @@ impl Input {
         }
 
         let seq = &self.key_sequence[step];
-        if event!(window, Event::Key(k) => k.modifiers == seq.0 && k.code == seq.1) {
+        if event!(window, Event::Key(k) => k.modifiers == seq.0 && check_key_code(k.code, seq.1)) {
             if self.key_sequence.len() == step + 1 {
                 InputResult::Complete
             } else {
@@ -55,9 +70,9 @@ impl Input {
         self.key_sequence
             .iter()
             .skip(skip)
-            .map(|x| format!("{}{}", x.0, x.1))
+            .map(|x| format!("{}-{}", x.0, x.1).to_ascii_lowercase())
             .collect::<Vec<_>>()
-            .join("")
+            .join(":")
     }
 }
 
@@ -184,7 +199,14 @@ pub fn handle_inputs(state: Arc<State>) {
             InputResult::Complete => {
                 completed_input = true;
 
-                (*input_config.inputs[*idx].event)(state.clone(), repeat_count);
+                match &input_config.inputs[*idx].event {
+                    InputEvent::Func(f) => {
+                        f(state.clone(), repeat_count);
+                    }
+                    InputEvent::Command(c) => {
+                        state.call_command(c);
+                    }
+                }
 
                 false
             }
@@ -199,11 +221,18 @@ pub fn handle_inputs(state: Arc<State>) {
         return;
     }
 
-    for (i, check) in input_config.inputs.iter().enumerate() {
-        match check.step(&window, mode, 0) {
-            InputResult::Step => input.active_inputs.push((i, 1)),
+    for idx in 0..input_config.inputs.len() {
+        match input_config.inputs[idx].step(&window, mode, 0) {
+            InputResult::Step => input.active_inputs.push((idx, 1)),
             InputResult::Complete => {
-                (*check.event)(state.clone(), repeat_count);
+                match &input_config.inputs[idx].event {
+                    InputEvent::Func(f) => {
+                        f(state.clone(), repeat_count);
+                    }
+                    InputEvent::Command(c) => {
+                        state.call_command(c);
+                    }
+                }
 
                 break;
             }

@@ -5,24 +5,56 @@ use std::sync::Arc;
 use kerbin_core::*;
 use kerbin_macros::*;
 
-use ascii_forge::prelude::*;
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum QuitCommand {
-    Quit,
+pub enum CustomCommand {
+    Backspace,
 }
 
-impl Command for QuitCommand {
+impl Command for CustomCommand {
     fn apply(&self, state: Arc<State>) -> bool {
         match *self {
-            Self::Quit => state
-                .running
-                .store(false, std::sync::atomic::Ordering::Relaxed),
+            Self::Backspace => {
+                let cur_buf = state.buffers.read().unwrap().cur_buffer();
+                let mut cur_buf = cur_buf.write().unwrap();
+
+                if cur_buf.col == 0 {
+                    cur_buf.move_cursor(0, -isize::MAX);
+                    let line_len = cur_buf.cur_line_mut().map(|x| x.len()).unwrap_or_default();
+
+                    // Join Line When Implemented Here
+                    cur_buf.move_cursor(0, line_len as isize);
+
+                    true
+                } else {
+                    let row = cur_buf.row;
+                    let col = cur_buf.col - 1;
+                    let res = cur_buf.action(Delete { row, col, len: 1 });
+
+                    cur_buf.move_cursor(0, -1);
+                    res
+                }
+            }
+        }
+    }
+}
+
+pub fn repeat_commands(
+    commands: impl IntoIterator<Item = String>,
+) -> Box<dyn Fn(Arc<State>, usize) -> bool + Send + Sync> {
+    let commands: Vec<_> = commands.into_iter().collect();
+    Box::new(move |state, times| {
+        for _i in 0..times {
+            for command in &commands {
+                if !state.call_command(command) {
+                    return false;
+                }
+            }
         }
         true
-    }
+    })
 }
 
 pub fn repeat(
@@ -48,67 +80,8 @@ pub async fn init(state: Arc<State>) {
         .unwrap()
         .open("kerbin/src/main.rs".to_string());
 
-    state.register_command_deserializer::<QuitCommand>();
-
-    state.call_command("quit");
-
-    let mut conf = state.input_config.write().unwrap();
-
-    conf.register_input(Input::new(
-        [],
-        [(KeyModifiers::NONE, KeyCode::Esc)],
-        repeat(vec![Box::new(BufferCommand::InsertChar('h'))]),
-        "insert h".to_string(),
-    ));
-
-    conf.register_input(Input::new(
-        [],
-        [(KeyModifiers::NONE, KeyCode::Char('i'))],
-        Box::new(|state, _i| {
-            state.set_mode('i');
-            true
-        }),
-        "Enter Insert Mode".to_string(),
-    ));
-
-    conf.register_input(Input::new(
-        [],
-        [(KeyModifiers::NONE, KeyCode::Backspace)],
-        Box::new(|state, _times| {
-            let buffer = state.buffers.read().unwrap().cur_buffer();
-
-            let mut cur_buffer = buffer.write().unwrap();
-
-            let row = cur_buffer.row;
-            let col = cur_buffer.col;
-
-            if cur_buffer.col == 0 {
-                cur_buffer.col = cur_buffer.cur_line().len();
-                // Move the cursor up a line
-                cur_buffer.move_cursor(-1, 0);
-
-                // Join Line Here
-            } else {
-                if !cur_buffer.action(Delete {
-                    row,
-                    col: col - 1,
-                    len: 1,
-                }) {
-                    return false;
-                }
-
-                cur_buffer.move_cursor(0, -1);
-            }
-
-            true
-        }),
-        "Backspace".to_string(),
-    ));
+    state.register_command_deserializer::<CustomCommand>();
 }
 
 #[kerbin]
-pub async fn update(state: Arc<State>) {
-    state.call_command("quit");
-
-    render!(state.window.write().unwrap(), (0, 10) => ["Hello".red()]);
-}
+pub async fn update(state: Arc<State>) {}

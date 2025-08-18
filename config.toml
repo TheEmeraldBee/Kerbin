@@ -1,0 +1,59 @@
+[[keybind]]
+modes = []
+keys = ["h"]
+command = "move_cursor -1 0"
+desc = "Move Left"
+
+[[keybind]]
+modes = []
+keys = ["j"]
+command = "move_cursor 0 1"
+desc = "Move Down"
+
+[[keybind]]
+modes = []
+keys = ["k"]
+command = "move_cursor 0 -1"
+desc = "Move Up"
+
+[[keybind]]
+modes = []
+keys = ["l"]
+command = "move_cursor 1 0"
+desc = "Move Right"
+
+[[keybind]]
+modes = []
+keys = ["i"]
+command = "change_mode i"
+desc = "Enter Insert Mode"
+
+[[keybind]]
+modes = []
+keys = ["esc"]
+command = "change_mode n"
+desc = "Back To Normal Mode"
+
+[[keybind]]
+modes = []
+keys = ["d"]
+command = "delete_chars 0 1"
+desc = "Delete Char"
+
+[[keybind]]
+modes = ["n"]
+keys = ["ctrl-c"]
+command = "quit"
+desc = "Quit"
+
+[[keybind]]
+modes = ["i"]
+keys = ["backspace"]
+command = "backspace"
+desc = "Backspace"
+
+[[keybind]]
+modes = ["n"]
+keys = [";", "shift-q"]
+command = "quit"
+desc = "Quit"
