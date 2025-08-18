@@ -185,6 +185,77 @@ impl BufferAction for InsertNewline {
     }
 }
 
+#[derive(Clone)]
+pub struct DeleteLine {
+    pub row: usize,
+}
+
+impl BufferAction for DeleteLine {
+    extern "C" fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
+        if self.row >= buf.lines.len() {
+            return ActionResult::none(false);
+        }
+
+        let start = buf.get_edit_part(self.row, 0);
+
+        // Account for the \n
+        let removed_len = buf.lines[self.row].len() + 1;
+
+        let removed = buf.lines.remove(self.row);
+
+        let old_end = buf.get_edit_part(self.row, removed_len);
+        let new_end = start;
+
+        buf.register_input_edit(start, old_end, new_end);
+
+        buf.move_cursor(0, 0);
+
+        let inverse = InsertLine {
+            row: self.row,
+            content: removed,
+        };
+
+        if buf.lines.is_empty() {
+            buf.lines.push(String::new());
+            return ActionResult::new(false, Box::new(inverse));
+        }
+
+        ActionResult::new(true, Box::new(inverse))
+    }
+}
+
+pub struct InsertLine {
+    pub row: usize,
+    pub content: String,
+}
+
+impl BufferAction for InsertLine {
+    extern "C" fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
+        let edit_line_row = self.row.saturating_sub(1);
+
+        let edit_line_len = buf.lines[edit_line_row].len();
+        let start = buf.get_edit_part(edit_line_row, edit_line_len);
+
+        let cur_line = &buf.lines[edit_line_row];
+        let indent = cur_line
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .collect::<String>();
+
+        buf.lines
+            .insert(self.row, format!("{indent}{}", self.content));
+
+        let new_end = buf.get_edit_part(self.row, 0);
+
+        buf.row = self.row;
+        buf.col = indent.len();
+
+        buf.register_input_edit(start, start, new_end);
+
+        ActionResult::new(true, Box::new(DeleteLine { row: self.row }))
+    }
+}
+
 pub struct NoOp;
 impl BufferAction for NoOp {
     extern "C" fn apply(&self, _buf: &mut TextBuffer) -> ActionResult {

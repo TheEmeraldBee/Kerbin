@@ -82,6 +82,18 @@ keys = ["shift-u"]
 commands = ["redo"]
 desc = "Undo"
 
+[[keybind]]
+modes = []
+keys = ["o"]
+commands = ["start_change", "insert_line 1", "change_mode i"]
+desc = "Start Editing Below"
+
+[[keybind]]
+modes = []
+keys = ["shift-o"]
+commands = ["start_change", "insert_line 0", "change_mode i"]
+desc = "Start Editing Below"
+
 [theme]
 "ui.linenum" = { fg = "#555555" }
 

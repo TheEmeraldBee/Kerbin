@@ -116,8 +116,10 @@ impl TextBuffer {
     }
 
     pub fn get_edit_part(&self, row: usize, col: usize) -> (Point, usize) {
+        let line = self.lines.get(row).map_or("", |l| l.as_str());
+        let byte_col = char_to_byte_index(line, col);
         (
-            Point::new(row, col),
+            Point::new(row, byte_col),
             self.get_byte_offset_from_char_coords(row, col),
         )
     }

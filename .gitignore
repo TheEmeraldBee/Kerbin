@@ -13,3 +13,5 @@ devenv.local.nix
 
 /target
 /runtime
+
+kerbin.log

@@ -15,3 +15,6 @@ kerbin-macros.workspace = true
 tokio.workspace = true
 
 ascii-forge.workspace = true
+
+tracing.workspace = true
+tracing-subscriber = "0.3.19"

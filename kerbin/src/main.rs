@@ -1,5 +1,6 @@
 use std::{
-    sync::{Arc, atomic::Ordering},
+    fs::File,
+    sync::{Arc, Mutex, atomic::Ordering},
     time::Duration,
 };
 
@@ -15,6 +16,7 @@ use kerbin_config::Config;
 use kerbin_core::*;
 use kerbin_plugin::Plugin;
 use tokio::sync::mpsc::unbounded_channel;
+use tracing::Level;
 
 fn render_cursor(state: Arc<State>) {
     let mut window = state.window.write().unwrap();
@@ -56,6 +58,18 @@ fn render_cursor(state: Arc<State>) {
 
 #[tokio::main]
 async fn main() {
+    let log_file = File::options()
+        .create(true)
+        .append(true)
+        .open("kerbin.log")
+        .expect("file should be able to open");
+
+    tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_max_level(Level::INFO)
+        .with_writer(Mutex::new(log_file))
+        .init();
+
     handle_panics();
     let window = Window::init().unwrap();
 

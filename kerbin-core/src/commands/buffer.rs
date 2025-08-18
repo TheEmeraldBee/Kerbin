@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use serde::Deserialize;
 
 use crate::*;
@@ -75,6 +73,9 @@ pub enum BufferCommand {
     JoinLine(isize),
     InsertNewline(isize),
 
+    InsertLine(isize),
+    DeleteLine(isize),
+
     Undo,
     Redo,
 }
@@ -133,6 +134,20 @@ impl Command for BufferCommand {
                 let col = cur_buffer.col.saturating_add_signed(offset);
 
                 cur_buffer.action(InsertNewline { row, col })
+            }
+
+            BufferCommand::InsertLine(offset) => {
+                let row = cur_buffer.row.saturating_add_signed(offset);
+
+                cur_buffer.action(InsertLine {
+                    row,
+                    content: "".to_string(),
+                })
+            }
+            BufferCommand::DeleteLine(offset) => {
+                let row = cur_buffer.row.saturating_add_signed(offset);
+
+                cur_buffer.action(DeleteLine { row })
             }
 
             BufferCommand::Undo => {
