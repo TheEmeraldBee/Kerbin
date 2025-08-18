@@ -25,7 +25,7 @@ pub(crate) fn char_to_byte_index(s: &str, char_index: usize) -> usize {
 }
 
 #[derive(Default)]
-pub struct ChangeGroup(Vec<Box<dyn BufferAction>>);
+pub struct ChangeGroup(usize, usize, Vec<Box<dyn BufferAction>>);
 
 pub struct TextBuffer {
     pub lines: Vec<String>,
@@ -166,7 +166,7 @@ impl TextBuffer {
 
         if res.success {
             if let Some(group) = self.current_change.as_mut() {
-                group.0.push(res.action)
+                group.2.push(res.action)
             }
 
             self.redo_stack.clear();
@@ -180,14 +180,21 @@ impl TextBuffer {
         if let Some(group) = self.undo_stack.pop() {
             let mut redo_group = vec![];
 
-            for action in group.0.into_iter().rev() {
+            let redo_row = self.row;
+            let redo_col = self.col;
+
+            for action in group.2.into_iter().rev() {
                 let ActionResult { action, .. } = action.apply(self);
                 redo_group.push(action);
             }
 
+            self.row = group.0;
+            self.col = group.1;
+
             redo_group.reverse();
 
-            self.redo_stack.push(ChangeGroup(redo_group));
+            self.redo_stack
+                .push(ChangeGroup(redo_row, redo_col, redo_group));
         }
     }
 
@@ -196,23 +203,30 @@ impl TextBuffer {
         if let Some(group) = self.redo_stack.pop() {
             let mut undo_group = vec![];
 
-            for action in group.0.into_iter() {
+            let undo_row = self.row;
+            let undo_col = self.col;
+
+            for action in group.2.into_iter() {
                 let ActionResult { action, .. } = action.apply(self);
                 undo_group.push(action);
             }
 
-            self.undo_stack.push(ChangeGroup(undo_group));
+            self.row = group.0;
+            self.col = group.1;
+
+            self.undo_stack
+                .push(ChangeGroup(undo_row, undo_col, undo_group));
         }
     }
 
     pub fn start_change_group(&mut self) {
         self.commit_change_group();
-        self.current_change = Some(ChangeGroup(vec![]));
+        self.current_change = Some(ChangeGroup(self.row, self.col, vec![]));
     }
 
     pub fn commit_change_group(&mut self) {
         if let Some(group) = self.current_change.take()
-            && !group.0.is_empty()
+            && !group.2.is_empty()
         {
             self.undo_stack.push(group)
         }
