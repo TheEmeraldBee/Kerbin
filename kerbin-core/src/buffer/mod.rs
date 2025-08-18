@@ -17,18 +17,18 @@ use ascii_forge::prelude::*;
 
 use crate::{GrammarManager, Theme};
 
-//pub(crate) fn char_to_byte_index(s: &str, char_index: usize) -> usize {
-//    s.char_indices()
-//        .nth(char_index)
-//        .map(|(idx, _)| idx)
-//        .unwrap_or(s.len())
-//}
+pub(crate) fn char_to_byte_index(s: &str, char_index: usize) -> usize {
+    s.char_indices()
+        .nth(char_index)
+        .map(|(idx, _)| idx)
+        .unwrap_or(s.len())
+}
 
 #[derive(Default)]
 pub struct ChangeGroup(Vec<Box<dyn BufferAction>>);
 
 pub struct TextBuffer {
-    lines: Vec<String>,
+    pub lines: Vec<String>,
 
     pub path: String,
     pub ext: String,
@@ -180,10 +180,12 @@ impl TextBuffer {
         if let Some(group) = self.undo_stack.pop() {
             let mut redo_group = vec![];
 
-            for action in group.0.into_iter() {
+            for action in group.0.into_iter().rev() {
                 let ActionResult { action, .. } = action.apply(self);
                 redo_group.push(action);
             }
+
+            redo_group.reverse();
 
             self.redo_stack.push(ChangeGroup(redo_group));
         }

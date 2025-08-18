@@ -20,16 +20,21 @@ impl Command for CustomCommand {
                 let cur_buf = state.buffers.read().unwrap().cur_buffer();
                 let mut cur_buf = cur_buf.write().unwrap();
 
+                let row = cur_buf.row;
+
                 if cur_buf.col == 0 {
                     cur_buf.move_cursor(0, -isize::MAX);
-                    let line_len = cur_buf.cur_line_mut().map(|x| x.len()).unwrap_or_default();
+                    let line_len = cur_buf.lines[row.saturating_sub(1)].len();
 
                     // Join Line When Implemented Here
-                    cur_buf.move_cursor(0, line_len as isize);
+                    cur_buf.action(JoinLine {
+                        row: row.saturating_sub(1),
+                        undo_indent: None,
+                    });
+                    cur_buf.move_cursor(-1, line_len as isize);
 
                     true
                 } else {
-                    let row = cur_buf.row;
                     let col = cur_buf.col - 1;
                     let res = cur_buf.action(Delete { row, col, len: 1 });
 

@@ -69,6 +69,8 @@ async fn main() {
 
     // Register Command States
     state.register_command_deserializer::<BufferCommand>();
+    state.register_command_deserializer::<CommitCommand>();
+
     state.register_command_deserializer::<ModeCommand>();
     state.register_command_deserializer::<StateCommand>();
 

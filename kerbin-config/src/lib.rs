@@ -248,11 +248,13 @@ impl<'de> Deserialize<'de> for KeyBind {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default)]
 pub struct Input {
     pub modes: Vec<char>,
     pub keys: Vec<KeyBind>,
-    pub command: String,
+    pub commands: Vec<String>,
+
+    #[serde(default)]
     pub desc: String,
 }
 
@@ -321,7 +323,7 @@ impl Config {
             inputs.register_input(kerbin_core::Input {
                 valid_modes: input.modes,
                 key_sequence: input.keys.iter().map(|x| (x.modifiers, x.code)).collect(),
-                event: InputEvent::Command(input.command),
+                event: InputEvent::Commands(input.commands),
                 desc: input.desc,
             });
         }

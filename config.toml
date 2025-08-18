@@ -1,62 +1,86 @@
 [[keybind]]
 modes = []
 keys = ["h"]
-command = "move_cursor -1 0"
+commands = ["move_cursor -1 0"]
 desc = "Move Left"
 
 [[keybind]]
 modes = []
 keys = ["j"]
-command = "move_cursor 0 1"
+commands = ["move_cursor 0 1"]
 desc = "Move Down"
 
 [[keybind]]
 modes = []
 keys = ["k"]
-command = "move_cursor 0 -1"
+commands = ["move_cursor 0 -1"]
 desc = "Move Up"
 
 [[keybind]]
 modes = []
 keys = ["l"]
-command = "move_cursor 1 0"
+commands = ["move_cursor 1 0"]
 desc = "Move Right"
 
 [[keybind]]
 modes = []
 keys = ["i"]
-command = "change_mode i"
+commands = ["start_change", "change_mode i"]
 desc = "Enter Insert Mode"
 
 [[keybind]]
 modes = []
 keys = ["esc"]
-command = "change_mode n"
+commands = ["commit_change", "change_mode n"]
 desc = "Back To Normal Mode"
 
 [[keybind]]
 modes = []
 keys = ["d"]
-command = "delete_chars 0 1"
+commands = ["commit delete_chars 0 1"]
 desc = "Delete Char"
 
 [[keybind]]
 modes = ["n"]
 keys = ["ctrl-c"]
-command = "quit"
+commands = ["quit"]
 desc = "Quit"
 
 [[keybind]]
 modes = ["i"]
 keys = ["backspace"]
-command = "backspace"
+commands = ["backspace"]
 desc = "Backspace"
 
 [[keybind]]
 modes = ["n"]
 keys = [";", "shift-q"]
-command = "quit"
+commands = ["quit"]
 desc = "Quit"
+
+[[keybind]]
+modes = []
+keys = ["shift-j"]
+commands = ["commit join_line 0"]
+desc = "Join Line"
+
+[[keybind]]
+modes = ["i"]
+keys = ["enter"]
+commands = ["commit insert_newline 0"]
+desc = "Insert Newline"
+
+[[keybind]]
+modes = []
+keys = ["u"]
+commands = ["undo"]
+desc = "Undo"
+
+[[keybind]]
+modes = []
+keys = ["shift-u"]
+commands = ["redo"]
+desc = "Undo"
 
 [theme]
 "ui.linenum" = { fg = "#555555" }

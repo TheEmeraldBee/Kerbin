@@ -11,7 +11,7 @@ pub enum InputResult {
 }
 
 pub enum InputEvent {
-    Command(String),
+    Commands(Vec<String>),
     Func(Box<dyn Fn(Arc<State>, usize) -> bool + Send + Sync>),
 }
 
@@ -201,8 +201,10 @@ pub fn handle_inputs(state: Arc<State>) {
                     InputEvent::Func(f) => {
                         f(state.clone(), repeat_count);
                     }
-                    InputEvent::Command(c) => {
-                        state.call_command(c);
+                    InputEvent::Commands(c) => {
+                        for command in c {
+                            state.call_command(command);
+                        }
                     }
                 }
 
@@ -227,8 +229,10 @@ pub fn handle_inputs(state: Arc<State>) {
                     InputEvent::Func(f) => {
                         f(state.clone(), repeat_count);
                     }
-                    InputEvent::Command(c) => {
-                        state.call_command(c);
+                    InputEvent::Commands(c) => {
+                        for command in c {
+                            state.call_command(command);
+                        }
                     }
                 }
 
