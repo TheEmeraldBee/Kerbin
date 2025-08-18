@@ -9,6 +9,6 @@ kerbin-plugin = { path = "../kerbin-plugin" }
 
 kerbin-macros.workspace = true
 
-tokio = {workspace = true, features = ["full"]}
+tokio.workspace = true
 
 ascii-forge.workspace = true

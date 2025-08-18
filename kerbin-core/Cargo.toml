@@ -7,3 +7,7 @@ edition.workspace = true
 async-ffi.workspace = true
 kerbin-macros.workspace = true
 ascii-forge.workspace = true
+
+tokio.workspace = true
+serde = { version = "1.0.219", features = ["derive"] }
+toml = "0.9.5"

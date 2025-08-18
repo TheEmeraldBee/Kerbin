@@ -24,19 +24,19 @@ pub struct ChangeGroup(Vec<Box<dyn BufferAction>>);
 pub struct TextBuffer {
     lines: Vec<String>,
 
-    path: String,
-    ext: String,
+    pub path: String,
+    pub ext: String,
 
-    col: usize,
-    row: usize,
+    pub col: usize,
+    pub row: usize,
 
     current_change: Option<ChangeGroup>,
 
     undo_stack: Vec<ChangeGroup>,
     redo_stack: Vec<ChangeGroup>,
 
-    scroll: usize,
-    h_scroll: usize,
+    pub scroll: usize,
+    pub h_scroll: usize,
 }
 
 impl TextBuffer {
