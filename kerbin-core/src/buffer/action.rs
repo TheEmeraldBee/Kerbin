@@ -1,3 +1,5 @@
+use tree_sitter::Point;
+
 use crate::char_to_byte_index;
 
 use super::TextBuffer;
@@ -30,26 +32,27 @@ pub struct Insert {
 
 impl BufferAction for Insert {
     extern "C" fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
-        if self.row > buf.lines.len() {
-            ActionResult::none(false)
-        } else {
-            let start = buf.get_edit_part(self.row, self.col);
-
-            buf.lines[self.row].insert_str(self.col, &self.content);
-
-            let end = buf.get_edit_part(self.row, self.col + self.content.len());
-
-            buf.register_input_edit(start, start, end);
-
-            let inverse = Box::new(Delete {
-                row: self.row,
-                col: self.col,
-
-                len: self.content.chars().count(),
-            });
-
-            ActionResult::new(true, inverse)
+        if self.row >= buf.lines.len() {
+            return ActionResult::none(false);
         }
+
+        let start = buf.get_edit_part(self.row, self.col);
+        let byte_col = char_to_byte_index(&buf.lines[self.row], self.col);
+
+        buf.lines[self.row].insert_str(byte_col, &self.content);
+
+        let new_char_col = self.col + self.content.chars().count();
+        let end = buf.get_edit_part(self.row, new_char_col);
+
+        buf.register_input_edit(start, start, end);
+
+        let inverse = Box::new(Delete {
+            row: self.row,
+            col: self.col,
+            len: self.content.chars().count(),
+        });
+
+        ActionResult::new(true, inverse)
     }
 }
 
@@ -62,30 +65,39 @@ pub struct Delete {
 
 impl BufferAction for Delete {
     extern "C" fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
-        if self.row > buf.lines.len() {
-            ActionResult::none(false)
-        } else {
-            let end = self
-                .col
-                .saturating_add(self.len)
-                .min(buf.lines[self.row].chars().count());
-
-            let start_edit = buf.get_edit_part(self.row, self.col);
-            let end_edit = buf.get_edit_part(self.row, end);
-
-            // Remove the chars from the string
-            let removed: String = buf.lines[self.row].drain(self.col..end).collect::<String>();
-
-            buf.register_input_edit(start_edit, end_edit, start_edit);
-
-            let inverse = Box::new(Insert {
-                row: self.row,
-                col: self.col,
-                content: removed,
-            });
-
-            ActionResult::new(true, inverse)
+        if self.row >= buf.lines.len() {
+            return ActionResult::none(false);
         }
+
+        let line = &buf.lines[self.row];
+        let line_char_len = line.chars().count();
+
+        let start_char_col = self.col.min(line_char_len);
+        let end_char_col = (self.col + self.len).min(line_char_len);
+
+        if start_char_col >= end_char_col {
+            return ActionResult::none(true);
+        }
+
+        let start_edit = buf.get_edit_part(self.row, start_char_col);
+        let old_end_edit = buf.get_edit_part(self.row, end_char_col);
+
+        let start_byte_col = char_to_byte_index(line, start_char_col);
+        let end_byte_col = char_to_byte_index(line, end_char_col);
+
+        let removed: String = buf.lines[self.row]
+            .drain(start_byte_col..end_byte_col)
+            .collect();
+
+        buf.register_input_edit(start_edit, old_end_edit, start_edit);
+
+        let inverse = Box::new(Insert {
+            row: self.row,
+            col: self.col,
+            content: removed,
+        });
+
+        ActionResult::new(true, inverse)
     }
 }
 
@@ -96,49 +108,74 @@ pub struct JoinLine {
 
 impl BufferAction for JoinLine {
     extern "C" fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
-        if self.row + 1 > buf.lines.len() {
+        if self.row + 1 >= buf.lines.len() {
             return ActionResult::none(false);
         }
 
-        let mut line1_content = buf.lines[self.row + 1].clone();
+        if let Some(indent_len_bytes) = self.undo_indent {
+            let line0_char_len = buf.lines[self.row].chars().count();
+            let start = buf.get_edit_part(self.row, line0_char_len);
 
-        if let Some(indent_len) = self.undo_indent {
-            line1_content.drain(..indent_len);
+            let line1_ref = &buf.lines[self.row + 1];
+            let prefix_len = indent_len_bytes.min(line1_ref.len());
+            let prefix_char_len = line1_ref[..prefix_len].chars().count();
+
+            let old_end = buf.get_edit_part(self.row + 1, prefix_char_len);
+
+            let mut line1_content = buf.lines.remove(self.row + 1);
+            line1_content.drain(..prefix_len);
+
+            let new_end = start;
+
+            buf.lines[self.row].push_str(&line1_content);
+            buf.register_input_edit(start, old_end, new_end);
+
+            ActionResult::new(
+                true,
+                Box::new(InsertNewline {
+                    row: self.row,
+                    col: line0_char_len,
+                }),
+            )
         } else {
-            line1_content = line1_content.trim_start().to_string();
+            let line0 = &buf.lines[self.row];
+            let line1 = &buf.lines[self.row + 1];
+
+            let trimmed_line0 = line0.trim_end();
+            let trimmed_line1 = line1.trim_start();
+
+            let start_char_col = trimmed_line0.chars().count();
+            let start = buf.get_edit_part(self.row, start_char_col);
+
+            let leading_ws_len_chars = line1.chars().count() - trimmed_line1.chars().count();
+            let old_end = buf.get_edit_part(self.row + 1, leading_ws_len_chars);
+
+            let space = if !trimmed_line0.is_empty() && !trimmed_line1.is_empty() {
+                " "
+            } else {
+                ""
+            };
+
+            let mut new_line = trimmed_line0.to_string();
+            new_line.push_str(space);
+            let inverse_col = new_line.chars().count();
+            new_line.push_str(trimmed_line1);
+
+            let new_end = buf.get_edit_part(self.row, start_char_col + space.chars().count());
+
+            buf.lines[self.row] = new_line;
+            buf.lines.remove(self.row + 1);
+
+            buf.register_input_edit(start, old_end, new_end);
+
+            ActionResult::new(
+                true,
+                Box::new(InsertNewline {
+                    row: self.row,
+                    col: inverse_col,
+                }),
+            )
         }
-
-        let line1_len_bytes = line1_content.len();
-
-        let line0 = &mut buf.lines[self.row];
-        if self.undo_indent.is_none() {
-            let line0_trimmed_len = line0.trim_end().len();
-            line0.truncate(line0_trimmed_len);
-            line0.push(' ');
-        }
-
-        let line0_len_bytes = line0.len();
-        let line0_len_chars = line0.chars().count();
-
-        let start = buf.get_edit_part(self.row, line0_len_bytes);
-        let old_end = buf.get_edit_part(self.row + 1, line1_len_bytes);
-
-        let new_end = buf.get_edit_part(self.row, line0_len_bytes + line1_len_bytes);
-
-        buf.lines.remove(self.row + 1);
-        buf.lines[self.row].push_str(&line1_content);
-
-        buf.register_input_edit(start, old_end, new_end);
-
-        buf.move_cursor(0, 0);
-
-        ActionResult::new(
-            true,
-            Box::new(InsertNewline {
-                row: self.row,
-                col: line0_len_chars,
-            }),
-        )
     }
 }
 
@@ -149,15 +186,15 @@ pub struct InsertNewline {
 
 impl BufferAction for InsertNewline {
     extern "C" fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
-        if self.row > buf.lines.len() {
+        if self.row >= buf.lines.len() {
             return ActionResult::none(false);
         }
 
         let start = buf.get_edit_part(self.row, self.col);
 
-        let byte_col = char_to_byte_index(&buf.lines[self.row], self.col);
-
         let current_line = &buf.lines[self.row];
+        let byte_col = char_to_byte_index(current_line, self.col);
+
         let indent = current_line
             .chars()
             .take_while(|c| c.is_whitespace())
@@ -165,15 +202,24 @@ impl BufferAction for InsertNewline {
 
         let (lhs, rhs) = current_line.split_at(byte_col);
         let (lhs, rhs) = (lhs.to_string(), format!("{indent}{rhs}"));
-        buf.lines[self.row] = lhs;
+        buf.lines[self.row] = lhs.clone();
         buf.lines.insert(self.row + 1, rhs);
 
-        let new_end = buf.get_edit_part(self.row + 1, 0);
+        // For Tree-sitter, we need to consider the newline character that was inserted.
+        // It's conceptually at the end of the line.
+        let byte_len_of_inserted_newline = match buf.line_ending_style {
+            crate::LineEnding::LF | crate::LineEnding::CR => 1,
+            crate::LineEnding::CRLF => 2,
+            _ => 1, // Default for Mixed or None
+        };
 
-        buf.register_input_edit(start, start, new_end);
+        let new_end_point = Point::new(self.row + 1, 0); // Point after newline
+        let new_end_byte = start.1 + (lhs.len() - byte_col) + byte_len_of_inserted_newline;
+
+        buf.register_input_edit(start, start, (new_end_point, new_end_byte));
 
         buf.move_cursor(1, 0);
-        buf.col = indent.len();
+        buf.col = indent.chars().count();
 
         ActionResult::new(
             true,
@@ -196,29 +242,47 @@ impl BufferAction for DeleteLine {
             return ActionResult::none(false);
         }
 
-        let start = buf.get_edit_part(self.row, 0);
+        let is_last_line = self.row == buf.lines.len() - 1;
+        let was_last_and_not_only_line = is_last_line && self.row > 0;
 
-        // Account for the \n
-        let removed_len = buf.lines[self.row].len() + 1;
+        let start_edit;
+        let old_end_edit;
+
+        if was_last_and_not_only_line {
+            let prev_row = self.row - 1;
+            let prev_line_char_len = buf.lines[prev_row].chars().count();
+            start_edit = buf.get_edit_part(prev_row, prev_line_char_len);
+
+            // The old_end is the end of the line being deleted + its implicit newline
+            old_end_edit = buf.get_edit_part(self.row, buf.lines[self.row].chars().count());
+        } else {
+            start_edit = buf.get_edit_part(self.row, 0);
+            old_end_edit = if !is_last_line {
+                // Deleting a line in the middle: removed line + its newline + the newline of the line BEFORE it.
+                // Or simply: the start of the next line (conceptually).
+                buf.get_edit_part(self.row + 1, 0)
+            } else {
+                // Deleting the very last line (and it's the only line or the only remaining line)
+                // Remove content, no trailing newline.
+                let current_line_char_len = buf.lines[self.row].chars().count();
+                buf.get_edit_part(self.row, current_line_char_len)
+            };
+        }
 
         let removed = buf.lines.remove(self.row);
 
-        let old_end = buf.get_edit_part(self.row, removed_len);
-        let new_end = start;
+        if buf.lines.is_empty() {
+            buf.lines.push(String::new());
+        }
 
-        buf.register_input_edit(start, old_end, new_end);
-
+        buf.register_input_edit(start_edit, old_end_edit, start_edit);
         buf.move_cursor(0, 0);
 
         let inverse = InsertLine {
             row: self.row,
             content: removed,
+            was_last_line: was_last_and_not_only_line,
         };
-
-        if buf.lines.is_empty() {
-            buf.lines.push(String::new());
-            return ActionResult::new(false, Box::new(inverse));
-        }
 
         ActionResult::new(true, Box::new(inverse))
     }
@@ -227,30 +291,45 @@ impl BufferAction for DeleteLine {
 pub struct InsertLine {
     pub row: usize,
     pub content: String,
+    pub was_last_line: bool, // indicates if this line was originally the last line of the file (before being deleted)
 }
 
 impl BufferAction for InsertLine {
     extern "C" fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
-        let edit_line_row = self.row.saturating_sub(1);
+        if self.row > buf.lines.len() {
+            return ActionResult::none(false);
+        }
 
-        let edit_line_len = buf.lines[edit_line_row].len();
-        let start = buf.get_edit_part(edit_line_row, edit_line_len);
+        let start_edit;
+        let new_end_edit;
 
-        let cur_line = &buf.lines[edit_line_row];
-        let indent = cur_line
-            .chars()
-            .take_while(|c| c.is_whitespace())
-            .collect::<String>();
+        if self.was_last_line {
+            // Inserting a line that was previously the last line
+            let prev_row = self.row.saturating_sub(1);
+            let prev_line_char_len = if prev_row < buf.lines.len() {
+                buf.lines[prev_row].chars().count()
+            } else {
+                0
+            };
+            start_edit = buf.get_edit_part(prev_row, prev_line_char_len);
 
-        buf.lines
-            .insert(self.row, format!("{indent}{}", self.content));
+            buf.lines.insert(self.row, self.content.clone());
 
-        let new_end = buf.get_edit_part(self.row, 0);
+            let new_line_char_len = buf.lines[self.row].chars().count();
+            new_end_edit = buf.get_edit_part(self.row, new_line_char_len);
+        } else {
+            // Inserting a line normally (in the middle or at the beginning of the file)
+            start_edit = buf.get_edit_part(self.row, 0);
+
+            buf.lines.insert(self.row, self.content.clone());
+
+            new_end_edit = buf.get_edit_part(self.row + 1, 0);
+        }
+
+        buf.register_input_edit(start_edit, start_edit, new_end_edit);
 
         buf.row = self.row;
-        buf.col = indent.len();
-
-        buf.register_input_edit(start, start, new_end);
+        buf.col = 0;
 
         ActionResult::new(true, Box::new(DeleteLine { row: self.row }))
     }

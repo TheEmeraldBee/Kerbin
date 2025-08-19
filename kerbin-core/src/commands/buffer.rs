@@ -142,6 +142,7 @@ impl Command for BufferCommand {
                 cur_buffer.action(InsertLine {
                     row,
                     content: "".to_string(),
+                    was_last_line: false,
                 })
             }
             BufferCommand::DeleteLine(offset) => {

@@ -337,6 +337,7 @@ dependencies = [
  "serde",
  "shellwords",
  "tokio",
+ "tracing",
  "tree-sitter",
 ]
 

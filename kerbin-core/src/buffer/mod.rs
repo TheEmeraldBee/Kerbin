@@ -27,6 +27,21 @@ pub(crate) fn char_to_byte_index(s: &str, char_index: usize) -> usize {
 #[derive(Default)]
 pub struct ChangeGroup(usize, usize, Vec<Box<dyn BufferAction>>);
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum LineEnding {
+    LF,    // \n
+    CRLF,  // \r\n
+    CR,    // \r
+    Mixed, // Different line endings found
+    None,  // Empty file or no explicit line endings
+}
+
+impl Default for LineEnding {
+    fn default() -> Self {
+        LineEnding::LF // Default to Unix-style
+    }
+}
+
 pub struct TextBuffer {
     pub lines: Vec<String>,
 
@@ -45,6 +60,8 @@ pub struct TextBuffer {
 
     pub scroll: usize,
     pub h_scroll: usize,
+
+    pub line_ending_style: LineEnding,
 }
 
 impl TextBuffer {
@@ -67,6 +84,8 @@ impl TextBuffer {
 
             scroll: 0,
             h_scroll: 0,
+
+            line_ending_style: LineEnding::LF,
         }
     }
 
@@ -81,20 +100,28 @@ impl TextBuffer {
             Ok(t) => t,
             Err(e) => {
                 if e.kind() != ErrorKind::NotFound {
-                    // TODO: tracing::error!("{e} when opening file, {path_str}");
+                    tracing::error!("{e} when opening file, {path_str}");
                 }
                 "".to_string()
             }
         };
 
+        let detected_line_ending = Self::detect_line_ending(&text);
+
+        // Normalize all line endings to LF internally
+        let normalized_text = text.replace("\r\n", "\n").replace('\r', "\n");
+
         let mut ts_state = None;
 
         if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
             found_ext = ext.to_string();
-            ts_state = TSState::init(ext, &text, grammar_manager, theme);
+            ts_state = TSState::init(ext, &normalized_text, grammar_manager, theme);
         }
 
-        let lines = text.lines().map(|x| x.to_string()).collect::<Vec<String>>();
+        let lines = normalized_text
+            .lines()
+            .map(|x| x.to_string())
+            .collect::<Vec<String>>();
 
         Self {
             lines,
@@ -112,16 +139,72 @@ impl TextBuffer {
 
             scroll: 0,
             h_scroll: 0,
+
+            line_ending_style: detected_line_ending,
         }
     }
 
-    pub fn get_edit_part(&self, row: usize, col: usize) -> (Point, usize) {
+    fn detect_line_ending(text: &str) -> LineEnding {
+        let mut has_lf = false;
+        let mut has_crlf = false;
+        let mut has_cr = false;
+
+        for (i, c) in text.char_indices() {
+            if c == '\n' {
+                if i > 0 && text.chars().nth(i - 1) == Some('\r') {
+                    has_crlf = true;
+                } else {
+                    has_lf = true;
+                }
+            } else if c == '\r' {
+                if text.chars().nth(i + 1) != Some('\n') {
+                    has_cr = true;
+                }
+            }
+        }
+
+        match (has_lf, has_crlf, has_cr) {
+            (true, false, false) => LineEnding::LF,
+            (false, true, false) => LineEnding::CRLF,
+            (false, false, true) => LineEnding::CR,
+            (false, false, false) => LineEnding::None,
+            _ => LineEnding::Mixed, // Any combination implies mixed
+        }
+    }
+
+    // Helper to get the actual byte length of a line including its line ending
+    fn get_full_line_byte_len(&self, row_idx: usize, style: LineEnding) -> usize {
+        if row_idx >= self.lines.len() {
+            return 0;
+        }
+        let line_content_byte_len = self.lines[row_idx].len();
+        if row_idx < self.lines.len() - 1 || self.lines.len() == 1 {
+            // All lines except the very last one have a line ending,
+            // or if there's only one line, it effectively has a line ending in the logical model
+            match style {
+                LineEnding::LF => line_content_byte_len + 1,    // \n
+                LineEnding::CRLF => line_content_byte_len + 2,  // \r\n
+                LineEnding::CR => line_content_byte_len + 1,    // \r
+                LineEnding::Mixed => line_content_byte_len + 1, // Default to \n for mixed or for newly inserted lines
+                LineEnding::None => line_content_byte_len,      // No line ending if empty file
+            }
+        } else {
+            // The last line does not have a trailing newline char in the file content
+            line_content_byte_len
+        }
+    }
+
+    pub fn get_edit_part(&self, row: usize, char_col: usize) -> (Point, usize) {
         let line = self.lines.get(row).map_or("", |l| l.as_str());
-        let byte_col = char_to_byte_index(line, col);
-        (
-            Point::new(row, byte_col),
-            self.get_byte_offset_from_char_coords(row, col),
-        )
+        let byte_col_in_line = char_to_byte_index(line, char_col);
+
+        let mut cumulative_byte_offset = 0;
+        for i in 0..row {
+            cumulative_byte_offset += self.get_full_line_byte_len(i, self.line_ending_style);
+        }
+        cumulative_byte_offset += byte_col_in_line;
+
+        (Point::new(row, byte_col_in_line), cumulative_byte_offset)
     }
 
     pub fn get_byte_offset_from_char_coords(&self, row: usize, col: usize) -> usize {
@@ -258,18 +341,30 @@ impl TextBuffer {
     }
 
     pub fn write_file(&mut self, path: Option<String>) {
-        if self.path == "<scratch>" {
-            //TODO: Print to log
-            return;
-        }
-
         if let Some(new_path) = path {
             self.path = Path::new(&new_path)
                 .canonicalize()
-                .unwrap()
+                .unwrap_or(PathBuf::new())
                 .to_str()
                 .unwrap()
                 .to_string();
+        }
+
+        if self.path == "<scratch>" {
+            tracing::error!("Unable to write to scratch file without setting a path");
+            return;
+        }
+
+        let line_ending_str = match self.line_ending_style {
+            LineEnding::LF => "\n",
+            LineEnding::CRLF => "\r\n",
+            LineEnding::CR => "\r",
+            _ => "\n", // For Mixed or None, default to LF on save
+        };
+
+        let content = self.lines.join(line_ending_str);
+        if let Err(e) = std::fs::write(&self.path, content) {
+            tracing::error!("Error writing file {}: {}", self.path, e);
         }
     }
 
@@ -303,7 +398,15 @@ impl TextBuffer {
 
     pub fn update(&mut self, theme: &Theme) {
         if let Some(s) = &mut self.ts_state {
-            s.update_tree_and_highlights(&self.lines.join("\n"), theme);
+            // When updating Tree-sitter, we must provide the text with its actual line endings.
+            // Since our internal representation uses `\n`, we must convert it back.
+            let line_ending_str = match self.line_ending_style {
+                LineEnding::LF => "\n",
+                LineEnding::CRLF => "\r\n",
+                LineEnding::CR => "\r",
+                _ => "\n", // Default to LF if mixed or unknown, this implies that new edits will use LF
+            };
+            s.update_tree_and_highlights(&self.lines.join(line_ending_str), theme);
         }
     }
 
