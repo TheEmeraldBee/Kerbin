@@ -7,10 +7,16 @@ use ascii_forge::prelude::*;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
-    Command, CommandFromStr, GrammarManager, InputConfig, InputState, Theme, buffer::Buffers,
+    AsCommandInfo, Command, CommandInfo, GrammarManager, InputConfig, InputState, Theme,
+    buffer::Buffers,
 };
 
-type CommandFn = Box<dyn Fn(&[String]) -> Option<Box<dyn Command>> + Send + Sync>;
+type CommandFn = Box<dyn Fn(&[String]) -> Option<Result<Box<dyn Command>, String>> + Send + Sync>;
+
+pub struct RegisteredCommandSet {
+    pub parser: CommandFn,
+    pub infos: Vec<CommandInfo>,
+}
 
 pub struct State {
     pub running: AtomicBool,
@@ -29,7 +35,7 @@ pub struct State {
 
     pub commands: UnboundedSender<Box<dyn Command>>,
 
-    pub deser_command_registry: RwLock<Vec<CommandFn>>,
+    pub command_registry: RwLock<Vec<RegisteredCommandSet>>,
 }
 
 impl State {
@@ -51,26 +57,35 @@ impl State {
 
             commands: cmd_sender,
 
-            deser_command_registry: RwLock::new(Vec::new()),
+            command_registry: RwLock::new(Vec::new()),
         }
     }
 
     pub fn call_command(self: &Arc<Self>, command: &str) -> bool {
         let words = shellwords::split(command).unwrap();
 
-        for registry in self.deser_command_registry.read().unwrap().iter() {
-            if let Some(cmd) = registry(&words) {
-                return cmd.apply(self.clone());
+        for registry in self.command_registry.read().unwrap().iter() {
+            if let Some(cmd) = (registry.parser)(&words) {
+                match cmd {
+                    Ok(t) => return t.apply(self.clone()),
+                    Err(e) => {
+                        tracing::error!("Failed to parse command due to: {e:?}");
+                        return false;
+                    }
+                }
             }
         }
         false
     }
 
-    pub fn register_command_deserializer<T: CommandFromStr + 'static>(&self) {
-        self.deser_command_registry
+    pub fn register_command_deserializer<T: AsCommandInfo + 'static>(&self) {
+        self.command_registry
             .write()
             .unwrap()
-            .push(Box::new(T::from_str));
+            .push(RegisteredCommandSet {
+                parser: Box::new(T::from_str),
+                infos: T::infos(),
+            });
     }
 
     pub fn set_mode(&self, mode: char) {

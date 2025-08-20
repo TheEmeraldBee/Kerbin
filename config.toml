@@ -1,5 +1,29 @@
 [[keybind]]
 modes = []
+keys = ["left"]
+commands = ["move_cursor -1 0"]
+desc = "Move Left"
+
+[[keybind]]
+modes = []
+keys = ["down"]
+commands = ["move_cursor 0 1"]
+desc = "Move Down"
+
+[[keybind]]
+modes = []
+keys = ["up"]
+commands = ["move_cursor 0 -1"]
+desc = "Move Up"
+
+[[keybind]]
+modes = []
+keys = ["right"]
+commands = ["move_cursor 1 0"]
+desc = "Move Right"
+
+[[keybind]]
+modes = []
 keys = ["h"]
 commands = ["move_cursor -1 0"]
 desc = "Move Left"
@@ -93,6 +117,12 @@ modes = []
 keys = ["shift-o"]
 commands = ["start_change", "insert_line 0", "change_mode i"]
 desc = "Start Editing Below"
+
+[[keybind]]
+modes = ["n"]
+keys = [";", "w"]
+commands = ["write_file"]
+desc = "Save file"
 
 [theme]
 "ui.linenum" = { fg = "#555555" }

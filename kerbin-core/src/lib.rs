@@ -17,3 +17,6 @@ pub use commands::*;
 
 pub mod theme;
 pub use theme::*;
+
+pub mod palette;
+pub use palette::*;

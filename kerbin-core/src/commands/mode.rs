@@ -1,9 +1,9 @@
-use serde::Deserialize;
+use kerbin_macros::Command;
 
-use crate::Command;
+use crate::*;
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Command)]
+#[command(rename_all = "snake_case")]
 pub enum ModeCommand {
     ChangeMode(char),
 }

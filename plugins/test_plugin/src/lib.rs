@@ -5,10 +5,7 @@ use std::sync::Arc;
 use kerbin_core::*;
 use kerbin_macros::*;
 
-use serde::Deserialize;
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Command)]
 pub enum CustomCommand {
     Backspace,
 }

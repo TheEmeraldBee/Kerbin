@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use kerbin_macros::Command;
 
 use crate::*;
 
@@ -43,15 +43,15 @@ impl Command for CommitCommand {
 }
 
 impl CommandFromStr for CommitCommand {
-    fn from_str(val: &[String]) -> Option<Box<dyn Command>> {
+    fn from_str(val: &[String]) -> Option<Result<Box<dyn Command>, String>> {
         match val[0].as_str() {
             "commit" => {
                 if val.len() > 1 {
-                    Some(Box::new(CommitCommand::Commit(Some(
+                    Some(Ok(Box::new(CommitCommand::Commit(Some(
                         val[1..].iter().map(|x| x.clone()).collect(),
-                    ))))
+                    )))))
                 } else {
-                    Some(Box::new(CommitCommand::Commit(None)))
+                    Some(Ok(Box::new(CommitCommand::Commit(None))))
                 }
             }
             _ => return None,
@@ -59,10 +59,18 @@ impl CommandFromStr for CommitCommand {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "snake_case")]
+impl AsCommandInfo for CommitCommand {
+    fn infos() -> Vec<CommandInfo> {
+        vec![CommandInfo::new("commit", [("command", "command")])]
+    }
+}
+
+#[derive(Clone, Debug, Command)]
+#[command(rename_all = "snake_case")]
 pub enum BufferCommand {
     MoveCursor { cols: isize, rows: isize },
+
+    WriteFile { path: Option<String> },
 
     StartChange,
     CommitChange,
@@ -87,8 +95,13 @@ impl Command for BufferCommand {
         let cur_buffer = buffers.cur_buffer();
         let mut cur_buffer = cur_buffer.write().unwrap();
 
-        match *self {
-            BufferCommand::MoveCursor { rows, cols } => cur_buffer.move_cursor(rows, cols),
+        match self {
+            BufferCommand::MoveCursor { rows, cols } => cur_buffer.move_cursor(*rows, *cols),
+
+            BufferCommand::WriteFile { path } => {
+                cur_buffer.write_file(path.clone());
+                true
+            }
 
             BufferCommand::StartChange => {
                 cur_buffer.start_change_group();
@@ -116,13 +129,13 @@ impl Command for BufferCommand {
 
                 cur_buffer.action(Delete {
                     row,
-                    col: col.saturating_add_signed(offset),
-                    len: count,
+                    col: col.saturating_add_signed(*offset),
+                    len: *count,
                 })
             }
 
             BufferCommand::JoinLine(offset) => {
-                let row = cur_buffer.row.saturating_add_signed(offset);
+                let row = cur_buffer.row.saturating_add_signed(*offset);
 
                 cur_buffer.action(JoinLine {
                     row,
@@ -131,13 +144,13 @@ impl Command for BufferCommand {
             }
             BufferCommand::InsertNewline(offset) => {
                 let row = cur_buffer.row;
-                let col = cur_buffer.col.saturating_add_signed(offset);
+                let col = cur_buffer.col.saturating_add_signed(*offset);
 
                 cur_buffer.action(InsertNewline { row, col })
             }
 
             BufferCommand::InsertLine(offset) => {
-                let row = cur_buffer.row.saturating_add_signed(offset);
+                let row = cur_buffer.row.saturating_add_signed(*offset);
 
                 cur_buffer.action(InsertLine {
                     row,
@@ -146,7 +159,7 @@ impl Command for BufferCommand {
                 })
             }
             BufferCommand::DeleteLine(offset) => {
-                let row = cur_buffer.row.saturating_add_signed(offset);
+                let row = cur_buffer.row.saturating_add_signed(*offset);
 
                 cur_buffer.action(DeleteLine { row })
             }
