@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = [ "kerbin", "kerbin-config", "kerbin-core", "kerbin-macros", "kerbin-plugin", "kerbin-serde", "plugins/*" ]
+members = [ "kerbin", "kerbin-config", "kerbin-core", "kerbin-macros", "kerbin-plugin", "plugins/*" ]
 
 [workspace.package]
 version = "0.1.0"
@@ -9,8 +9,6 @@ edition = "2024"
 [workspace.dependencies]
 kerbin-macros = { path = "./kerbin-macros" }
 kerbin-core = { path = "./kerbin-core" }
-
-kerbin-serde = { path = "./kerbin-serde" }
 
 libloading = "0.8.8"
 

@@ -12,8 +12,6 @@ libloading.workspace = true
 
 tokio.workspace = true
 
-kerbin-serde.workspace = true
-
 tracing.workspace = true
 
 shellwords = "1.1.0"

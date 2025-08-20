@@ -1,4 +1,10 @@
 [[keybind]]
+modes = ["n"]
+keys = [":"]
+commands = ["change_mode c"]
+desc = "Command Palette"
+
+[[keybind]]
 modes = []
 keys = ["left"]
 commands = ["move_cursor -1 0"]
@@ -125,6 +131,7 @@ commands = ["write_file"]
 desc = "Save file"
 
 [theme]
+
 "ui.linenum" = { fg = "#555555" }
 
 "ts.attribute" = "yellow"
@@ -143,10 +150,10 @@ desc = "Save file"
 "ts.string.special" = "blue"
 "ts.string.special.symbol" = "red"
 
-"ts.comment" = { fg = "overlay2", modifiers = ["italic"] }
+"ts.comment" = { fg = "overlay2", attrs = ["italic"] }
 
 "ts.variable" = "text"
-"ts.variable.parameter" = { fg = "maroon", modifiers = ["italic"] }
+"ts.variable.parameter" = { fg = "maroon", attrs = ["italic"] }
 "ts.variable.builtin" = "red"
 "ts.variable.other.member" = "blue"
 
@@ -156,7 +163,7 @@ desc = "Save file"
 "ts.punctuation.special" = "sky"
 
 "ts.keyword" = "mauve"
-"ts.keyword.control.conditional" = { fg = "mauve", modifiers = ["italic"] }
+"ts.keyword.control.conditional" = { fg = "mauve", attrs = ["italic"] }
 
 "ts.operator" = "sky"
 
@@ -165,7 +172,7 @@ desc = "Save file"
 
 "ts.tag" = "blue"
 
-"ts.namespace" = { fg = "yellow", modifiers = ["italic"] }
+"ts.namespace" = { fg = "yellow", attrs = ["italic"] }
 
 "ts.special" = "blue" # fuzzy highlight
 
@@ -178,15 +185,24 @@ desc = "Save file"
 "ts.markup.list" = "teal"
 "ts.markup.list.unchecked" = "overlay2"
 "ts.markup.list.checked" = "green"
-"ts.markup.bold" = { fg = "red", modifiers = ["bold"] }
-"ts.markup.italic" = { fg = "red", modifiers = ["italic"] }
-"ts.markup.link.url" = { fg = "blue", modifiers = ["italic", "underlined"] }
+"ts.markup.bold" = { fg = "red", attrs = ["bold"] }
+"ts.markup.italic" = { fg = "red", attrs = ["italic"] }
+"ts.markup.link.url" = { fg = "blue", attrs = ["italic", "underlined"] }
 "ts.markup.link.text" = "lavender"
 "ts.markup.link.label" = "sapphire"
 "ts.markup.raw" = "green"
 "ts.markup.quote" = "pink"
 
 "ui.text" = "text"
+
+"ui.commandline.valid" = "teal"
+"ui.commandline.invalid" = "maroon"
+
+"ui.commandline.primary_name" = { fg = "peach", attrs = ["bold"] }
+"ui.commandline.names" = "pink"
+
+"ui.commandline.arg_name" = "yellow"
+"ui.commandline.arg_type" = { fg = "teal", attrs = ["italic"] }
 
 [palette]
 rosewater = "#f5e0dc"

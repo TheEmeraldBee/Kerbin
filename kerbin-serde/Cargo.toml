@@ -1,7 +1,0 @@
-[package]
-name = "kerbin-serde"
-version.workspace = true
-edition.workspace = true
-
-[dependencies]
-serde.workspace = true

@@ -1,6 +1,7 @@
+use ascii_forge::prelude::*;
 use std::sync::Arc;
 
-use crate::State;
+use crate::{State, Theme};
 
 pub mod state;
 pub use state::*;
@@ -11,27 +12,72 @@ pub use buffer::*;
 pub mod mode;
 pub use mode::*;
 
+pub mod shell;
+pub use shell::*;
+
 pub trait Command: Send + Sync {
     fn apply(&self, state: Arc<State>) -> bool;
 }
 
 pub struct CommandInfo {
-    pub name: String,
+    pub valid_names: Vec<String>,
     pub args: Vec<(String, String)>,
 }
 
 impl CommandInfo {
     pub fn new(
-        name: impl ToString,
+        names: impl IntoIterator<Item = impl ToString>,
         args: impl IntoIterator<Item = (impl ToString, impl ToString)>,
     ) -> Self {
         Self {
-            name: name.to_string(),
+            valid_names: names.into_iter().map(|x| x.to_string()).collect(),
             args: args
                 .into_iter()
                 .map(|x| (x.0.to_string(), x.1.to_string()))
                 .collect(),
         }
+    }
+
+    pub fn as_suggestion(&self, theme: &Theme) -> Buffer {
+        let mut buf = Buffer::new((500, 1));
+        let mut loc = render!(
+            buf,
+            (0, 0) =>
+            [
+                StyledContent::new(theme.get_fallback_default([
+                    "ui.commandline.primary_name",
+                    "ui.commandline.names",
+                    "ui.text"
+                ]), &self.valid_names[0]),
+                " ",
+            ]
+        );
+        if self.valid_names.len() >= 2 {
+            loc = render!(buf, loc => [
+                StyledContent::new(theme.get_fallback_default(["ui.commandline.names", "ui.text"]), format!("({}) ", self.valid_names[1..].join(", ")))
+            ]);
+        }
+        let name_style = theme.get_fallback_default(["ui.commandline.arg_name", "ui.text"]);
+        let type_style = theme.get_fallback_default([
+            "ui.commandline.arg_type",
+            "ui.commandline.arg_name",
+            "ui.text",
+        ]);
+
+        for (name, ty) in &self.args {
+            loc = render!(buf, loc => [
+                StyledContent::new(
+                    name_style,
+                    name
+                ),
+                ": ",
+                StyledContent::new(type_style, ty),
+                " ",
+            ]);
+        }
+
+        buf.shrink();
+        buf
     }
 }
 

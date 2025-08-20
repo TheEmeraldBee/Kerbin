@@ -4,7 +4,7 @@ use darling::{
 };
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{Ident, ItemFn, Type, parse_macro_input};
+use syn::{Ident, ItemFn, Path, Type, parse_macro_input};
 
 #[derive(Debug, FromMeta, Default)]
 #[darling(derive_syn_parse, default)]
@@ -59,8 +59,6 @@ pub fn kerbin(
 struct CommandInfo {
     ident: Ident,
     data: Data<CommandVariant, CommandField>,
-    #[darling(default)]
-    rename_all: Option<String>,
 }
 
 #[derive(FromVariant, Debug)]
@@ -68,7 +66,13 @@ struct CommandInfo {
 struct CommandVariant {
     ident: Ident,
     fields: Fields<CommandField>,
-    name: Option<String>,
+    #[darling(default, rename = "drop_ident")]
+    drop_ident_name: bool,
+    #[darling(multiple, rename = "name")]
+    names: Vec<String>,
+
+    #[darling(default)]
+    parser: Option<Path>,
 }
 
 #[derive(FromField, Debug)]
@@ -92,23 +96,20 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
         _ => panic!("Command can only be derived on enums."),
     };
 
-    let rename_all = info.rename_all;
-
-    // Generate the AsCommandInfo implementation
     let info_matches = variants
         .iter()
         .map(|variant| {
             let ident = &variant.ident;
-            let variant_name = if let Some(ref name) = variant.name {
-                name.clone()
-            } else if let Some(ref rename_style) = rename_all {
-                match rename_style.as_str() {
-                    "snake_case" => to_snake_case(&ident.to_string()),
-                    _ => ident.to_string(),
-                }
-            } else {
-                ident.to_string()
-            };
+
+            let mut names = variant.names.clone();
+
+            if !variant.drop_ident_name {
+                names.insert(0, to_snake_case(&ident.to_string()));
+            }
+
+            if names.is_empty() {
+                panic!("command must have at least 1 valid name.");
+            }
 
             let field_name_types = variant
                 .fields
@@ -135,7 +136,7 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
 
             quote! {
                 CommandInfo {
-                    name: #variant_name.to_string(),
+                    valid_names: vec![#(#names.to_string()),*],
                     args: vec![#(#field_name_types),*],
                 }
             }
@@ -155,106 +156,112 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
         }
     };
 
-    // Generate the CommandFromStr implementation
     let match_arms = variants
         .iter()
         .map(|variant| {
             let ident = &variant.ident;
-            let variant_name = if let Some(ref name) = variant.name {
-                name.clone()
-            } else if let Some(ref rename_style) = rename_all {
-                match rename_style.as_str() {
-                    "snake_case" => to_snake_case(&ident.to_string()),
-                    _ => ident.to_string(),
-                }
-            } else {
-                ident.to_string()
-            };
+            let mut names = variant.names.clone();
 
-            let num_required_args = variant
-                .fields
-                .iter()
-                .filter(|f| get_option_inner_type(&f.ty).is_none())
-                .count();
-            let num_total_args = variant.fields.len();
+            if !variant.drop_ident_name {
+                names.insert(0, to_snake_case(&ident.to_string()));
+            }
 
-            let arg_check = if num_required_args == num_total_args {
+            if names.is_empty() {
+                panic!("command must have at least 1 valid name.");
+            }
+
+            if let Some(parser_func) = &variant.parser {
                 quote! {
-                    if val.len() != #num_total_args + 1 {
-                        return None;
+                    #(#names)|* => {
+                        Some(#parser_func(val))
                     }
                 }
             } else {
-                quote! {
-                    if val.len() < #num_required_args + 1 || val.len() > #num_total_args + 1 {
-                        return None;
+                let num_required_args = variant
+                    .fields
+                    .iter()
+                    .filter(|f| get_option_inner_type(&f.ty).is_none())
+                    .count();
+                let num_total_args = variant.fields.len();
+
+                let arg_check = if num_required_args == num_total_args {
+                    quote! {
+                        if val.len() != #num_total_args + 1 {
+                            return None;
+                        }
                     }
-                }
-            };
-
-            let mut arg_idx = 1;
-            let field_parsers_and_names = variant
-                .fields
-                .iter()
-                .map(|field| {
-                    let ty = &field.ty;
-                    let var = syn::Ident::new(
-                        &format!("arg_{}", arg_idx),
-                        proc_macro2::Span::call_site(),
-                    );
-                    let idx_usize = arg_idx as usize;
-
-                    let parser = if let Some(inner_ty) = get_option_inner_type(ty) {
-                        quote! {
-                            let #var = if let Some(s) = val.get(#idx_usize) {
-                                Some(match s.parse::<#inner_ty>() {
-                                    Ok(t) => t,
-                                    Err(e) => return Some(Err(e.to_string())),
-                                })
-                            } else {
-                                None
-                            };
+                } else {
+                    quote! {
+                        if val.len() < #num_required_args + 1 || val.len() > #num_total_args + 1 {
+                            return None;
                         }
-                    } else {
-                        quote! {
-                            let #var = match val.get(#idx_usize) {
-                                Some(s) => match s.parse::<#ty>() {
-                                    Ok(t) => t,
-                                    Err(e) => return Some(Err(e.to_string())),
-                                },
-                                None => return None,
-                            };
-                        }
-                    };
+                    }
+                };
 
-                    let field_name_assignment = match variant.fields.style {
-                        Style::Struct => {
-                            let field_ident = field.ident.as_ref().unwrap();
-                            quote! { #field_ident: #var }
-                        }
-                        Style::Tuple => quote! { #var },
-                        Style::Unit => quote! {},
-                    };
+                let mut arg_idx = 1;
+                let field_parsers_and_names = variant
+                    .fields
+                    .iter()
+                    .map(|field| {
+                        let ty = &field.ty;
+                        let var = syn::Ident::new(
+                            &format!("arg_{}", arg_idx),
+                            proc_macro2::Span::call_site(),
+                        );
+                        let idx_usize = arg_idx as usize;
 
-                    arg_idx += 1;
-                    (parser, field_name_assignment)
-                })
-                .collect::<Vec<_>>();
+                        let parser = if let Some(inner_ty) = get_option_inner_type(ty) {
+                            quote! {
+                                let #var = if let Some(s) = val.get(#idx_usize) {
+                                    Some(match s.parse::<#inner_ty>() {
+                                        Ok(t) => t,
+                                        Err(e) => return Some(Err(e.to_string())),
+                                    })
+                                } else {
+                                    None
+                                };
+                            }
+                        } else {
+                            quote! {
+                                let #var = match val.get(#idx_usize) {
+                                    Some(s) => match s.parse::<#ty>() {
+                                        Ok(t) => t,
+                                        Err(e) => return Some(Err(e.to_string())),
+                                    },
+                                    None => return None,
+                                };
+                            }
+                        };
 
-            let field_parsers = field_parsers_and_names.iter().map(|(p, _)| p);
-            let field_names = field_parsers_and_names.iter().map(|(_, n)| n);
+                        let field_name_assignment = match variant.fields.style {
+                            Style::Struct => {
+                                let field_ident = field.ident.as_ref().unwrap();
+                                quote! { #field_ident: #var }
+                            }
+                            Style::Tuple => quote! { #var },
+                            Style::Unit => quote! {},
+                        };
 
-            let fields = match variant.fields.style {
-                Style::Struct => quote! { { #(#field_names),* } },
-                Style::Tuple => quote! { ( #(#field_names),* ) },
-                Style::Unit => quote! {},
-            };
+                        arg_idx += 1;
+                        (parser, field_name_assignment)
+                    })
+                    .collect::<Vec<_>>();
 
-            quote! {
-                #variant_name => {
-                    #arg_check
-                    #(#field_parsers)*
-                    Some(Ok(Box::new(Self::#ident #fields)))
+                let field_parsers = field_parsers_and_names.iter().map(|(p, _)| p);
+                let field_names = field_parsers_and_names.iter().map(|(_, n)| n);
+
+                let fields = match variant.fields.style {
+                    Style::Struct => quote! { { #(#field_names),* } },
+                    Style::Tuple => quote! { ( #(#field_names),* ) },
+                    Style::Unit => quote! {},
+                };
+
+                quote! {
+                    #(#names)|* => {
+                        #arg_check
+                        #(#field_parsers)*
+                        Some(Ok(Box::new(Self::#ident #fields)))
+                    }
                 }
             }
         })

@@ -308,7 +308,6 @@ dependencies = [
  "kerbin-core",
  "kerbin-macros",
  "kerbin-plugin",
- "kerbin-serde",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -332,7 +331,6 @@ dependencies = [
  "ascii-forge",
  "async-ffi",
  "kerbin-macros",
- "kerbin-serde",
  "libloading",
  "serde",
  "shellwords",
@@ -357,13 +355,6 @@ version = "0.1.0"
 dependencies = [
  "async-ffi",
  "libloading",
-]
-
-[[package]]
-name = "kerbin-serde"
-version = "0.1.0"
-dependencies = [
- "serde",
 ]
 
 [[package]]

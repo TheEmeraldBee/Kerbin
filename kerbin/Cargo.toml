@@ -4,8 +4,6 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-kerbin-serde.workspace = true
-
 kerbin-config = { path = "../kerbin-config" }
 kerbin-core = { path = "../kerbin-core" }
 kerbin-plugin = { path = "../kerbin-plugin" }

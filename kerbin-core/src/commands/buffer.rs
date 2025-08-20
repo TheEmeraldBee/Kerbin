@@ -2,9 +2,20 @@ use kerbin_macros::Command;
 
 use crate::*;
 
-#[derive(Clone, Debug)]
+fn parse_commit(val: &[String]) -> Result<Box<dyn Command>, String> {
+    if val.len() > 1 {
+        Ok(Box::new(CommitCommand::Commit(Some(
+            val[1..].iter().map(|x| x.clone()).collect(),
+        ))))
+    } else {
+        Ok(Box::new(CommitCommand::Commit(None)))
+    }
+}
+
+#[derive(Clone, Debug, Command)]
 pub enum CommitCommand {
-    Commit(Option<Vec<String>>),
+    #[command(parser = "parse_commit")]
+    Commit(#[command(name = "cmd", type_name = "command")] Option<Vec<String>>),
 }
 
 impl Command for CommitCommand {
@@ -42,49 +53,48 @@ impl Command for CommitCommand {
     }
 }
 
-impl CommandFromStr for CommitCommand {
-    fn from_str(val: &[String]) -> Option<Result<Box<dyn Command>, String>> {
-        match val[0].as_str() {
-            "commit" => {
-                if val.len() > 1 {
-                    Some(Ok(Box::new(CommitCommand::Commit(Some(
-                        val[1..].iter().map(|x| x.clone()).collect(),
-                    )))))
-                } else {
-                    Some(Ok(Box::new(CommitCommand::Commit(None))))
-                }
-            }
-            _ => return None,
-        }
-    }
-}
-
-impl AsCommandInfo for CommitCommand {
-    fn infos() -> Vec<CommandInfo> {
-        vec![CommandInfo::new("commit", [("command", "command")])]
-    }
-}
-
 #[derive(Clone, Debug, Command)]
-#[command(rename_all = "snake_case")]
 pub enum BufferCommand {
-    MoveCursor { cols: isize, rows: isize },
+    #[command(name = "mc")]
+    MoveCursor {
+        cols: isize,
+        rows: isize,
+    },
 
-    WriteFile { path: Option<String> },
+    #[command(name = "write", name = "w")]
+    WriteFile {
+        #[command(type_name = "string?")]
+        path: Option<String>,
+    },
 
     StartChange,
     CommitChange,
 
+    #[command(name = "ins")]
     InsertChar(char),
-    DeleteChars { offset: isize, count: usize },
 
+    #[command(name = "del")]
+    DeleteChars {
+        offset: isize,
+        count: usize,
+    },
+
+    #[command(name = "join")]
     JoinLine(isize),
+
+    #[command(name = "iline")]
     InsertNewline(isize),
 
+    #[command(name = "cline")]
     InsertLine(isize),
+
+    #[command(name = "dline")]
     DeleteLine(isize),
 
+    #[command(name = "u")]
     Undo,
+
+    #[command(name = "r")]
     Redo,
 }
 
@@ -170,6 +180,53 @@ impl Command for BufferCommand {
             }
             BufferCommand::Redo => {
                 cur_buffer.redo();
+                true
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Command)]
+pub enum BuffersCommand {
+    #[command(name = "open", name = "o")]
+    OpenFile(String),
+
+    #[command(drop_ident, name = "move_buf", name = "bm")]
+    SwitchBuffer(isize),
+
+    #[command(drop_ident, name = "buf_close", name = "bc")]
+    CloseBufferOffset(Option<isize>),
+}
+
+impl Command for BuffersCommand {
+    fn apply(&self, state: std::sync::Arc<State>) -> bool {
+        let mut buffers = state.buffers.write().unwrap();
+
+        match self {
+            Self::OpenFile(path) => {
+                let buffer_id = buffers.open(
+                    path.clone(),
+                    &mut state.grammar.write().unwrap(),
+                    &state.theme.read().unwrap(),
+                );
+                buffers.set_selected_buffer(buffer_id);
+                true
+            }
+
+            Self::SwitchBuffer(offset) => {
+                buffers.change_buffer(*offset);
+                true
+            }
+
+            Self::CloseBufferOffset(offset) => {
+                let offset = offset.unwrap_or(0);
+                let buf_idx = buffers.selected_buffer as isize + offset;
+
+                if buf_idx >= buffers.buffers.len() as isize || buf_idx < 0 {
+                    return false;
+                }
+
+                buffers.close_buffer(buf_idx as usize);
                 true
             }
         }

@@ -161,7 +161,7 @@ impl UnresolvedStyle {
                 "crossedout" => Attribute::CrossedOut,
                 _ => return Err(ThemeError::UnknownAttribute(attr_str)),
             };
-            attributes.set(attr);
+            attributes = attributes.with(attr);
         }
         style.attributes = attributes;
 

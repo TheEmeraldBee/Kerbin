@@ -85,8 +85,12 @@ async fn main() {
     state.register_command_deserializer::<BufferCommand>();
     state.register_command_deserializer::<CommitCommand>();
 
+    state.register_command_deserializer::<BuffersCommand>();
+
     state.register_command_deserializer::<ModeCommand>();
     state.register_command_deserializer::<StateCommand>();
+
+    state.register_command_deserializer::<ShellCommand>();
 
     state
         .grammar
@@ -117,6 +121,10 @@ async fn main() {
                 my_plugin.call_async_func::<_, ()>(b"update\0", state.clone()).await;
 
                 handle_inputs(state.clone());
+
+                update_palette_suggestions(state.clone());
+                render_command_palette(state.clone());
+
                 render_help_menu(state.clone());
 
                 update_buffer(state.clone());

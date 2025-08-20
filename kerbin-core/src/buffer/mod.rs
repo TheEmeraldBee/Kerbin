@@ -1,6 +1,6 @@
 pub mod action;
 use std::{
-    io::ErrorKind,
+    io::{ErrorKind, Write},
     path::{Path, PathBuf},
 };
 
@@ -342,12 +342,11 @@ impl TextBuffer {
 
     pub fn write_file(&mut self, path: Option<String>) {
         if let Some(new_path) = path {
-            self.path = Path::new(&new_path)
-                .canonicalize()
-                .unwrap_or(PathBuf::new())
-                .to_str()
-                .unwrap()
-                .to_string();
+            let path = Path::new(&new_path);
+            if !std::fs::exists(&path).unwrap() {
+                std::fs::File::create(path).unwrap().flush().unwrap();
+            }
+            self.path = path.canonicalize().unwrap().to_str().unwrap().to_string();
         }
 
         if self.path == "<scratch>" {

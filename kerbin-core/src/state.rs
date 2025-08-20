@@ -7,8 +7,8 @@ use ascii_forge::prelude::*;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
-    AsCommandInfo, Command, CommandInfo, GrammarManager, InputConfig, InputState, Theme,
-    buffer::Buffers,
+    AsCommandInfo, Command, CommandInfo, CommandPaletteState, GrammarManager, InputConfig,
+    InputState, Theme, buffer::Buffers,
 };
 
 type CommandFn = Box<dyn Fn(&[String]) -> Option<Result<Box<dyn Command>, String>> + Send + Sync>;
@@ -33,6 +33,8 @@ pub struct State {
     pub grammar: RwLock<GrammarManager>,
     pub theme: RwLock<Theme>,
 
+    pub palette: RwLock<CommandPaletteState>,
+
     pub commands: UnboundedSender<Box<dyn Command>>,
 
     pub command_registry: RwLock<Vec<RegisteredCommandSet>>,
@@ -55,27 +57,66 @@ impl State {
             grammar: RwLock::new(GrammarManager::new()),
             theme: RwLock::new(Theme::default()),
 
+            palette: RwLock::new(CommandPaletteState::default()),
+
             commands: cmd_sender,
 
             command_registry: RwLock::new(Vec::new()),
         }
     }
 
-    pub fn call_command(self: &Arc<Self>, command: &str) -> bool {
-        let words = shellwords::split(command).unwrap();
+    pub fn get_command_suggestions(self: &Arc<Self>, input: &str) -> Vec<Buffer> {
+        let words = shellwords::split(input).unwrap_or(vec![input.to_string()]);
+
+        if words.is_empty() {
+            return vec![];
+        }
+
+        let mut res = vec![];
+
+        let theme = self.theme.read().unwrap();
+
+        for registry in self.command_registry.read().unwrap().iter() {
+            for info in &registry.infos {
+                if info.valid_names.iter().any(|x| x.starts_with(&words[0])) {
+                    res.push(info.as_suggestion(&theme))
+                }
+            }
+        }
+
+        res
+    }
+
+    pub fn parse_command(self: &Arc<Self>, input: &str) -> Option<Box<dyn Command>> {
+        let words = shellwords::split(input).unwrap_or(vec![input.to_string()]);
+
+        if words.len() == 0 {
+            return None;
+        }
 
         for registry in self.command_registry.read().unwrap().iter() {
             if let Some(cmd) = (registry.parser)(&words) {
                 match cmd {
-                    Ok(t) => return t.apply(self.clone()),
+                    Ok(t) => return Some(t),
                     Err(e) => {
                         tracing::error!("Failed to parse command due to: {e:?}");
-                        return false;
+                        return None;
                     }
                 }
             }
         }
-        false
+        None
+    }
+
+    pub fn validate_command(self: &Arc<Self>, input: &str) -> bool {
+        self.parse_command(input).is_some()
+    }
+
+    pub fn call_command(self: &Arc<Self>, input: &str) -> bool {
+        match self.parse_command(input) {
+            Some(t) => t.apply(self.clone()),
+            None => false,
+        }
     }
 
     pub fn register_command_deserializer<T: AsCommandInfo + 'static>(&self) {

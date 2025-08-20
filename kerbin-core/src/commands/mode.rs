@@ -3,8 +3,8 @@ use kerbin_macros::Command;
 use crate::*;
 
 #[derive(Debug, Clone, Command)]
-#[command(rename_all = "snake_case")]
 pub enum ModeCommand {
+    #[command(name = "cm")]
     ChangeMode(char),
 }
 

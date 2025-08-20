@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use ascii_forge::{prelude::*, widgets::border::Border};
 
-use crate::{Insert, State};
+use crate::{Insert, State, handle_command_palette_input};
 
 pub enum InputResult {
     Failed,
@@ -68,9 +68,19 @@ impl Input {
         self.key_sequence
             .iter()
             .skip(skip)
-            .map(|x| format!("{}-{}", x.0, x.1).to_ascii_lowercase())
-            .collect::<Vec<_>>()
-            .join(":")
+            .map(|x| {
+                format!(
+                    "{}{}{}",
+                    x.0.to_string().to_lowercase(),
+                    x.0.to_string()
+                        .is_empty()
+                        .then_some("".to_string())
+                        .unwrap_or("-".to_string()),
+                    x.1.to_string().to_lowercase(),
+                )
+            })
+            .reduce(|a, b| format!("{} {}", a, b))
+            .unwrap_or_default()
     }
 }
 
@@ -119,6 +129,7 @@ pub fn handle_inputs(state: Arc<State>) {
 
     let mode = state.get_mode();
     if mode == 'c' {
+        handle_command_palette_input(state.clone());
         return;
     }
 

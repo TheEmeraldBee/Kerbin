@@ -6,8 +6,8 @@ use kerbin_macros::Command;
 use crate::Command;
 
 #[derive(Debug, Clone, Command)]
-#[command(rename_all = "snake_case")]
 pub enum StateCommand {
+    #[command(name = "q")]
     Quit,
 }
 

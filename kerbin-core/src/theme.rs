@@ -15,4 +15,16 @@ impl Theme {
     pub fn get(&self, name: &str) -> Option<ContentStyle> {
         self.map.get(name).copied()
     }
+
+    pub fn get_fallback_default(
+        &self,
+        names: impl IntoIterator<Item = impl ToString>,
+    ) -> ContentStyle {
+        for name in names.into_iter().map(|x| x.to_string()) {
+            if let Some(theme) = self.get(&name) {
+                return theme;
+            }
+        }
+        ContentStyle::default()
+    }
 }
