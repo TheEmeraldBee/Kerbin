@@ -11,6 +11,7 @@ pub struct Buffers {
     pub tab_scroll: usize,
 
     pub buffers: Vec<Arc<RwLock<TextBuffer>>>,
+    pub buffer_paths: Vec<String>,
 }
 
 impl Buffers {
@@ -27,16 +28,6 @@ impl Buffers {
 
     pub fn set_selected_buffer(&mut self, id: usize) {
         self.selected_buffer = id.clamp(0, self.buffers.len() - 1);
-    }
-
-    pub fn close_current_buffer(&mut self) {
-        self.buffers.remove(self.selected_buffer);
-        if self.buffers.is_empty() {
-            self.buffers
-                .push(Arc::new(RwLock::new(TextBuffer::scratch())));
-        }
-
-        self.change_buffer(0);
     }
 
     pub fn close_buffer(&mut self, idx: usize) {
@@ -76,30 +67,31 @@ impl Buffers {
     }
 
     pub fn render(
-        &self,
+        &mut self,
         loc: Vec2,
         buffer: &mut ascii_forge::prelude::Buffer,
         theme: &Theme,
     ) -> Vec2 {
+        self.update_paths();
+
         let mut inner_buffer = Buffer::new(buffer.size() - vec2(0, 3));
         let initial_loc = loc;
         let mut current_char_offset = 0;
 
-        let paths: Vec<String> = self
-            .buffers
-            .iter()
-            .map(|b| b.read().unwrap().path.clone())
-            .collect();
-        let unique_paths = get_unique_paths(paths);
-
-        for (i, _buf) in self.buffers.iter().enumerate() {
-            let title = format!("   {}   ", unique_paths[i]);
+        for (i, short_path) in self.buffer_paths.iter().enumerate() {
+            let title = format!("   {}   ", short_path);
             let title_width = title.chars().count();
 
             let visible_range_start = self.tab_scroll;
             let visible_range_end = self.tab_scroll + buffer.size().x as usize;
             let tab_range_start = current_char_offset;
             let tab_range_end = current_char_offset + title_width;
+
+            let style = if i == self.selected_buffer {
+                theme.get_fallback_default(["ui.bufferline.selected", "ui.bufferline", "ui.text"])
+            } else {
+                theme.get_fallback_default(["ui.bufferline", "ui.text"])
+            };
 
             let overlap_start = visible_range_start.max(tab_range_start);
             let overlap_end = visible_range_end.min(tab_range_end);
@@ -111,7 +103,7 @@ impl Buffers {
                     title.chars().skip(slice_start).take(slice_len).collect();
 
                 let render_x = (overlap_start - self.tab_scroll) as u16;
-                render!(buffer, initial_loc + vec2(render_x, 0) => [visible_part]);
+                render!(buffer, initial_loc + vec2(render_x, 0) => [ StyledContent::new(style, visible_part) ]);
             }
 
             current_char_offset += title_width;
@@ -126,21 +118,36 @@ impl Buffers {
         );
         render!(buffer, content_loc => [ inner_buffer ])
     }
+
+    pub fn update_paths(&mut self) {
+        let paths = self.buffers.iter().map(|b| b.read().unwrap().path.clone());
+        let unique_paths = get_unique_paths(paths, self.buffers.len());
+        self.buffer_paths = unique_paths
+    }
+
+    pub fn unique_path_of(&self, idx: usize) -> Option<String> {
+        self.buffer_paths.get(idx).cloned()
+    }
 }
 
-fn get_unique_paths(paths: Vec<String>) -> Vec<String> {
-    if paths.is_empty() {
+fn get_unique_paths(paths: impl Iterator<Item = String>, len: usize) -> Vec<String> {
+    if len == 0 {
         return vec![];
     }
 
-    let path_components: Vec<Vec<&str>> = paths.iter().map(|p| p.split('/').collect()).collect();
+    let path_components: Vec<Vec<String>> = paths
+        .map(|p| p.split('/').map(|x| x.to_string()).collect())
+        .collect();
 
-    let mut truncated_paths: Vec<String> = paths.iter().map(|_| String::new()).collect();
+    let mut truncated_paths = path_components
+        .iter()
+        .map(|_| String::new())
+        .collect::<Vec<_>>();
 
-    for i in 0..paths.len() {
+    for i in 0..len {
         let mut depth = 1;
         loop {
-            let truncated_parts: Vec<&str> = path_components[i]
+            let truncated_parts: Vec<String> = path_components[i]
                 .iter()
                 .rev()
                 .take(depth)
@@ -160,7 +167,7 @@ fn get_unique_paths(paths: Vec<String>) -> Vec<String> {
                         .take(depth)
                         .rev()
                         .cloned()
-                        .collect::<Vec<&str>>()
+                        .collect::<Vec<String>>()
                         .join("/");
                     truncated != other_truncated
                 });
@@ -179,7 +186,7 @@ fn get_unique_paths(paths: Vec<String>) -> Vec<String> {
 pub fn render_buffers(state: Arc<State>) {
     let theme = state.theme.read().unwrap();
     let mut window = state.window.write().unwrap();
-    let buffers = state.buffers.read().unwrap();
+    let mut buffers = state.buffers.write().unwrap();
 
     //let mut top_bar = Buffer::new(vec2(window.size().x, 1));
     //top_bar.style_line(0, |_| style);
@@ -196,13 +203,7 @@ pub fn update_bufferline_scroll(state: Arc<State>) {
         return;
     }
 
-    let paths: Vec<String> = buffers
-        .buffers
-        .iter()
-        .map(|b| b.read().unwrap().path.clone())
-        .collect();
-    let unique_paths = get_unique_paths(paths);
-    let tab_widths: Vec<usize> = unique_paths.iter().map(|p| p.len() + 6).collect();
+    let tab_widths: Vec<usize> = buffers.buffer_paths.iter().map(|p| p.len() + 6).collect();
 
     let tab_starts: Vec<usize> = tab_widths
         .iter()

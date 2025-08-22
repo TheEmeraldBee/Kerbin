@@ -92,9 +92,7 @@ impl TextBuffer {
     pub fn open(path_str: String, grammar_manager: &mut GrammarManager, theme: &Theme) -> Self {
         let mut found_ext = "".to_string();
 
-        let path = Path::new(&path_str)
-            .canonicalize()
-            .unwrap_or(PathBuf::from(&path_str));
+        let path = get_canonical_path_with_non_existent(&path_str);
 
         let text = match std::fs::read_to_string(&path_str) {
             Ok(t) => t,
@@ -343,10 +341,23 @@ impl TextBuffer {
     pub fn write_file(&mut self, path: Option<String>) {
         if let Some(new_path) = path {
             let path = Path::new(&new_path);
+
+            if let Some(dir_path) = path.parent() {
+                std::fs::create_dir_all(dir_path).unwrap();
+            }
+
             if !std::fs::exists(&path).unwrap() {
                 std::fs::File::create(path).unwrap().flush().unwrap();
             }
+
             self.path = path.canonicalize().unwrap().to_str().unwrap().to_string();
+        }
+
+        if !std::fs::exists(&self.path).unwrap() {
+            if let Some(dir_path) = Path::new(&self.path).parent() {
+                std::fs::create_dir_all(dir_path).unwrap();
+            }
+            std::fs::File::create(&self.path).unwrap().flush().unwrap();
         }
 
         if self.path == "<scratch>" {
@@ -498,4 +509,45 @@ impl TextBuffer {
 
         loc
     }
+}
+
+fn get_canonical_path_with_non_existent(path_str: &str) -> PathBuf {
+    let path = PathBuf::from(path_str);
+    let mut resolved_path = PathBuf::new();
+
+    // Start with the base path, which is the current directory for relative paths
+    // or an empty path for absolute paths.
+    if !path.is_absolute() {
+        resolved_path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    }
+
+    // Iterate over the components of the input path.
+    for component in path.components() {
+        match component {
+            std::path::Component::Normal(c) => {
+                resolved_path.push(c);
+            }
+            std::path::Component::CurDir => {
+                // Do nothing, as a dot doesn't change the path.
+            }
+            std::path::Component::ParentDir => {
+                resolved_path.pop();
+            }
+            _ => {
+                resolved_path.push(component);
+            }
+        }
+
+        // After processing a component, try to canonicalize the resolved portion.
+        // This handles symlinks and resolves redundant path separators.
+        if resolved_path.exists() {
+            if let Ok(canonical) = resolved_path.canonicalize() {
+                resolved_path = canonical;
+            }
+        }
+    }
+
+    // The resolved_path now contains the final canonicalized path,
+    // including any components that don't exist.
+    resolved_path
 }

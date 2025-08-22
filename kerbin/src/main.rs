@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    sync::{Arc, Mutex, atomic::Ordering},
+    sync::{Arc, Mutex, RwLock, atomic::Ordering},
     time::Duration,
 };
 
@@ -98,11 +98,12 @@ async fn main() {
         .unwrap()
         .register_extension("rs", "rust");
 
-    state.buffers.write().unwrap().open(
-        "kerbin/src/main.rs".to_string(),
-        &mut state.grammar.write().unwrap(),
-        &state.theme.read().unwrap(),
-    );
+    state
+        .buffers
+        .write()
+        .unwrap()
+        .buffers
+        .push(Arc::new(RwLock::new(TextBuffer::scratch())));
 
     my_plugin
         .call_async_func::<_, ()>(b"init\0", state.clone())

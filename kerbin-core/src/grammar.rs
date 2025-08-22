@@ -60,9 +60,13 @@ impl GrammarManager {
                 .join(format!("tree-sitter-{lang_name}/queries/highlights.scm"));
 
             if let Ok(query_source) = std::fs::read_to_string(query_path) {
-                let query = Query::new(&language, &query_source).unwrap_or_else(|e| {
-                    panic!("Failed to parse query file for '{}': {:?}", lang_name, e)
-                });
+                let query = match Query::new(&language, &query_source) {
+                    Ok(q) => q,
+                    Err(e) => {
+                        tracing::error!("Failed to parse query file for '{}': {:?}", lang_name, e);
+                        return Some((language, None));
+                    }
+                };
                 self.loaded_queries
                     .insert(lang_name.to_string(), Arc::new(query));
             } else {

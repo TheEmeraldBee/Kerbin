@@ -87,7 +87,11 @@ impl State {
         res
     }
 
-    pub fn parse_command(self: &Arc<Self>, input: &str) -> Option<Box<dyn Command>> {
+    pub fn parse_command(
+        self: &Arc<Self>,
+        input: &str,
+        log_errors: bool,
+    ) -> Option<Box<dyn Command>> {
         let words = shellwords::split(input).unwrap_or(vec![input.to_string()]);
 
         if words.len() == 0 {
@@ -99,7 +103,9 @@ impl State {
                 match cmd {
                     Ok(t) => return Some(t),
                     Err(e) => {
-                        tracing::error!("Failed to parse command due to: {e:?}");
+                        if log_errors {
+                            tracing::error!("Failed to parse command due to: {e:?}");
+                        }
                         return None;
                     }
                 }
@@ -109,11 +115,11 @@ impl State {
     }
 
     pub fn validate_command(self: &Arc<Self>, input: &str) -> bool {
-        self.parse_command(input).is_some()
+        self.parse_command(input, false).is_some()
     }
 
     pub fn call_command(self: &Arc<Self>, input: &str) -> bool {
-        match self.parse_command(input) {
+        match self.parse_command(input, true) {
             Some(t) => t.apply(self.clone()),
             None => false,
         }

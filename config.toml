@@ -130,6 +130,24 @@ keys = [";", "w"]
 commands = ["write_file"]
 desc = "Save file"
 
+[[keybind]]
+modes = ["n"]
+keys = ["g", "n"]
+commands = ["bm 1"] 
+desc = "Next Buffer"
+
+[[keybind]]
+modes = ["n"]
+keys = ["g", "p"]
+commands = ["bm -1"] 
+desc = "Previous Buffer"
+
+[[keybind]]
+modes = ["n"]
+keys = [";", "q"]
+commands = ["bc"]
+desc = "Close current buffer"
+
 [theme]
 
 "ui.linenum" = { fg = "#555555" }
@@ -203,6 +221,9 @@ desc = "Save file"
 
 "ui.commandline.arg_name" = "yellow"
 "ui.commandline.arg_type" = { fg = "teal", attrs = ["italic"] }
+
+"ui.bufferline.selected" = { fg = "text", attrs = ["bold", "italic"] }
+"ui.bufferline" = "text"
 
 [palette]
 rosewater = "#f5e0dc"
