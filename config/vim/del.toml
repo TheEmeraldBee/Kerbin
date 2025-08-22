@@ -1,0 +1,54 @@
+# Contains all deletion motions
+[[keybind]]
+modes = ["i"]
+keys = ["backspace"]
+commands = ["backspace"]
+desc = "Backspace"
+
+[[keybind]]
+modes = []
+keys = ["x"]
+commands = ["commit delete_chars 0 1"]
+desc = "Delete Char"
+
+[[keybind]]
+modes = []
+keys = ["shift-d"]
+commands = ["commit delete_chars 0 32000"]
+desc = "Delete To End"
+
+[[keybind]]
+modes = []
+keys = ["d", "w"]
+commands = ["sw", "gsb", "commit ds"]
+desc = "Delete Word"
+
+[[keybind]]
+modes = []
+keys = ["d", "e"]
+commands = ["se", "gsb", "commit ds"]
+desc = "Delete Word End"
+
+[[keybind]]
+modes = []
+keys = ["d", "b"]
+commands = ["sb", "gsb", "commit ds"]
+desc = "Delete Back Word"
+
+[[keybind]]
+modes = []
+keys = ["d", "shift-w"]
+commands = ["sW", "gsb", "commit ds"]
+desc = "Delete WORD"
+
+[[keybind]]
+modes = []
+keys = ["d", "shift-e"]
+commands = ["sE", "gsb", "commit ds"]
+desc = "Delete WORD End"
+
+[[keybind]]
+modes = []
+keys = ["d", "shift-b"]
+commands = ["sB", "gsb", "commit ds"]
+desc = "Delete Back WORD"

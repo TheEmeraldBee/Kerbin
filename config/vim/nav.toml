@@ -1,0 +1,95 @@
+# Basic Movement Keys
+[[keybind]]
+modes = []
+keys = ["left"]
+commands = ["move_cursor -1 0"]
+desc = "Move Left"
+
+[[keybind]]
+modes = []
+keys = ["down"]
+commands = ["move_cursor 0 1"]
+desc = "Move Down"
+
+[[keybind]]
+modes = []
+keys = ["up"]
+commands = ["move_cursor 0 -1"]
+desc = "Move Up"
+
+[[keybind]]
+modes = []
+keys = ["right"]
+commands = ["move_cursor 1 0"]
+desc = "Move Right"
+
+[[keybind]]
+modes = []
+keys = ["h"]
+commands = ["move_cursor -1 0"]
+desc = "Move Left"
+
+[[keybind]]
+modes = []
+keys = ["j"]
+commands = ["move_cursor 0 1"]
+desc = "Move Down"
+
+[[keybind]]
+modes = []
+keys = ["k"]
+commands = ["move_cursor 0 -1"]
+desc = "Move Up"
+
+[[keybind]]
+modes = []
+keys = ["l"]
+commands = ["move_cursor 1 0"]
+desc = "Move Right"
+
+# Jump movements (motions)
+[[keybind]]
+modes = []
+keys = ["w"]
+commands = ["sw", "gse"]
+desc = "Word"
+
+[[keybind]]
+modes = []
+keys = ["e"]
+commands = ["se", "gse"]
+desc = "Word"
+
+[[keybind]]
+modes = []
+keys = ["b"]
+commands = ["sb", "gsb"]
+desc = "Word"
+
+[[keybind]]
+modes = []
+keys = ["shift-w"]
+commands = ["sW", "gse"]
+desc = "Word"
+
+[[keybind]]
+modes = []
+keys = ["shift-e"]
+commands = ["sE", "gse"]
+desc = "Word"
+
+[[keybind]]
+modes = []
+keys = ["shift-b"]
+commands = ["sB", "gsb"]
+desc = "Word"
+
+[[keybind]]
+modes = []
+keys = ["0"]
+commands = ["move_cursor -32000 0"]
+
+[[keybind]]
+modes = []
+keys = ["$"]
+commands = ["move_cursor 32000 0"]

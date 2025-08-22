@@ -6,18 +6,14 @@ fn execute_parser(val: &[String]) -> Result<Box<dyn Command>, String> {
     if val.len() == 1 {
         return Err("Expected at least 1 argument".to_string());
     }
-    Ok(Box::new(ShellCommand::Execute(
-        val[1..].iter().map(|x| x.clone()).collect(),
-    )))
+    Ok(Box::new(ShellCommand::Execute(val[1..].to_vec())))
 }
 
 fn spawn_parser(val: &[String]) -> Result<Box<dyn Command>, String> {
     if val.len() == 1 {
         return Err("Expected at least 1 argument".to_string());
     }
-    Ok(Box::new(ShellCommand::Spawn(
-        val[1..].iter().map(|x| x.clone()).collect(),
-    )))
+    Ok(Box::new(ShellCommand::Spawn(val[1..].to_vec())))
 }
 
 #[derive(Debug, Clone, Command)]

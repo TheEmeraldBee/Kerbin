@@ -18,6 +18,13 @@ pub struct RegisteredCommandSet {
     pub infos: Vec<CommandInfo>,
 }
 
+#[macro_export]
+macro_rules! cmd {
+    ($state:expr, $func:path, $($arg:expr),*) => {
+        $func($state.clone(), $($arg),*)
+    };
+}
+
 pub struct State {
     pub running: AtomicBool,
 
@@ -94,7 +101,7 @@ impl State {
     ) -> Option<Box<dyn Command>> {
         let words = shellwords::split(input).unwrap_or(vec![input.to_string()]);
 
-        if words.len() == 0 {
+        if words.is_empty() {
             return None;
         }
 

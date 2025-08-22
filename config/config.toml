@@ -1,0 +1,81 @@
+# ---- Imports ---- #
+# This is where all major imports occur
+# This entry is double bracketed, as it can
+# be used anywhere. They are imported at location
+# meaning if you want a file to override another
+# Just place it either later in the paths list here
+# Or later in the file in another import entry
+
+[[import]]
+# Just import theme here for organization
+paths = ["./theme.toml"]
+
+[[import]]
+# Import all keybind modules. This is by default vim style bindings
+paths = ["./vim/init.toml"]
+
+[[keybind]]
+modes = ["n"]
+keys = [";", "shift-q"]
+commands = ["quit"]
+desc = "Quit"
+
+[[keybind]]
+modes = []
+keys = ["shift-j"]
+commands = ["commit join_line 0"]
+desc = "Join Line"
+
+[[keybind]]
+modes = ["i"]
+keys = ["enter"]
+commands = ["commit insert_newline 0"]
+desc = "Insert Newline"
+
+[[keybind]]
+modes = []
+keys = ["u"]
+commands = ["undo"]
+desc = "Undo"
+
+[[keybind]]
+modes = []
+keys = ["shift-u"]
+commands = ["redo"]
+desc = "Undo"
+
+[[keybind]]
+modes = []
+keys = ["o"]
+commands = ["start_change", "insert_line 1", "change_mode i"]
+desc = "Start Editing Below"
+
+[[keybind]]
+modes = []
+keys = ["shift-o"]
+commands = ["start_change", "insert_line 0", "change_mode i"]
+desc = "Start Editing Below"
+
+[[keybind]]
+modes = ["n"]
+keys = [";", "w"]
+commands = ["write_file"]
+desc = "Save file"
+
+[[keybind]]
+modes = ["n"]
+keys = ["g", "n"]
+commands = ["bm 1"] 
+desc = "Next Buffer"
+
+[[keybind]]
+modes = ["n"]
+keys = ["g", "p"]
+commands = ["bm -1"] 
+desc = "Previous Buffer"
+
+[[keybind]]
+modes = ["n"]
+keys = [";", "q"]
+commands = ["bc"]
+desc = "Close current buffer"

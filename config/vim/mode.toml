@@ -1,0 +1,17 @@
+[[keybind]]
+modes = []
+keys = [":"]
+commands = ["change_mode c"]
+desc = "Enter Command Mode"
+
+[[keybind]]
+modes = []
+keys = ["i"]
+commands = ["start_change", "change_mode i"]
+desc = "Enter Insert Mode"
+
+[[keybind]]
+modes = []
+keys = ["esc"]
+commands = ["commit_change", "change_mode n"]
+desc = "Back To Normal Mode"

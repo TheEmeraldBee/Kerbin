@@ -78,6 +78,13 @@ async fn main() {
     let (command_sender, mut command_reciever) = unbounded_channel();
 
     let state = Arc::new(State::new(window, command_sender));
+    state
+        .buffers
+        .write()
+        .unwrap()
+        .buffers
+        .push(Arc::new(RwLock::new(TextBuffer::scratch())));
+
     let config = Config::load(None).unwrap();
     config.apply(state.clone());
 
@@ -90,20 +97,9 @@ async fn main() {
     state.register_command_deserializer::<ModeCommand>();
     state.register_command_deserializer::<StateCommand>();
 
+    state.register_command_deserializer::<MotionCommand>();
+
     state.register_command_deserializer::<ShellCommand>();
-
-    state
-        .grammar
-        .write()
-        .unwrap()
-        .register_extension("rs", "rust");
-
-    state
-        .buffers
-        .write()
-        .unwrap()
-        .buffers
-        .push(Arc::new(RwLock::new(TextBuffer::scratch())));
 
     my_plugin
         .call_async_func::<_, ()>(b"init\0", state.clone())
@@ -116,19 +112,18 @@ async fn main() {
             }
             _ = tokio::time::sleep(Duration::from_millis(16)) => {
                 // Basic Frame update
-
-                state.buffers.write().unwrap().render(vec2(0, 0), state.window.write().unwrap().buffer_mut(), &state.theme.read().unwrap());
-
                 my_plugin.call_async_func::<_, ()>(b"update\0", state.clone()).await;
 
                 handle_inputs(state.clone());
 
                 update_palette_suggestions(state.clone());
-                render_command_palette(state.clone());
-
-                render_help_menu(state.clone());
 
                 update_buffer(state.clone());
+
+                state.buffers.write().unwrap().render(vec2(0, 0), state.window.write().unwrap().buffer_mut(), &state.theme.read().unwrap());
+
+                render_command_palette(state.clone());
+                render_help_menu(state.clone());
 
                 state.window.write().unwrap().update(Duration::ZERO).unwrap();
                 render_cursor(state.clone());
@@ -148,3 +143,4 @@ async fn main() {
         .restore()
         .expect("Window should restore fine");
 }
+

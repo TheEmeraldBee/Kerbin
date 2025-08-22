@@ -4,9 +4,7 @@ use crate::*;
 
 fn parse_commit(val: &[String]) -> Result<Box<dyn Command>, String> {
     if val.len() > 1 {
-        Ok(Box::new(CommitCommand::Commit(Some(
-            val[1..].iter().map(|x| x.clone()).collect(),
-        ))))
+        Ok(Box::new(CommitCommand::Commit(Some(val[1..].to_vec()))))
     } else {
         Ok(Box::new(CommitCommand::Commit(None)))
     }
@@ -96,6 +94,9 @@ pub enum BufferCommand {
 
     #[command(name = "r")]
     Redo,
+
+    #[command(name = "ds")]
+    DeleteSelection,
 }
 
 impl Command for BufferCommand {
@@ -181,6 +182,23 @@ impl Command for BufferCommand {
             BufferCommand::Redo => {
                 cur_buffer.redo();
                 true
+            }
+
+            BufferCommand::DeleteSelection => {
+                if let Some((row, range)) = cur_buffer.selection.take() {
+                    let len = range.end - range.start;
+                    if len > 0 {
+                        cur_buffer.action(Delete {
+                            row,
+                            col: range.start,
+                            len,
+                        })
+                    } else {
+                        true
+                    }
+                } else {
+                    true
+                }
             }
         }
     }

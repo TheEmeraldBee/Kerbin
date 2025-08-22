@@ -9,6 +9,6 @@ serde.workspace = true
 
 ascii-forge.workspace = true
 
-toml = "0.9.5"
+toml = { version = "0.9.5", features = ["preserve_order"] }
 serde-value = "0.7.0"
 

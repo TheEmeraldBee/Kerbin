@@ -15,6 +15,9 @@ pub use mode::*;
 pub mod shell;
 pub use shell::*;
 
+pub mod motion;
+pub use motion::*;
+
 pub trait Command: Send + Sync {
     fn apply(&self, state: Arc<State>) -> bool;
 }

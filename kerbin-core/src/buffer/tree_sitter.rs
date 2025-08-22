@@ -18,6 +18,12 @@ pub struct TSState {
     pub changes: Vec<InputEdit>,
 }
 
+impl Default for TSState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TSState {
     pub fn new() -> Self {
         Self {
@@ -70,7 +76,7 @@ impl TSState {
                 tree.edit(edit);
             }
         }
-        self.tree = self.parser.parse(&text, self.tree.as_ref());
+        self.tree = self.parser.parse(text, self.tree.as_ref());
 
         if let (Some(t), Some(q)) = (self.tree.as_ref(), self.query.as_ref()) {
             self.highlights = highlight(text, t, q, theme);

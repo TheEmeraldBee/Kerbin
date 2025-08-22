@@ -1,0 +1,2 @@
+[[import]]
+paths = ["./nav.toml", "./mode.toml", "./del.toml", "./go.toml"]

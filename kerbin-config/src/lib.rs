@@ -6,7 +6,9 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use toml::Table; // Import toml::Table
 
 #[derive(Debug)]
 pub enum ThemeError {
@@ -258,20 +260,119 @@ pub struct Input {
     pub desc: String,
 }
 
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Deserialize)]
+pub struct ImportEntry {
+    pub paths: Vec<String>,
+}
+
+// Config struct no longer derives Deserialize for the entire file.
+// It will be built up manually.
+#[derive(Debug, Default)]
 pub struct Config {
-    #[serde(rename = "keybind")]
     keybindings: Vec<Input>,
     palette: HashMap<String, String>,
     theme: HashMap<String, UnresolvedStyle>,
 }
 
 impl Config {
-    pub fn load(path: Option<String>) -> Result<Self, toml::de::Error> {
-        let file_content = fs::read_to_string(path.unwrap_or("config.toml".to_string()))
-            .expect("Could not read config file");
-        toml::from_str(&file_content)
+    pub fn load(path_option: Option<String>) -> Result<Self, Box<dyn Error>> {
+        let path = match path_option {
+            Some(s) => PathBuf::from(s),
+            None => PathBuf::from("config/config.toml"),
+        };
+        Self::load_from_path(&path)
+    }
+
+    fn load_from_path(path: &Path) -> Result<Self, Box<dyn Error>> {
+        let file_content = fs::read_to_string(path)?;
+        let toml_table: Table = toml::from_str(&file_content)?; // Use toml::Table to preserve order
+
+        let mut final_config = Config::default();
+        let base_dir = path.parent().unwrap_or_else(|| Path::new(""));
+
+        // Iterate through the top-level keys in the order they appear in the file
+        for (key, value) in toml_table.into_iter() {
+            match key.as_str() {
+                "import" => {
+                    // This assumes [[imports]] path="..."
+                    if let toml::Value::Array(imports_array) = value {
+                        for import_val in imports_array {
+                            if let Ok(import_entry) = import_val.try_into::<ImportEntry>() {
+                                for path in import_entry.paths {
+                                    let imported_path = base_dir.join(&path);
+                                    let imported_config = Config::load_from_path(&imported_path)?;
+                                    final_config.merge(imported_config);
+                                }
+                            } else {
+                                return Err(format!("Invalid import entry in {:?}", path).into());
+                            }
+                        }
+                    } else {
+                        return Err(format!(
+                            "`imports` section in {:?} must be an array of tables",
+                            path
+                        )
+                        .into());
+                    }
+                }
+                "keybind" => {
+                    // This assumes [[keybind]] modes=[...] keys=[...] commands=[...]
+                    if let toml::Value::Array(keybinds_array) = value {
+                        for keybind_val in keybinds_array {
+                            if let Ok(input) = keybind_val.try_into::<Input>() {
+                                final_config.keybindings.push(input);
+                            } else {
+                                return Err(format!("Invalid keybind entry in {:?}", path).into());
+                            }
+                        }
+                    } else {
+                        return Err(format!(
+                            "`keybind` section in {:?} must be an array of tables",
+                            path
+                        )
+                        .into());
+                    }
+                }
+                "palette" => {
+                    // This assumes [palette] name = "color"
+                    if let toml::Value::Table(palette_table) = value {
+                        // Deserialize the palette table directly
+                        let current_palette: HashMap<String, String> = palette_table.try_into()?;
+                        final_config.palette.extend(current_palette);
+                    } else {
+                        return Err(
+                            format!("`palette` section in {:?} must be a table", path).into()
+                        );
+                    }
+                }
+                "theme" => {
+                    // This assumes [theme.style_name] fg="color"
+                    if let toml::Value::Table(theme_table) = value {
+                        // Deserialize the theme table directly
+                        let current_theme: HashMap<String, UnresolvedStyle> =
+                            theme_table.try_into()?;
+                        final_config.theme.extend(current_theme);
+                    } else {
+                        return Err(format!("`theme` section in {:?} must be a table", path).into());
+                    }
+                }
+                _ => {
+                    // Ignore unknown top-level keys
+                    eprintln!(
+                        "Warning: Unknown top-level key '{}' found in {:?}",
+                        key, path
+                    );
+                }
+            }
+        }
+
+        Ok(final_config)
+    }
+
+    fn merge(&mut self, other: Config) {
+        self.keybindings.extend(other.keybindings);
+        self.palette.extend(other.palette); // HashMap::extend overwrites existing keys
+        self.theme.extend(other.theme); // HashMap::extend overwrites existing keys
     }
 
     fn resolve_palette(&self) -> Result<HashMap<String, Color>, ThemeError> {

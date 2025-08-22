@@ -27,19 +27,14 @@ pub(crate) fn char_to_byte_index(s: &str, char_index: usize) -> usize {
 #[derive(Default)]
 pub struct ChangeGroup(usize, usize, Vec<Box<dyn BufferAction>>);
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub enum LineEnding {
-    LF,    // \n
+    #[default]
+    LF, // \n
     CRLF,  // \r\n
     CR,    // \r
     Mixed, // Different line endings found
     None,  // Empty file or no explicit line endings
-}
-
-impl Default for LineEnding {
-    fn default() -> Self {
-        LineEnding::LF // Default to Unix-style
-    }
 }
 
 pub struct TextBuffer {
@@ -50,6 +45,8 @@ pub struct TextBuffer {
 
     pub col: usize,
     pub row: usize,
+
+    pub selection: Option<(usize, std::ops::Range<usize>)>,
 
     current_change: Option<ChangeGroup>,
 
@@ -74,6 +71,8 @@ impl TextBuffer {
 
             col: 0,
             row: 0,
+
+            selection: None,
 
             current_change: None,
 
@@ -129,6 +128,8 @@ impl TextBuffer {
             row: 0,
             col: 0,
 
+            selection: None,
+
             undo_stack: vec![],
             redo_stack: vec![],
             current_change: None,
@@ -154,10 +155,8 @@ impl TextBuffer {
                 } else {
                     has_lf = true;
                 }
-            } else if c == '\r' {
-                if text.chars().nth(i + 1) != Some('\n') {
-                    has_cr = true;
-                }
+            } else if c == '\r' && text.chars().nth(i + 1) != Some('\n') {
+                has_cr = true;
             }
         }
 
@@ -346,11 +345,16 @@ impl TextBuffer {
                 std::fs::create_dir_all(dir_path).unwrap();
             }
 
-            if !std::fs::exists(&path).unwrap() {
+            if !std::fs::exists(path).unwrap() {
                 std::fs::File::create(path).unwrap().flush().unwrap();
             }
 
             self.path = path.canonicalize().unwrap().to_str().unwrap().to_string();
+        }
+
+        if self.path == "<scratch>" {
+            tracing::error!("Unable to write to scratch file without setting a path");
+            return;
         }
 
         if !std::fs::exists(&self.path).unwrap() {
@@ -358,11 +362,6 @@ impl TextBuffer {
                 std::fs::create_dir_all(dir_path).unwrap();
             }
             std::fs::File::create(&self.path).unwrap().flush().unwrap();
-        }
-
-        if self.path == "<scratch>" {
-            tracing::error!("Unable to write to scratch file without setting a path");
-            return;
         }
 
         let line_ending_str = match self.line_ending_style {
@@ -540,10 +539,10 @@ fn get_canonical_path_with_non_existent(path_str: &str) -> PathBuf {
 
         // After processing a component, try to canonicalize the resolved portion.
         // This handles symlinks and resolves redundant path separators.
-        if resolved_path.exists() {
-            if let Ok(canonical) = resolved_path.canonicalize() {
-                resolved_path = canonical;
-            }
+        if resolved_path.exists()
+            && let Ok(canonical) = resolved_path.canonicalize()
+        {
+            resolved_path = canonical;
         }
     }
 

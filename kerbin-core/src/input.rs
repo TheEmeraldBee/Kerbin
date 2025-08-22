@@ -72,10 +72,11 @@ impl Input {
                 format!(
                     "{}{}{}",
                     x.0.to_string().to_lowercase(),
-                    x.0.to_string()
-                        .is_empty()
-                        .then_some("".to_string())
-                        .unwrap_or("-".to_string()),
+                    if x.0.to_string().is_empty() {
+                        "".to_string()
+                    } else {
+                        "-".to_string()
+                    },
                     x.1.to_string().to_lowercase(),
                 )
             })
@@ -84,14 +85,21 @@ impl Input {
     }
 }
 
+use std::collections::HashMap;
+
 #[derive(Default)]
 pub struct InputConfig {
     inputs: Vec<Input>,
+    macros: HashMap<String, Vec<(KeyModifiers, KeyCode)>>,
 }
 
 impl InputConfig {
     pub fn register_input(&mut self, input: Input) {
         self.inputs.push(input)
+    }
+
+    pub fn register_macro(&mut self, name: String, sequence: Vec<(KeyModifiers, KeyCode)>) {
+        self.macros.insert(name, sequence);
     }
 }
 
@@ -182,6 +190,11 @@ pub fn handle_inputs(state: Arc<State>) {
         };
 
         if ch.is_numeric() {
+            // We don't care about 0 if you press it when string is empty
+            // You can't trigger an event 0 times. Might as well allow that as a keybind!
+            if *ch == '0' && input.repeat_count.is_empty() {
+                continue;
+            }
             input.repeat_count.push(*ch);
             found_num = true;
         }
@@ -213,8 +226,12 @@ pub fn handle_inputs(state: Arc<State>) {
                         f(state.clone(), repeat_count);
                     }
                     InputEvent::Commands(c) => {
-                        for command in c {
-                            state.call_command(command);
+                        for _ in 0..repeat_count {
+                            for command in c {
+                                if !state.call_command(command) {
+                                    return false;
+                                }
+                            }
                         }
                     }
                 }
@@ -241,8 +258,12 @@ pub fn handle_inputs(state: Arc<State>) {
                         f(state.clone(), repeat_count);
                     }
                     InputEvent::Commands(c) => {
-                        for command in c {
-                            state.call_command(command);
+                        for _ in 0..repeat_count {
+                            for command in c {
+                                if !state.call_command(command) {
+                                    return;
+                                }
+                            }
                         }
                     }
                 }

@@ -78,18 +78,18 @@ pub fn repeat(
 pub async fn init(state: Arc<State>) {
     state.register_command_deserializer::<CustomCommand>();
 
-    // Register Grammars
-    // state
-    //     .grammar
-    //     .write()
-    //     .unwrap()
-    //     .register_extension("rs", "rust");
+    // Register A Ton of Default Grammars
+    state
+        .grammar
+        .write()
+        .unwrap()
+        .register_extension("rs", "rust");
 
-    // state.buffers.write().unwrap().open(
-    //     "kerbin/src/main.rs".to_string(),
-    //     &mut state.grammar.write().unwrap(),
-    //     &state.theme.read().unwrap(),
-    // );
+    state
+        .grammar
+        .write()
+        .unwrap()
+        .register_extension("toml", "toml");
 }
 
 #[kerbin]
