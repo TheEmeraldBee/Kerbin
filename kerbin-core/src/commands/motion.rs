@@ -17,6 +17,9 @@ pub enum MotionCommand {
     #[command(drop_ident, name = "sel_end_WORD", name = "sE")]
     SelectEndOfWORD,
 
+    #[command(drop_ident, name = "sel_clear", name = "sc")]
+    ClearSelection,
+
     #[command(drop_ident, name = "go_sel_end", name = "gse")]
     GotoSelectionEnd,
     #[command(drop_ident, name = "go_sel_begin", name = "gsb")]
@@ -158,6 +161,9 @@ impl Command for MotionCommand {
         let mut cur_buffer = cur_buffer.write().unwrap();
 
         match self {
+            Self::ClearSelection => {
+                cur_buffer.selection = None;
+            }
             Self::GotoSelectionEnd => {
                 let Some(range) = &cur_buffer.selection else {
                     return false;

@@ -286,30 +286,47 @@ impl TextBuffer {
         }
 
         let old_cursor_byte = self.cursor;
-
-        let current_line_idx = self.rope.byte_to_line_idx(self.cursor, LineType::LF_CR);
-        let current_line_start_byte_idx = self
-            .rope
-            .line_to_byte_idx(current_line_idx, LineType::LF_CR);
-        let current_col_byte_idx = self.cursor - current_line_start_byte_idx;
-
-        let mut target_line_idx = (current_line_idx as isize + rows) as usize;
         let total_lines = self.rope.len_lines(LineType::LF_CR);
 
-        target_line_idx = target_line_idx.min(total_lines.saturating_sub(1));
-        target_line_idx = target_line_idx.max(0);
+        let current_line_idx = self.rope.byte_to_line_idx(self.cursor, LineType::LF_CR);
+        let mut current_col_byte_idx = self.cursor
+            - self
+                .rope
+                .line_to_byte_idx(current_line_idx, LineType::LF_CR);
 
-        let mut target_col_byte_idx = (current_col_byte_idx as isize + cols) as usize;
-        let target_line_len_bytes = self.rope.line(target_line_idx, LineType::LF_CR).len();
+        let mut target_line_idx = current_line_idx.saturating_add_signed(rows);
+        target_line_idx = target_line_idx.min(total_lines.saturating_sub(1)).max(0);
 
-        target_col_byte_idx = target_col_byte_idx.min(target_line_len_bytes);
-        target_col_byte_idx = target_col_byte_idx.max(0);
+        let mut line_len_at_target_idx = self.rope.line(target_line_idx, LineType::LF_CR).len();
+        current_col_byte_idx = current_col_byte_idx.min(line_len_at_target_idx);
+
+        let mut temp_target_col = current_col_byte_idx as isize + cols;
+
+        while temp_target_col < 0 && target_line_idx > 0 {
+            target_line_idx = target_line_idx.saturating_sub(1);
+            line_len_at_target_idx = self.rope.line(target_line_idx, LineType::LF_CR).len();
+            temp_target_col += line_len_at_target_idx as isize;
+            if target_line_idx == 0 && temp_target_col < 0 {
+                temp_target_col = 0;
+                break;
+            }
+        }
+
+        while temp_target_col > line_len_at_target_idx as isize
+            && target_line_idx < total_lines.saturating_sub(1)
+        {
+            temp_target_col -= line_len_at_target_idx as isize;
+            target_line_idx = target_line_idx.saturating_add(1);
+            line_len_at_target_idx = self.rope.line(target_line_idx, LineType::LF_CR).len();
+        }
+
+        let final_col_byte_idx =
+            temp_target_col.max(0).min(line_len_at_target_idx as isize) as usize;
 
         let new_cursor_byte =
-            self.rope.line_to_byte_idx(target_line_idx, LineType::LF_CR) + target_col_byte_idx;
+            self.rope.line_to_byte_idx(target_line_idx, LineType::LF_CR) + final_col_byte_idx;
 
         self.cursor = new_cursor_byte;
-
         self.cursor != old_cursor_byte
     }
 

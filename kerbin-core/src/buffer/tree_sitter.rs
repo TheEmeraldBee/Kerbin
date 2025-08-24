@@ -79,8 +79,6 @@ impl TSState {
             return;
         }
 
-        tracing::warn!("Running tree update");
-
         if let Some(tree) = &mut self.tree {
             for edit in &self.changes {
                 tree.edit(edit);
@@ -89,9 +87,8 @@ impl TSState {
 
         self.tree = self.parser.parse_with_options(
             &mut |byte, _point| {
-                let res = text.chunk(byte).0;
-                tracing::info!("{}", res);
-                res
+                let res = text.get_chunk(byte);
+                res.map(|x| &x.0[(byte - x.1)..]).unwrap_or_default()
             },
             self.tree.as_ref(),
             None,
