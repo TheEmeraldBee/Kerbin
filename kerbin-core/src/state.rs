@@ -1,10 +1,14 @@
-use std::sync::{
-    Arc, RwLock,
-    atomic::{AtomicBool, AtomicU32, Ordering},
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicBool, AtomicU32, Ordering},
+    },
 };
 
 use ascii_forge::prelude::*;
 use tokio::sync::mpsc::UnboundedSender;
+use toml::Value;
 
 use crate::{
     AsCommandInfo, Command, CommandInfo, CommandPaletteState, GrammarManager, InputConfig,
@@ -45,6 +49,8 @@ pub struct State {
     pub commands: UnboundedSender<Box<dyn Command>>,
 
     pub command_registry: RwLock<Vec<RegisteredCommandSet>>,
+
+    pub plugin_config: RwLock<HashMap<String, Value>>,
 }
 
 impl State {
@@ -69,6 +75,8 @@ impl State {
             commands: cmd_sender,
 
             command_registry: RwLock::new(Vec::new()),
+
+            plugin_config: RwLock::new(HashMap::new()),
         }
     }
 

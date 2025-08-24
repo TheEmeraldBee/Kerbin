@@ -8,7 +8,7 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use toml::Table; // Import toml::Table
+use toml::{Table, Value}; // Import toml::Table
 
 #[derive(Debug)]
 pub enum ThemeError {
@@ -272,6 +272,7 @@ pub struct Config {
     keybindings: Vec<Input>,
     palette: HashMap<String, String>,
     theme: HashMap<String, UnresolvedStyle>,
+    plugins: HashMap<String, Value>,
 }
 
 impl Config {
@@ -295,7 +296,7 @@ impl Config {
             match key.as_str() {
                 "import" => {
                     // This assumes [[imports]] path="..."
-                    if let toml::Value::Array(imports_array) = value {
+                    if let Value::Array(imports_array) = value {
                         for import_val in imports_array {
                             if let Ok(import_entry) = import_val.try_into::<ImportEntry>() {
                                 for path in import_entry.paths {
@@ -317,7 +318,7 @@ impl Config {
                 }
                 "keybind" => {
                     // This assumes [[keybind]] modes=[...] keys=[...] commands=[...]
-                    if let toml::Value::Array(keybinds_array) = value {
+                    if let Value::Array(keybinds_array) = value {
                         for keybind_val in keybinds_array {
                             if let Ok(input) = keybind_val.try_into::<Input>() {
                                 final_config.keybindings.push(input);
@@ -335,7 +336,7 @@ impl Config {
                 }
                 "palette" => {
                     // This assumes [palette] name = "color"
-                    if let toml::Value::Table(palette_table) = value {
+                    if let Value::Table(palette_table) = value {
                         // Deserialize the palette table directly
                         let current_palette: HashMap<String, String> = palette_table.try_into()?;
                         final_config.palette.extend(current_palette);
@@ -347,13 +348,24 @@ impl Config {
                 }
                 "theme" => {
                     // This assumes [theme.style_name] fg="color"
-                    if let toml::Value::Table(theme_table) = value {
+                    if let Value::Table(theme_table) = value {
                         // Deserialize the theme table directly
                         let current_theme: HashMap<String, UnresolvedStyle> =
                             theme_table.try_into()?;
                         final_config.theme.extend(current_theme);
                     } else {
                         return Err(format!("`theme` section in {:?} must be a table", path).into());
+                    }
+                }
+                "plugins" => {
+                    if let Value::Table(value_table) = value {
+                        let current_plugin_data: HashMap<String, Value> = value_table.try_into()?;
+
+                        final_config.plugins.extend(current_plugin_data);
+                    } else {
+                        return Err(
+                            format!("`plugin` section in {:?} must be a table", path).into()
+                        );
                     }
                 }
                 _ => {
@@ -436,5 +448,7 @@ impl Config {
                 Err(e) => eprintln!("Error resolving theme item '{}': {}", name, e),
             }
         }
+
+        *state.plugin_config.write().unwrap() = self.plugins;
     }
 }

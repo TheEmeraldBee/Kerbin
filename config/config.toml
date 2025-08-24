@@ -14,6 +14,11 @@ paths = ["./theme.toml"]
 # Import all keybind modules. This is by default vim style bindings
 paths = ["./vim/init.toml"]
 
+# This is just a map of values that plugins can use to get stuff from config
+# This example sets a statusline y offset
+[plugins]
+"statusline.offset" = 2
+
 [[keybind]]
 modes = ["n"]
 keys = [";", "shift-q"]
