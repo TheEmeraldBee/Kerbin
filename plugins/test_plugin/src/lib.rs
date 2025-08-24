@@ -17,27 +17,12 @@ impl Command for CustomCommand {
                 let cur_buf = state.buffers.read().unwrap().cur_buffer();
                 let mut cur_buf = cur_buf.write().unwrap();
 
-                let row = cur_buf.row;
+                let byte = cur_buf.cursor - 1;
 
-                if cur_buf.col == 0 {
-                    cur_buf.move_cursor(0, -isize::MAX);
-                    let line_len = cur_buf.lines[row.saturating_sub(1)].len();
+                let res = cur_buf.action(Delete { byte, len: 1 });
 
-                    // Join Line When Implemented Here
-                    cur_buf.action(JoinLine {
-                        row: row.saturating_sub(1),
-                        undo_indent: None,
-                    });
-                    cur_buf.move_cursor(-1, line_len as isize);
-
-                    true
-                } else {
-                    let col = cur_buf.col - 1;
-                    let res = cur_buf.action(Delete { row, col, len: 1 });
-
-                    cur_buf.move_cursor(0, -1);
-                    res
-                }
+                cur_buf.move_cursor(0, -1);
+                res
             }
         }
     }

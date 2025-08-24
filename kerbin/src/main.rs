@@ -18,38 +18,57 @@ use kerbin_plugin::Plugin;
 use tokio::sync::mpsc::unbounded_channel;
 use tracing::Level;
 
-fn render_cursor(state: Arc<State>) {
+pub fn render_cursor(state: Arc<State>) {
     let mut window = state.window.write().unwrap();
-    let buffers = state.buffers.read().unwrap();
+    let buffers_guard = state.buffers.read().unwrap();
+    let current_buffer_handle = buffers_guard.cur_buffer();
+    let buffer = current_buffer_handle.read().unwrap();
 
-    let mut row = buffers.cur_buffer().read().unwrap().row;
-    let mut col = buffers.cur_buffer().read().unwrap().col;
-    let scroll = buffers.cur_buffer().read().unwrap().scroll;
+    // Calculate current row and col based on the cursor byte index
+    let cursor_byte = buffer.cursor;
+    let rope = &buffer.rope;
 
-    if scroll > row {
+    let mut current_row_idx = rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
+    let line_start_byte_idx = rope.line_to_byte_idx(current_row_idx, LineType::LF_CR);
+    let mut current_col_idx = rope
+        .byte_to_char_idx(cursor_byte)
+        .saturating_sub(rope.byte_to_char_idx(line_start_byte_idx));
+
+    let scroll = buffer.scroll;
+    let h_scroll = buffer.h_scroll;
+
+    // Apply vertical scroll
+    if scroll > current_row_idx {
         execute!(window.io(), Hide).unwrap();
         return;
     }
 
-    row += 1;
+    current_row_idx = current_row_idx.saturating_sub(scroll);
+    current_col_idx = current_col_idx.saturating_sub(h_scroll);
 
-    row = row.saturating_sub(buffers.cur_buffer().read().unwrap().scroll);
+    // Adjust row for 1-based display and header/footer offset if any
+    // Assuming the editor UI starts rendering content at y=1 (after header)
+    // and line numbers might take up 1 column.
+    // The previous code had `row += 1;`
+    let display_row = (current_row_idx + 1) as u16; // Add 1 for 1-based indexing of screen rows
 
-    col = col.saturating_sub(buffers.cur_buffer().read().unwrap().h_scroll);
-
-    if row > window.size().y as usize {
+    // Check if cursor is off-screen vertically
+    if display_row > window.size().y {
         execute!(window.io(), Hide).unwrap();
         return;
     }
 
+    // Determine cursor style based on mode
     let cursor_style = match state.get_mode() {
         'i' => SetCursorStyle::SteadyBar,
-        _ => SetCursorStyle::SteadyBlock,
+        _ => SetCursorStyle::SteadyBlock, // Default to block for normal mode
     };
 
+    // `col as u16 + 6` assumes a gutter of 6 characters for line numbers.
+    // Ensure `display_row` and `current_col_idx` are cast to `u16`.
     execute!(
         window.io(),
-        MoveTo(col as u16 + 6, row as u16),
+        MoveTo(current_col_idx as u16 + 6, display_row),
         cursor_style,
         Show,
     )
@@ -125,8 +144,8 @@ async fn main() {
                 render_command_palette(state.clone());
                 render_help_menu(state.clone());
 
-                state.window.write().unwrap().update(Duration::ZERO).unwrap();
                 render_cursor(state.clone());
+                state.window.write().unwrap().update(Duration::ZERO).unwrap();
 
                 if !state.running.load(Ordering::Relaxed) {
                     break
@@ -143,4 +162,3 @@ async fn main() {
         .restore()
         .expect("Window should restore fine");
 }
-

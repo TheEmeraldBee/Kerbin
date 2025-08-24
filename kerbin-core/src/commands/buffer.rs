@@ -2,6 +2,8 @@ use kerbin_macros::Command;
 
 use crate::*;
 
+pub use ropey::LineType;
+
 fn parse_commit(val: &[String]) -> Result<Box<dyn Command>, String> {
     if val.len() > 1 {
         Ok(Box::new(CommitCommand::Commit(Some(val[1..].to_vec()))))
@@ -77,18 +79,6 @@ pub enum BufferCommand {
         count: usize,
     },
 
-    #[command(name = "join")]
-    JoinLine(isize),
-
-    #[command(name = "iline")]
-    InsertNewline(isize),
-
-    #[command(name = "cline")]
-    InsertLine(isize),
-
-    #[command(name = "dline")]
-    DeleteLine(isize),
-
     #[command(name = "u")]
     Undo,
 
@@ -105,6 +95,8 @@ impl Command for BufferCommand {
 
         let cur_buffer = buffers.cur_buffer();
         let mut cur_buffer = cur_buffer.write().unwrap();
+
+        let byte = cur_buffer.cursor;
 
         match self {
             BufferCommand::MoveCursor { rows, cols } => cur_buffer.move_cursor(*rows, *cols),
@@ -124,55 +116,16 @@ impl Command for BufferCommand {
                 true
             }
 
-            BufferCommand::InsertChar(chr) => {
-                let row = cur_buffer.row;
-                let col = cur_buffer.col;
-
-                cur_buffer.action(Insert {
-                    row,
-                    col,
-                    content: chr.to_string(),
-                })
-            }
+            BufferCommand::InsertChar(chr) => cur_buffer.action(Insert {
+                byte,
+                content: chr.to_string(),
+            }),
             BufferCommand::DeleteChars { offset, count } => {
-                let row = cur_buffer.row;
-                let col = cur_buffer.col;
-
-                cur_buffer.action(Delete {
-                    row,
-                    col: col.saturating_add_signed(*offset),
-                    len: *count,
-                })
-            }
-
-            BufferCommand::JoinLine(offset) => {
-                let row = cur_buffer.row.saturating_add_signed(*offset);
-
-                cur_buffer.action(JoinLine {
-                    row,
-                    undo_indent: None,
-                })
-            }
-            BufferCommand::InsertNewline(offset) => {
-                let row = cur_buffer.row;
-                let col = cur_buffer.col.saturating_add_signed(*offset);
-
-                cur_buffer.action(InsertNewline { row, col })
-            }
-
-            BufferCommand::InsertLine(offset) => {
-                let row = cur_buffer.row.saturating_add_signed(*offset);
-
-                cur_buffer.action(InsertLine {
-                    row,
-                    content: "".to_string(),
-                    was_last_line: false,
-                })
-            }
-            BufferCommand::DeleteLine(offset) => {
-                let row = cur_buffer.row.saturating_add_signed(*offset);
-
-                cur_buffer.action(DeleteLine { row })
+                let old_cursor = cur_buffer.cursor;
+                cur_buffer.move_cursor(0, *offset);
+                let res = cur_buffer.action(Delete { byte, len: *count });
+                cur_buffer.cursor = old_cursor;
+                res
             }
 
             BufferCommand::Undo => {
@@ -185,12 +138,11 @@ impl Command for BufferCommand {
             }
 
             BufferCommand::DeleteSelection => {
-                if let Some((row, range)) = cur_buffer.selection.take() {
+                if let Some(range) = cur_buffer.selection.take() {
                     let len = range.end - range.start;
                     if len > 0 {
                         cur_buffer.action(Delete {
-                            row,
-                            col: range.start,
+                            byte: range.start,
                             len,
                         })
                     } else {

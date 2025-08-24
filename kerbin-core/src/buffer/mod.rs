@@ -1,6 +1,7 @@
 pub mod action;
 use std::{
-    io::{ErrorKind, Write},
+    io::{BufReader, BufWriter, ErrorKind, Write},
+    ops::Range,
     path::{Path, PathBuf},
 };
 
@@ -11,42 +12,30 @@ pub use buffers::*;
 
 pub mod tree_sitter;
 use ::tree_sitter::{InputEdit, Point};
+use ropey::{LineType, Rope};
 use tree_sitter::*;
 
 use ascii_forge::prelude::*;
 
 use crate::{GrammarManager, Theme};
 
-pub(crate) fn char_to_byte_index(s: &str, char_index: usize) -> usize {
-    s.char_indices()
-        .nth(char_index)
-        .map(|(idx, _)| idx)
-        .unwrap_or(s.len())
-}
-
 #[derive(Default)]
-pub struct ChangeGroup(usize, usize, Vec<Box<dyn BufferAction>>);
+pub struct ChangeGroup(usize, Vec<Box<dyn BufferAction>>);
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
-pub enum LineEnding {
-    #[default]
-    LF, // \n
-    CRLF,  // \r\n
-    CR,    // \r
-    Mixed, // Different line endings found
-    None,  // Empty file or no explicit line endings
+pub struct Cursor {
+    pub range: Range<usize>,
 }
 
 pub struct TextBuffer {
-    pub lines: Vec<String>,
+    pub rope: Rope,
 
     pub path: String,
     pub ext: String,
 
-    pub col: usize,
-    pub row: usize,
+    /// The byte location of the cursor
+    pub cursor: usize,
 
-    pub selection: Option<(usize, std::ops::Range<usize>)>,
+    pub selection: Option<std::ops::Range<usize>>,
 
     current_change: Option<ChangeGroup>,
 
@@ -57,20 +46,17 @@ pub struct TextBuffer {
 
     pub scroll: usize,
     pub h_scroll: usize,
-
-    pub line_ending_style: LineEnding,
 }
 
 impl TextBuffer {
     pub fn scratch() -> Self {
         Self {
-            lines: Vec::from_iter(["".into()]),
+            rope: Rope::new(),
 
             path: "<scratch>".into(),
             ext: "".into(),
 
-            col: 0,
-            row: 0,
+            cursor: 0,
 
             selection: None,
 
@@ -83,8 +69,6 @@ impl TextBuffer {
 
             scroll: 0,
             h_scroll: 0,
-
-            line_ending_style: LineEnding::LF,
         }
     }
 
@@ -93,40 +77,31 @@ impl TextBuffer {
 
         let path = get_canonical_path_with_non_existent(&path_str);
 
-        let text = match std::fs::read_to_string(&path_str) {
-            Ok(t) => t,
+        let rope = match std::fs::File::open(&path) {
+            Ok(f) => {
+                Rope::from_reader(BufReader::new(f)).expect("Rope should be able to read file")
+            }
             Err(e) => {
                 if e.kind() != ErrorKind::NotFound {
                     tracing::error!("{e} when opening file, {path_str}");
                 }
-                "".to_string()
+                Rope::new()
             }
         };
-
-        let detected_line_ending = Self::detect_line_ending(&text);
-
-        // Normalize all line endings to LF internally
-        let normalized_text = text.replace("\r\n", "\n").replace('\r', "\n");
 
         let mut ts_state = None;
 
         if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
             found_ext = ext.to_string();
-            ts_state = TSState::init(ext, &normalized_text, grammar_manager, theme);
+            ts_state = TSState::init(ext, &rope, grammar_manager, theme);
         }
 
-        let lines = normalized_text
-            .lines()
-            .map(|x| x.to_string())
-            .collect::<Vec<String>>();
-
         Self {
-            lines,
+            rope,
             path: path.to_str().map(|x| x.to_string()).unwrap_or_default(),
             ext: found_ext,
 
-            row: 0,
-            col: 0,
+            cursor: 0,
 
             selection: None,
 
@@ -138,84 +113,14 @@ impl TextBuffer {
 
             scroll: 0,
             h_scroll: 0,
-
-            line_ending_style: detected_line_ending,
         }
     }
 
-    fn detect_line_ending(text: &str) -> LineEnding {
-        let mut has_lf = false;
-        let mut has_crlf = false;
-        let mut has_cr = false;
+    pub fn get_edit_part(&self, byte: usize) -> (Point, usize) {
+        let line_idx = self.rope.byte_to_line_idx(byte, LineType::LF_CR);
+        let col = byte - line_idx;
 
-        for (i, c) in text.char_indices() {
-            if c == '\n' {
-                if i > 0 && text.chars().nth(i - 1) == Some('\r') {
-                    has_crlf = true;
-                } else {
-                    has_lf = true;
-                }
-            } else if c == '\r' && text.chars().nth(i + 1) != Some('\n') {
-                has_cr = true;
-            }
-        }
-
-        match (has_lf, has_crlf, has_cr) {
-            (true, false, false) => LineEnding::LF,
-            (false, true, false) => LineEnding::CRLF,
-            (false, false, true) => LineEnding::CR,
-            (false, false, false) => LineEnding::None,
-            _ => LineEnding::Mixed, // Any combination implies mixed
-        }
-    }
-
-    // Helper to get the actual byte length of a line including its line ending
-    fn get_full_line_byte_len(&self, row_idx: usize, style: LineEnding) -> usize {
-        if row_idx >= self.lines.len() {
-            return 0;
-        }
-        let line_content_byte_len = self.lines[row_idx].len();
-        if row_idx < self.lines.len() - 1 || self.lines.len() == 1 {
-            // All lines except the very last one have a line ending,
-            // or if there's only one line, it effectively has a line ending in the logical model
-            match style {
-                LineEnding::LF => line_content_byte_len + 1,    // \n
-                LineEnding::CRLF => line_content_byte_len + 2,  // \r\n
-                LineEnding::CR => line_content_byte_len + 1,    // \r
-                LineEnding::Mixed => line_content_byte_len + 1, // Default to \n for mixed or for newly inserted lines
-                LineEnding::None => line_content_byte_len,      // No line ending if empty file
-            }
-        } else {
-            // The last line does not have a trailing newline char in the file content
-            line_content_byte_len
-        }
-    }
-
-    pub fn get_edit_part(&self, row: usize, char_col: usize) -> (Point, usize) {
-        let line = self.lines.get(row).map_or("", |l| l.as_str());
-        let byte_col_in_line = char_to_byte_index(line, char_col);
-
-        let mut cumulative_byte_offset = 0;
-        for i in 0..row {
-            cumulative_byte_offset += self.get_full_line_byte_len(i, self.line_ending_style);
-        }
-        cumulative_byte_offset += byte_col_in_line;
-
-        (Point::new(row, byte_col_in_line), cumulative_byte_offset)
-    }
-
-    pub fn get_byte_offset_from_char_coords(&self, row: usize, col: usize) -> usize {
-        let mut byte_offset = 0;
-        for i in 0..row {
-            byte_offset += self.lines[i].len() + 1;
-        }
-        byte_offset += self
-            .lines
-            .get(row)
-            .and_then(|line| line.char_indices().nth(col))
-            .map(|(idx, _)| idx)
-            .unwrap_or_else(|| self.lines.get(row).map_or(0, |l| l.len()));
-        byte_offset
+        (Point::new(line_idx, col), byte)
     }
 
     pub fn register_input_edit(
@@ -248,7 +153,7 @@ impl TextBuffer {
 
         if res.success {
             if let Some(group) = self.current_change.as_mut() {
-                group.2.push(res.action)
+                group.1.push(res.action)
             }
 
             self.redo_stack.clear();
@@ -262,21 +167,18 @@ impl TextBuffer {
         if let Some(group) = self.undo_stack.pop() {
             let mut redo_group = vec![];
 
-            let redo_row = self.row;
-            let redo_col = self.col;
+            let redo_cursor = self.cursor;
 
-            for action in group.2.into_iter().rev() {
+            for action in group.1.into_iter().rev() {
                 let ActionResult { action, .. } = action.apply(self);
                 redo_group.push(action);
             }
 
-            self.row = group.0;
-            self.col = group.1;
+            self.cursor = group.0;
 
             redo_group.reverse();
 
-            self.redo_stack
-                .push(ChangeGroup(redo_row, redo_col, redo_group));
+            self.redo_stack.push(ChangeGroup(redo_cursor, redo_group));
         }
     }
 
@@ -285,30 +187,27 @@ impl TextBuffer {
         if let Some(group) = self.redo_stack.pop() {
             let mut undo_group = vec![];
 
-            let undo_row = self.row;
-            let undo_col = self.col;
+            let undo_cursor = self.cursor;
 
-            for action in group.2.into_iter() {
+            for action in group.1.into_iter() {
                 let ActionResult { action, .. } = action.apply(self);
                 undo_group.push(action);
             }
 
-            self.row = group.0;
-            self.col = group.1;
+            self.cursor = group.0;
 
-            self.undo_stack
-                .push(ChangeGroup(undo_row, undo_col, undo_group));
+            self.undo_stack.push(ChangeGroup(undo_cursor, undo_group));
         }
     }
 
     pub fn start_change_group(&mut self) {
         self.commit_change_group();
-        self.current_change = Some(ChangeGroup(self.row, self.col, vec![]));
+        self.current_change = Some(ChangeGroup(self.cursor, vec![]));
     }
 
     pub fn commit_change_group(&mut self) {
         if let Some(group) = self.current_change.take()
-            && !group.2.is_empty()
+            && !group.1.is_empty()
         {
             self.undo_stack.push(group)
         }
@@ -323,7 +222,7 @@ impl TextBuffer {
         self.scroll = self
             .scroll
             .saturating_add_signed(delta)
-            .clamp(0, self.lines.len().saturating_sub(1));
+            .clamp(0, self.rope.len_lines(LineType::LF_CR));
 
         self.scroll != old_scroll
     }
@@ -364,25 +263,21 @@ impl TextBuffer {
             std::fs::File::create(&self.path).unwrap().flush().unwrap();
         }
 
-        let line_ending_str = match self.line_ending_style {
-            LineEnding::LF => "\n",
-            LineEnding::CRLF => "\r\n",
-            LineEnding::CR => "\r",
-            _ => "\n", // For Mixed or None, default to LF on save
-        };
-
-        let content = self.lines.join(line_ending_str);
-        if let Err(e) = std::fs::write(&self.path, content) {
-            tracing::error!("Error writing file {}: {}", self.path, e);
-        }
+        self.rope
+            .write_to(
+                match std::fs::OpenOptions::new().write(true).open(&self.path) {
+                    Ok(f) => BufWriter::new(f),
+                    Err(e) => {
+                        tracing::error!("Failed to write to {}: {e}", self.path);
+                        return;
+                    }
+                },
+            )
+            .unwrap();
     }
 
     pub fn cur_line(&self) -> String {
-        self.lines.get(self.row).cloned().unwrap_or_default()
-    }
-
-    pub fn cur_line_mut(&mut self) -> Option<&mut String> {
-        self.lines.get_mut(self.row)
+        self.rope.line(self.cursor, LineType::LF_CR).to_string()
     }
 
     pub fn move_cursor(&mut self, rows: isize, cols: isize) -> bool {
@@ -390,32 +285,39 @@ impl TextBuffer {
             return true;
         }
 
-        let old_col = self.col;
-        let old_row = self.row;
+        let old_cursor_byte = self.cursor;
 
-        self.col = self.col.saturating_add_signed(cols);
-        self.row = self
-            .row
-            .saturating_add_signed(rows)
-            .clamp(0, self.lines.len().saturating_sub(1));
+        let current_line_idx = self.rope.byte_to_line_idx(self.cursor, LineType::LF_CR);
+        let current_line_start_byte_idx = self
+            .rope
+            .line_to_byte_idx(current_line_idx, LineType::LF_CR);
+        let current_col_byte_idx = self.cursor - current_line_start_byte_idx;
 
-        let line_length = self.cur_line().chars().count();
+        let mut target_line_idx = (current_line_idx as isize + rows) as usize;
+        let total_lines = self.rope.len_lines(LineType::LF_CR);
 
-        self.col = self.col.clamp(0, line_length);
-        self.row != old_row || self.col != old_col
+        target_line_idx = target_line_idx.min(total_lines.saturating_sub(1));
+        target_line_idx = target_line_idx.max(0);
+
+        let mut target_col_byte_idx = (current_col_byte_idx as isize + cols) as usize;
+        let target_line_len_bytes = self.rope.line(target_line_idx, LineType::LF_CR).len();
+
+        target_col_byte_idx = target_col_byte_idx.min(target_line_len_bytes);
+        target_col_byte_idx = target_col_byte_idx.max(0);
+
+        let new_cursor_byte =
+            self.rope.line_to_byte_idx(target_line_idx, LineType::LF_CR) + target_col_byte_idx;
+
+        self.cursor = new_cursor_byte;
+
+        self.cursor != old_cursor_byte
     }
 
     pub fn update(&mut self, theme: &Theme) {
         if let Some(s) = &mut self.ts_state {
             // When updating Tree-sitter, we must provide the text with its actual line endings.
             // Since our internal representation uses `\n`, we must convert it back.
-            let line_ending_str = match self.line_ending_style {
-                LineEnding::LF => "\n",
-                LineEnding::CRLF => "\r\n",
-                LineEnding::CR => "\r",
-                _ => "\n", // Default to LF if mixed or unknown, this implies that new edits will use LF
-            };
-            s.update_tree_and_highlights(&self.lines.join(line_ending_str), theme);
+            s.update_tree_and_highlights(&self.rope, theme);
         }
     }
 
@@ -428,21 +330,18 @@ impl TextBuffer {
             .get("ui.linenum")
             .unwrap_or(ContentStyle::new().dark_grey());
 
-        let mut byte_offset: usize = self
-            .lines
-            .iter()
-            .take(self.scroll)
-            .map(|l| l.len() + 1) // +1 for the newline character
-            .sum();
+        let mut byte_offset = self.rope.line_to_byte_idx(self.scroll, LineType::LF_CR);
+
+        let row = self.rope.byte_to_line_idx(self.cursor, LineType::LF_CR);
 
         let gutter_width = 6;
         let start_x = loc.x;
 
-        for (i, line) in self
-            .lines
-            .iter()
-            .enumerate()
-            .skip(self.scroll)
+        let mut i = self.scroll;
+
+        for line in self
+            .rope
+            .lines_at(self.scroll, LineType::LF_CR)
             .take(buffer.size().y as usize)
         {
             loc.x = start_x;
@@ -451,7 +350,7 @@ impl TextBuffer {
                 num_line = num_line[0..5].to_string();
             }
 
-            if i == self.row {
+            if i == row {
                 num_line = format!(
                     "{}{}",
                     " ".repeat(4usize.saturating_sub(num_line.len())),
@@ -470,7 +369,6 @@ impl TextBuffer {
             loc.x += gutter_width;
 
             if let Some(ts) = &self.ts_state {
-                // 1. Get the style active at the very beginning of this line.
                 let mut current_style = ts
                     .highlights
                     .range(..=byte_offset)
@@ -481,17 +379,15 @@ impl TextBuffer {
                 for (char_col, (char_byte_idx, ch)) in line.char_indices().enumerate() {
                     let absolute_byte_idx = byte_offset + char_byte_idx;
 
-                    // 2. Check if the style changes AT this character's position.
                     if let Some(new_style) = ts.highlights.get(&absolute_byte_idx) {
                         current_style = *new_style;
                     }
 
-                    // 3. Render the character with the now-correct style, handling horizontal scroll.
                     if char_col >= self.h_scroll {
                         let render_col = (char_col - self.h_scroll) as u16;
 
                         if render_col >= buffer.size().x {
-                            break; // Stop rendering if we go off-screen
+                            break;
                         }
 
                         render!(buffer, loc + vec2(render_col, 0) => [StyledContent::new(current_style, ch)]);
@@ -499,11 +395,12 @@ impl TextBuffer {
                 }
             } else {
                 // Fallback for files with no syntax highlighting
-                render!(buffer, loc => [ line ]);
+                render!(buffer, loc => [ line.to_string() ]);
             }
 
             loc.y += 1;
-            byte_offset += line.len() + 1; // Account for newline
+            byte_offset += line.len();
+            i += 1;
         }
 
         loc

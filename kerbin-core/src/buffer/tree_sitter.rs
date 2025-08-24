@@ -1,7 +1,8 @@
 use std::{collections::BTreeMap, ops::Range, sync::Arc};
 
 use ascii_forge::window::ContentStyle;
-use tree_sitter::{InputEdit, Parser, Query, QueryCursor, StreamingIterator, Tree};
+use ropey::Rope;
+use tree_sitter::{InputEdit, Parser, Query, QueryCursor, StreamingIterator, TextProvider, Tree};
 
 use crate::{GrammarManager, Theme};
 
@@ -42,7 +43,7 @@ impl TSState {
 
     pub fn init(
         ext: &str,
-        text: &str,
+        text: &Rope,
         grammar_manager: &mut GrammarManager,
         theme: &Theme,
     ) -> Option<Self> {
@@ -57,7 +58,14 @@ impl TSState {
             return None;
         }
 
-        let tree = s.parser.parse(text, None);
+        let tree = s.parser.parse_with_options(
+            &mut |byte, _point| {
+                let res = text.get_chunk(byte);
+                res.map(|x| &x.0[(byte - x.1)..]).unwrap_or_default()
+            },
+            None,
+            None,
+        );
 
         if let (Some(q), Some(t)) = (s.query.as_ref(), tree.as_ref()) {
             s.highlights = highlight(text, t, q, theme);
@@ -66,17 +74,28 @@ impl TSState {
         Some(s)
     }
 
-    pub fn update_tree_and_highlights(&mut self, text: &str, theme: &Theme) {
+    pub fn update_tree_and_highlights(&mut self, text: &Rope, theme: &Theme) {
         if !self.tree_sitter_dirty {
             return;
         }
+
+        tracing::warn!("Running tree update");
 
         if let Some(tree) = &mut self.tree {
             for edit in &self.changes {
                 tree.edit(edit);
             }
         }
-        self.tree = self.parser.parse(text, self.tree.as_ref());
+
+        self.tree = self.parser.parse_with_options(
+            &mut |byte, _point| {
+                let res = text.chunk(byte).0;
+                tracing::info!("{}", res);
+                res
+            },
+            self.tree.as_ref(),
+            None,
+        );
 
         if let (Some(t), Some(q)) = (self.tree.as_ref(), self.query.as_ref()) {
             self.highlights = highlight(text, t, q, theme);
@@ -93,14 +112,42 @@ struct Highlight {
     style: ContentStyle,
 }
 
+pub struct TextProviderRope<'a>(pub &'a Rope);
+
+impl<'a> TextProvider<&'a [u8]> for &'a TextProviderRope<'a> {
+    type I = ChunksBytes<'a>;
+    fn text(&mut self, node: tree_sitter::Node) -> Self::I {
+        let mut byte_range = node.byte_range();
+
+        if self.0.len() <= byte_range.start {
+            return ChunksBytes(None);
+        }
+
+        byte_range.end = byte_range.end.min(self.0.len());
+
+        ChunksBytes(Some(self.0.slice(byte_range).chunks()))
+    }
+}
+
+pub struct ChunksBytes<'a>(Option<ropey::iter::Chunks<'a>>);
+
+impl<'a> Iterator for ChunksBytes<'a> {
+    type Item = &'a [u8];
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.as_mut()?.next().map(|s| s.as_bytes())
+    }
+}
+
 pub fn highlight(
-    text: &str,
+    text: &Rope,
     tree: &Tree,
     query: &Query,
     theme: &Theme,
 ) -> BTreeMap<usize, ContentStyle> {
     let mut query_cursor = QueryCursor::new();
-    let mut matches = query_cursor.matches(query, tree.root_node(), text.as_bytes());
+
+    let provider = TextProviderRope(text);
+    let mut matches = query_cursor.matches(query, tree.root_node(), &provider);
     let mut highlights: Vec<Highlight> = Vec::new();
 
     while let Some(m) = matches.next() {

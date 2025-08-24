@@ -4,6 +4,7 @@ use crate::{GrammarManager, Theme, state::State};
 
 use super::TextBuffer;
 use ascii_forge::prelude::*;
+use ropey::LineType;
 
 #[derive(Default)]
 pub struct Buffers {
@@ -251,19 +252,27 @@ pub fn update_buffer(state: Arc<State>) {
 
     buffer.update(&state.theme.read().unwrap());
 
-    if buffer.row < buffer.scroll {
-        buffer.scroll = buffer.row;
+    // Calculate current row and column based on the cursor byte index
+    let current_row = buffer.rope.byte_to_line_idx(buffer.cursor, LineType::LF_CR);
+    let line_start_byte_idx = buffer.rope.line_to_byte_idx(current_row, LineType::LF_CR);
+    let current_col = buffer.rope.byte_to_char_idx(buffer.cursor)
+        - buffer.rope.byte_to_char_idx(line_start_byte_idx);
+
+    // Vertical scrolling
+    if current_row < buffer.scroll {
+        buffer.scroll = current_row;
     }
 
-    if buffer.row >= buffer.scroll + viewport_height as usize {
-        buffer.scroll = buffer.row - viewport_height as usize + 1;
+    if current_row >= buffer.scroll + viewport_height as usize {
+        buffer.scroll = current_row - viewport_height as usize + 1;
     }
 
-    if buffer.col < buffer.h_scroll {
-        buffer.h_scroll = buffer.col;
+    // Horizontal scrolling
+    if current_col < buffer.h_scroll {
+        buffer.h_scroll = current_col;
     }
 
-    if buffer.col >= buffer.h_scroll + viewport_width as usize {
-        buffer.h_scroll = buffer.col - viewport_width as usize + 1;
+    if current_col >= buffer.h_scroll + viewport_width as usize {
+        buffer.h_scroll = current_col - viewport_width as usize + 1;
     }
 }

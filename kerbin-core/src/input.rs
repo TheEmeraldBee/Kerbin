@@ -155,12 +155,10 @@ pub fn handle_inputs(state: Arc<State>) {
             let buffer = state.buffers.read().unwrap().cur_buffer();
             let mut cur_buffer = buffer.write().unwrap();
 
-            let row = cur_buffer.row;
-            let col = cur_buffer.col;
+            let byte = cur_buffer.cursor;
 
             cur_buffer.action(Insert {
-                row,
-                col,
+                byte,
                 content: chr.to_string(),
             });
 
