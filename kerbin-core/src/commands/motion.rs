@@ -330,8 +330,9 @@ impl Command for MotionCommand {
         };
 
         cur_buffer.cursor = new_cursor_byte;
+        let old_sel = cur_buffer.selection.clone();
         cur_buffer.selection = Some(selection_start_byte..selection_end_byte);
 
-        true
+        old_sel != cur_buffer.selection
     }
 }

@@ -8,40 +8,58 @@ desc = "Visual Mode"
 modes = ["v"]
 keys = ["w"]
 commands = ["sw true", "gse"]
-desc = "Word"
+desc = "Select Word"
 
 [[keybind]]
 modes = ["v"]
 keys = ["e"]
 commands = ["se true", "gse"]
-desc = "Word"
+desc = "Select Word End"
 
 [[keybind]]
 modes = ["v"]
 keys = ["b"]
 commands = ["sb true", "gsb"]
-desc = "Word"
+desc = "Select Word Back"
 
 [[keybind]]
 modes = ["v"]
 keys = ["shift-w"]
 commands = ["sW true", "gse"]
-desc = "Word"
+desc = "Select WORD"
 
 [[keybind]]
 modes = ["v"]
 keys = ["shift-e"]
 commands = ["sE true", "gse"]
-desc = "Word"
+desc = "Select WORD End"
 
 [[keybind]]
 modes = ["v"]
 keys = ["shift-b"]
 commands = ["sB true", "gsb"]
-desc = "Word"
+desc = "Select WORD Back"
+
+[[keybind]]
+modes = ["v"]
+keys = ["v"]
+commands = ["sl true", "gse"]
+desc = "Select Line"
+
+[[keybind]]
+modes = ["v"]
+keys = [","]
+commands = ["sc"]
+desc = "Collapse Selection"
 
 [[keybind]]
 modes = ["v"]
 keys = ["d"]
-commands = ["gsb", "commit ds"]
+commands = ["gsb", "commit ds", "cm n"]
 desc = "Delete selection"
+
+[[keybind]]
+modes = []
+keys = ["esc"]
+commands = ["sc", "cm n"]
+desc = "Collapse selection, enter Normal Mode"

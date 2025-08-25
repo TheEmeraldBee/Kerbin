@@ -22,10 +22,6 @@ use crate::{ContentStyleExt, GrammarManager, Theme};
 #[derive(Default)]
 pub struct ChangeGroup(usize, Vec<Box<dyn BufferAction>>);
 
-pub struct Cursor {
-    pub range: Range<usize>,
-}
-
 pub struct TextBuffer {
     pub rope: Rope,
 

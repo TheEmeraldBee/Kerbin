@@ -51,45 +51,47 @@ desc = "Move Right"
 [[keybind]]
 modes = []
 keys = ["w"]
-commands = ["sw false", "gse"]
-desc = "Word"
+commands = ["sw false", "gse", "sc"]
+desc = "Go Word"
 
 [[keybind]]
 modes = []
 keys = ["e"]
-commands = ["se false", "gse"]
-desc = "Word"
+commands = ["se false", "gse", "sc"]
+desc = "Go Word End"
 
 [[keybind]]
 modes = []
 keys = ["b"]
-commands = ["sb false", "gsb"]
-desc = "Word"
+commands = ["sb false", "gsb", "sc"]
+desc = "Go Back Word"
 
 [[keybind]]
 modes = []
 keys = ["shift-w"]
-commands = ["sW false", "gse"]
-desc = "Word"
+commands = ["sW false", "gse", "sc"]
+desc = "Go WORD"
 
 [[keybind]]
 modes = []
 keys = ["shift-e"]
-commands = ["sE false", "gse"]
-desc = "Word"
+commands = ["sE false", "gse", "sc"]
+desc = "Go WORD end"
 
 [[keybind]]
 modes = []
 keys = ["shift-b"]
-commands = ["sB false", "gsb"]
-desc = "Word"
+commands = ["sB false", "gsb", "sc"]
+desc = "Go Back WORD"
 
 [[keybind]]
 modes = []
 keys = ["0"]
-commands = ["move_cursor -32000 0"]
+commands = ["sl false", "gsb", "sc"]
+desc = "Goto Line Start"
 
 [[keybind]]
 modes = []
 keys = ["$"]
-commands = ["move_cursor 32000 0"]
+commands = ["sl false", "gse", "move_cursor -1 0", "sc"]
+desc = "Goto Line End"
