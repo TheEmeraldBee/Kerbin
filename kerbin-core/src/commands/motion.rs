@@ -1,21 +1,29 @@
 use crate::*;
 use kerbin_macros::Command;
-use ropey::Rope;
+use ropey::{LineType, Rope};
 
 #[derive(Debug, Clone, Command)]
 pub enum MotionCommand {
     #[command(drop_ident, name = "sel_word", name = "sw")]
-    SelectWord,
+    SelectWord { extend: bool },
     #[command(drop_ident, name = "sel_back_word", name = "sb")]
-    SelectBackWord,
+    SelectBackWord { extend: bool },
     #[command(drop_ident, name = "sel_end_word", name = "se")]
-    SelectEndOfWord,
+    SelectEndOfWord { extend: bool },
     #[command(drop_ident, name = "sel_WORD", name = "sW")]
-    SelectWORD,
+    SelectWORD { extend: bool },
     #[command(drop_ident, name = "sel_back_WORD", name = "sB")]
-    SelectBackWORD,
+    SelectBackWORD { extend: bool },
     #[command(drop_ident, name = "sel_end_WORD", name = "sE")]
-    SelectEndOfWORD,
+    SelectEndOfWORD { extend: bool },
+    #[command(drop_ident, name = "sel_line", name = "sl")]
+    SelectLine { extend: bool },
+
+    #[command(drop_ident, name = "sel_mv_start", name = "sms")]
+    MoveSelectionStart { by: isize },
+
+    #[command(drop_ident, name = "sel_mv_end", name = "sme")]
+    MoveSelectionEnd { by: isize },
 
     #[command(drop_ident, name = "sel_clear", name = "sc")]
     ClearSelection,
@@ -163,73 +171,163 @@ impl Command for MotionCommand {
         match self {
             Self::ClearSelection => {
                 cur_buffer.selection = None;
+                return true;
             }
             Self::GotoSelectionEnd => {
-                let Some(range) = &cur_buffer.selection else {
-                    return false;
-                };
-
-                cur_buffer.cursor = range.end;
-
+                if let Some(range) = &cur_buffer.selection {
+                    cur_buffer.cursor = range.end;
+                }
                 return true;
             }
             Self::GotoSelectionBegin => {
-                let Some(range) = &cur_buffer.selection else {
-                    return false;
-                };
+                if let Some(range) = &cur_buffer.selection {
+                    cur_buffer.cursor = range.start;
+                }
+                return true;
+            }
+            Self::MoveSelectionStart { by } => {
+                if let Some(mut range) = cur_buffer.selection.clone() {
+                    let old_start = range.start;
+                    let new_start = old_start.saturating_add_signed(*by);
+                    range.start = new_start.min(range.end);
+                    if cur_buffer.cursor == old_start {
+                        cur_buffer.cursor = range.start;
+                    }
 
-                cur_buffer.cursor = range.start;
+                    cur_buffer.selection = Some(range);
+                }
+                return true;
+            }
+            Self::MoveSelectionEnd { by } => {
+                if let Some(mut range) = cur_buffer.selection.clone() {
+                    let old_end = range.end;
+                    let new_end = old_end.saturating_add_signed(*by);
+                    range.end = new_end.max(range.start).min(cur_buffer.rope.len());
+                    if cur_buffer.cursor == old_end {
+                        cur_buffer.cursor = range.end;
+                    }
 
+                    cur_buffer.selection = Some(range);
+                }
                 return true;
             }
             _ => {}
         }
 
-        let rope_len_chars = cur_buffer.rope.len_chars();
+        if let MotionCommand::SelectLine { extend } = self {
+            let line_idx = cur_buffer
+                .rope
+                .byte_to_line_idx(cur_buffer.cursor, LineType::LF);
+            let start_byte = cur_buffer.rope.line_to_byte_idx(line_idx, LineType::LF);
+            let end_byte = if line_idx >= cur_buffer.rope.len_lines(LineType::LF) - 1 {
+                cur_buffer.rope.len()
+            } else {
+                cur_buffer.rope.line_to_byte_idx(line_idx + 1, LineType::LF)
+            };
 
-        // Convert current byte cursor to global char index
+            let new_cursor_byte = end_byte;
+            let (selection_start_byte, selection_end_byte) = if *extend {
+                if let Some(existing_range) = cur_buffer.selection.clone() {
+                    let anchor_byte = if cur_buffer.cursor == existing_range.start {
+                        existing_range.end
+                    } else {
+                        existing_range.start
+                    };
+                    if new_cursor_byte > anchor_byte {
+                        (anchor_byte, new_cursor_byte)
+                    } else {
+                        (new_cursor_byte, anchor_byte)
+                    }
+                } else {
+                    (start_byte, end_byte)
+                }
+            } else {
+                (start_byte, end_byte)
+            };
+
+            cur_buffer.cursor = new_cursor_byte;
+            cur_buffer.selection = Some(selection_start_byte..selection_end_byte);
+
+            return true;
+        }
+
         let current_char_idx = cur_buffer.rope.byte_to_char_idx(cur_buffer.cursor);
 
-        let (mut target_char_start, mut target_char_end) = match self {
-            MotionCommand::SelectWord => {
-                let end = find_next_word_start(&cur_buffer.rope, current_char_idx, is_word_char);
-                (current_char_idx, end)
-            }
-            MotionCommand::SelectBackWord => {
-                let start = find_prev_word_start(&cur_buffer.rope, current_char_idx, is_word_char);
-                (start, current_char_idx)
-            }
-            MotionCommand::SelectEndOfWord => {
+        let (extend, target_char_start, target_char_end, moves_forward) = match *self {
+            MotionCommand::SelectWord { extend } => (
+                extend,
+                current_char_idx,
+                find_next_word_start(&cur_buffer.rope, current_char_idx, is_word_char),
+                true,
+            ),
+            MotionCommand::SelectBackWord { extend } => (
+                extend,
+                find_prev_word_start(&cur_buffer.rope, current_char_idx, is_word_char),
+                current_char_idx,
+                false,
+            ),
+            MotionCommand::SelectEndOfWord { extend } => {
                 let end = find_next_word_end(&cur_buffer.rope, current_char_idx, is_word_char);
-                // In vim 'e' motion is inclusive, so selection goes up to and includes that char
-                // The 'end' from find_next_word_end is the last char of the word, so `+1` makes it
-                // exclusive end for a range.
-                (current_char_idx, end.saturating_add(1))
+                (extend, current_char_idx, end.saturating_add(1), true)
             }
-            MotionCommand::SelectWORD => {
-                let end = find_next_word_start(&cur_buffer.rope, current_char_idx, is_WORD_char);
-                (current_char_idx, end)
-            }
-            MotionCommand::SelectBackWORD => {
-                let start = find_prev_word_start(&cur_buffer.rope, current_char_idx, is_WORD_char);
-                (start, current_char_idx)
-            }
-            MotionCommand::SelectEndOfWORD => {
+            MotionCommand::SelectWORD { extend } => (
+                extend,
+                current_char_idx,
+                find_next_word_start(&cur_buffer.rope, current_char_idx, is_WORD_char),
+                true,
+            ),
+            MotionCommand::SelectBackWORD { extend } => (
+                extend,
+                find_prev_word_start(&cur_buffer.rope, current_char_idx, is_WORD_char),
+                current_char_idx,
+                false,
+            ),
+            MotionCommand::SelectEndOfWORD { extend } => {
                 let end = find_next_word_end(&cur_buffer.rope, current_char_idx, is_WORD_char);
-                // Same as above, `+1` for exclusive end.
-                (current_char_idx, end.saturating_add(1))
+                (extend, current_char_idx, end.saturating_add(1), true)
             }
             _ => unreachable!(),
         };
 
-        // Ensure target_char_end is not beyond the rope's character length
-        target_char_end = target_char_end.min(rope_len_chars);
-        target_char_start = target_char_start.min(target_char_end); // Ensure start <= end
+        let new_cursor_char_idx = if moves_forward {
+            target_char_end
+        } else {
+            target_char_start
+        };
+        let new_cursor_byte = cur_buffer.rope.char_to_byte_idx(new_cursor_char_idx);
 
-        // Convert target char indices to byte indices for `cur_buffer.cursor` and `selection`
-        let new_cursor_byte = cur_buffer.rope.char_to_byte_idx(target_char_end);
-        let selection_start_byte = cur_buffer.rope.char_to_byte_idx(target_char_start);
-        let selection_end_byte = cur_buffer.rope.char_to_byte_idx(target_char_end);
+        let (selection_start_byte, selection_end_byte) = if extend {
+            if let Some(existing_range) = cur_buffer.selection.clone() {
+                let anchor_byte = if cur_buffer.cursor == existing_range.start {
+                    existing_range.end
+                } else {
+                    existing_range.start
+                };
+
+                if new_cursor_byte > anchor_byte {
+                    (anchor_byte, new_cursor_byte)
+                } else {
+                    (new_cursor_byte, anchor_byte)
+                }
+            } else {
+                // No existing selection, so just create a new one
+                let start_byte = cur_buffer.rope.char_to_byte_idx(target_char_start);
+                let end_byte = cur_buffer.rope.char_to_byte_idx(target_char_end);
+                if start_byte > end_byte {
+                    (end_byte, start_byte)
+                } else {
+                    (start_byte, end_byte)
+                }
+            }
+        } else {
+            let start_byte = cur_buffer.rope.char_to_byte_idx(target_char_start);
+            let end_byte = cur_buffer.rope.char_to_byte_idx(target_char_end);
+            if start_byte > end_byte {
+                (end_byte, start_byte)
+            } else {
+                (start_byte, end_byte)
+            }
+        };
 
         cur_buffer.cursor = new_cursor_byte;
         cur_buffer.selection = Some(selection_start_byte..selection_end_byte);

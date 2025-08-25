@@ -78,6 +78,8 @@
 "ui.bufferline.selected" = { fg = "text", attrs = ["bold", "italic"] }
 "ui.bufferline" = "text"
 
+"ui.selection" = { bg = "surface1", attrs = ["italic"] }
+
 [palette]
 rosewater = "#f5e0dc"
 flamingo = "#f2cdcd"

@@ -1,0 +1,47 @@
+[[keybind]]
+modes = []
+keys = ["v"]
+commands = ["cm v"]
+desc = "Visual Mode"
+
+[[keybind]]
+modes = ["v"]
+keys = ["w"]
+commands = ["sw true", "gse"]
+desc = "Word"
+
+[[keybind]]
+modes = ["v"]
+keys = ["e"]
+commands = ["se true", "gse"]
+desc = "Word"
+
+[[keybind]]
+modes = ["v"]
+keys = ["b"]
+commands = ["sb true", "gsb"]
+desc = "Word"
+
+[[keybind]]
+modes = ["v"]
+keys = ["shift-w"]
+commands = ["sW true", "gse"]
+desc = "Word"
+
+[[keybind]]
+modes = ["v"]
+keys = ["shift-e"]
+commands = ["sE true", "gse"]
+desc = "Word"
+
+[[keybind]]
+modes = ["v"]
+keys = ["shift-b"]
+commands = ["sB true", "gsb"]
+desc = "Word"
+
+[[keybind]]
+modes = ["v"]
+keys = ["d"]
+commands = ["gsb", "commit ds"]
+desc = "Delete selection"

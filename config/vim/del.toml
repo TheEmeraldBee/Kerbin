@@ -20,35 +20,42 @@ desc = "Delete To End"
 [[keybind]]
 modes = []
 keys = ["d", "w"]
-commands = ["sw", "gsb", "commit ds"]
+commands = ["sw false", "gsb", "commit ds"]
 desc = "Delete Word"
 
 [[keybind]]
 modes = []
 keys = ["d", "e"]
-commands = ["se", "gsb", "commit ds"]
+commands = ["se false", "gsb", "commit ds"]
 desc = "Delete Word End"
 
 [[keybind]]
 modes = []
 keys = ["d", "b"]
-commands = ["sb", "gsb", "commit ds"]
+commands = ["sb false", "gsb", "commit ds"]
 desc = "Delete Back Word"
 
 [[keybind]]
 modes = []
 keys = ["d", "shift-w"]
-commands = ["sW", "gsb", "commit ds"]
+commands = ["sW false", "gsb", "commit ds"]
 desc = "Delete WORD"
 
 [[keybind]]
 modes = []
 keys = ["d", "shift-e"]
-commands = ["sE", "gsb", "commit ds"]
+commands = ["sE false", "gsb", "commit ds"]
 desc = "Delete WORD End"
 
 [[keybind]]
 modes = []
 keys = ["d", "shift-b"]
-commands = ["sB", "gsb", "commit ds"]
+commands = ["sB false", "gsb", "commit ds"]
 desc = "Delete Back WORD"
+
+[[keybind]]
+modes = []
+keys = ["d", "d"]
+commands = ["sl false", "gsb", "commit ds"]
+desc = "Delete Line"
+

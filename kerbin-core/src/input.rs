@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::VecDeque, sync::Arc};
 
 use ascii_forge::{prelude::*, widgets::border::Border};
 
@@ -85,21 +85,14 @@ impl Input {
     }
 }
 
-use std::collections::HashMap;
-
 #[derive(Default)]
 pub struct InputConfig {
-    inputs: Vec<Input>,
-    macros: HashMap<String, Vec<(KeyModifiers, KeyCode)>>,
+    inputs: VecDeque<Input>,
 }
 
 impl InputConfig {
     pub fn register_input(&mut self, input: Input) {
-        self.inputs.push(input)
-    }
-
-    pub fn register_macro(&mut self, name: String, sequence: Vec<(KeyModifiers, KeyCode)>) {
-        self.macros.insert(name, sequence);
+        self.inputs.push_front(input)
     }
 }
 
@@ -241,9 +234,14 @@ pub fn handle_inputs(state: Arc<State>) {
 
     if completed_input {
         input.active_inputs.clear();
+        return;
     }
 
     if !no_inputs {
+        if input.active_inputs.is_empty() {
+            input.repeat_count.clear();
+        }
+
         return;
     }
 
@@ -259,6 +257,7 @@ pub fn handle_inputs(state: Arc<State>) {
                         for _ in 0..repeat_count {
                             for command in c {
                                 if !state.call_command(command) {
+                                    input.repeat_count.clear();
                                     return;
                                 }
                             }
@@ -273,6 +272,6 @@ pub fn handle_inputs(state: Arc<State>) {
     }
 
     if input.active_inputs.is_empty() {
-        input.repeat_count = "".to_string();
+        input.repeat_count.clear();
     }
 }

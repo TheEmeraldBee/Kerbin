@@ -51,37 +51,37 @@ desc = "Move Right"
 [[keybind]]
 modes = []
 keys = ["w"]
-commands = ["sw", "gse"]
+commands = ["sw false", "gse"]
 desc = "Word"
 
 [[keybind]]
 modes = []
 keys = ["e"]
-commands = ["se", "gse"]
+commands = ["se false", "gse"]
 desc = "Word"
 
 [[keybind]]
 modes = []
 keys = ["b"]
-commands = ["sb", "gsb"]
+commands = ["sb false", "gsb"]
 desc = "Word"
 
 [[keybind]]
 modes = []
 keys = ["shift-w"]
-commands = ["sW", "gse"]
+commands = ["sW false", "gse"]
 desc = "Word"
 
 [[keybind]]
 modes = []
 keys = ["shift-e"]
-commands = ["sE", "gse"]
+commands = ["sE false", "gse"]
 desc = "Word"
 
 [[keybind]]
 modes = []
 keys = ["shift-b"]
-commands = ["sB", "gsb"]
+commands = ["sB false", "gsb"]
 desc = "Word"
 
 [[keybind]]

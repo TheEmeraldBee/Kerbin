@@ -28,3 +28,18 @@ impl Theme {
         ContentStyle::default()
     }
 }
+
+pub trait ContentStyleExt {
+    fn combined_with(&self, other: &ContentStyle) -> ContentStyle;
+}
+
+impl ContentStyleExt for ContentStyle {
+    fn combined_with(&self, other: &ContentStyle) -> ContentStyle {
+        ContentStyle {
+            foreground_color: other.foreground_color.or(self.foreground_color),
+            background_color: other.background_color.or(self.background_color),
+            underline_color: other.underline_color.or(self.underline_color),
+            attributes: self.attributes | other.attributes,
+        }
+    }
+}

@@ -17,7 +17,7 @@ use tree_sitter::*;
 
 use ascii_forge::prelude::*;
 
-use crate::{GrammarManager, Theme};
+use crate::{ContentStyleExt, GrammarManager, Theme};
 
 #[derive(Default)]
 pub struct ChangeGroup(usize, Vec<Box<dyn BufferAction>>);
@@ -347,6 +347,8 @@ impl TextBuffer {
             .get("ui.linenum")
             .unwrap_or(ContentStyle::new().dark_grey());
 
+        let sel_style = theme.get("ui.selection");
+
         let mut byte_offset = self.rope.line_to_byte_idx(self.scroll, LineType::LF_CR);
 
         let row = self.rope.byte_to_line_idx(self.cursor, LineType::LF_CR);
@@ -400,6 +402,20 @@ impl TextBuffer {
                         current_style = *new_style;
                     }
 
+                    let mut in_selection = false;
+                    if let Some(sel) = &self.selection {
+                        if sel.contains(&absolute_byte_idx) {
+                            in_selection = true;
+                        }
+                    }
+
+                    let resulting_style = match in_selection {
+                        false => current_style,
+                        true => sel_style
+                            .map(|x| x.combined_with(&current_style))
+                            .unwrap_or(current_style.on_grey()),
+                    };
+
                     if char_col >= self.h_scroll {
                         let render_col = (char_col - self.h_scroll) as u16;
 
@@ -407,7 +423,7 @@ impl TextBuffer {
                             break;
                         }
 
-                        render!(buffer, loc + vec2(render_col, 0) => [StyledContent::new(current_style, ch)]);
+                        render!(buffer, loc + vec2(render_col, 0) => [StyledContent::new(resulting_style, ch)]);
                     }
                 }
             } else {
