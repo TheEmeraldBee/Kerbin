@@ -8,54 +8,48 @@ desc = "Backspace"
 [[keybind]]
 modes = []
 keys = ["x"]
-commands = ["commit delete_chars 0 1"]
-desc = "Delete Char"
-
-[[keybind]]
-modes = []
-keys = ["shift-d"]
-commands = ["commit delete_chars 0 32000"]
-desc = "Delete To End"
+commands = ["commit d"]
+desc = "Delete"
 
 [[keybind]]
 modes = []
 keys = ["d", "w"]
-commands = ["sw false", "gsb", "commit ds"]
+commands = ["sw false", "gsb", "commit d"]
 desc = "Delete Word"
 
 [[keybind]]
 modes = []
 keys = ["d", "e"]
-commands = ["se false", "gsb", "commit ds"]
+commands = ["se false", "gsb", "commit d"]
 desc = "Delete Word End"
 
 [[keybind]]
 modes = []
 keys = ["d", "b"]
-commands = ["sb false", "gsb", "commit ds"]
+commands = ["sb false", "gsb", "commit d"]
 desc = "Delete Back Word"
 
 [[keybind]]
 modes = []
 keys = ["d", "shift-w"]
-commands = ["sW false", "gsb", "commit ds"]
+commands = ["sW false", "gsb", "commit d"]
 desc = "Delete WORD"
 
 [[keybind]]
 modes = []
 keys = ["d", "shift-e"]
-commands = ["sE false", "gsb", "commit ds"]
+commands = ["sE false", "gsb", "commit d"]
 desc = "Delete WORD End"
 
 [[keybind]]
 modes = []
 keys = ["d", "shift-b"]
-commands = ["sB false", "gsb", "commit ds"]
+commands = ["sB false", "gsb", "commit d"]
 desc = "Delete Back WORD"
 
 [[keybind]]
 modes = []
 keys = ["d", "d"]
-commands = ["sl false", "gsb", "commit ds"]
+commands = ["sl false", "gsb", "commit d"]
 desc = "Delete Line"
 

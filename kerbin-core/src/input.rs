@@ -148,14 +148,14 @@ pub fn handle_inputs(state: Arc<State>) {
             let buffer = state.buffers.read().unwrap().cur_buffer();
             let mut cur_buffer = buffer.write().unwrap();
 
-            let byte = cur_buffer.cursor;
+            let byte = cur_buffer.primary_cursor().get_cursor_byte();
 
             cur_buffer.action(Insert {
                 byte,
                 content: chr.to_string(),
             });
 
-            cur_buffer.move_cursor(0, 1);
+            cur_buffer.move_cursor(0, 1, false);
 
             consumed = true;
         }

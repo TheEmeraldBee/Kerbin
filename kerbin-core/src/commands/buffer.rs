@@ -59,6 +59,9 @@ pub enum BufferCommand {
     MoveCursor {
         cols: isize,
         rows: isize,
+
+        #[command(type_name = "bool?")]
+        extend: Option<bool>,
     },
 
     #[command(name = "write", name = "w")]
@@ -70,23 +73,17 @@ pub enum BufferCommand {
     StartChange,
     CommitChange,
 
-    #[command(name = "ins")]
+    #[command(name = "ins", name = "i")]
     InsertChar(char),
 
-    #[command(name = "del")]
-    DeleteChars {
-        offset: isize,
-        count: usize,
-    },
+    #[command(name = "del", name = "d")]
+    Delete,
 
     #[command(name = "u")]
     Undo,
 
     #[command(name = "r")]
     Redo,
-
-    #[command(name = "ds")]
-    DeleteSelection,
 }
 
 impl Command for BufferCommand {
@@ -96,10 +93,12 @@ impl Command for BufferCommand {
         let cur_buffer = buffers.cur_buffer();
         let mut cur_buffer = cur_buffer.write().unwrap();
 
-        let byte = cur_buffer.cursor;
+        let byte = cur_buffer.primary_cursor().get_cursor_byte();
 
         match self {
-            BufferCommand::MoveCursor { rows, cols } => cur_buffer.move_cursor(*rows, *cols),
+            BufferCommand::MoveCursor { rows, cols, extend } => {
+                cur_buffer.move_cursor(*rows, *cols, extend.unwrap_or(false))
+            }
 
             BufferCommand::WriteFile { path } => {
                 cur_buffer.write_file(path.clone());
@@ -120,13 +119,6 @@ impl Command for BufferCommand {
                 byte,
                 content: chr.to_string(),
             }),
-            BufferCommand::DeleteChars { offset, count } => {
-                let old_cursor = cur_buffer.cursor;
-                cur_buffer.move_cursor(0, *offset);
-                let res = cur_buffer.action(Delete { byte, len: *count });
-                cur_buffer.cursor = old_cursor;
-                res
-            }
 
             BufferCommand::Undo => {
                 cur_buffer.undo();
@@ -137,17 +129,16 @@ impl Command for BufferCommand {
                 true
             }
 
-            BufferCommand::DeleteSelection => {
-                if let Some(range) = cur_buffer.selection.take() {
-                    let len = range.end - range.start;
-                    if len > 0 {
-                        cur_buffer.action(Delete {
-                            byte: range.start,
-                            len,
-                        })
-                    } else {
-                        true
-                    }
+            BufferCommand::Delete => {
+                let range = cur_buffer.primary_cursor().sel().clone();
+                cur_buffer.primary_cursor_mut().collapse_sel();
+
+                let len = range.end() - range.start();
+                if len > 0 {
+                    cur_buffer.action(Delete {
+                        byte: *range.start(),
+                        len,
+                    })
                 } else {
                     true
                 }

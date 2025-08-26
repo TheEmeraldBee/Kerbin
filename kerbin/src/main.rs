@@ -25,7 +25,7 @@ pub fn render_cursor(state: Arc<State>) {
     let buffer = current_buffer_handle.read().unwrap();
 
     // Calculate current row and col based on the cursor byte index
-    let cursor_byte = buffer.cursor;
+    let cursor_byte = buffer.primary_cursor().get_cursor_byte();
     let rope = &buffer.rope;
 
     let mut current_row_idx = rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);

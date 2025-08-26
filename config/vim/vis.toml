@@ -6,6 +6,54 @@ desc = "Visual Mode"
 
 [[keybind]]
 modes = ["v"]
+keys = ["left"]
+commands = ["move_cursor -1 0 true"]
+desc = "Move Left"
+
+[[keybind]]
+modes = ["v"]
+keys = ["down"]
+commands = ["move_cursor 0 1 true"]
+desc = "Move Down"
+
+[[keybind]]
+modes = ["v"]
+keys = ["up"]
+commands = ["move_cursor 0 -1 true"]
+desc = "Move Up"
+
+[[keybind]]
+modes = ["v"]
+keys = ["right"]
+commands = ["move_cursor 1 0 true"]
+desc = "Move Right"
+
+[[keybind]]
+modes = ["v"]
+keys = ["h"]
+commands = ["move_cursor -1 0 true"]
+desc = "Move Left"
+
+[[keybind]]
+modes = ["v"]
+keys = ["j"]
+commands = ["move_cursor 0 1 true"]
+desc = "Move Down"
+
+[[keybind]]
+modes = ["v"]
+keys = ["k"]
+commands = ["move_cursor 0 -1 true"]
+desc = "Move Up"
+
+[[keybind]]
+modes = ["v"]
+keys = ["l"]
+commands = ["move_cursor 1 0 true"]
+desc = "Move Right"
+
+[[keybind]]
+modes = ["v"]
 keys = ["w"]
 commands = ["sw true", "gse"]
 desc = "Select Word"
@@ -55,11 +103,11 @@ desc = "Collapse Selection"
 [[keybind]]
 modes = ["v"]
 keys = ["d"]
-commands = ["gsb", "commit ds", "cm n"]
+commands = ["gsb", "commit d", "cm n"]
 desc = "Delete selection"
 
 [[keybind]]
-modes = []
+modes = ["v"]
 keys = ["esc"]
 commands = ["sc", "cm n"]
 desc = "Collapse selection, enter Normal Mode"

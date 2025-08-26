@@ -47,6 +47,11 @@ impl Cursor {
         }
     }
 
+    /// Returns which end of the selection the cursor is
+    pub fn at_start(&self) -> bool {
+        self.at_start
+    }
+
     /// Sets where the actual cursor is based on the selection
     pub fn set_at_start(&mut self, at_start: bool) {
         self.at_start = at_start
@@ -324,60 +329,92 @@ impl TextBuffer {
             .unwrap();
     }
 
-    pub fn move_cursor(&mut self, rows: isize, cols: isize) -> bool {
+    pub fn move_cursor(&mut self, rows: isize, cols: isize, extend_selection: bool) -> bool {
         if rows == 0 && cols == 0 {
             return true;
         }
 
-        let old_cursor_byte = self.cursor;
+        let mut moved_any = false;
         let total_lines = self.rope.len_lines(LineType::LF_CR);
 
-        let current_line_idx = self.rope.byte_to_line_idx(self.cursor, LineType::LF_CR);
-        let mut current_col_byte_idx = self.cursor
-            - self
+        for i in 0..self.cursors.len() {
+            let current_cursor = &self.cursors[i];
+            let current_caret_byte = current_cursor.get_cursor_byte();
+
+            let current_line_idx = self
+                .rope
+                .byte_to_line_idx(current_caret_byte, LineType::LF_CR);
+            let line_start_byte = self
                 .rope
                 .line_to_byte_idx(current_line_idx, LineType::LF_CR);
+            let mut current_col_byte_idx = current_caret_byte - line_start_byte;
 
-        let mut target_line_idx = current_line_idx.saturating_add_signed(rows);
-        target_line_idx = target_line_idx.min(total_lines.saturating_sub(1)).max(0);
+            let mut target_line_idx = current_line_idx.saturating_add_signed(rows);
+            target_line_idx = target_line_idx.min(total_lines.saturating_sub(1)).max(0);
 
-        let mut line_len_at_target_idx = self.rope.line(target_line_idx, LineType::LF_CR).len();
-        current_col_byte_idx = current_col_byte_idx.min(line_len_at_target_idx);
+            let mut line_len_at_target_idx_bytes =
+                self.rope.line(target_line_idx, LineType::LF_CR).len();
 
-        let mut temp_target_col = current_col_byte_idx as isize + cols;
+            current_col_byte_idx = current_col_byte_idx.min(line_len_at_target_idx_bytes);
 
-        while temp_target_col < 0 && target_line_idx > 0 {
-            target_line_idx = target_line_idx.saturating_sub(1);
-            line_len_at_target_idx = self.rope.line(target_line_idx, LineType::LF_CR).len();
-            temp_target_col += line_len_at_target_idx as isize;
-            if target_line_idx == 0 && temp_target_col < 0 {
-                temp_target_col = 0;
-                break;
+            let mut temp_target_col_byte = current_col_byte_idx as isize + cols;
+
+            // Handle horizontal wrap-around (move to previous/next lines)
+            while temp_target_col_byte < 0 && target_line_idx > 0 {
+                target_line_idx = target_line_idx.saturating_sub(1);
+                line_len_at_target_idx_bytes =
+                    self.rope.line(target_line_idx, LineType::LF_CR).len();
+                temp_target_col_byte += line_len_at_target_idx_bytes as isize;
+                if target_line_idx == 0 && temp_target_col_byte < 0 {
+                    temp_target_col_byte = 0;
+                    break;
+                }
+            }
+
+            while temp_target_col_byte > line_len_at_target_idx_bytes as isize
+                && target_line_idx < total_lines.saturating_sub(1)
+            {
+                temp_target_col_byte -= line_len_at_target_idx_bytes as isize;
+                target_line_idx = target_line_idx.saturating_add(1);
+                line_len_at_target_idx_bytes =
+                    self.rope.line(target_line_idx, LineType::LF_CR).len();
+            }
+
+            let final_col_byte_idx = temp_target_col_byte
+                .max(0)
+                .min(line_len_at_target_idx_bytes as isize)
+                as usize;
+
+            let new_caret_byte =
+                self.rope.line_to_byte_idx(target_line_idx, LineType::LF_CR) + final_col_byte_idx;
+
+            let cursor_mut = &mut self.cursors[i];
+
+            if new_caret_byte != current_caret_byte {
+                moved_any = true;
+            }
+
+            if extend_selection {
+                let anchor_byte = if cursor_mut.at_start {
+                    *cursor_mut.sel.end()
+                } else {
+                    *cursor_mut.sel.start()
+                };
+
+                let start = anchor_byte.min(new_caret_byte);
+                let end = anchor_byte.max(new_caret_byte);
+                cursor_mut.set_sel(start..=end);
+                cursor_mut.set_at_start(new_caret_byte < anchor_byte);
+            } else {
+                cursor_mut.set_sel(new_caret_byte..=new_caret_byte);
+                cursor_mut.set_at_start(false);
             }
         }
-
-        while temp_target_col > line_len_at_target_idx as isize
-            && target_line_idx < total_lines.saturating_sub(1)
-        {
-            temp_target_col -= line_len_at_target_idx as isize;
-            target_line_idx = target_line_idx.saturating_add(1);
-            line_len_at_target_idx = self.rope.line(target_line_idx, LineType::LF_CR).len();
-        }
-
-        let final_col_byte_idx =
-            temp_target_col.max(0).min(line_len_at_target_idx as isize) as usize;
-
-        let new_cursor_byte =
-            self.rope.line_to_byte_idx(target_line_idx, LineType::LF_CR) + final_col_byte_idx;
-
-        self.cursor = new_cursor_byte;
-        self.cursor != old_cursor_byte
+        moved_any
     }
 
     pub fn update(&mut self, theme: &Theme) {
         if let Some(s) = &mut self.ts_state {
-            // When updating Tree-sitter, we must provide the text with its actual line endings.
-            // Since our internal representation uses `\n`, we must convert it back.
             s.update_tree_and_highlights(&self.rope, theme);
         }
     }
@@ -410,7 +447,7 @@ impl TextBuffer {
             .take(buffer.size().y as usize)
         {
             loc.x = start_x;
-            let mut num_line = (i + 1).to_string(); // Line numbers are 1-based
+            let mut num_line = (i + 1).to_string();
             if num_line.len() > 5 {
                 num_line = num_line[0..5].to_string();
             }
@@ -491,13 +528,10 @@ fn get_canonical_path_with_non_existent(path_str: &str) -> PathBuf {
     let path = PathBuf::from(path_str);
     let mut resolved_path = PathBuf::new();
 
-    // Start with the base path, which is the current directory for relative paths
-    // or an empty path for absolute paths.
     if !path.is_absolute() {
         resolved_path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     }
 
-    // Iterate over the components of the input path.
     for component in path.components() {
         match component {
             std::path::Component::Normal(c) => {
@@ -514,8 +548,6 @@ fn get_canonical_path_with_non_existent(path_str: &str) -> PathBuf {
             }
         }
 
-        // After processing a component, try to canonicalize the resolved portion.
-        // This handles symlinks and resolves redundant path separators.
         if resolved_path.exists()
             && let Ok(canonical) = resolved_path.canonicalize()
         {
@@ -523,7 +555,5 @@ fn get_canonical_path_with_non_existent(path_str: &str) -> PathBuf {
         }
     }
 
-    // The resolved_path now contains the final canonicalized path,
-    // including any components that don't exist.
     resolved_path
 }

@@ -17,11 +17,11 @@ impl Command for CustomCommand {
                 let cur_buf = state.buffers.read().unwrap().cur_buffer();
                 let mut cur_buf = cur_buf.write().unwrap();
 
-                let byte = cur_buf.cursor - 1;
+                let byte = cur_buf.primary_cursor().get_cursor_byte() - 1;
 
                 let res = cur_buf.action(Delete { byte, len: 1 });
 
-                cur_buf.move_cursor(0, -1);
+                cur_buf.move_cursor(0, -1, false);
                 res
             }
         }
