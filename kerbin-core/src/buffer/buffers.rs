@@ -253,9 +253,13 @@ pub fn update_buffer(state: Arc<State>) {
     buffer.update(&state.theme.read().unwrap());
 
     // Calculate current row and column based on the cursor byte index
-    let current_row = buffer.rope.byte_to_line_idx(buffer.cursor, LineType::LF_CR);
+    let current_row = buffer
+        .rope
+        .byte_to_line_idx(buffer.primary_cursor().get_cursor_byte(), LineType::LF_CR);
     let line_start_byte_idx = buffer.rope.line_to_byte_idx(current_row, LineType::LF_CR);
-    let current_col = buffer.rope.byte_to_char_idx(buffer.cursor)
+    let current_col = buffer
+        .rope
+        .byte_to_char_idx(buffer.primary_cursor().get_cursor_byte())
         - buffer.rope.byte_to_char_idx(line_start_byte_idx);
 
     // Vertical scrolling

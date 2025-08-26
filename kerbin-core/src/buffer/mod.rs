@@ -1,7 +1,7 @@
 pub mod action;
 use std::{
     io::{BufReader, BufWriter, ErrorKind, Write},
-    ops::Range,
+    ops::RangeInclusive,
     path::{Path, PathBuf},
 };
 
@@ -20,7 +20,55 @@ use ascii_forge::prelude::*;
 use crate::{ContentStyleExt, GrammarManager, Theme};
 
 #[derive(Default)]
-pub struct ChangeGroup(usize, Vec<Box<dyn BufferAction>>);
+pub struct ChangeGroup(Vec<Cursor>, Vec<Box<dyn BufferAction>>);
+
+#[derive(Clone, Debug)]
+pub struct Cursor {
+    at_start: bool,
+    sel: RangeInclusive<usize>,
+}
+
+impl Default for Cursor {
+    fn default() -> Self {
+        Self {
+            at_start: false,
+            sel: 0..=0,
+        }
+    }
+}
+
+impl Cursor {
+    /// Returns the byte position of where the actual cursor would be
+    /// Can be at end or beginning of selection
+    pub fn get_cursor_byte(&self) -> usize {
+        match self.at_start {
+            true => *self.sel.start(),
+            false => *self.sel.end(),
+        }
+    }
+
+    /// Sets where the actual cursor is based on the selection
+    pub fn set_at_start(&mut self, at_start: bool) {
+        self.at_start = at_start
+    }
+
+    /// Returns a range of the selection for this cursor
+    pub fn sel(&self) -> &RangeInclusive<usize> {
+        &self.sel
+    }
+
+    /// Sets the range of selection
+    pub fn set_sel(&mut self, range: RangeInclusive<usize>) {
+        self.sel = range;
+    }
+
+    pub fn collapse_sel(&mut self) {
+        match self.at_start {
+            true => self.sel = *self.sel.start()..=*self.sel.start(),
+            false => self.sel = *self.sel.end()..=*self.sel.end(),
+        }
+    }
+}
 
 pub struct TextBuffer {
     pub rope: Rope,
@@ -28,10 +76,8 @@ pub struct TextBuffer {
     pub path: String,
     pub ext: String,
 
-    /// The byte location of the cursor
-    pub cursor: usize,
-
-    pub selection: Option<std::ops::Range<usize>>,
+    pub cursors: Vec<Cursor>,
+    pub primary_cursor: usize,
 
     current_change: Option<ChangeGroup>,
 
@@ -52,9 +98,8 @@ impl TextBuffer {
             path: "<scratch>".into(),
             ext: "".into(),
 
-            cursor: 0,
-
-            selection: None,
+            cursors: vec![Cursor::default()],
+            primary_cursor: 0,
 
             current_change: None,
 
@@ -97,9 +142,8 @@ impl TextBuffer {
             path: path.to_str().map(|x| x.to_string()).unwrap_or_default(),
             ext: found_ext,
 
-            cursor: 0,
-
-            selection: None,
+            cursors: vec![Cursor::default()],
+            primary_cursor: 0,
 
             undo_stack: vec![],
             redo_stack: vec![],
@@ -158,19 +202,27 @@ impl TextBuffer {
         res.success
     }
 
+    pub fn primary_cursor(&self) -> &Cursor {
+        &self.cursors[self.primary_cursor]
+    }
+
+    pub fn primary_cursor_mut(&mut self) -> &mut Cursor {
+        &mut self.cursors[self.primary_cursor]
+    }
+
     pub fn undo(&mut self) {
         self.commit_change_group();
         if let Some(group) = self.undo_stack.pop() {
             let mut redo_group = vec![];
 
-            let redo_cursor = self.cursor;
+            let redo_cursor = self.cursors.clone();
 
             for action in group.1.into_iter().rev() {
                 let ActionResult { action, .. } = action.apply(self);
                 redo_group.push(action);
             }
 
-            self.cursor = group.0;
+            self.cursors = group.0;
 
             redo_group.reverse();
 
@@ -183,14 +235,14 @@ impl TextBuffer {
         if let Some(group) = self.redo_stack.pop() {
             let mut undo_group = vec![];
 
-            let undo_cursor = self.cursor;
+            let undo_cursor = self.cursors.clone();
 
             for action in group.1.into_iter() {
                 let ActionResult { action, .. } = action.apply(self);
                 undo_group.push(action);
             }
 
-            self.cursor = group.0;
+            self.cursors = group.0;
 
             self.undo_stack.push(ChangeGroup(undo_cursor, undo_group));
         }
@@ -198,7 +250,7 @@ impl TextBuffer {
 
     pub fn start_change_group(&mut self) {
         self.commit_change_group();
-        self.current_change = Some(ChangeGroup(self.cursor, vec![]));
+        self.current_change = Some(ChangeGroup(self.cursors.clone(), vec![]));
     }
 
     pub fn commit_change_group(&mut self) {
@@ -272,10 +324,6 @@ impl TextBuffer {
             .unwrap();
     }
 
-    pub fn cur_line(&self) -> String {
-        self.rope.line(self.cursor, LineType::LF_CR).to_string()
-    }
-
     pub fn move_cursor(&mut self, rows: isize, cols: isize) -> bool {
         if rows == 0 && cols == 0 {
             return true;
@@ -347,7 +395,9 @@ impl TextBuffer {
 
         let mut byte_offset = self.rope.line_to_byte_idx(self.scroll, LineType::LF_CR);
 
-        let row = self.rope.byte_to_line_idx(self.cursor, LineType::LF_CR);
+        let row = self
+            .rope
+            .byte_to_line_idx(self.primary_cursor().get_cursor_byte(), LineType::LF_CR);
 
         let gutter_width = 6;
         let start_x = loc.x;
@@ -399,9 +449,10 @@ impl TextBuffer {
                     }
 
                     let mut in_selection = false;
-                    if let Some(sel) = &self.selection {
-                        if sel.contains(&absolute_byte_idx) {
+                    for cursor in &self.cursors {
+                        if cursor.sel().contains(&absolute_byte_idx) {
                             in_selection = true;
+                            break;
                         }
                     }
 
