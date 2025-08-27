@@ -1,5 +1,5 @@
 use ascii_forge::prelude::*;
-use kerbin_core::{InputEvent, State};
+use kerbin_core::{CommandPrefix, InputEvent, State};
 use serde::Deserialize;
 use serde::de::{self, Deserializer, MapAccess, Visitor};
 use std::collections::HashMap;
@@ -260,6 +260,18 @@ pub struct Input {
     pub desc: String,
 }
 
+#[derive(Deserialize, Debug, Default)]
+pub struct Prefix {
+    pub modes: Vec<char>,
+    pub prefix: String,
+
+    #[serde(default)]
+    pub include: bool,
+
+    #[serde(default)]
+    pub list: Vec<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ImportEntry {
     pub paths: Vec<String>,
@@ -270,6 +282,8 @@ pub struct ImportEntry {
 #[derive(Debug, Default)]
 pub struct Config {
     keybindings: Vec<Input>,
+    prefixes: Vec<Prefix>,
+
     palette: HashMap<String, String>,
     theme: HashMap<String, UnresolvedStyle>,
     plugins: HashMap<String, Value>,
@@ -295,7 +309,6 @@ impl Config {
         for (key, value) in toml_table.into_iter() {
             match key.as_str() {
                 "import" => {
-                    // This assumes [[imports]] path="..."
                     if let Value::Array(imports_array) = value {
                         for import_val in imports_array {
                             if let Ok(import_entry) = import_val.try_into::<ImportEntry>() {
@@ -317,7 +330,6 @@ impl Config {
                     }
                 }
                 "keybind" => {
-                    // This assumes [[keybind]] modes=[...] keys=[...] commands=[...]
                     if let Value::Array(keybinds_array) = value {
                         for keybind_val in keybinds_array {
                             if let Ok(input) = keybind_val.try_into::<Input>() {
@@ -334,8 +346,24 @@ impl Config {
                         .into());
                     }
                 }
+                "prefix" => {
+                    if let Value::Array(prefix_array) = value {
+                        for prefix_val in prefix_array {
+                            if let Ok(input) = prefix_val.try_into::<Prefix>() {
+                                final_config.prefixes.push(input);
+                            } else {
+                                return Err(format!("Invalid prefix entry in {:?}", path).into());
+                            }
+                        }
+                    } else {
+                        return Err(format!(
+                            "`prefix` section in {:?} must be an array of tables",
+                            path
+                        )
+                        .into());
+                    }
+                }
                 "palette" => {
-                    // This assumes [palette] name = "color"
                     if let Value::Table(palette_table) = value {
                         // Deserialize the palette table directly
                         let current_palette: HashMap<String, String> = palette_table.try_into()?;
@@ -347,7 +375,6 @@ impl Config {
                     }
                 }
                 "theme" => {
-                    // This assumes [theme.style_name] fg="color"
                     if let Value::Table(theme_table) = value {
                         // Deserialize the theme table directly
                         let current_theme: HashMap<String, UnresolvedStyle> =
@@ -383,6 +410,7 @@ impl Config {
 
     fn merge(&mut self, other: Config) {
         self.keybindings.extend(other.keybindings);
+        self.prefixes.extend(other.prefixes);
         self.palette.extend(other.palette); // HashMap::extend overwrites existing keys
         self.theme.extend(other.theme); // HashMap::extend overwrites existing keys
     }
@@ -447,6 +475,16 @@ impl Config {
                 Ok(style) => theme.register(name, style),
                 Err(e) => eprintln!("Error resolving theme item '{}': {}", name, e),
             }
+        }
+
+        for prefix in self.prefixes.into_iter() {
+            state.register_command_prefix(CommandPrefix {
+                modes: prefix.modes,
+                prefix_cmd: prefix.prefix,
+
+                include: prefix.include,
+                list: prefix.list,
+            });
         }
 
         *state.plugin_config.write().unwrap() = self.plugins;

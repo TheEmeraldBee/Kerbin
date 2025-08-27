@@ -2,7 +2,7 @@ use std::{collections::VecDeque, sync::Arc};
 
 use ascii_forge::{prelude::*, widgets::border::Border};
 
-use crate::{Insert, State, handle_command_palette_input};
+use crate::{State, handle_command_palette_input};
 
 pub enum InputResult {
     Failed,
@@ -145,17 +145,7 @@ pub fn handle_inputs(state: Arc<State>) {
                 continue;
             };
 
-            let buffer = state.buffers.read().unwrap().cur_buffer();
-            let mut cur_buffer = buffer.write().unwrap();
-
-            let byte = cur_buffer.primary_cursor().get_cursor_byte();
-
-            cur_buffer.action(Insert {
-                byte,
-                content: chr.to_string(),
-            });
-
-            cur_buffer.move_cursor(0, 1, false);
+            state.call_command(&format!("a \"{chr}\" false"));
 
             consumed = true;
         }

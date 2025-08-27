@@ -18,10 +18,14 @@ pub use shell::*;
 pub mod motion;
 pub use motion::*;
 
+pub mod cursor;
+pub use cursor::*;
+
 pub trait Command: Send + Sync {
     fn apply(&self, state: Arc<State>) -> bool;
 }
 
+#[derive(Debug)]
 pub struct CommandInfo {
     pub valid_names: Vec<String>,
     pub args: Vec<(String, String)>,
@@ -39,6 +43,10 @@ impl CommandInfo {
                 .map(|x| (x.0.to_string(), x.1.to_string()))
                 .collect(),
         }
+    }
+
+    pub fn check_name(&self, name: impl ToString) -> bool {
+        self.valid_names.contains(&name.to_string())
     }
 
     pub fn as_suggestion(&self, theme: &Theme) -> Buffer {

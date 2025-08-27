@@ -67,6 +67,7 @@ impl Cursor {
         self.sel = range;
     }
 
+    /// Collapses the selection into the location of the cursor
     pub fn collapse_sel(&mut self) {
         match self.at_start {
             true => self.sel = *self.sel.start()..=*self.sel.start(),
@@ -207,6 +208,45 @@ impl TextBuffer {
         res.success
     }
 
+    /// Creates a cursor at the same location as the current cursor
+    /// Sets primary cursor to this new cursor
+    pub fn create_cursor(&mut self) {
+        self.cursors.push(self.primary_cursor().clone());
+        self.primary_cursor = self.cursors.len() - 1;
+    }
+
+    /// Removes all cursors other than the current primary cursor
+    pub fn drop_other_cursors(&mut self) {
+        let cursor = self.cursors.remove(self.primary_cursor);
+        self.primary_cursor = 0;
+        self.cursors.clear();
+
+        self.cursors.push(cursor);
+    }
+
+    /// Will remove the current cursor unless it is the only cursor that exists
+    pub fn drop_primary_cursor(&mut self) {
+        if self.cursors.is_empty() {
+            return;
+        }
+
+        self.cursors.remove(self.primary_cursor);
+
+        self.primary_cursor = self
+            .primary_cursor
+            .saturating_sub(1)
+            .clamp(0, self.cursors.len() - 1);
+    }
+
+    /// Will change the currently selected cursor by an offset
+    /// will **not** wrap or go out of bounds
+    pub fn change_cursor(&mut self, offset: isize) {
+        self.primary_cursor = self
+            .primary_cursor
+            .saturating_add_signed(offset)
+            .clamp(0, self.cursors.len() - 1);
+    }
+
     pub fn primary_cursor(&self) -> &Cursor {
         &self.cursors[self.primary_cursor]
     }
@@ -337,78 +377,73 @@ impl TextBuffer {
         let mut moved_any = false;
         let total_lines = self.rope.len_lines(LineType::LF_CR);
 
-        for i in 0..self.cursors.len() {
-            let current_cursor = &self.cursors[i];
-            let current_caret_byte = current_cursor.get_cursor_byte();
+        let current_cursor = self.primary_cursor();
+        let current_caret_byte = current_cursor.get_cursor_byte();
 
-            let current_line_idx = self
-                .rope
-                .byte_to_line_idx(current_caret_byte, LineType::LF_CR);
-            let line_start_byte = self
-                .rope
-                .line_to_byte_idx(current_line_idx, LineType::LF_CR);
-            let mut current_col_byte_idx = current_caret_byte - line_start_byte;
+        let current_line_idx = self
+            .rope
+            .byte_to_line_idx(current_caret_byte, LineType::LF_CR);
+        let line_start_byte = self
+            .rope
+            .line_to_byte_idx(current_line_idx, LineType::LF_CR);
+        let mut current_col_byte_idx = current_caret_byte - line_start_byte;
 
-            let mut target_line_idx = current_line_idx.saturating_add_signed(rows);
-            target_line_idx = target_line_idx.min(total_lines.saturating_sub(1)).max(0);
+        let mut target_line_idx = current_line_idx.saturating_add_signed(rows);
+        target_line_idx = target_line_idx.min(total_lines.saturating_sub(1)).max(0);
 
-            let mut line_len_at_target_idx_bytes =
-                self.rope.line(target_line_idx, LineType::LF_CR).len();
+        let mut line_len_at_target_idx_bytes =
+            self.rope.line(target_line_idx, LineType::LF_CR).len();
 
-            current_col_byte_idx = current_col_byte_idx.min(line_len_at_target_idx_bytes);
+        current_col_byte_idx = current_col_byte_idx.min(line_len_at_target_idx_bytes);
 
-            let mut temp_target_col_byte = current_col_byte_idx as isize + cols;
+        let mut temp_target_col_byte = current_col_byte_idx as isize + cols;
 
-            // Handle horizontal wrap-around (move to previous/next lines)
-            while temp_target_col_byte < 0 && target_line_idx > 0 {
-                target_line_idx = target_line_idx.saturating_sub(1);
-                line_len_at_target_idx_bytes =
-                    self.rope.line(target_line_idx, LineType::LF_CR).len();
-                temp_target_col_byte += line_len_at_target_idx_bytes as isize;
-                if target_line_idx == 0 && temp_target_col_byte < 0 {
-                    temp_target_col_byte = 0;
-                    break;
-                }
+        // Handle horizontal wrap-around (move to previous/next lines)
+        while temp_target_col_byte < 0 && target_line_idx > 0 {
+            target_line_idx = target_line_idx.saturating_sub(1);
+            line_len_at_target_idx_bytes = self.rope.line(target_line_idx, LineType::LF_CR).len();
+            temp_target_col_byte += line_len_at_target_idx_bytes as isize;
+            if target_line_idx == 0 && temp_target_col_byte < 0 {
+                temp_target_col_byte = 0;
+                break;
             }
+        }
 
-            while temp_target_col_byte > line_len_at_target_idx_bytes as isize
-                && target_line_idx < total_lines.saturating_sub(1)
-            {
-                temp_target_col_byte -= line_len_at_target_idx_bytes as isize;
-                target_line_idx = target_line_idx.saturating_add(1);
-                line_len_at_target_idx_bytes =
-                    self.rope.line(target_line_idx, LineType::LF_CR).len();
-            }
+        while temp_target_col_byte > line_len_at_target_idx_bytes as isize
+            && target_line_idx < total_lines.saturating_sub(1)
+        {
+            temp_target_col_byte -= line_len_at_target_idx_bytes as isize;
+            target_line_idx = target_line_idx.saturating_add(1);
+            line_len_at_target_idx_bytes = self.rope.line(target_line_idx, LineType::LF_CR).len();
+        }
 
-            let final_col_byte_idx = temp_target_col_byte
-                .max(0)
-                .min(line_len_at_target_idx_bytes as isize)
-                as usize;
+        let final_col_byte_idx = temp_target_col_byte
+            .max(0)
+            .min(line_len_at_target_idx_bytes as isize) as usize;
 
-            let new_caret_byte =
-                self.rope.line_to_byte_idx(target_line_idx, LineType::LF_CR) + final_col_byte_idx;
+        let new_caret_byte =
+            self.rope.line_to_byte_idx(target_line_idx, LineType::LF_CR) + final_col_byte_idx;
 
-            let cursor_mut = &mut self.cursors[i];
+        let cursor_mut = self.primary_cursor_mut();
 
-            if new_caret_byte != current_caret_byte {
-                moved_any = true;
-            }
+        if new_caret_byte != current_caret_byte {
+            moved_any = true;
+        }
 
-            if extend_selection {
-                let anchor_byte = if cursor_mut.at_start {
-                    *cursor_mut.sel.end()
-                } else {
-                    *cursor_mut.sel.start()
-                };
-
-                let start = anchor_byte.min(new_caret_byte);
-                let end = anchor_byte.max(new_caret_byte);
-                cursor_mut.set_sel(start..=end);
-                cursor_mut.set_at_start(new_caret_byte < anchor_byte);
+        if extend_selection {
+            let anchor_byte = if cursor_mut.at_start {
+                *cursor_mut.sel.end()
             } else {
-                cursor_mut.set_sel(new_caret_byte..=new_caret_byte);
-                cursor_mut.set_at_start(false);
-            }
+                *cursor_mut.sel.start()
+            };
+
+            let start = anchor_byte.min(new_caret_byte);
+            let end = anchor_byte.max(new_caret_byte);
+            cursor_mut.set_sel(start..=end);
+            cursor_mut.set_at_start(new_caret_byte < anchor_byte);
+        } else {
+            cursor_mut.set_sel(new_caret_byte..=new_caret_byte);
+            cursor_mut.set_at_start(false);
         }
         moved_any
     }

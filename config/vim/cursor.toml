@@ -1,0 +1,29 @@
+[[prefix]]
+modes = ["x"]
+prefix = "aa"
+include = true
+list = ["mc", "sw", "se", "sb", "sW", "sE", "sB", "d", "i", "a"]
+
+[[keybind]]
+modes = []
+keys = ["c"]
+commands = ["pm x"]
+desc = "Enter Multicursor Mode"
+
+[[keybind]]
+modes = []
+keys = ["shift-c"]
+commands = ["cc", "mc 0 1"]
+desc = "Create cursor"
+
+[[keybind]]
+modes = []
+keys = ["shift-,"]
+commands = ["dc"]
+desc = "Delete Primary Cursor"
+
+[[keybind]]
+modes = []
+keys = [","]
+commands = ["dcs"]
+desc = "Delete Other Cursors"

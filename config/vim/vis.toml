@@ -1,7 +1,7 @@
 [[keybind]]
 modes = []
 keys = ["v"]
-commands = ["cm v"]
+commands = ["pm v"]
 desc = "Visual Mode"
 
 [[keybind]]
@@ -103,11 +103,11 @@ desc = "Collapse Selection"
 [[keybind]]
 modes = ["v"]
 keys = ["d"]
-commands = ["gsb", "commit d", "cm n"]
+commands = ["gsb", "commit d", "rm"]
 desc = "Delete selection"
 
 [[keybind]]
 modes = ["v"]
 keys = ["esc"]
-commands = ["sc", "cm n"]
-desc = "Collapse selection, enter Normal Mode"
+commands = ["sc", "rm"]
+desc = "Collapse selection, Pop Mode"

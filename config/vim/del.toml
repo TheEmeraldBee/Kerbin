@@ -2,14 +2,14 @@
 [[keybind]]
 modes = ["i"]
 keys = ["backspace"]
-commands = ["backspace"]
+commands = ["mc -1 0", "d"]
 desc = "Backspace"
 
 [[keybind]]
 modes = []
 keys = ["x"]
 commands = ["commit d"]
-desc = "Delete"
+desc = "Delete Sel"
 
 [[keybind]]
 modes = []

@@ -111,6 +111,8 @@ async fn main() {
     state.register_command_deserializer::<BufferCommand>();
     state.register_command_deserializer::<CommitCommand>();
 
+    state.register_command_deserializer::<CursorCommand>();
+
     state.register_command_deserializer::<BuffersCommand>();
 
     state.register_command_deserializer::<ModeCommand>();

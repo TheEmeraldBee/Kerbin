@@ -27,7 +27,7 @@ pub struct Insert {
 
 impl BufferAction for Insert {
     extern "C" fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
-        if self.byte >= buf.rope.len() {
+        if self.byte > buf.rope.len() {
             return ActionResult::none(false);
         }
 
@@ -35,7 +35,20 @@ impl BufferAction for Insert {
 
         buf.rope.insert(self.byte, &self.content);
 
-        buf.rope.chunk(self.byte);
+        let content_len = self.content.len();
+        for (i, cursor) in buf.cursors.iter_mut().enumerate() {
+            if i == buf.primary_cursor {
+                continue;
+            }
+            let start_byte = *cursor.sel.start();
+            let end_byte = *cursor.sel.end();
+
+            if start_byte > self.byte {
+                cursor.sel = (start_byte + content_len)..=(end_byte + content_len);
+            } else if end_byte >= self.byte {
+                cursor.sel = start_byte..=(end_byte + content_len);
+            }
+        }
 
         let end = buf.get_edit_part(self.byte + self.content.len());
 
@@ -43,7 +56,7 @@ impl BufferAction for Insert {
 
         let inverse = Box::new(Delete {
             byte: self.byte,
-            len: self.content.chars().count(),
+            len: self.content.len(),
         });
 
         ActionResult::new(true, inverse)
@@ -60,7 +73,7 @@ pub struct Delete {
 
 impl BufferAction for Delete {
     extern "C" fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
-        if self.byte >= buf.rope.len() {
+        if self.byte + self.len > buf.rope.len() {
             return ActionResult::none(false);
         }
 
@@ -73,6 +86,31 @@ impl BufferAction for Delete {
             .to_string();
 
         buf.rope.remove(self.byte..(self.byte + self.len));
+
+        for (i, cursor) in buf.cursors.iter_mut().enumerate() {
+            if i == buf.primary_cursor {
+                continue;
+            }
+
+            let start_byte = *cursor.sel.start();
+            let end_byte = *cursor.sel.end();
+            let mut new_start = start_byte;
+            let mut new_end = end_byte;
+
+            if start_byte >= self.byte + self.len {
+                new_start = start_byte.saturating_sub(self.len);
+            } else if start_byte >= self.byte {
+                new_start = self.byte;
+            }
+
+            if end_byte >= self.byte + self.len {
+                new_end = end_byte.saturating_sub(self.len);
+            } else if end_byte >= self.byte {
+                new_end = self.byte;
+            }
+
+            cursor.sel = new_start..=new_end;
+        }
 
         buf.register_input_edit(start, old_end, start);
 

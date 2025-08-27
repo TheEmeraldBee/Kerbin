@@ -19,12 +19,6 @@ pub enum MotionCommand {
     #[command(drop_ident, name = "sel_line", name = "sl")]
     SelectLine { extend: bool },
 
-    #[command(drop_ident, name = "sel_mv_start", name = "sms")]
-    MoveSelectionStart { by: isize },
-
-    #[command(drop_ident, name = "sel_mv_end", name = "sme")]
-    MoveSelectionEnd { by: isize },
-
     #[command(drop_ident, name = "sel_clear", name = "sc")]
     ClearSelection,
 
@@ -166,20 +160,15 @@ impl Command for MotionCommand {
         let cur_buffer = buffers.cur_buffer();
         let mut cur_buffer = cur_buffer.write().unwrap();
 
-        let mut moved_any = false;
         let rope_len_bytes = cur_buffer.rope.len();
         let rope_len_lines = cur_buffer.rope.len_lines(LineType::LF_CR);
 
         match self {
             Self::ClearSelection => {
-                for cursor_mut in cur_buffer.cursors.iter_mut() {
-                    let old_sel = cursor_mut.sel().clone();
-                    cursor_mut.collapse_sel();
-                    if *cursor_mut.sel() != old_sel {
-                        moved_any = true;
-                    }
-                }
-                moved_any
+                let cursor_mut = cur_buffer.primary_cursor_mut();
+                let old_sel = cursor_mut.sel().clone();
+                cursor_mut.collapse_sel();
+                *cursor_mut.sel() != old_sel
             }
             Self::GotoSelectionEnd => {
                 let cursor_mut = cur_buffer.primary_cursor_mut();
@@ -191,163 +180,106 @@ impl Command for MotionCommand {
                 cursor_mut.set_at_start(true);
                 true
             }
-            Self::MoveSelectionStart { by } => {
-                for cursor_mut in cur_buffer.cursors.iter_mut() {
-                    let old_sel = cursor_mut.sel().clone();
-                    let old_at_start = cursor_mut.at_start();
-
-                    let mut new_start_bound = *old_sel.start();
-                    let old_end_bound = *old_sel.end();
-
-                    new_start_bound = new_start_bound.saturating_add_signed(*by);
-                    new_start_bound = new_start_bound.min(old_end_bound);
-                    cursor_mut.set_sel(new_start_bound..=old_end_bound);
-                    cursor_mut.set_at_start(old_at_start);
-
-                    if *cursor_mut.sel() != old_sel {
-                        moved_any = true;
-                    }
-                }
-                moved_any
-            }
-            Self::MoveSelectionEnd { by } => {
-                for cursor_mut in cur_buffer.cursors.iter_mut() {
-                    let old_sel = cursor_mut.sel().clone();
-                    let old_at_start = cursor_mut.at_start();
-
-                    let old_start_bound = *old_sel.start();
-                    let mut new_end_bound = *old_sel.end();
-
-                    new_end_bound = new_end_bound.saturating_add_signed(*by);
-                    new_end_bound = new_end_bound.max(old_start_bound).min(rope_len_bytes);
-
-                    cursor_mut.set_sel(old_start_bound..=new_end_bound);
-                    cursor_mut.set_at_start(old_at_start);
-
-                    if *cursor_mut.sel() != old_sel {
-                        moved_any = true;
-                    }
-                }
-                moved_any
-            }
             MotionCommand::SelectLine { extend } => {
-                for i in 0..cur_buffer.cursors.len() {
-                    let current_caret_byte = cur_buffer.cursors[i].get_cursor_byte();
-                    let old_sel = cur_buffer.cursors[i].sel().clone();
-                    let old_at_start = cur_buffer.cursors[i].at_start();
+                let current_caret_byte = cur_buffer.primary_cursor().get_cursor_byte();
+                let old_sel = cur_buffer.primary_cursor().sel().clone();
+                let old_at_start = cur_buffer.primary_cursor().at_start();
 
-                    let line_idx = cur_buffer
+                let line_idx = cur_buffer
+                    .rope
+                    .byte_to_line_idx(current_caret_byte, LineType::LF_CR);
+
+                let new_caret_byte = if line_idx + 1 >= rope_len_lines {
+                    rope_len_bytes
+                } else {
+                    cur_buffer
                         .rope
-                        .byte_to_line_idx(current_caret_byte, LineType::LF_CR);
+                        .line_to_byte_idx(line_idx + 1, LineType::LF_CR)
+                };
 
-                    let new_caret_byte = if line_idx + 1 >= rope_len_lines {
-                        rope_len_bytes
+                if *extend {
+                    let anchor_byte = if old_at_start {
+                        *old_sel.end()
                     } else {
-                        cur_buffer
-                            .rope
-                            .line_to_byte_idx(line_idx + 1, LineType::LF_CR)
+                        *old_sel.start()
                     };
 
-                    if *extend {
-                        let anchor_byte = if old_at_start {
-                            *old_sel.end()
-                        } else {
-                            *old_sel.start()
-                        };
-
-                        let start = anchor_byte.min(new_caret_byte);
-                        let end = anchor_byte.max(new_caret_byte);
-                        cur_buffer.cursors[i].set_sel(start..=end);
-                        cur_buffer.cursors[i].set_at_start(new_caret_byte < anchor_byte);
-                    } else {
-                        // If not extending, collapse selection to the new caret position
-                        cur_buffer.cursors[i].set_sel(new_caret_byte..=new_caret_byte);
-                        cur_buffer.cursors[i].set_at_start(false);
-                    }
-                    if *cur_buffer.cursors[i].sel() != old_sel
-                        || cur_buffer.cursors[i].at_start() != old_at_start
-                    {
-                        moved_any = true;
-                    }
+                    let start = anchor_byte.min(new_caret_byte);
+                    let end = anchor_byte.max(new_caret_byte);
+                    cur_buffer.primary_cursor_mut().set_sel(start..=end);
+                    cur_buffer
+                        .primary_cursor_mut()
+                        .set_at_start(new_caret_byte < anchor_byte);
+                } else {
+                    // If not extending, collapse selection to the new caret position
+                    cur_buffer
+                        .primary_cursor_mut()
+                        .set_sel(new_caret_byte..=new_caret_byte);
+                    cur_buffer.primary_cursor_mut().set_at_start(false);
                 }
-                moved_any
+
+                *cur_buffer.primary_cursor().sel() != old_sel
+                    || cur_buffer.primary_cursor().at_start() != old_at_start
             }
 
             _ => {
-                for i in 0..cur_buffer.cursors.len() {
-                    let current_caret_byte = cur_buffer.cursors[i].get_cursor_byte();
-                    let old_sel = cur_buffer.cursors[i].sel().clone();
-                    let old_at_start = cur_buffer.cursors[i].at_start();
+                let current_caret_byte = cur_buffer.primary_cursor().get_cursor_byte();
+                let old_sel = cur_buffer.primary_cursor().sel().clone();
+                let old_at_start = cur_buffer.primary_cursor().at_start();
 
-                    let current_char_idx = cur_buffer.rope.byte_to_char_idx(current_caret_byte);
+                let current_char_idx = cur_buffer.rope.byte_to_char_idx(current_caret_byte);
 
-                    let new_caret_char_idx = match *self {
-                        MotionCommand::SelectWord { .. } => {
-                            find_next_word_start(&cur_buffer.rope, current_char_idx, is_word_char)
-                        }
-                        MotionCommand::SelectBackWord { .. } => {
-                            find_prev_word_start(&cur_buffer.rope, current_char_idx, is_word_char)
-                        }
-                        MotionCommand::SelectEndOfWord { .. } => {
-                            find_next_word_end(&cur_buffer.rope, current_char_idx, is_word_char)
-                                .saturating_add(1)
-                        }
-                        MotionCommand::SelectWORD { .. } => {
-                            find_next_word_start(&cur_buffer.rope, current_char_idx, is_WORD_char)
-                        }
-                        MotionCommand::SelectBackWORD { .. } => {
-                            find_prev_word_start(&cur_buffer.rope, current_char_idx, is_WORD_char)
-                        }
-                        MotionCommand::SelectEndOfWORD { .. } => {
-                            find_next_word_end(&cur_buffer.rope, current_char_idx, is_WORD_char)
-                                .saturating_add(1)
-                        }
-                        _ => continue,
-                    };
-
-                    let new_caret_byte = cur_buffer.rope.char_to_byte_idx(new_caret_char_idx);
-
-                    let extend = match *self {
-                        MotionCommand::SelectWord { extend } => extend,
-                        MotionCommand::SelectBackWord { extend } => extend,
-                        MotionCommand::SelectEndOfWord { extend } => extend,
-                        MotionCommand::SelectWORD { extend } => extend,
-                        MotionCommand::SelectBackWORD { extend } => extend,
-                        MotionCommand::SelectEndOfWORD { extend } => extend,
-                        _ => unreachable!("All states should have been checked"),
-                    };
-
-                    if extend {
-                        let anchor_byte = if old_at_start {
-                            *old_sel.end()
-                        } else {
-                            *old_sel.start()
-                        };
-
-                        let start = anchor_byte.min(new_caret_byte);
-                        let end = anchor_byte.max(new_caret_byte);
-                        cur_buffer.cursors[i].set_sel(start..=end);
-                        cur_buffer.cursors[i].set_at_start(new_caret_byte < anchor_byte);
-                    } else {
-                        let anchor_byte = if old_at_start {
-                            *old_sel.start()
-                        } else {
-                            *old_sel.end()
-                        };
-
-                        let start = anchor_byte.min(new_caret_byte);
-                        let end = anchor_byte.max(new_caret_byte);
-                        cur_buffer.cursors[i].set_sel(start..=end);
-                        cur_buffer.cursors[i].set_at_start(new_caret_byte < anchor_byte);
+                let new_caret_char_idx = match *self {
+                    MotionCommand::SelectWord { .. } => {
+                        find_next_word_start(&cur_buffer.rope, current_char_idx, is_word_char)
                     }
-
-                    if *cur_buffer.cursors[i].sel() != old_sel
-                        || cur_buffer.cursors[i].at_start() != old_at_start
-                    {
-                        moved_any = true;
+                    MotionCommand::SelectBackWord { .. } => {
+                        find_prev_word_start(&cur_buffer.rope, current_char_idx, is_word_char)
                     }
-                }
-                moved_any
+                    MotionCommand::SelectEndOfWord { .. } => {
+                        find_next_word_end(&cur_buffer.rope, current_char_idx, is_word_char)
+                            .saturating_add(1)
+                    }
+                    MotionCommand::SelectWORD { .. } => {
+                        find_next_word_start(&cur_buffer.rope, current_char_idx, is_WORD_char)
+                    }
+                    MotionCommand::SelectBackWORD { .. } => {
+                        find_prev_word_start(&cur_buffer.rope, current_char_idx, is_WORD_char)
+                    }
+                    MotionCommand::SelectEndOfWORD { .. } => {
+                        find_next_word_end(&cur_buffer.rope, current_char_idx, is_WORD_char)
+                            .saturating_add(1)
+                    }
+                    _ => return false,
+                };
+
+                let new_caret_byte = cur_buffer.rope.char_to_byte_idx(new_caret_char_idx);
+
+                let extend = match *self {
+                    MotionCommand::SelectWord { extend } => extend,
+                    MotionCommand::SelectBackWord { extend } => extend,
+                    MotionCommand::SelectEndOfWord { extend } => extend,
+                    MotionCommand::SelectWORD { extend } => extend,
+                    MotionCommand::SelectBackWORD { extend } => extend,
+                    MotionCommand::SelectEndOfWORD { extend } => extend,
+                    _ => unreachable!("All states should have been checked"),
+                };
+
+                let anchor_byte = if extend == old_at_start {
+                    *old_sel.end()
+                } else {
+                    *old_sel.start()
+                };
+
+                let start = anchor_byte.min(new_caret_byte);
+                let end = anchor_byte.max(new_caret_byte);
+                cur_buffer.primary_cursor_mut().set_sel(start..=end);
+                cur_buffer
+                    .primary_cursor_mut()
+                    .set_at_start(new_caret_byte < anchor_byte);
+
+                *cur_buffer.primary_cursor().sel() != old_sel
+                    || cur_buffer.primary_cursor().at_start() != old_at_start
             }
         }
     }

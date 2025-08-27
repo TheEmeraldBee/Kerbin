@@ -76,6 +76,9 @@ pub enum BufferCommand {
     #[command(name = "ins", name = "i")]
     InsertChar(char),
 
+    #[command(name = "apnd", name = "a")]
+    AppendChar(char, #[command(name = "extend")] bool),
+
     #[command(name = "del", name = "d")]
     Delete,
 
@@ -120,6 +123,14 @@ impl Command for BufferCommand {
                 content: chr.to_string(),
             }),
 
+            BufferCommand::AppendChar(chr, extend) => {
+                cur_buffer.action(Insert {
+                    byte,
+                    content: chr.to_string(),
+                });
+                cur_buffer.move_cursor(0, 1, *extend)
+            }
+
             BufferCommand::Undo => {
                 cur_buffer.undo();
                 true
@@ -133,12 +144,10 @@ impl Command for BufferCommand {
                 let range = cur_buffer.primary_cursor().sel().clone();
                 cur_buffer.primary_cursor_mut().collapse_sel();
 
-                let len = range.end() - range.start();
+                let start = *range.start();
+                let len = range.count();
                 if len > 0 {
-                    cur_buffer.action(Delete {
-                        byte: *range.start(),
-                        len,
-                    })
+                    cur_buffer.action(Delete { byte: start, len })
                 } else {
                     true
                 }

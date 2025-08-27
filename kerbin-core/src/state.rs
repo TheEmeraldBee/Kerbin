@@ -1,9 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{
-        Arc, RwLock,
-        atomic::{AtomicBool, AtomicU32, Ordering},
-    },
+    sync::{Arc, RwLock, atomic::AtomicBool},
 };
 
 use ascii_forge::prelude::*;
@@ -22,17 +19,21 @@ pub struct RegisteredCommandSet {
     pub infos: Vec<CommandInfo>,
 }
 
-#[macro_export]
-macro_rules! cmd {
-    ($state:expr, $func:path, $($arg:expr),*) => {
-        $func($state.clone(), $($arg),*)
-    };
+#[derive(Debug)]
+pub struct CommandPrefix {
+    pub modes: Vec<char>,
+    pub prefix_cmd: String,
+
+    /// Whether to make the list var an include or exclude
+    pub include: bool,
+    /// Depending on include, this is an exclude or include list (default exclude)
+    pub list: Vec<String>,
 }
 
 pub struct State {
     pub running: AtomicBool,
 
-    mode: AtomicU32,
+    mode_stack: RwLock<Vec<char>>,
 
     pub buffers: RwLock<Buffers>,
 
@@ -49,6 +50,7 @@ pub struct State {
     pub commands: UnboundedSender<Box<dyn Command>>,
 
     pub command_registry: RwLock<Vec<RegisteredCommandSet>>,
+    pub prefix_registry: RwLock<Vec<CommandPrefix>>,
 
     pub plugin_config: RwLock<HashMap<String, Value>>,
 }
@@ -58,7 +60,7 @@ impl State {
         Self {
             running: AtomicBool::new(true),
 
-            mode: AtomicU32::new(u32::from('n')),
+            mode_stack: RwLock::new(vec!['n']),
 
             buffers: RwLock::new(Buffers::default()),
 
@@ -75,6 +77,7 @@ impl State {
             commands: cmd_sender,
 
             command_registry: RwLock::new(Vec::new()),
+            prefix_registry: RwLock::new(Vec::new()),
 
             plugin_config: RwLock::new(HashMap::new()),
         }
@@ -102,12 +105,51 @@ impl State {
         res
     }
 
+    pub fn split_command(input: &str) -> Vec<String> {
+        shellwords::split(input).unwrap_or(vec![input.to_string()])
+    }
+
     pub fn parse_command(
         self: &Arc<Self>,
-        input: &str,
+        mut words: Vec<String>,
         log_errors: bool,
+        prefix_checked: bool,
     ) -> Option<Box<dyn Command>> {
-        let words = shellwords::split(input).unwrap_or(vec![input.to_string()]);
+        if !prefix_checked {
+            for prefix in self.prefix_registry.read().unwrap().iter() {
+                if prefix.modes.iter().any(|x| self.mode_on_stack(*x)) {
+                    // Check that the cmd name is valid
+                    let mut has_name = false;
+                    if !prefix.list.is_empty() {
+                        for infos in self.command_registry.read().unwrap().iter() {
+                            if infos.infos.iter().any(|x| {
+                                let matches_word0 = x.check_name(&words[0]);
+                                let matches_prefix = prefix.list.iter().any(|l| x.check_name(l));
+                                matches_word0 && matches_prefix
+                            }) {
+                                has_name = true;
+                            }
+
+                            if has_name {
+                                break;
+                            }
+                        }
+                    } else {
+                        has_name = true
+                    }
+
+                    if prefix.include != has_name {
+                        continue;
+                    }
+
+                    // Prefix the command with the resulting prefix split
+                    let mut new_words = Self::split_command(&prefix.prefix_cmd);
+                    new_words.append(&mut words);
+
+                    words = new_words;
+                }
+            }
+        }
 
         if words.is_empty() {
             return None;
@@ -130,11 +172,12 @@ impl State {
     }
 
     pub fn validate_command(self: &Arc<Self>, input: &str) -> bool {
-        self.parse_command(input, false).is_some()
+        self.parse_command(Self::split_command(input), false, true)
+            .is_some()
     }
 
     pub fn call_command(self: &Arc<Self>, input: &str) -> bool {
-        match self.parse_command(input, true) {
+        match self.parse_command(Self::split_command(input), true, false) {
             Some(t) => t.apply(self.clone()),
             None => false,
         }
@@ -150,11 +193,35 @@ impl State {
             });
     }
 
+    pub fn register_command_prefix(&self, prefix: CommandPrefix) {
+        self.prefix_registry.write().unwrap().push(prefix);
+    }
+
+    pub fn pop_mode(&self) -> Option<char> {
+        let mut modes = self.mode_stack.write().unwrap();
+        if modes.len() > 1 {
+            modes.pop()
+        } else {
+            // Can't pop the last mode on the stack
+            None
+        }
+    }
+
+    pub fn push_mode(&self, mode: char) {
+        self.mode_stack.write().unwrap().push(mode);
+    }
+
     pub fn set_mode(&self, mode: char) {
-        self.mode.store(u32::from(mode), Ordering::Relaxed);
+        let mut modes = self.mode_stack.write().unwrap();
+        modes.clear();
+        modes.push(mode);
     }
 
     pub fn get_mode(&self) -> char {
-        char::from_u32(self.mode.load(Ordering::Relaxed)).unwrap_or_default()
+        *self.mode_stack.read().unwrap().last().unwrap()
+    }
+
+    pub fn mode_on_stack(&self, mode: char) -> bool {
+        self.mode_stack.read().unwrap().contains(&mode)
     }
 }

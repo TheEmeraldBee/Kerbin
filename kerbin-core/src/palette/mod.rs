@@ -47,14 +47,13 @@ pub fn handle_command_palette_input(state: Arc<State>) {
                     palette.input.pop();
                 }
                 KeyCode::Enter => {
-                    // Set mode before command so command could change modes
-                    state.set_mode('n');
+                    state.pop_mode();
 
                     state.call_command(&palette.input);
                     palette.input.clear();
                 }
                 KeyCode::Esc => {
-                    state.set_mode('n');
+                    state.pop_mode();
                     palette.input.clear();
                 }
                 _ => {}
