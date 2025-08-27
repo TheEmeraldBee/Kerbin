@@ -197,26 +197,18 @@ impl Command for MotionCommand {
                         .line_to_byte_idx(line_idx + 1, LineType::LF_CR)
                 };
 
-                if *extend {
-                    let anchor_byte = if old_at_start {
-                        *old_sel.end()
-                    } else {
-                        *old_sel.start()
-                    };
-
-                    let start = anchor_byte.min(new_caret_byte);
-                    let end = anchor_byte.max(new_caret_byte);
-                    cur_buffer.primary_cursor_mut().set_sel(start..=end);
-                    cur_buffer
-                        .primary_cursor_mut()
-                        .set_at_start(new_caret_byte < anchor_byte);
+                let anchor_byte = if *extend == old_at_start {
+                    *old_sel.end()
                 } else {
-                    // If not extending, collapse selection to the new caret position
-                    cur_buffer
-                        .primary_cursor_mut()
-                        .set_sel(new_caret_byte..=new_caret_byte);
-                    cur_buffer.primary_cursor_mut().set_at_start(false);
-                }
+                    *old_sel.start()
+                };
+
+                let start = anchor_byte.min(new_caret_byte);
+                let end = anchor_byte.max(new_caret_byte);
+                cur_buffer.primary_cursor_mut().set_sel(start..=end);
+                cur_buffer
+                    .primary_cursor_mut()
+                    .set_at_start(new_caret_byte < anchor_byte);
 
                 *cur_buffer.primary_cursor().sel() != old_sel
                     || cur_buffer.primary_cursor().at_start() != old_at_start
