@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use crate::{GrammarManager, Theme, state::State};
+use crate::{GrammarManager, Theme, get_canonical_path_with_non_existent, state::State};
 
 use super::TextBuffer;
 use ascii_forge::prelude::*;
@@ -47,8 +47,12 @@ impl Buffers {
         grammar_manager: &mut GrammarManager,
         theme: &Theme,
     ) -> usize {
+        let check_path = get_canonical_path_with_non_existent(&path)
+            .to_str()
+            .unwrap()
+            .to_string();
         if let Some(buffer_id) = self.buffers.iter().enumerate().find_map(|(i, x)| {
-            if x.read().unwrap().path == path {
+            if x.read().unwrap().path == check_path {
                 Some(i)
             } else {
                 None

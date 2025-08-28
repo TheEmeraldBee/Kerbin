@@ -20,3 +20,6 @@ pub use theme::*;
 
 pub mod palette;
 pub use palette::*;
+
+pub mod statusline;
+pub use statusline::*;

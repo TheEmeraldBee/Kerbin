@@ -74,10 +74,10 @@ pub enum BufferCommand {
     CommitChange,
 
     #[command(name = "ins", name = "i")]
-    InsertChar(char),
+    Insert(String),
 
     #[command(name = "apnd", name = "a")]
-    AppendChar(char, #[command(name = "extend")] bool),
+    Append(String, #[command(name = "extend")] bool),
 
     #[command(name = "del", name = "d")]
     Delete,
@@ -118,17 +118,17 @@ impl Command for BufferCommand {
                 true
             }
 
-            BufferCommand::InsertChar(chr) => cur_buffer.action(Insert {
+            BufferCommand::Insert(text) => cur_buffer.action(Insert {
                 byte,
-                content: chr.to_string(),
+                content: text.clone(),
             }),
 
-            BufferCommand::AppendChar(chr, extend) => {
+            BufferCommand::Append(text, extend) => {
                 cur_buffer.action(Insert {
                     byte,
-                    content: chr.to_string(),
+                    content: text.clone(),
                 });
-                cur_buffer.move_cursor(0, 1, *extend)
+                cur_buffer.move_cursor(0, text.len() as isize, *extend)
             }
 
             BufferCommand::Undo => {

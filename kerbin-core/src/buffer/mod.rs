@@ -592,7 +592,7 @@ impl TextBuffer {
     }
 }
 
-fn get_canonical_path_with_non_existent(path_str: &str) -> PathBuf {
+pub fn get_canonical_path_with_non_existent(path_str: &str) -> PathBuf {
     let path = PathBuf::from(path_str);
     let mut resolved_path = PathBuf::new();
 

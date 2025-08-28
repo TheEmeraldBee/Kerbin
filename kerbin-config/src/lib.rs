@@ -411,8 +411,9 @@ impl Config {
     fn merge(&mut self, other: Config) {
         self.keybindings.extend(other.keybindings);
         self.prefixes.extend(other.prefixes);
-        self.palette.extend(other.palette); // HashMap::extend overwrites existing keys
-        self.theme.extend(other.theme); // HashMap::extend overwrites existing keys
+        self.palette.extend(other.palette);
+        self.theme.extend(other.theme);
+        self.plugins.extend(other.plugins);
     }
 
     fn resolve_palette(&self) -> Result<HashMap<String, Color>, ThemeError> {

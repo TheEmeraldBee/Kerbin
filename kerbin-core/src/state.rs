@@ -197,13 +197,13 @@ impl State {
         self.prefix_registry.write().unwrap().push(prefix);
     }
 
-    pub fn pop_mode(&self) -> Option<char> {
+    pub fn pop_mode(&self) -> char {
         let mut modes = self.mode_stack.write().unwrap();
         if modes.len() > 1 {
-            modes.pop()
+            modes.pop().unwrap()
         } else {
-            // Can't pop the last mode on the stack
-            None
+            // Can't pop the last mode on the stack, but n is always the base
+            'n'
         }
     }
 
@@ -214,6 +214,11 @@ impl State {
     pub fn set_mode(&self, mode: char) {
         let mut modes = self.mode_stack.write().unwrap();
         modes.clear();
+        modes.push('n');
+        // Since we already pushed normal mode.
+        if mode == 'n' {
+            return;
+        }
         modes.push(mode);
     }
 
