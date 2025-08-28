@@ -72,6 +72,7 @@ impl Buffers {
         loc: Vec2,
         buffer: &mut ascii_forge::prelude::Buffer,
         theme: &Theme,
+        modes: Vec<char>,
     ) -> Vec2 {
         self.update_paths();
 
@@ -116,6 +117,7 @@ impl Buffers {
             vec2(0, 0),
             &mut inner_buffer,
             theme,
+            modes,
         );
         render!(buffer, content_loc => [ inner_buffer ])
     }
@@ -188,11 +190,12 @@ pub fn render_buffers(state: Arc<State>) {
     let theme = state.theme.read().unwrap();
     let mut window = state.window.write().unwrap();
     let mut buffers = state.buffers.write().unwrap();
+    let modes = state.mode_stack.read().unwrap().clone();
 
     //let mut top_bar = Buffer::new(vec2(window.size().x, 1));
     //top_bar.style_line(0, |_| style);
     //render!(window.buffer_mut(), vec2(0, 0) => [top_bar]);
-    buffers.render(vec2(0, 0), window.buffer_mut(), &theme);
+    buffers.render(vec2(0, 0), window.buffer_mut(), &theme, modes);
 }
 
 pub fn update_bufferline_scroll(state: Arc<State>) {

@@ -78,6 +78,12 @@
 "ui.bufferline.selected" = { fg = "text", attrs = ["bold", "italic"] }
 "ui.bufferline" = "text"
 
+"ui.cursor" = { bg = "overlay0" }
+
+# In the editor, rendering multicursor style is done with ui.cursor.mode0.mode1.etc
+# IE: if the mode stack is nxi (default multicursor insert) you could do ui.cursor.n.x.i, or ui.cursor.x.i, or ui.cursor.i, and it would match one all three, n.x.i first.
+"ui.cursor.x.i" = { bg = "green", attrs = ["bold"] }
+"ui.cursor.x" = { bg = "lavender", attrs = ["underlined"]}
 "ui.selection" = { bg = "surface1", attrs = ["italic"] }
 
 [palette]

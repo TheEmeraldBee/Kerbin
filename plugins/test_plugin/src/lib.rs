@@ -7,7 +7,6 @@ use kerbin_macros::*;
 
 #[kerbin]
 pub async fn init(state: Arc<State>) {
-    // Register A Ton of Default Grammars
     state
         .grammar
         .write()

@@ -26,7 +26,6 @@ pub fn render_cursor(state: Arc<State>) {
     let current_buffer_handle = buffers_guard.cur_buffer();
     let buffer = current_buffer_handle.read().unwrap();
 
-    // Calculate current row and col based on the cursor byte index
     let cursor_byte = buffer.primary_cursor().get_cursor_byte();
     let rope = &buffer.rope;
 
@@ -39,7 +38,6 @@ pub fn render_cursor(state: Arc<State>) {
     let scroll = buffer.scroll;
     let h_scroll = buffer.h_scroll;
 
-    // Apply vertical scroll
     if scroll > current_row_idx {
         execute!(window.io(), Hide).unwrap();
         return;
@@ -48,26 +46,18 @@ pub fn render_cursor(state: Arc<State>) {
     current_row_idx = current_row_idx.saturating_sub(scroll);
     current_col_idx = current_col_idx.saturating_sub(h_scroll);
 
-    // Adjust row for 1-based display and header/footer offset if any
-    // Assuming the editor UI starts rendering content at y=1 (after header)
-    // and line numbers might take up 1 column.
-    // The previous code had `row += 1;`
-    let display_row = (current_row_idx + 1) as u16; // Add 1 for 1-based indexing of screen rows
+    let display_row = (current_row_idx + 1) as u16;
 
-    // Check if cursor is off-screen vertically
     if display_row > window.size().y {
         execute!(window.io(), Hide).unwrap();
         return;
     }
 
-    // Determine cursor style based on mode
     let cursor_style = match state.get_mode() {
         'i' => SetCursorStyle::SteadyBar,
-        _ => SetCursorStyle::SteadyBlock, // Default to block for normal mode
+        _ => SetCursorStyle::SteadyBlock,
     };
 
-    // `col as u16 + 6` assumes a gutter of 6 characters for line numbers.
-    // Ensure `display_row` and `current_col_idx` are cast to `u16`.
     execute!(
         window.io(),
         MoveTo(current_col_idx as u16 + 6, display_row),
@@ -109,7 +99,6 @@ async fn main() {
     let config = Config::load(None).unwrap();
     config.apply(state.clone());
 
-    // Register Command States
     state.register_command_deserializer::<BufferCommand>();
     state.register_command_deserializer::<CommitCommand>();
 
@@ -134,7 +123,7 @@ async fn main() {
                 cmd.apply(state.clone());
             }
             _ = tokio::time::sleep(Duration::from_millis(16)) => {
-                // Basic Frame update
+
                 my_plugin.call_async_func::<_, ()>(b"update\0", state.clone()).await;
 
                 handle_inputs(state.clone());
@@ -143,7 +132,7 @@ async fn main() {
 
                 update_buffer(state.clone());
 
-                state.buffers.write().unwrap().render(vec2(0, 0), state.window.write().unwrap().buffer_mut(), &state.theme.read().unwrap());
+                render_buffers(state.clone());
 
                 render_command_palette(state.clone());
                 render_help_menu(state.clone());
@@ -158,7 +147,6 @@ async fn main() {
         };
     }
 
-    // Clean up the state
     state
         .window
         .write()

@@ -1,5 +1,6 @@
 pub mod action;
 use std::{
+    collections::VecDeque,
     io::{BufReader, BufWriter, ErrorKind, Write},
     ops::RangeInclusive,
     path::{Path, PathBuf},
@@ -454,7 +455,7 @@ impl TextBuffer {
         }
     }
 
-    fn render(&self, mut loc: Vec2, buffer: &mut Buffer, theme: &Theme) -> Vec2 {
+    fn render(&self, mut loc: Vec2, buffer: &mut Buffer, theme: &Theme, modes: Vec<char>) -> Vec2 {
         let default_style = theme
             .get("ui.text")
             .unwrap_or_else(|| ContentStyle::new().with(Color::Rgb { r: 0, g: 0, b: 0 }));
@@ -464,6 +465,29 @@ impl TextBuffer {
             .unwrap_or(ContentStyle::new().dark_grey());
 
         let sel_style = theme.get("ui.selection");
+
+        let mut cursor_parts = modes.iter().map(|x| x.to_string()).collect::<VecDeque<_>>();
+
+        let mut cursor_style = None;
+        while !cursor_parts.is_empty() {
+            if let Some(s) = theme.get(&format!(
+                "ui.cursor.{}",
+                cursor_parts
+                    .iter()
+                    .cloned()
+                    .reduce(|l, r| format!("{l}.{r}"))
+                    .unwrap()
+            )) {
+                cursor_style = Some(s);
+                break;
+            }
+            cursor_parts.pop_front();
+        }
+
+        let cursor_style = match cursor_style {
+            Some(s) => s,
+            None => theme.get("ui.cursor").unwrap_or_default(),
+        };
 
         let mut byte_offset = self.rope.line_to_byte_idx(self.scroll, LineType::LF_CR);
 
@@ -521,16 +545,25 @@ impl TextBuffer {
                     }
 
                     let mut in_selection = false;
-                    for cursor in &self.cursors {
+                    let mut is_cursor = false;
+                    for (i, cursor) in self.cursors.iter().enumerate() {
+                        if cursor.get_cursor_byte() == absolute_byte_idx {
+                            // Don't style the primary cursor, only non-primary ones.
+                            if i != self.primary_cursor {
+                                is_cursor = true;
+                            }
+                            break;
+                        }
                         if cursor.sel().contains(&absolute_byte_idx) {
                             in_selection = true;
                             break;
                         }
                     }
 
-                    let resulting_style = match in_selection {
-                        false => current_style,
-                        true => sel_style
+                    let resulting_style = match (is_cursor, in_selection) {
+                        (false, false) => current_style,
+                        (true, _) => cursor_style.combined_with(&cursor_style),
+                        (false, true) => sel_style
                             .map(|x| x.combined_with(&current_style))
                             .unwrap_or(current_style.on_grey()),
                     };

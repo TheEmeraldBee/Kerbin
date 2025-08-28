@@ -37,8 +37,6 @@ fn is_WORD_char(c: char) -> bool {
     !c.is_whitespace()
 }
 
-// Finds the global char index of the start of the next word/WORD.
-// Mimics Vim's 'w' / 'W' motion.
 fn find_next_word_start(
     rope: &Rope,
     start_char_idx: usize,
@@ -47,35 +45,28 @@ fn find_next_word_start(
     let len_chars = rope.len_chars();
 
     if start_char_idx >= len_chars {
-        return len_chars; // At or beyond end of rope
+        return len_chars;
     }
 
     let mut i = start_char_idx;
 
-    // If currently on a char of the target type, skip to the end of this block.
-    // Also handles the case where the cursor is *inside* a word.
     if is_char_boundary(rope.char(i)) {
         while i < len_chars && is_char_boundary(rope.char(i)) {
             i += 1;
         }
-    }
-    // If currently on a non-target char block (but not whitespace for 'word' type), skip it.
-    else if !rope.char(i).is_whitespace() {
+    } else if !rope.char(i).is_whitespace() {
         while i < len_chars && !rope.char(i).is_whitespace() && !is_char_boundary(rope.char(i)) {
             i += 1;
         }
     }
 
-    // Skip any whitespace after the current block.
     while i < len_chars && rope.char(i).is_whitespace() {
         i += 1;
     }
 
-    i // This will be the global char index of the next word's start
+    i
 }
 
-// Finds the global char index of the start of the previous word/WORD.
-// Mimics Vim's 'b' / 'B' motion.
 fn find_prev_word_start(
     rope: &Rope,
     mut start_char_idx: usize,
@@ -87,20 +78,17 @@ fn find_prev_word_start(
         return 0;
     }
     if start_char_idx > len_chars {
-        start_char_idx = len_chars; // Clamp to end of rope
+        start_char_idx = len_chars;
     }
 
-    let mut i = start_char_idx.saturating_sub(1); // Start search from char before cursor
+    let mut i = start_char_idx.saturating_sub(1);
 
-    // Skip any trailing whitespace before the previous word/WORD.
     if rope.char(i).is_whitespace() {
         while i > 0 && rope.char(i).is_whitespace() {
             i = i.saturating_sub(1);
         }
     }
 
-    // Now 'i' is on a non-whitespace character (or at 0).
-    // Find the beginning of this word/WORD block.
     if is_char_boundary(rope.char(i)) {
         while i > 0 && is_char_boundary(rope.char(i.saturating_sub(1))) {
             i = i.saturating_sub(1);
@@ -114,11 +102,9 @@ fn find_prev_word_start(
         }
     }
 
-    i // This will be the global char index of the previous word's start
+    i
 }
 
-// Finds the global char index of the end of the current or next word/WORD (inclusive).
-// Mimics Vim's 'e' / 'E' motion.
 fn find_next_word_end(
     rope: &Rope,
     start_char_idx: usize,
@@ -187,7 +173,7 @@ impl Command for MotionCommand {
 
                 let line_idx = cur_buffer
                     .rope
-                    .byte_to_line_idx(current_caret_byte, LineType::LF_CR);
+                    .byte_to_line_idx(current_caret_byte + 1, LineType::LF_CR);
 
                 let new_caret_byte = if line_idx + 1 >= rope_len_lines {
                     rope_len_bytes
@@ -195,6 +181,7 @@ impl Command for MotionCommand {
                     cur_buffer
                         .rope
                         .line_to_byte_idx(line_idx + 1, LineType::LF_CR)
+                        - 1
                 };
 
                 let anchor_byte = if *extend == old_at_start {
@@ -223,7 +210,8 @@ impl Command for MotionCommand {
 
                 let new_caret_char_idx = match *self {
                     MotionCommand::SelectWord { .. } => {
-                        find_next_word_start(&cur_buffer.rope, current_char_idx, is_word_char)
+                        find_next_word_start(&cur_buffer.rope, current_char_idx + 1, is_word_char)
+                            .saturating_sub(1)
                     }
                     MotionCommand::SelectBackWord { .. } => {
                         find_prev_word_start(&cur_buffer.rope, current_char_idx, is_word_char)

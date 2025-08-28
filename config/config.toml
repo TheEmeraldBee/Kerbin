@@ -34,7 +34,7 @@ desc = "Join Line"
 [[keybind]]
 modes = ["i"]
 keys = ["enter"]
-commands = ["commit insert_newline 0"]
+commands = ["i \n"]
 desc = "Insert Newline"
 
 [[keybind]]

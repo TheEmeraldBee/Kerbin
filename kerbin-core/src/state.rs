@@ -33,7 +33,7 @@ pub struct CommandPrefix {
 pub struct State {
     pub running: AtomicBool,
 
-    mode_stack: RwLock<Vec<char>>,
+    pub mode_stack: RwLock<Vec<char>>,
 
     pub buffers: RwLock<Buffers>,
 
