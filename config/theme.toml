@@ -86,6 +86,9 @@
 "ui.cursor.x" = { bg = "lavender", attrs = ["underlined"]}
 "ui.selection" = { bg = "surface1", attrs = ["italic"] }
 
+"statusline.selections.one" = { fg = "sky", attrs = ["italic"] }
+"statusline.selections.multi" = { fg = "sapphire", attrs = ["bold", "italic"] }
+
 "statusline.mode.n" = { fg = "mantle", bg = "green", attrs = ["bold"] }
 "statusline.mode.i" = { fg = "mantle", bg = "teal", attrs = ["bold"] }
 "statusline.mode.c" = { fg = "mantle", bg = "maroon", attrs = ["bold"] }

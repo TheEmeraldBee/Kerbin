@@ -446,7 +446,47 @@ impl TextBuffer {
             cursor_mut.set_sel(new_caret_byte..=new_caret_byte);
             cursor_mut.set_at_start(false);
         }
+        if moved_any {
+            self.merge_overlapping_cursors();
+        }
         moved_any
+    }
+    pub fn merge_overlapping_cursors(&mut self) {
+        if self.cursors.len() <= 1 {
+            return;
+        }
+
+        let mut i = 0;
+        while i < self.cursors.len() {
+            let mut j = i + 1;
+            while j < self.cursors.len() {
+                let (cursor1, cursor2) = if i < j {
+                    let mut split = self.cursors.split_at_mut(j);
+                    (&mut split.0[i], &mut split.1[0])
+                } else {
+                    let mut split = self.cursors.split_at_mut(i);
+                    (&mut split.1[0], &mut split.0[j])
+                };
+
+                let sel1 = cursor1.sel();
+                let sel2 = cursor2.sel();
+
+                let overlaps = sel1.start() <= sel2.end() && sel2.start() <= sel1.end();
+
+                if overlaps {
+                    let start = (*sel1.start()).min(*sel2.start());
+                    let end = (*sel1.end()).max(*sel2.end());
+                    cursor1.set_sel(start..=end);
+                    self.cursors.remove(j);
+                    if self.primary_cursor >= j {
+                        self.primary_cursor = self.primary_cursor.saturating_sub(1);
+                    }
+                } else {
+                    j += 1;
+                }
+            }
+            i += 1;
+        }
     }
 
     pub fn update(&mut self, theme: &Theme) {

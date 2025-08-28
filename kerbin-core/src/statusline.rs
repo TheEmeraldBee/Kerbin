@@ -62,9 +62,42 @@ pub fn render_statusline(state: Arc<State>) {
         }
     }
 
-    let mut loc = window.size() - vec2(0, 3);
+    if parts.len() > 3 {
+        parts.insert(
+            0,
+            (
+                "...".to_string(),
+                theme.get_fallback_default(["statusline.mode.etc", "statusline.mode"]),
+            ),
+        );
+    }
 
-    for (i, (text, theme)) in parts.into_iter().enumerate() {
+    let mut loc = window.size() - vec2(0, 2);
+    loc.x = 0;
+
+    for (i, (text, theme)) in parts.into_iter().enumerate().take(4) {
+        if loc.x >= window.size().x {
+            return;
+        }
         loc = render!(window, loc => [if i != 0 {" -> "} else {""}, theme.apply(text)]);
+    }
+
+    let cur_buf = state.buffers.read().unwrap().cur_buffer();
+    let cur_buf = cur_buf.read().unwrap();
+
+    let mut loc = window.size() - vec2(1, 2);
+
+    let cursor_count = cur_buf.cursors.len().saturating_sub(1);
+    if cursor_count == 0 {
+        let sel_style =
+            theme.get_fallback_default(["statusline.selections.one", "statusline.selections"]);
+        render!(window, loc - vec2(5, 0) => [sel_style.apply("1 sel")]);
+    } else {
+        let sel_style =
+            theme.get_fallback_default(["statusline.selections.multi", "statusline.selections"]);
+        let primary_cursor = cur_buf.primary_cursor;
+        let render_text = format!("{primary_cursor}/{cursor_count} sels");
+        loc.x = loc.x.saturating_sub(render_text.len() as u16);
+        render!(window, loc => [sel_style.apply(render_text)]);
     }
 }
