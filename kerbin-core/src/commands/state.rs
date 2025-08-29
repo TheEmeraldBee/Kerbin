@@ -8,6 +8,7 @@ use crate::Command;
 #[derive(Debug, Clone, Command)]
 pub enum StateCommand {
     #[command(name = "q")]
+    /// Quits the editor
     Quit,
 }
 

@@ -4,13 +4,28 @@ use ascii_forge::prelude::*;
 
 use crate::State;
 
-#[derive(Default)]
 pub struct CommandPaletteState {
     pub old_input: String,
     pub input: String,
     pub suggestions: Vec<Buffer>,
 
+    pub desc: Option<Buffer>,
+
     pub input_valid: bool,
+}
+
+impl Default for CommandPaletteState {
+    fn default() -> Self {
+        Self {
+            old_input: String::default(),
+            input: String::default(),
+            suggestions: vec![],
+
+            desc: None,
+
+            input_valid: false,
+        }
+    }
 }
 
 pub fn update_palette_suggestions(state: Arc<State>) {
@@ -22,13 +37,12 @@ pub fn update_palette_suggestions(state: Arc<State>) {
     let mut palette = state.palette.write().unwrap();
     if palette.old_input != palette.input {
         palette.old_input = palette.input.clone();
-        palette.suggestions = state.get_command_suggestions(&palette.input);
+        (palette.suggestions, palette.desc) = state.get_command_suggestions(&palette.input);
     }
 
     palette.input_valid = state.validate_command(&palette.input);
 }
 
-/// Handles user input when the command palette is active.
 pub fn handle_command_palette_input(state: Arc<State>) {
     let window = state.window.read().unwrap();
 
@@ -64,9 +78,7 @@ pub fn handle_command_palette_input(state: Arc<State>) {
 
 pub fn render_command_palette(state: Arc<State>) {
     let mut window = state.window.write().unwrap();
-
     let palette = state.palette.read().unwrap();
-
     let mode = state.get_mode();
 
     if mode != 'c' {
@@ -74,15 +86,26 @@ pub fn render_command_palette(state: Arc<State>) {
     }
 
     let size = window.size();
-    let bottom_y = size.y.saturating_sub(2);
+    let command_line_y = size.y.saturating_sub(1);
 
-    // Render suggestions above the input line
     let suggestion_count = palette.suggestions.len().min(5);
-    for i in 0..suggestion_count {
-        let y = bottom_y.saturating_sub(suggestion_count as u16) + i as u16;
+    let desc_height = palette.desc.as_ref().map_or(0, |b| b.size().y);
 
-        render!(window, (2, y) => [" ".repeat(size.x as usize / 2)]);
-        render!(window, (2, y) => [palette.suggestions[i]]);
+    let mut total_palette_height = 1;
+    total_palette_height += 1;
+
+    if suggestion_count > 0 {
+        total_palette_height += suggestion_count as u16;
+    }
+    if desc_height > 0 {
+        total_palette_height += 1;
+        total_palette_height += desc_height;
+    }
+
+    render!(window, (0, command_line_y) => [" ".repeat(size.x as usize)]);
+
+    for i in 0..total_palette_height.saturating_sub(2) {
+        render!(window, (0, size.y.saturating_sub(i)) => [" ".repeat(size.x as usize)]);
     }
 
     let theme = state.theme.read().unwrap();
@@ -95,6 +118,24 @@ pub fn render_command_palette(state: Arc<State>) {
             .get("ui.commandline.invalid")
             .unwrap_or(ContentStyle::default().red())
     };
+    render!(window, (0, command_line_y) => [":", StyledContent::new(style, palette.input.as_str())]);
 
-    render!(window, (0, size.y - 1) => [":", StyledContent::new(style, palette.input.as_str())]);
+    let mut current_y = command_line_y.saturating_sub(2);
+
+    if suggestion_count > 0 {
+        let suggestions_start_y =
+            current_y.saturating_sub(suggestion_count.saturating_sub(1) as u16);
+        for i in 0..suggestion_count {
+            render!(window, (2, suggestions_start_y + i as u16) => [palette.suggestions[i]]);
+        }
+        current_y = suggestions_start_y.saturating_sub(1);
+    }
+
+    if let Some(desc_buffer) = &palette.desc {
+        render!(window, (2, current_y) => ["─".repeat(size.x as usize - 2)]);
+        current_y = current_y.saturating_sub(1);
+
+        let desc_render_y = current_y.saturating_sub(desc_height.saturating_sub(1));
+        render!(window, (2, desc_render_y) => [desc_buffer]);
+    }
 }

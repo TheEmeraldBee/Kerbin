@@ -5,15 +5,22 @@ use crate::*;
 #[derive(Clone, Command)]
 pub enum CursorCommand {
     #[command(name = "cc")]
+    /// Duplicates the primary cursor
+    /// Should always run 2 commands, one to do something, then one to move the cursor
+    /// Else the cursor will get cleared immediately after
+    /// Also sets the primary cursor to the new one
     CreateCursor,
 
     #[command(name = "cac")]
+    /// Moves the active cursor by an offset
     ChangeActiveCursor(#[command(name = "offset")] isize),
 
     #[command(name = "dc")]
+    /// Will drop the primary cursor (assuming there are more than one cursor)
     DropCursor,
 
     #[command(name = "dcs")]
+    /// Will clear all cursors other than the primary cursor
     DropOtherCursors,
 
     #[command(
@@ -22,6 +29,8 @@ pub enum CursorCommand {
         name = "aa",
         parser = "parse_apply_all"
     )]
+    /// Applies the following command to all cursors
+    /// Emulates a true multicursor environment
     ApplyAll(#[command(name = "cmd", type_name = "command")] Vec<String>),
 }
 

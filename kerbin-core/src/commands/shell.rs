@@ -19,6 +19,8 @@ fn spawn_parser(val: &[String]) -> Result<Box<dyn Command>, String> {
 #[derive(Debug, Clone, Command)]
 pub enum ShellCommand {
     #[command(parser = "execute_parser", drop_ident, name = "shell", name = "sh")]
+    /// Executes a shell command, freezing until it is executed
+    /// Should probably be ignored in favor of spawn
     Execute(#[command(name = "cmd", type_name = "rest")] Vec<String>),
 
     #[command(
@@ -27,6 +29,7 @@ pub enum ShellCommand {
         name = "shell_spawn",
         name = "shsp"
     )]
+    /// Spawns a shell command in the background
     Spawn(#[command(name = "cmd", type_name = "rest")] Vec<String>),
 }
 

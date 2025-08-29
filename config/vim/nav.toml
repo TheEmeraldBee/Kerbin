@@ -87,11 +87,17 @@ desc = "Go Back WORD"
 [[keybind]]
 modes = []
 keys = ["0"]
-commands = ["sl false", "gsb", "sc"]
+commands = ["slb false", "gsb", "sc"]
 desc = "Goto Line Start"
 
 [[keybind]]
 modes = []
 keys = ["$"]
-commands = ["sl false", "gse", "move_cursor -1 0", "sc"]
+commands = ["sle false", "gse", "sc"]
+desc = "Goto Line End"
+
+[[keybind]]
+modes = []
+keys = ["^"]
+commands = ["sfw false", "sc"]
 desc = "Goto Line End"

@@ -75,6 +75,8 @@
 "ui.commandline.arg_name" = "yellow"
 "ui.commandline.arg_type" = { fg = "teal", attrs = ["italic"] }
 
+"ui.commandline.desc" = { fg = "rosewater" }
+
 "ui.bufferline.selected" = { fg = "text", attrs = ["bold", "italic"] }
 "ui.bufferline" = "text"
 

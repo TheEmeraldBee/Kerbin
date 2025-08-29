@@ -55,14 +55,14 @@ pub fn kerbin(
 }
 
 #[derive(FromDeriveInput, Debug)]
-#[darling(attributes(command))]
+#[darling(attributes(command), forward_attrs(doc))]
 struct CommandInfo {
     ident: Ident,
     data: Data<CommandVariant, CommandField>,
 }
 
 #[derive(FromVariant, Debug)]
-#[darling(attributes(command))]
+#[darling(attributes(command), forward_attrs(doc))]
 struct CommandVariant {
     ident: Ident,
     fields: Fields<CommandField>,
@@ -73,10 +73,12 @@ struct CommandVariant {
 
     #[darling(default)]
     parser: Option<Path>,
+
+    attrs: Vec<syn::Attribute>,
 }
 
 #[derive(FromField, Debug)]
-#[darling(attributes(command))]
+#[darling(attributes(command), forward_attrs(doc))]
 struct CommandField {
     ident: Option<Ident>,
     ty: Type,
@@ -102,6 +104,24 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
             let ident = &variant.ident;
 
             let mut names = variant.names.clone();
+
+            let mut desc = vec![];
+
+            for attr in &variant.attrs {
+                if let Ok(name_val) = attr.meta.require_name_value() {
+                    if let Ok(ident) = name_val.path.require_ident()
+                        && ident.to_string().as_str() == "doc"
+                    {
+                        desc.push(name_val.value.to_token_stream());
+                    }
+                }
+            }
+
+            let desc = quote!({
+                let mut x = vec![];
+                #(x.push(format!("{}", #desc).trim().to_string());)*
+                x
+            });
 
             if !variant.drop_ident_name {
                 names.insert(0, to_snake_case(&ident.to_string()));
@@ -138,6 +158,7 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                 CommandInfo {
                     valid_names: vec![#(#names.to_string()),*],
                     args: vec![#(#field_name_types),*],
+                    desc: #desc,
                 }
             }
         })

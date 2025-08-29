@@ -29,12 +29,14 @@ pub trait Command: Send + Sync {
 pub struct CommandInfo {
     pub valid_names: Vec<String>,
     pub args: Vec<(String, String)>,
+    pub desc: Vec<String>,
 }
 
 impl CommandInfo {
     pub fn new(
         names: impl IntoIterator<Item = impl ToString>,
         args: impl IntoIterator<Item = (impl ToString, impl ToString)>,
+        desc: impl IntoIterator<Item = impl ToString>,
     ) -> Self {
         Self {
             valid_names: names.into_iter().map(|x| x.to_string()).collect(),
@@ -42,11 +44,30 @@ impl CommandInfo {
                 .into_iter()
                 .map(|x| (x.0.to_string(), x.1.to_string()))
                 .collect(),
+            desc: desc.into_iter().map(|x| x.to_string()).collect(),
         }
     }
 
     pub fn check_name(&self, name: impl ToString) -> bool {
         self.valid_names.contains(&name.to_string())
+    }
+
+    pub fn desc_buf(&self, theme: &Theme) -> Option<Buffer> {
+        if self.desc.is_empty() {
+            return None;
+        }
+
+        let mut buf = Buffer::new((100, 100));
+
+        let desc_style = theme.get_fallback_default(["ui.commandline.desc", "ui.text"]);
+
+        for (i, text) in self.desc.iter().enumerate() {
+            render!(buf, (0, i as u16) => [desc_style.apply(&text)]);
+        }
+
+        buf.shrink();
+
+        Some(buf)
     }
 
     pub fn as_suggestion(&self, theme: &Theme) -> Buffer {
@@ -65,7 +86,7 @@ impl CommandInfo {
         );
         if self.valid_names.len() >= 2 {
             loc = render!(buf, loc => [
-                StyledContent::new(theme.get_fallback_default(["ui.commandline.names", "ui.text"]), format!("({}) ", self.valid_names[1..].join(", ")))
+                theme.get_fallback_default(["ui.commandline.names", "ui.text"]).apply(format!("({}) ", self.valid_names[1..].join(", ")))
             ]);
         }
         let name_style = theme.get_fallback_default(["ui.commandline.arg_name", "ui.text"]);
@@ -77,12 +98,9 @@ impl CommandInfo {
 
         for (name, ty) in &self.args {
             loc = render!(buf, loc => [
-                StyledContent::new(
-                    name_style,
-                    name
-                ),
+                name_style.apply(name),
                 ": ",
-                StyledContent::new(type_style, ty),
+                type_style.apply(ty),
                 " ",
             ]);
         }

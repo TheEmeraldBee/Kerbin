@@ -83,26 +83,32 @@ impl State {
         }
     }
 
-    pub fn get_command_suggestions(self: &Arc<Self>, input: &str) -> Vec<Buffer> {
+    pub fn get_command_suggestions(self: &Arc<Self>, input: &str) -> (Vec<Buffer>, Option<Buffer>) {
         let words = shellwords::split(input).unwrap_or(vec![input.to_string()]);
 
         if words.is_empty() {
-            return vec![];
+            return (vec![], None);
         }
 
         let mut res = vec![];
 
         let theme = self.theme.read().unwrap();
 
+        let mut desc = None;
+
         for registry in self.command_registry.read().unwrap().iter() {
             for info in &registry.infos {
                 if info.valid_names.iter().any(|x| x.starts_with(&words[0])) {
+                    if desc.is_none() {
+                        desc = info.desc_buf(&theme)
+                    }
+
                     res.push(info.as_suggestion(&theme))
                 }
             }
         }
 
-        res
+        (res, desc)
     }
 
     pub fn split_command(input: &str) -> Vec<String> {
