@@ -446,9 +446,6 @@ impl TextBuffer {
             cursor_mut.set_sel(new_caret_byte..=new_caret_byte);
             cursor_mut.set_at_start(false);
         }
-        if moved_any {
-            self.merge_overlapping_cursors();
-        }
         moved_any
     }
     pub fn merge_overlapping_cursors(&mut self) {
@@ -461,10 +458,10 @@ impl TextBuffer {
             let mut j = i + 1;
             while j < self.cursors.len() {
                 let (cursor1, cursor2) = if i < j {
-                    let mut split = self.cursors.split_at_mut(j);
+                    let split = self.cursors.split_at_mut(j);
                     (&mut split.0[i], &mut split.1[0])
                 } else {
-                    let mut split = self.cursors.split_at_mut(i);
+                    let split = self.cursors.split_at_mut(i);
                     (&mut split.1[0], &mut split.0[j])
                 };
 
@@ -490,6 +487,7 @@ impl TextBuffer {
     }
 
     pub fn update(&mut self, theme: &Theme) {
+        self.merge_overlapping_cursors();
         if let Some(s) = &mut self.ts_state {
             s.update_tree_and_highlights(&self.rope, theme);
         }

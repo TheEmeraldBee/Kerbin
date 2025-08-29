@@ -109,5 +109,5 @@ desc = "Delete selection"
 [[keybind]]
 modes = ["v"]
 keys = ["esc"]
-commands = ["sc", "rm"]
+commands = ["rm", "sc"]
 desc = "Collapse selection, Pop Mode"

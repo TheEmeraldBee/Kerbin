@@ -4,6 +4,7 @@ use ascii_forge::prelude::*;
 
 use crate::State;
 
+#[derive(Default)]
 pub struct CommandPaletteState {
     pub old_input: String,
     pub input: String,
@@ -12,20 +13,6 @@ pub struct CommandPaletteState {
     pub desc: Option<Buffer>,
 
     pub input_valid: bool,
-}
-
-impl Default for CommandPaletteState {
-    fn default() -> Self {
-        Self {
-            old_input: String::default(),
-            input: String::default(),
-            suggestions: vec![],
-
-            desc: None,
-
-            input_valid: false,
-        }
-    }
 }
 
 pub fn update_palette_suggestions(state: Arc<State>) {

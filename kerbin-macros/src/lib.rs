@@ -108,12 +108,11 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
             let mut desc = vec![];
 
             for attr in &variant.attrs {
-                if let Ok(name_val) = attr.meta.require_name_value() {
-                    if let Ok(ident) = name_val.path.require_ident()
-                        && ident.to_string().as_str() == "doc"
-                    {
-                        desc.push(name_val.value.to_token_stream());
-                    }
+                if let Ok(name_val) = attr.meta.require_name_value()
+                    && let Ok(ident) = name_val.path.require_ident()
+                    && ident.to_string().as_str() == "doc"
+                {
+                    desc.push(name_val.value.to_token_stream());
                 }
             }
 

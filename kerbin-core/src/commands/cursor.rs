@@ -92,6 +92,24 @@ impl Command for CursorCommand {
                             break;
                         }
                     };
+
+                    if state
+                        .buffers
+                        .read()
+                        .unwrap()
+                        .cur_buffer()
+                        .read()
+                        .unwrap()
+                        .cursors
+                        .len()
+                        != cursor_count
+                    {
+                        // This is a fail state, log and break
+                        tracing::error!(
+                            "Apply All Ran command that changed cursor count. This is not allowed at current time."
+                        );
+                        break;
+                    }
                 }
 
                 state
