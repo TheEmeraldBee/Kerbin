@@ -1,11 +1,13 @@
 [[keybind]]
 modes = []
+exclude_modes = ["c"]
 keys = [":"]
 commands = ["pm c"]
 desc = "Enter Command Mode"
 
 [[keybind]]
 modes = []
+invalid_modes = ["i"]
 keys = ["i"]
 commands = ["start_change", "pm i"]
 desc = "Enter Insert Mode"

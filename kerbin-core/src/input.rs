@@ -17,6 +17,7 @@ pub enum InputEvent {
 
 pub struct Input {
     pub valid_modes: Vec<char>,
+    pub invalid_modes: Vec<char>,
     pub key_sequence: Vec<(KeyModifiers, KeyCode)>,
     pub event: InputEvent,
 
@@ -34,6 +35,7 @@ pub fn check_key_code(a: KeyCode, b: KeyCode) -> bool {
 impl Input {
     pub fn new(
         modes: impl IntoIterator<Item = char>,
+        invalid_modes: impl IntoIterator<Item = char>,
         sequence: impl IntoIterator<Item = (KeyModifiers, KeyCode)>,
         event: Box<dyn Fn(Arc<State>, usize) -> bool + Send + Sync>,
 
@@ -41,6 +43,7 @@ impl Input {
     ) -> Self {
         Self {
             valid_modes: modes.into_iter().collect(),
+            invalid_modes: invalid_modes.into_iter().collect(),
             key_sequence: sequence.into_iter().collect(),
             event: InputEvent::Func(event),
 
@@ -48,7 +51,9 @@ impl Input {
         }
     }
     pub fn step(&self, window: &Window, mode: char, step: usize) -> InputResult {
-        if !self.valid_modes.contains(&mode) && !self.valid_modes.is_empty() {
+        if (!self.valid_modes.is_empty() && !self.valid_modes.contains(&mode))
+            || self.invalid_modes.contains(&mode)
+        {
             return InputResult::Failed;
         }
 

@@ -1,5 +1,6 @@
 [[keybind]]
 modes = []
+invalid_modes = ["v"]
 keys = ["v"]
 commands = ["pm v"]
 desc = "Visual Mode"

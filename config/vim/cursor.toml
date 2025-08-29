@@ -6,6 +6,7 @@ list = ["mc", "sw", "se", "sb", "sW", "sE", "sB", "sl", "cs", "d", "i", "a", "gs
 
 [[keybind]]
 modes = []
+invalid_modes = ["x"]
 keys = ["c"]
 commands = ["pm x"]
 desc = "Enter Multicursor Mode"
