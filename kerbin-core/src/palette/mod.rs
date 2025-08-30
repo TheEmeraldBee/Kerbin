@@ -4,10 +4,14 @@ use ascii_forge::prelude::*;
 
 use crate::State;
 
+pub mod ranking;
+pub use ranking::*;
+
 #[derive(Default)]
 pub struct CommandPaletteState {
     pub old_input: String,
     pub input: String,
+    pub completion: Option<String>,
     pub suggestions: Vec<Buffer>,
 
     pub desc: Option<Buffer>,
@@ -24,7 +28,8 @@ pub fn update_palette_suggestions(state: Arc<State>) {
     let mut palette = state.palette.write().unwrap();
     if palette.old_input != palette.input {
         palette.old_input = palette.input.clone();
-        (palette.suggestions, palette.desc) = state.get_command_suggestions(&palette.input);
+        (palette.suggestions, palette.completion, palette.desc) =
+            state.get_command_suggestions(&palette.input);
     }
 
     palette.input_valid = state.validate_command(&palette.input);
@@ -57,6 +62,11 @@ pub fn handle_command_palette_input(state: Arc<State>) {
                     state.pop_mode();
                     palette.input.clear();
                 }
+                KeyCode::Tab => {
+                    if let Some(completion) = palette.completion.take() {
+                        palette.input = completion;
+                    }
+                }
                 _ => {}
             }
         }
@@ -78,8 +88,7 @@ pub fn render_command_palette(state: Arc<State>) {
     let suggestion_count = palette.suggestions.len().min(5);
     let desc_height = palette.desc.as_ref().map_or(0, |b| b.size().y);
 
-    let mut total_palette_height = 1;
-    total_palette_height += 1;
+    let mut total_palette_height = 2;
 
     if suggestion_count > 0 {
         total_palette_height += suggestion_count as u16;
@@ -91,7 +100,7 @@ pub fn render_command_palette(state: Arc<State>) {
 
     render!(window, (0, command_line_y) => [" ".repeat(size.x as usize)]);
 
-    for i in 0..total_palette_height.saturating_sub(2) {
+    for i in 0..=total_palette_height.saturating_sub(2) {
         render!(window, (0, size.y.saturating_sub(i)) => [" ".repeat(size.x as usize)]);
     }
 

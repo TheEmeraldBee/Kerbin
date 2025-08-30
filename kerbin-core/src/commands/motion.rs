@@ -1,33 +1,42 @@
 use crate::*;
 use kerbin_macros::Command;
-use ropey::{LineType, Rope};
+use regex_cursor::engines::meta::Regex;
+use ropey::LineType;
 
 #[derive(Debug, Clone, Command)]
 pub enum MotionCommand {
-    #[command(drop_ident, name = "sel_word", name = "sw")]
-    /// Selects the next word
-    /// Extends selection if extend is set
-    SelectWord { extend: bool },
-    #[command(drop_ident, name = "sel_back_word", name = "sb")]
-    /// Selects the previous word
-    /// Extends selection if extend is set
-    SelectBackWord { extend: bool },
-    #[command(drop_ident, name = "sel_end_word", name = "se")]
-    /// Selects to the end of the word
-    /// Extends selection if extend is set
-    SelectEndOfWord { extend: bool },
-    #[command(drop_ident, name = "sel_WORD", name = "sW")]
-    /// Selects the next WORD
-    /// Extends selection if extend is set
-    SelectWORD { extend: bool },
-    #[command(drop_ident, name = "sel_back_WORD", name = "sB")]
-    /// Selects the previous WORD
-    /// Extends selection if extend is set
-    SelectBackWORD { extend: bool },
-    #[command(drop_ident, name = "sel_end_WORD", name = "sE")]
-    /// Selects to the end of the next WORD
-    /// Extends selection if extend is set
-    SelectEndOfWORD { extend: bool },
+    #[command(name = "rx")]
+    /// Selects the first match of the regex in the buffer
+    Regex {
+        pattern: String,
+        extend: Option<bool>,
+    },
+
+    #[command(name = "rxc")]
+    /// Selects the first match of the regex from the cursor
+    RegexCursor {
+        pattern: String,
+        offset: Option<isize>,
+        extend: Option<bool>,
+    },
+
+    #[command(name = "rxcb")]
+    /// Selects the first match of the regex from the cursor
+    RegexCursorBackwards {
+        pattern: String,
+        offset: Option<isize>,
+        extend: Option<bool>,
+    },
+
+    #[command(name = "rxs")]
+    /// Selects the first match of the regex within the selection
+    RegexSel { pattern: String },
+
+    #[command(name = "rxsa")]
+    /// Creates a cursor at all locations matching the regex in the selection, selecting the
+    /// pattern. Does not change selected cursor
+    RegexSelAll { pattern: String },
+
     #[command(drop_ident, name = "sel_line", name = "sl")]
     /// Selects the current (or next if at end of line) line
     /// Extends selection if extend is set
@@ -56,118 +65,6 @@ pub enum MotionCommand {
     /// Selects to the first non-whitespace character in the line
     /// Extends selection if extend is set
     SelectFirstNonWhitespace { extend: bool },
-}
-
-fn is_word_char(c: char) -> bool {
-    c.is_alphanumeric() || c == '_'
-}
-
-#[allow(non_snake_case)]
-fn is_WORD_char(c: char) -> bool {
-    !c.is_whitespace()
-}
-
-fn find_next_word_start(
-    rope: &Rope,
-    start_char_idx: usize,
-    is_char_boundary: impl Fn(char) -> bool,
-) -> usize {
-    let len_chars = rope.len_chars();
-
-    if start_char_idx >= len_chars {
-        return len_chars;
-    }
-
-    let mut i = start_char_idx;
-
-    if is_char_boundary(rope.char(i)) {
-        while i < len_chars && is_char_boundary(rope.char(i)) {
-            i += 1;
-        }
-    } else if !rope.char(i).is_whitespace() {
-        while i < len_chars && !rope.char(i).is_whitespace() && !is_char_boundary(rope.char(i)) {
-            i += 1;
-        }
-    }
-
-    while i < len_chars && rope.char(i).is_whitespace() {
-        i += 1;
-    }
-
-    i
-}
-
-fn find_prev_word_start(
-    rope: &Rope,
-    mut start_char_idx: usize,
-    is_char_boundary: impl Fn(char) -> bool,
-) -> usize {
-    let len_chars = rope.len_chars();
-
-    if start_char_idx == 0 {
-        return 0;
-    }
-    if start_char_idx > len_chars {
-        start_char_idx = len_chars;
-    }
-
-    let mut i = start_char_idx.saturating_sub(1);
-
-    if rope.char(i).is_whitespace() {
-        while i > 0 && rope.char(i).is_whitespace() {
-            i = i.saturating_sub(1);
-        }
-    }
-
-    if is_char_boundary(rope.char(i)) {
-        while i > 0 && is_char_boundary(rope.char(i.saturating_sub(1))) {
-            i = i.saturating_sub(1);
-        }
-    } else if !rope.char(i).is_whitespace() {
-        while i > 0
-            && !rope.char(i.saturating_sub(1)).is_whitespace()
-            && !is_char_boundary(rope.char(i.saturating_sub(1)))
-        {
-            i = i.saturating_sub(1);
-        }
-    }
-
-    i
-}
-
-fn find_next_word_end(
-    rope: &Rope,
-    start_char_idx: usize,
-    is_char_boundary: impl Fn(char) -> bool,
-) -> usize {
-    let len_chars = rope.len_chars();
-
-    if start_char_idx >= len_chars {
-        return len_chars.saturating_sub(1);
-    }
-
-    let mut i = start_char_idx;
-
-    if rope.char(i).is_whitespace() {
-        while i < len_chars && rope.char(i).is_whitespace() {
-            i += 1;
-        }
-        if i >= len_chars {
-            return len_chars.saturating_sub(1);
-        }
-    }
-
-    if is_char_boundary(rope.char(i)) {
-        while i < len_chars && is_char_boundary(rope.char(i)) {
-            i += 1;
-        }
-    } else {
-        while i < len_chars && !rope.char(i).is_whitespace() && !is_char_boundary(rope.char(i)) {
-            i += 1;
-        }
-    }
-
-    i.saturating_sub(1)
 }
 
 impl Command for MotionCommand {
@@ -338,65 +235,154 @@ impl Command for MotionCommand {
                     || cur_buffer.primary_cursor().at_start() != old_at_start
             }
 
-            _ => {
-                let current_caret_byte = cur_buffer.primary_cursor().get_cursor_byte();
-                let old_sel = cur_buffer.primary_cursor().sel().clone();
-                let old_at_start = cur_buffer.primary_cursor().at_start();
+            Self::Regex { pattern, extend } => {
+                let regex = Regex::new(pattern).unwrap();
 
-                let current_char_idx = cur_buffer.rope.byte_to_char_idx(current_caret_byte);
+                let searcher =
+                    regex_cursor::Input::new(RopeyCursor::new(cur_buffer.rope.slice(0..)));
+                let x = regex.search(searcher);
 
-                let new_caret_char_idx = match *self {
-                    MotionCommand::SelectWord { .. } => {
-                        find_next_word_start(&cur_buffer.rope, current_char_idx + 1, is_word_char)
-                            .saturating_sub(1)
+                if let Some(x) = x {
+                    if extend.unwrap_or(false) {
+                        let existing_selection = cur_buffer.primary_cursor().sel().clone();
+                        let new_start = existing_selection.start().clone().min(x.start());
+                        let new_end = existing_selection
+                            .end()
+                            .clone()
+                            .max(x.end().saturating_sub(1));
+                        cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
+                    } else {
+                        cur_buffer
+                            .primary_cursor_mut()
+                            .set_sel(x.start()..=x.end().saturating_sub(1));
                     }
-                    MotionCommand::SelectBackWord { .. } => {
-                        find_prev_word_start(&cur_buffer.rope, current_char_idx, is_word_char)
-                    }
-                    MotionCommand::SelectEndOfWord { .. } => {
-                        find_next_word_end(&cur_buffer.rope, current_char_idx, is_word_char)
-                            .saturating_add(1)
-                    }
-                    MotionCommand::SelectWORD { .. } => {
-                        find_next_word_start(&cur_buffer.rope, current_char_idx, is_WORD_char)
-                    }
-                    MotionCommand::SelectBackWORD { .. } => {
-                        find_prev_word_start(&cur_buffer.rope, current_char_idx, is_WORD_char)
-                    }
-                    MotionCommand::SelectEndOfWORD { .. } => {
-                        find_next_word_end(&cur_buffer.rope, current_char_idx, is_WORD_char)
-                            .saturating_add(1)
-                    }
-                    _ => return false,
-                };
-
-                let new_caret_byte = cur_buffer.rope.char_to_byte_idx(new_caret_char_idx);
-
-                let extend = match *self {
-                    MotionCommand::SelectWord { extend } => extend,
-                    MotionCommand::SelectBackWord { extend } => extend,
-                    MotionCommand::SelectEndOfWord { extend } => extend,
-                    MotionCommand::SelectWORD { extend } => extend,
-                    MotionCommand::SelectBackWORD { extend } => extend,
-                    MotionCommand::SelectEndOfWORD { extend } => extend,
-                    _ => unreachable!("All states should have been checked"),
-                };
-
-                let anchor_byte = if extend == old_at_start {
-                    *old_sel.end()
+                    true
                 } else {
-                    *old_sel.start()
-                };
+                    false
+                }
+            }
 
-                let start = anchor_byte.min(new_caret_byte);
-                let end = anchor_byte.max(new_caret_byte);
-                cur_buffer.primary_cursor_mut().set_sel(start..=end);
-                cur_buffer
-                    .primary_cursor_mut()
-                    .set_at_start(new_caret_byte < anchor_byte);
+            Self::RegexCursor {
+                pattern,
+                offset,
+                extend,
+            } => {
+                let regex = Regex::new(pattern).unwrap();
 
-                *cur_buffer.primary_cursor().sel() != old_sel
-                    || cur_buffer.primary_cursor().at_start() != old_at_start
+                let cursor = cur_buffer
+                    .primary_cursor()
+                    .get_cursor_byte()
+                    .saturating_add_signed(offset.unwrap_or(0));
+                let searcher =
+                    regex_cursor::Input::new(RopeyCursor::new(cur_buffer.rope.slice(cursor..)));
+                let x = regex.search(searcher);
+
+                if let Some(x) = x {
+                    let start = x.start() + cursor;
+                    let end = x.end() + cursor;
+
+                    if extend.unwrap_or(false) {
+                        let existing_selection = cur_buffer.primary_cursor().sel().clone();
+                        let new_start = existing_selection.start().clone().min(start);
+                        let new_end = existing_selection.end().clone().max(end.saturating_sub(1));
+                        cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
+                    } else {
+                        cur_buffer
+                            .primary_cursor_mut()
+                            .set_sel(start..=end.saturating_sub(1));
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+
+            Self::RegexCursorBackwards {
+                pattern,
+                offset,
+                extend,
+            } => {
+                let regex = Regex::new(pattern).unwrap();
+
+                let cursor = cur_buffer
+                    .primary_cursor()
+                    .get_cursor_byte()
+                    .saturating_add_signed(offset.unwrap_or(0));
+
+                let searcher =
+                    regex_cursor::Input::new(RopeyCursor::new(cur_buffer.rope.slice(..cursor)));
+                let x = regex.find_iter(searcher);
+
+                if let Some(x) = x.last() {
+                    let start = x.start();
+                    let end = x.end();
+
+                    if extend.unwrap_or(false) {
+                        let existing_selection = cur_buffer.primary_cursor().sel().clone();
+                        let new_start = existing_selection.start().clone().min(start);
+                        let new_end = existing_selection.end().clone().max(end.saturating_sub(1));
+                        cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
+                    } else {
+                        cur_buffer
+                            .primary_cursor_mut()
+                            .set_sel(start..=end.saturating_sub(1));
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+
+            Self::RegexSel { pattern } => {
+                let regex = Regex::new(pattern).unwrap();
+
+                let cursor = cur_buffer.primary_cursor().sel();
+                let searcher = regex_cursor::Input::new(RopeyCursor::new(
+                    cur_buffer.rope.slice(cursor.clone()),
+                ));
+                let x = regex.search(searcher);
+
+                if let Some(x) = x {
+                    let start = x.start() + *cursor.start();
+                    let end = x.end() + *cursor.start();
+
+                    cur_buffer
+                        .primary_cursor_mut()
+                        .set_sel(start..=end.saturating_sub(1));
+
+                    true
+                } else {
+                    false
+                }
+            }
+            Self::RegexSelAll { pattern } => {
+                let regex = Regex::new(pattern).unwrap();
+
+                let cursor = cur_buffer.primary_cursor().sel();
+                let searcher = regex_cursor::Input::new(RopeyCursor::new(
+                    cur_buffer.rope.slice(cursor.clone()),
+                ));
+
+                let initial_cursor = cur_buffer.primary_cursor;
+
+                let mut ranges = vec![];
+
+                for match_ in regex.find_iter(searcher) {
+                    ranges.push(match_.start()..=match_.end().saturating_sub(1));
+                }
+
+                for range in ranges {
+                    cur_buffer.create_cursor();
+                    cur_buffer.primary_cursor_mut().set_sel(range);
+                }
+
+                if cur_buffer.primary_cursor != initial_cursor {
+                    cur_buffer.cursors.remove(initial_cursor);
+                    cur_buffer.primary_cursor -= 1;
+                    true
+                } else {
+                    false
+                }
             }
         }
     }

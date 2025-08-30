@@ -56,37 +56,37 @@ desc = "Move Right"
 [[keybind]]
 modes = ["v"]
 keys = ["w"]
-commands = ["sw true", "gse"]
+commands = ['rxc (?:\\w+|[^\\w\\s]+|\\s+)(.) 1 true', "gse"]
 desc = "Select Word"
 
 [[keybind]]
 modes = ["v"]
 keys = ["e"]
-commands = ["se true", "gse"]
+commands = ['rxc (\\w+|[^\\w\\s]+|\\s+) 1 true', "gse"]
 desc = "Select Word End"
 
 [[keybind]]
 modes = ["v"]
 keys = ["b"]
-commands = ["sb true", "gsb"]
+commands = ['rxcb (?:\\w+|[^\\w\\s]+|\\s+)(.) -1 true', "gsb"]
 desc = "Select Word Back"
 
 [[keybind]]
 modes = ["v"]
 keys = ["shift-w"]
-commands = ["sW true", "gse"]
+commands = ['rxc (?:\\s+|\\S+)(.) 1 true', "gse"]
 desc = "Select WORD"
 
 [[keybind]]
 modes = ["v"]
 keys = ["shift-e"]
-commands = ["sE true", "gse"]
+commands = ['rxc (\\s+|\\S+) 1 true', "gse"]
 desc = "Select WORD End"
 
 [[keybind]]
 modes = ["v"]
 keys = ["shift-b"]
-commands = ["sB true", "gsb"]
+commands = ['rxcb (?:\\s+|\\S+)(.) -1 true', "gsb"]
 desc = "Select WORD Back"
 
 [[keybind]]

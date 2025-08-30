@@ -9,7 +9,7 @@ use toml::Value;
 
 use crate::{
     AsCommandInfo, Command, CommandInfo, CommandPaletteState, GrammarManager, InputConfig,
-    InputState, Theme, buffer::Buffers,
+    InputState, Theme, buffer::Buffers, rank,
 };
 
 type CommandFn = Box<dyn Fn(&[String]) -> Option<Result<Box<dyn Command>, String>> + Send + Sync>;
@@ -83,32 +83,59 @@ impl State {
         }
     }
 
-    pub fn get_command_suggestions(self: &Arc<Self>, input: &str) -> (Vec<Buffer>, Option<Buffer>) {
+    pub fn get_command_suggestions(
+        self: &Arc<Self>,
+        input: &str,
+    ) -> (Vec<Buffer>, Option<String>, Option<Buffer>) {
         let words = shellwords::split(input).unwrap_or(vec![input.to_string()]);
 
         if words.is_empty() {
-            return (vec![], None);
+            return (vec![], None, None);
         }
 
         let mut res = vec![];
 
         let theme = self.theme.read().unwrap();
 
-        let mut desc = None;
+        let registries = self.command_registry.read().unwrap();
 
-        for registry in self.command_registry.read().unwrap().iter() {
+        for registry in registries.iter() {
             for info in &registry.infos {
-                if info.valid_names.iter().any(|x| x.starts_with(&words[0])) {
-                    if desc.is_none() {
-                        desc = info.desc_buf(&theme)
-                    }
+                for valid_name in &info.valid_names {
+                    let Some(rnk) = rank(&words[0], &valid_name) else {
+                        continue;
+                    };
 
-                    res.push(info.as_suggestion(&theme))
+                    res.push((rnk, info, valid_name.to_string()));
+                    break;
                 }
             }
         }
 
-        (res, desc)
+        res.sort_by(|l, r| l.0.cmp(&r.0));
+
+        let desc = res.get(0).and_then(|x| x.1.desc_buf(&theme));
+
+        let completion = if words.len() == 1 {
+            res.get(0).and_then(|x| Some(x.2.clone()))
+        } else {
+            None
+        };
+
+        (
+            res.iter()
+                .enumerate()
+                .map(|(i, x)| {
+                    if i == 0 && completion.is_some() {
+                        x.1.as_suggestion(true, &theme)
+                    } else {
+                        x.1.as_suggestion(false, &theme)
+                    }
+                })
+                .collect(),
+            completion,
+            desc,
+        )
     }
 
     pub fn split_command(input: &str) -> Vec<String> {

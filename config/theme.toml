@@ -69,6 +69,7 @@
 "ui.commandline.valid" = "teal"
 "ui.commandline.invalid" = "maroon"
 
+"ui.commandline.auto_name" = { fg = "sky", attrs = ["bold", "italic"] }
 "ui.commandline.primary_name" = { fg = "peach", attrs = ["bold"] }
 "ui.commandline.names" = "pink"
 
@@ -85,7 +86,8 @@
 # In the editor, rendering multicursor style is done with ui.cursor.mode0.mode1.etc
 # IE: if the mode stack is nxi (default multicursor insert) you could do ui.cursor.n.x.i, or ui.cursor.x.i, or ui.cursor.i, and it would match one all three, n.x.i first.
 "ui.cursor.x.i" = { bg = "green", attrs = ["bold"] }
-"ui.cursor.x" = { bg = "lavender", attrs = ["underlined"]}
+"ui.cursor.x.v" = { bg = "sky", attrs = ["bold", "italic"] }
+"ui.cursor.x" = { bg = "lavender" }
 "ui.selection" = { bg = "surface1", attrs = ["italic"] }
 
 "statusline.selections.one" = { fg = "sky", attrs = ["italic"] }

@@ -21,6 +21,9 @@ pub use motion::*;
 pub mod cursor;
 pub use cursor::*;
 
+pub mod palette;
+pub use palette::*;
+
 pub trait Command: Send + Sync {
     fn apply(&self, state: Arc<State>) -> bool;
 }
@@ -70,17 +73,25 @@ impl CommandInfo {
         Some(buf)
     }
 
-    pub fn as_suggestion(&self, theme: &Theme) -> Buffer {
+    pub fn as_suggestion(&self, will_autocomplete: bool, theme: &Theme) -> Buffer {
         let mut buf = Buffer::new((500, 1));
         let mut loc = render!(
             buf,
             (0, 0) =>
             [
-                StyledContent::new(theme.get_fallback_default([
+                StyledContent::new(theme.get_fallback_default(if will_autocomplete {
+                    [
+                        "ui.commandline.auto_name",
+                        "ui.commandline.primary_name",
+                        "ui.commandline.names",
+                        "ui.text",
+                    ]
+                        .as_slice()
+                } else {[
                     "ui.commandline.primary_name",
                     "ui.commandline.names",
                     "ui.text"
-                ]), &self.valid_names[0]),
+                ].as_slice()}), &self.valid_names[0]),
                 " ",
             ]
         );

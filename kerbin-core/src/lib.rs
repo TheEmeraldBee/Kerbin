@@ -1,5 +1,8 @@
 #![allow(improper_ctypes_definitions)]
 
+pub mod regex;
+pub use regex::*;
+
 pub mod grammar;
 pub use grammar::*;
 

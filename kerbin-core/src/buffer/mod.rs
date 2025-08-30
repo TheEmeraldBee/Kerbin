@@ -399,7 +399,6 @@ impl TextBuffer {
 
         let mut temp_target_col_byte = current_col_byte_idx as isize + cols;
 
-        // Handle horizontal wrap-around (move to previous/next lines)
         while temp_target_col_byte < 0 && target_line_idx > 0 {
             target_line_idx = target_line_idx.saturating_sub(1);
             line_len_at_target_idx_bytes = self.rope.line(target_line_idx, LineType::LF_CR).len();
@@ -448,6 +447,7 @@ impl TextBuffer {
         }
         moved_any
     }
+
     pub fn merge_overlapping_cursors(&mut self) {
         if self.cursors.len() <= 1 {
             return;
