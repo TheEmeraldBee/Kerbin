@@ -1,0 +1,8 @@
+[package]
+name = "kerbin-state-machine"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+futures = "0.3.31"
+tokio.workspace = true

@@ -104,7 +104,7 @@ n = { long_name = " NORMAL " }
 i = { long_name = " INSERT " }
 c = { long_name = " COMMAND " }
 x = { long_name = " CURSOR " }
-v = { long_name = " SELECT " }
+v = { long_name = " SELECT" }
 
 [palette]
 rosewater = "#f5e0dc"

@@ -245,11 +245,8 @@ impl Command for MotionCommand {
                 if let Some(x) = x {
                     if extend.unwrap_or(false) {
                         let existing_selection = cur_buffer.primary_cursor().sel().clone();
-                        let new_start = existing_selection.start().clone().min(x.start());
-                        let new_end = existing_selection
-                            .end()
-                            .clone()
-                            .max(x.end().saturating_sub(1));
+                        let new_start = (*existing_selection.start()).min(x.start());
+                        let new_end = (*existing_selection.end()).max(x.end().saturating_sub(1));
                         cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
                     } else {
                         cur_buffer
@@ -283,8 +280,8 @@ impl Command for MotionCommand {
 
                     if extend.unwrap_or(false) {
                         let existing_selection = cur_buffer.primary_cursor().sel().clone();
-                        let new_start = existing_selection.start().clone().min(start);
-                        let new_end = existing_selection.end().clone().max(end.saturating_sub(1));
+                        let new_start = (*existing_selection.start()).min(start);
+                        let new_end = (*existing_selection.end()).max(end.saturating_sub(1));
                         cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
                     } else {
                         cur_buffer
@@ -319,8 +316,8 @@ impl Command for MotionCommand {
 
                     if extend.unwrap_or(false) {
                         let existing_selection = cur_buffer.primary_cursor().sel().clone();
-                        let new_start = existing_selection.start().clone().min(start);
-                        let new_end = existing_selection.end().clone().max(end.saturating_sub(1));
+                        let new_start = (*existing_selection.start()).min(start);
+                        let new_end = (*existing_selection.end()).max(end.saturating_sub(1));
                         cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
                     } else {
                         cur_buffer

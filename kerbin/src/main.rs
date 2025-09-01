@@ -139,7 +139,6 @@ async fn main() {
                 render_command_palette(state.clone());
                 render_help_menu(state.clone());
 
-
                 render_cursor(state.clone());
                 state.window.write().unwrap().update(Duration::ZERO).unwrap();
 

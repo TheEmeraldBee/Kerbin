@@ -102,7 +102,7 @@ impl State {
         for registry in registries.iter() {
             for info in &registry.infos {
                 for valid_name in &info.valid_names {
-                    let Some(rnk) = rank(&words[0], &valid_name) else {
+                    let Some(rnk) = rank(&words[0], valid_name) else {
                         continue;
                     };
 
@@ -114,10 +114,10 @@ impl State {
 
         res.sort_by(|l, r| l.0.cmp(&r.0));
 
-        let desc = res.get(0).and_then(|x| x.1.desc_buf(&theme));
+        let desc = res.first().and_then(|x| x.1.desc_buf(&theme));
 
         let completion = if words.len() == 1 {
-            res.get(0).and_then(|x| Some(x.2.clone()))
+            res.first().map(|x| x.2.clone())
         } else {
             None
         };
