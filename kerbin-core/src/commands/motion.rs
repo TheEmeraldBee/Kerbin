@@ -1,5 +1,6 @@
 use crate::*;
 use kerbin_macros::Command;
+use kerbin_state_machine::State;
 use regex_cursor::engines::meta::Regex;
 use ropey::LineType;
 
@@ -68,8 +69,8 @@ pub enum MotionCommand {
 }
 
 impl Command for MotionCommand {
-    fn apply(&self, state: std::sync::Arc<State>) -> bool {
-        let buffers = state.buffers.read().unwrap();
+    fn apply(&self, state: &mut State) -> bool {
+        let buffers = state.lock_state::<Buffers>().unwrap();
         let cur_buffer = buffers.cur_buffer();
         let mut cur_buffer = cur_buffer.write().unwrap();
 

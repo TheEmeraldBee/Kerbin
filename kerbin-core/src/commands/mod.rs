@@ -1,7 +1,7 @@
 use ascii_forge::prelude::*;
-use std::sync::Arc;
+use kerbin_state_machine::State;
 
-use crate::{State, Theme};
+use crate::Theme;
 
 pub mod state;
 pub use state::*;
@@ -25,7 +25,7 @@ pub mod palette;
 pub use palette::*;
 
 pub trait Command: Send + Sync {
-    fn apply(&self, state: Arc<State>) -> bool;
+    fn apply(&self, state: &mut State) -> bool;
 }
 
 #[derive(Debug)]

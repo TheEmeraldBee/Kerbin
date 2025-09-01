@@ -1,5 +1,5 @@
-run: build-test-plugin
+run: build-plugin
 	cargo run
 
-build-test-plugin:
+build-plugin:
 	cargo build -p test_plugin --release

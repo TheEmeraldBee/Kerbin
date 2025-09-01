@@ -1,8 +1,9 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::collections::VecDeque;
 
 use ascii_forge::{prelude::*, widgets::border::Border};
+use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
 
-use crate::{State, handle_command_palette_input};
+use crate::{CommandPrefixRegistry, CommandRegistry, CommandSender, ModeStack};
 
 pub enum InputResult {
     Failed,
@@ -12,7 +13,7 @@ pub enum InputResult {
 
 pub enum InputEvent {
     Commands(Vec<String>),
-    Func(Box<dyn Fn(Arc<State>, usize) -> bool + Send + Sync>),
+    //Func(Box<dyn Fn(Arc<State>, usize) -> bool + Send + Sync>),
 }
 
 pub struct Input {
@@ -33,23 +34,23 @@ pub fn check_key_code(a: KeyCode, b: KeyCode) -> bool {
 }
 
 impl Input {
-    pub fn new(
-        modes: impl IntoIterator<Item = char>,
-        invalid_modes: impl IntoIterator<Item = char>,
-        sequence: impl IntoIterator<Item = (KeyModifiers, KeyCode)>,
-        event: Box<dyn Fn(Arc<State>, usize) -> bool + Send + Sync>,
-
-        desc: String,
-    ) -> Self {
-        Self {
-            valid_modes: modes.into_iter().collect(),
-            invalid_modes: invalid_modes.into_iter().collect(),
-            key_sequence: sequence.into_iter().collect(),
-            event: InputEvent::Func(event),
-
-            desc,
-        }
-    }
+    //pub fn new(
+    //    modes: impl IntoIterator<Item = char>,
+    //invalid_modes: impl IntoIterator<Item = char>,
+    //sequence: impl IntoIterator<Item = (KeyModifiers, KeyCode)>,
+    //event: Box<dyn Fn(Arc<State>, usize) -> bool + Send + Sync>,
+    //
+    //desc: String,
+    //) -> Self {
+    //    Self {
+    //        valid_modes: modes.into_iter().collect(),
+    //        invalid_modes: invalid_modes.into_iter().collect(),
+    //        key_sequence: sequence.into_iter().collect(),
+    //        event: InputEvent::Func(event),
+    //
+    //        desc,
+    //    }
+    //}
     pub fn step(&self, window: &Window, mode: char, step: usize) -> InputResult {
         if (!self.valid_modes.is_empty() && !self.valid_modes.contains(&mode))
             || self.invalid_modes.contains(&mode)
@@ -107,10 +108,15 @@ pub struct InputState {
     pub(crate) active_inputs: Vec<(usize, usize)>,
 }
 
-pub fn render_help_menu(state: Arc<State>) {
-    let input = state.input_state.read().unwrap();
-    let input_config = state.input_config.read().unwrap();
-    let mut window = state.window.write().unwrap();
+pub async fn render_help_menu(
+    window: ResMut<Window>,
+    input: Res<InputState>,
+    input_config: Res<InputConfig>,
+) {
+    let mut window = window.get();
+    let input = input.get();
+    let input_config = input_config.get();
+
     if input.active_inputs.is_empty() {
         return;
     }
@@ -126,16 +132,23 @@ pub fn render_help_menu(state: Arc<State>) {
     render!(window, window.size() - vec2(40, 15) => [border]);
 }
 
-pub fn handle_inputs(state: Arc<State>) {
-    let window = state.window.read().unwrap();
+pub async fn handle_inputs(
+    window: Res<Window>,
+    input: ResMut<InputState>,
+    input_config: Res<InputConfig>,
+    modes: Res<ModeStack>,
 
-    let mut input = state.input_state.write().unwrap();
+    command_registry: Res<CommandRegistry>,
+    prefix_registry: Res<CommandPrefixRegistry>,
+    command_sender: ResMut<CommandSender>,
+) {
+    let window = window.get();
+    let mut input = input.get();
+    let input_config = input_config.get();
+    let modes = modes.get();
 
-    let input_config = state.input_config.read().unwrap();
-
-    let mode = state.get_mode();
+    let mode = modes.get_mode();
     if mode == 'c' {
-        handle_command_palette_input(state.clone());
         return;
     }
 
@@ -150,7 +163,16 @@ pub fn handle_inputs(state: Arc<State>) {
                 continue;
             };
 
-            state.call_command(&format!("a \"{chr}\" false"));
+            let command = command_registry.get().parse_command(
+                CommandRegistry::split_command(&format!("a \'{chr}\' false")),
+                true,
+                true,
+                &prefix_registry.get(),
+                &modes,
+            );
+            if let Some(command) = command {
+                command_sender.get().send(command).unwrap();
+            }
 
             consumed = true;
         }
@@ -208,13 +230,22 @@ pub fn handle_inputs(state: Arc<State>) {
                 completed_input = true;
 
                 match &input_config.inputs[*idx].event {
-                    InputEvent::Func(f) => {
-                        f(state.clone(), repeat_count);
-                    }
+                    //InputEvent::Func(f) => {
+                    //f(state.clone(), repeat_count);
+                    //}
                     InputEvent::Commands(c) => {
                         for _ in 0..repeat_count {
                             for command in c {
-                                if !state.call_command(command) {
+                                let command = command_registry.get().parse_command(
+                                    CommandRegistry::split_command(command),
+                                    true,
+                                    true,
+                                    &prefix_registry.get(),
+                                    &modes,
+                                );
+                                if let Some(command) = command {
+                                    command_sender.get().send(command).unwrap();
+                                } else {
                                     return false;
                                 }
                             }
@@ -245,15 +276,23 @@ pub fn handle_inputs(state: Arc<State>) {
             InputResult::Step => input.active_inputs.push((idx, 1)),
             InputResult::Complete => {
                 match &input_config.inputs[idx].event {
-                    InputEvent::Func(f) => {
-                        f(state.clone(), repeat_count);
-                    }
+                    //InputEvent::Func(f) => {
+                    //f(state.clone(), repeat_count);
+                    //}
                     InputEvent::Commands(c) => {
-                        for _ in 0..repeat_count {
+                        'repeat: for _ in 0..repeat_count {
                             for command in c {
-                                if !state.call_command(command) {
-                                    input.repeat_count.clear();
-                                    return;
+                                let command = command_registry.get().parse_command(
+                                    CommandRegistry::split_command(command),
+                                    true,
+                                    true,
+                                    &prefix_registry.get(),
+                                    &modes,
+                                );
+                                if let Some(command) = command {
+                                    command_sender.get().send(command).unwrap();
+                                } else {
+                                    break 'repeat;
                                 }
                             }
                         }

@@ -1,5 +1,7 @@
 use ascii_forge::prelude::*;
-use kerbin_core::{CommandPrefix, InputEvent, State};
+use kerbin_core::{CommandPrefix, CommandPrefixRegistry, InputConfig, Plugin, Theme};
+use kerbin_core::{InputEvent, PluginConfig};
+use kerbin_state_machine::State;
 use serde::Deserialize;
 use serde::de::{self, Deserializer, MapAccess, Visitor};
 use std::collections::HashMap;
@@ -7,8 +9,7 @@ use std::error::Error;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use toml::{Table, Value}; // Import toml::Table
+use toml::{Table, Value};
 
 #[derive(Debug)]
 pub enum ThemeError {
@@ -281,16 +282,23 @@ pub struct ImportEntry {
     pub paths: Vec<String>,
 }
 
-// Config struct no longer derives Deserialize for the entire file.
-// It will be built up manually.
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+pub struct PluginEntry {
+    path: Option<String>,
+    git: Option<String>,
+}
+
 #[derive(Debug, Default)]
 pub struct Config {
     keybindings: Vec<Input>,
     prefixes: Vec<Prefix>,
 
+    plugins: Vec<PluginEntry>,
+
     palette: HashMap<String, String>,
     theme: HashMap<String, UnresolvedStyle>,
-    plugins: HashMap<String, Value>,
+    plugin_config: HashMap<String, Value>,
 }
 
 impl Config {
@@ -327,7 +335,24 @@ impl Config {
                         }
                     } else {
                         return Err(format!(
-                            "`imports` section in {:?} must be an array of tables",
+                            "`import` section in {:?} must be an array of tables",
+                            path
+                        )
+                        .into());
+                    }
+                }
+                "plugins" => {
+                    if let Value::Array(plugin_array) = value {
+                        for import_val in plugin_array {
+                            if let Ok(plugin_entry) = import_val.try_into::<PluginEntry>() {
+                                final_config.plugins.push(plugin_entry);
+                            } else {
+                                return Err(format!("Invalid import entry in {:?}", path).into());
+                            }
+                        }
+                    } else {
+                        return Err(format!(
+                            "`plugins` section in {:?} must be an array of tables",
                             path
                         )
                         .into());
@@ -388,15 +413,17 @@ impl Config {
                         return Err(format!("`theme` section in {:?} must be a table", path).into());
                     }
                 }
-                "plugins" => {
+                "plugin_config" => {
                     if let Value::Table(value_table) = value {
                         let current_plugin_data: HashMap<String, Value> = value_table.try_into()?;
 
-                        final_config.plugins.extend(current_plugin_data);
+                        final_config.plugin_config.extend(current_plugin_data);
                     } else {
-                        return Err(
-                            format!("`plugin` section in {:?} must be a table", path).into()
-                        );
+                        return Err(format!(
+                            "`plugin_config` section in {:?} must be a table",
+                            path
+                        )
+                        .into());
                     }
                 }
                 _ => {
@@ -415,9 +442,10 @@ impl Config {
     fn merge(&mut self, other: Config) {
         self.keybindings.extend(other.keybindings);
         self.prefixes.extend(other.prefixes);
+        self.plugins.extend(other.plugins);
         self.palette.extend(other.palette);
         self.theme.extend(other.theme);
-        self.plugins.extend(other.plugins);
+        self.plugin_config.extend(other.plugin_config);
     }
 
     fn resolve_palette(&self) -> Result<HashMap<String, Color>, ThemeError> {
@@ -454,9 +482,15 @@ impl Config {
         Ok(resolved)
     }
 
-    pub fn apply(self, state: Arc<State>) {
-        let mut inputs = state.input_config.write().unwrap();
+    pub fn get_plugins(&self) -> Vec<Plugin> {
+        let mut res = vec![];
+        for plugin in &self.plugins {
+            res.push(Plugin::load(plugin.path.as_ref().unwrap()))
+        }
+        res
+    }
 
+    pub fn apply(self, state: &mut State) {
         let palette = match self.resolve_palette() {
             Ok(p) => p,
             Err(e) => {
@@ -465,6 +499,7 @@ impl Config {
             }
         };
 
+        let mut inputs = state.lock_state::<InputConfig>().unwrap();
         for input in self.keybindings {
             inputs.register_input(kerbin_core::Input {
                 valid_modes: input.modes,
@@ -475,7 +510,7 @@ impl Config {
             });
         }
 
-        let mut theme = state.theme.write().unwrap();
+        let mut theme = state.lock_state::<Theme>().unwrap();
         for (name, unresolved_style) in self.theme.into_iter() {
             match unresolved_style.resolve(&palette) {
                 Ok(style) => theme.register(name, style),
@@ -483,8 +518,10 @@ impl Config {
             }
         }
 
+        let mut prefixes = state.lock_state::<CommandPrefixRegistry>().unwrap();
+
         for prefix in self.prefixes.into_iter() {
-            state.register_command_prefix(CommandPrefix {
+            prefixes.register(CommandPrefix {
                 modes: prefix.modes,
                 prefix_cmd: prefix.prefix,
 
@@ -493,6 +530,10 @@ impl Config {
             });
         }
 
-        *state.plugin_config.write().unwrap() = self.plugins;
+        state
+            .lock_state::<PluginConfig>()
+            .unwrap()
+            .0
+            .extend(self.plugin_config);
     }
 }

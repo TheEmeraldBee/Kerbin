@@ -8,6 +8,8 @@ kerbin-config = { path = "../kerbin-config" }
 kerbin-core = { path = "../kerbin-core" }
 kerbin-plugin = { path = "../kerbin-plugin" }
 
+kerbin-state-machine = { path = "../kerbin-state-machine" }
+
 kerbin-macros.workspace = true
 
 tokio.workspace = true

@@ -465,6 +465,7 @@ dependencies = [
  "kerbin-core",
  "kerbin-macros",
  "kerbin-plugin",
+ "kerbin-state-machine",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -476,6 +477,7 @@ version = "0.1.0"
 dependencies = [
  "ascii-forge",
  "kerbin-core",
+ "kerbin-state-machine",
  "serde",
  "serde-value",
  "toml",
@@ -488,6 +490,8 @@ dependencies = [
  "ascii-forge",
  "async-ffi",
  "kerbin-macros",
+ "kerbin-plugin",
+ "kerbin-state-machine",
  "libloading",
  "regex-cursor",
  "ropey",
@@ -974,11 +978,9 @@ dependencies = [
 name = "test_plugin"
 version = "0.1.0"
 dependencies = [
- "ascii-forge",
  "async-ffi",
  "kerbin-core",
  "kerbin-macros",
- "serde",
 ]
 
 [[package]]

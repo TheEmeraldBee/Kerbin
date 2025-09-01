@@ -1,4 +1,5 @@
 use kerbin_macros::Command;
+use kerbin_state_machine::State;
 
 use crate::*;
 
@@ -34,7 +35,7 @@ pub enum ShellCommand {
 }
 
 impl Command for ShellCommand {
-    fn apply(&self, _state: std::sync::Arc<State>) -> bool {
+    fn apply(&self, _state: &mut State) -> bool {
         match self {
             Self::Execute(args) => {
                 match std::process::Command::new(&args[0])

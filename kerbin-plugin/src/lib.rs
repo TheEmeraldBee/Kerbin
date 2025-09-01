@@ -1,10 +1,9 @@
 #![allow(improper_ctypes_definitions)]
 
 use ::libloading::Library;
-use async_ffi::FfiFuture;
 
 pub struct Plugin {
-    lib: Library,
+    pub lib: Library,
 }
 
 impl Plugin {
@@ -16,26 +15,10 @@ impl Plugin {
         }
     }
 
-    /// Will return none when the function doesn't exist
-    pub fn call_func<I, R>(&self, symbol: &[u8], input: I) -> Option<R> {
+    pub fn call_func<I, R>(&self, symbol: &[u8], input: I) -> R {
         unsafe {
             let func = self.lib.get::<extern "C" fn(I) -> R>(symbol).unwrap();
-            Some(func(input))
-        }
-    }
-
-    pub async fn call_async_func<I: 'static + Send + Sync, R: 'static + Send + Sync>(
-        &self,
-        symbol: &[u8],
-        input: I,
-    ) -> R {
-        unsafe {
-            let func = self
-                .lib
-                .get::<extern "C" fn(I) -> FfiFuture<R>>(symbol)
-                .unwrap();
-
-            func(input).await
+            func(input)
         }
     }
 }

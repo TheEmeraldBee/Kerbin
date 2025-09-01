@@ -1,4 +1,5 @@
 use kerbin_macros::Command;
+use kerbin_state_machine::State;
 
 use crate::*;
 
@@ -19,12 +20,14 @@ pub enum ModeCommand {
 }
 
 impl Command for ModeCommand {
-    fn apply(&self, state: std::sync::Arc<crate::State>) -> bool {
+    fn apply(&self, state: &mut State) -> bool {
+        let mut modes = state.lock_state::<ModeStack>().unwrap();
+
         match *self {
-            ModeCommand::ChangeMode(new) => state.set_mode(new),
-            ModeCommand::PushMode(new) => state.push_mode(new),
+            ModeCommand::ChangeMode(new) => modes.set_mode(new),
+            ModeCommand::PushMode(new) => modes.push_mode(new),
             ModeCommand::PopMode => {
-                state.pop_mode();
+                modes.pop_mode();
             }
         }
 

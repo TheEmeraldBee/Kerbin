@@ -1,8 +1,7 @@
-use std::sync::Arc;
-
 use ascii_forge::prelude::*;
+use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
 
-use crate::State;
+use crate::{CommandPrefixRegistry, CommandRegistry, CommandSender, ModeStack, Theme};
 
 pub mod ranking;
 pub use ranking::*;
@@ -19,28 +18,50 @@ pub struct CommandPaletteState {
     pub input_valid: bool,
 }
 
-pub fn update_palette_suggestions(state: Arc<State>) {
-    let mode = state.get_mode();
-    if mode != 'c' {
+pub async fn update_palette_suggestions(
+    modes: Res<ModeStack>,
+    palette: ResMut<CommandPaletteState>,
+    prefix_registry: Res<CommandPrefixRegistry>,
+    commands: Res<CommandRegistry>,
+
+    theme: Res<Theme>,
+) {
+    let modes = modes.get();
+    let mut palette = palette.get();
+    let commands = commands.get();
+
+    let prefix_registry = prefix_registry.get();
+
+    let theme = theme.get();
+
+    if modes.get_mode() != 'c' {
         return;
     }
 
-    let mut palette = state.palette.write().unwrap();
     if palette.old_input != palette.input {
         palette.old_input = palette.input.clone();
         (palette.suggestions, palette.completion, palette.desc) =
-            state.get_command_suggestions(&palette.input);
+            commands.get_command_suggestions(&palette.input, &theme);
     }
 
-    palette.input_valid = state.validate_command(&palette.input);
+    palette.input_valid = commands.validate_command(&palette.input, &prefix_registry, &modes);
 }
 
-pub fn handle_command_palette_input(state: Arc<State>) {
-    let window = state.window.read().unwrap();
+pub async fn handle_command_palette_input(
+    window: Res<Window>,
+    palette: ResMut<CommandPaletteState>,
+    modes: ResMut<ModeStack>,
 
-    let mut palette = state.palette.write().unwrap();
+    command_registry: Res<CommandRegistry>,
+    prefix_registry: Res<CommandPrefixRegistry>,
 
-    let mode = state.get_mode();
+    command_sender: ResMut<CommandSender>,
+) {
+    let window = window.get();
+    let mut palette = palette.get();
+    let mut modes = modes.get();
+
+    let mode = modes.get_mode();
     if mode != 'c' {
         return;
     }
@@ -53,13 +74,23 @@ pub fn handle_command_palette_input(state: Arc<State>) {
                     palette.input.pop();
                 }
                 KeyCode::Enter => {
-                    state.pop_mode();
+                    modes.pop_mode();
 
-                    state.call_command(&palette.input);
+                    let command = command_registry.get().parse_command(
+                        CommandRegistry::split_command(&palette.input),
+                        true,
+                        true,
+                        &prefix_registry.get(),
+                        &modes,
+                    );
+                    if let Some(command) = command {
+                        command_sender.get().send(command).unwrap();
+                    }
+
                     palette.input.clear();
                 }
                 KeyCode::Esc => {
-                    state.pop_mode();
+                    modes.pop_mode();
                     palette.input.clear();
                 }
                 KeyCode::Tab => {
@@ -73,12 +104,19 @@ pub fn handle_command_palette_input(state: Arc<State>) {
     }
 }
 
-pub fn render_command_palette(state: Arc<State>) {
-    let mut window = state.window.write().unwrap();
-    let palette = state.palette.read().unwrap();
-    let mode = state.get_mode();
+pub async fn render_command_palette(
+    window: ResMut<Window>,
+    palette: Res<CommandPaletteState>,
+    modes: Res<ModeStack>,
 
-    if mode != 'c' {
+    theme: Res<Theme>,
+) {
+    let mut window = window.get();
+    let palette = palette.get();
+    let modes = modes.get();
+    let theme = theme.get();
+
+    if modes.get_mode() != 'c' {
         return;
     }
 
@@ -104,7 +142,6 @@ pub fn render_command_palette(state: Arc<State>) {
         render!(window, (0, size.y.saturating_sub(i)) => [" ".repeat(size.x as usize)]);
     }
 
-    let theme = state.theme.read().unwrap();
     let style = if palette.input_valid {
         theme
             .get("ui.commandline.valid")

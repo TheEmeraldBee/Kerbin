@@ -1,9 +1,10 @@
 use std::sync::{Arc, RwLock};
 
-use crate::{GrammarManager, Theme, get_canonical_path_with_non_existent, state::State};
+use crate::{GrammarManager, ModeStack, Theme, get_canonical_path_with_non_existent};
 
 use super::TextBuffer;
 use ascii_forge::prelude::*;
+use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
 use ropey::LineType;
 
 #[derive(Default)]
@@ -190,21 +191,26 @@ fn get_unique_paths(paths: impl Iterator<Item = String>, len: usize) -> Vec<Stri
     truncated_paths
 }
 
-pub fn render_buffers(state: Arc<State>) {
-    let theme = state.theme.read().unwrap();
-    let mut window = state.window.write().unwrap();
-    let mut buffers = state.buffers.write().unwrap();
-    let modes = state.mode_stack.read().unwrap().clone();
+pub async fn render_buffers(
+    window: ResMut<Window>,
+    buffers: ResMut<Buffers>,
+    theme: Res<Theme>,
+    modes: Res<ModeStack>,
+) {
+    let theme = theme.get();
+    let mut window = window.get();
+    let mut buffers = buffers.get();
+    let modes = modes.get();
 
     //let mut top_bar = Buffer::new(vec2(window.size().x, 1));
     //top_bar.style_line(0, |_| style);
     //render!(window.buffer_mut(), vec2(0, 0) => [top_bar]);
-    buffers.render(vec2(0, 0), window.buffer_mut(), &theme, modes);
+    buffers.render(vec2(0, 0), window.buffer_mut(), &theme, modes.0.clone());
 }
 
-pub fn update_bufferline_scroll(state: Arc<State>) {
-    let mut buffers = state.buffers.write().unwrap();
-    let window = state.window.read().unwrap();
+pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<Window>) {
+    let mut buffers = buffers.get();
+    let window = window.get();
 
     if buffers.buffers.is_empty() {
         buffers.tab_scroll = 0;
@@ -248,16 +254,17 @@ pub fn update_bufferline_scroll(state: Arc<State>) {
     }
 }
 
-pub fn update_buffer(state: Arc<State>) {
-    let window = state.window.read().unwrap();
-    let buffers = state.buffers.read().unwrap();
+pub async fn update_buffer(window: Res<Window>, buffers: Res<Buffers>, theme: Res<Theme>) {
+    let window = window.get();
+    let buffers = buffers.get();
+    let theme = theme.get();
 
     let viewport_height = window.size().y.saturating_sub(3);
     let viewport_width = window.size().x.saturating_sub(7);
     let buffer = buffers.cur_buffer();
     let mut buffer = buffer.write().unwrap();
 
-    buffer.update(&state.theme.read().unwrap());
+    buffer.update(&theme);
 
     // Calculate current row and column based on the cursor byte index
     let current_row = buffer

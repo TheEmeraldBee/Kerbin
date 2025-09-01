@@ -1,7 +1,10 @@
 use std::{
     fs::File,
-    sync::{Arc, Mutex, RwLock, atomic::Ordering},
-    time::Duration,
+    mem::ManuallyDrop,
+    panic,
+    pin::Pin,
+    sync::Mutex,
+    time::{Duration, SystemTime},
 };
 
 use ascii_forge::{
@@ -14,16 +17,41 @@ use ascii_forge::{
 
 use kerbin_config::Config;
 use kerbin_core::*;
-use kerbin_plugin::Plugin;
 
+use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
 use tokio::sync::mpsc::unbounded_channel;
 
 use tracing::Level;
 
-pub fn render_cursor(state: Arc<State>) {
-    let mut window = state.window.write().unwrap();
-    let buffers_guard = state.buffers.read().unwrap();
-    let current_buffer_handle = buffers_guard.cur_buffer();
+pub mod hooks;
+
+macro_rules! get_mut {
+    ($($item:ident),*) => {
+        $(
+            let mut $item = $item.get();
+        )*
+    };
+
+}
+macro_rules! get {
+    ($($item:ident),*) => {
+        $(
+            let $item = $item.get();
+        )*
+    };
+}
+
+pub async fn render_cursor(
+    window: ResMut<Window>,
+    buffers: Res<Buffers>,
+    mode_stack: Res<ModeStack>,
+) {
+    get_mut! { window };
+    get! { buffers, mode_stack };
+
+    render!(window, (0, 0) => [format!("{:?}", SystemTime::now())]);
+
+    let current_buffer_handle = buffers.cur_buffer();
     let buffer = current_buffer_handle.read().unwrap();
 
     let cursor_byte = buffer.primary_cursor().get_cursor_byte();
@@ -53,7 +81,7 @@ pub fn render_cursor(state: Arc<State>) {
         return;
     }
 
-    let cursor_style = match state.get_mode() {
+    let cursor_style = match mode_stack.get_mode() {
         'i' => SetCursorStyle::SteadyBar,
         _ => SetCursorStyle::SteadyBlock,
     };
@@ -84,65 +112,72 @@ async fn main() {
     handle_panics();
     let window = Window::init().unwrap();
 
-    let my_plugin = Plugin::load("./target/release/libtest_plugin.so");
-
     let (command_sender, mut command_reciever) = unbounded_channel();
 
-    let state = Arc::new(State::new(window, command_sender));
-    state
-        .buffers
-        .write()
-        .unwrap()
-        .buffers
-        .push(Arc::new(RwLock::new(TextBuffer::scratch())));
+    let mut state = init_state(window, command_sender);
 
     let config = Config::load(None).unwrap();
-    config.apply(state.clone());
 
-    state.register_command_deserializer::<BufferCommand>();
-    state.register_command_deserializer::<CommitCommand>();
+    let plugins = config.get_plugins();
+    let mut plugins = ManuallyDrop::new(Box::pin(plugins));
 
-    state.register_command_deserializer::<CursorCommand>();
+    for plugin in plugins.iter() {
+        let _: () = plugin.call_func(b"init", &mut state);
+    }
 
-    state.register_command_deserializer::<BuffersCommand>();
+    config.apply(&mut state);
 
-    state.register_command_deserializer::<ModeCommand>();
-    state.register_command_deserializer::<StateCommand>();
+    let mut commands = state.lock_state::<CommandRegistry>().unwrap();
 
-    state.register_command_deserializer::<MotionCommand>();
+    commands.register::<BufferCommand>();
+    commands.register::<CommitCommand>();
 
-    state.register_command_deserializer::<ShellCommand>();
+    commands.register::<CursorCommand>();
 
-    my_plugin
-        .call_async_func::<_, ()>(b"init\0", state.clone())
-        .await;
+    commands.register::<BuffersCommand>();
+
+    commands.register::<ModeCommand>();
+    commands.register::<StateCommand>();
+
+    commands.register::<MotionCommand>();
+
+    commands.register::<ShellCommand>();
+
+    drop(commands);
+
+    state
+        .on_hook::<hooks::Update>()
+        .system(handle_inputs)
+        .system(handle_command_palette_input)
+        .system(update_palette_suggestions)
+        .system(update_buffer);
+
+    state
+        .on_hook::<hooks::Render>()
+        .system(render_buffers)
+        .system(render_statusline)
+        .system(render_command_palette)
+        .system(render_help_menu)
+        .system(render_cursor);
+
+    state.call_hook::<bool>().await;
 
     loop {
         tokio::select! {
             Some(cmd) = command_reciever.recv() => {
-                cmd.apply(state.clone());
+                cmd.apply(&mut state);
             }
             _ = tokio::time::sleep(Duration::from_millis(16)) => {
+                state.call_hook::<hooks::Update>().await;
+                state.call_hook::<hooks::Render>().await;
 
-                my_plugin.call_async_func::<_, ()>(b"update\0", state.clone()).await;
+                state
+                    .lock_state::<Window>()
+                    .unwrap()
+                    .update(Duration::from_millis(0))
+                    .unwrap();
 
-                handle_inputs(state.clone());
-
-                update_palette_suggestions(state.clone());
-
-                update_buffer(state.clone());
-
-                render_buffers(state.clone());
-
-                render_statusline(state.clone());
-
-                render_command_palette(state.clone());
-                render_help_menu(state.clone());
-
-                render_cursor(state.clone());
-                state.window.write().unwrap().update(Duration::ZERO).unwrap();
-
-                if !state.running.load(Ordering::Relaxed) {
+                if !state.lock_state::<Running>().unwrap().0 {
                     break
                 }
             }
@@ -150,9 +185,10 @@ async fn main() {
     }
 
     state
-        .window
-        .write()
+        .lock_state::<Window>()
         .unwrap()
         .restore()
         .expect("Window should restore fine");
+
+    unsafe { ManuallyDrop::drop(&mut plugins) };
 }

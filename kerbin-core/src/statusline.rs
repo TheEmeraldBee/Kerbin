@@ -1,7 +1,8 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use crate::*;
 use ascii_forge::prelude::*;
+use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
 use serde::Deserialize;
 
 #[derive(Deserialize, Default, Debug)]
@@ -20,23 +21,29 @@ pub struct StatuslineConfig {
     pub modes: HashMap<char, ModeConfig>,
 }
 
-pub fn render_statusline(state: Arc<State>) {
-    let plugin_config = state
-        .plugin_config
-        .read()
-        .unwrap()
+pub async fn render_statusline(
+    window: ResMut<Window>,
+    plugin_config: Res<PluginConfig>,
+    theme: Res<Theme>,
+    mode_stack: Res<ModeStack>,
+
+    buffers: Res<Buffers>,
+) {
+    let plugin_config = plugin_config
+        .get()
+        .0
         .get("statusline")
         .map(|x| StatuslineConfig::deserialize(x.clone()).unwrap())
         .unwrap_or_default();
 
-    let theme = state.theme.read().unwrap();
-    let mode_stack = state.mode_stack.read().unwrap();
+    let theme = theme.get();
+    let mode_stack = mode_stack.get();
 
-    let mut window = state.window.write().unwrap();
+    let mut window = window.get();
 
     let mut parts = vec![];
 
-    for part in mode_stack.iter() {
+    for part in &mode_stack.0 {
         if let Some(config) = plugin_config.modes.get(part) {
             parts.push((
                 config.long_name.clone().unwrap_or(part.to_string()),
@@ -82,7 +89,7 @@ pub fn render_statusline(state: Arc<State>) {
         loc = render!(window, loc => [if i != 0 {" -> "} else {""}, theme.apply(text)]);
     }
 
-    let cur_buf = state.buffers.read().unwrap().cur_buffer();
+    let cur_buf = buffers.get().cur_buffer();
     let cur_buf = cur_buf.read().unwrap();
 
     let mut loc = window.size() - vec2(1, 2);

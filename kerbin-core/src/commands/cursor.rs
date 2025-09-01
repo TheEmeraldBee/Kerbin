@@ -1,4 +1,5 @@
 use kerbin_macros::Command;
+use kerbin_state_machine::State;
 
 use crate::*;
 
@@ -42,8 +43,8 @@ fn parse_apply_all(val: &[String]) -> Result<Box<dyn Command>, String> {
 }
 
 impl Command for CursorCommand {
-    fn apply(&self, state: std::sync::Arc<State>) -> bool {
-        let cur_buf = state.buffers.read().unwrap().cur_buffer();
+    fn apply(&self, state: &mut State) -> bool {
+        let cur_buf = state.lock_state::<Buffers>().unwrap().cur_buffer();
         let mut cur_buf = cur_buf.write().unwrap();
 
         match self {
@@ -67,38 +68,35 @@ impl Command for CursorCommand {
                 true
             }
 
-            Self::ApplyAll(cmd) => {
+            Self::ApplyAll(_cmd) => {
                 let primary_cursor = cur_buf.primary_cursor;
                 let cursor_count = cur_buf.cursors.len();
 
-                let mut res = true;
                 drop(cur_buf);
                 for i in 0..cursor_count {
                     state
-                        .buffers
-                        .read()
+                        .lock_state::<Buffers>()
                         .unwrap()
                         .cur_buffer()
                         .write()
                         .unwrap()
                         .primary_cursor = i;
 
-                    match state.parse_command(cmd.clone(), true, true) {
-                        Some(t) => {
-                            t.apply(state.clone());
-                        }
-                        None => {
-                            res = false;
-                            break;
-                        }
-                    };
+                    //match state.parse_command(cmd.clone(), true, true) {
+                    //    Some(t) => {
+                    //        t.apply(state);
+                    //    }
+                    //    None => {
+                    //        res = false;
+                    //        break;
+                    //    }
+                    //};
 
                     if state
-                        .buffers
-                        .read()
+                        .lock_state::<Buffers>()
                         .unwrap()
                         .cur_buffer()
-                        .read()
+                        .write()
                         .unwrap()
                         .cursors
                         .len()
@@ -113,15 +111,14 @@ impl Command for CursorCommand {
                 }
 
                 state
-                    .buffers
-                    .read()
+                    .lock_state::<Buffers>()
                     .unwrap()
                     .cur_buffer()
                     .write()
                     .unwrap()
                     .primary_cursor = primary_cursor;
 
-                res
+                false
             }
         }
     }

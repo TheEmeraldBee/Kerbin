@@ -1,7 +1,6 @@
-use std::sync::atomic::Ordering;
-
 use crate::*;
 use kerbin_macros::Command;
+use kerbin_state_machine::State;
 
 use crate::Command;
 
@@ -13,9 +12,9 @@ pub enum StateCommand {
 }
 
 impl Command for StateCommand {
-    fn apply(&self, state: std::sync::Arc<crate::State>) -> bool {
+    fn apply(&self, state: &mut State) -> bool {
         match *self {
-            Self::Quit => state.running.store(false, Ordering::Relaxed),
+            Self::Quit => state.lock_state::<Running>().unwrap().0 = false,
         }
 
         // Always return false, as this command should never be repeated

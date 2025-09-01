@@ -1,4 +1,5 @@
 use kerbin_macros::Command;
+use kerbin_state_machine::State;
 
 use crate::*;
 
@@ -21,14 +22,12 @@ pub enum CommitCommand {
 }
 
 impl Command for CommitCommand {
-    fn apply(&self, state: std::sync::Arc<State>) -> bool {
+    fn apply(&self, state: &mut State) -> bool {
         match self {
             CommitCommand::Commit(after) => {
-                let mut res = true;
                 // Begin the change
                 state
-                    .buffers
-                    .read()
+                    .lock_state::<Buffers>()
                     .unwrap()
                     .cur_buffer()
                     .write()
@@ -36,20 +35,35 @@ impl Command for CommitCommand {
                     .start_change_group();
 
                 if let Some(after) = after {
-                    res = state.call_command(&after.join(" "));
+                    let command = state
+                        .lock_state::<CommandRegistry>()
+                        .unwrap()
+                        .parse_command(
+                            after.clone(),
+                            true,
+                            true,
+                            &state.lock_state::<CommandPrefixRegistry>().unwrap(),
+                            &state.lock_state::<ModeStack>().unwrap(),
+                        );
+                    if let Some(command) = command {
+                        state
+                            .lock_state::<CommandSender>()
+                            .unwrap()
+                            .send(command)
+                            .unwrap();
+                    }
                 }
 
                 // End the change
                 state
-                    .buffers
-                    .read()
+                    .lock_state::<Buffers>()
                     .unwrap()
                     .cur_buffer()
                     .write()
                     .unwrap()
                     .commit_change_group();
 
-                res
+                true
             }
         }
     }
@@ -105,8 +119,8 @@ pub enum BufferCommand {
 }
 
 impl Command for BufferCommand {
-    fn apply(&self, state: std::sync::Arc<crate::State>) -> bool {
-        let buffers = state.buffers.read().unwrap();
+    fn apply(&self, state: &mut State) -> bool {
+        let buffers = state.lock_state::<Buffers>().unwrap();
 
         let cur_buffer = buffers.cur_buffer();
         let mut cur_buffer = cur_buffer.write().unwrap();
@@ -187,15 +201,15 @@ pub enum BuffersCommand {
 }
 
 impl Command for BuffersCommand {
-    fn apply(&self, state: std::sync::Arc<State>) -> bool {
-        let mut buffers = state.buffers.write().unwrap();
+    fn apply(&self, state: &mut State) -> bool {
+        let mut buffers = state.lock_state::<Buffers>().unwrap();
 
         match self {
             Self::OpenFile(path) => {
                 let buffer_id = buffers.open(
                     path.clone(),
-                    &mut state.grammar.write().unwrap(),
-                    &state.theme.read().unwrap(),
+                    &mut state.lock_state::<GrammarManager>().unwrap(),
+                    &state.lock_state::<Theme>().unwrap(),
                 );
                 buffers.set_selected_buffer(buffer_id);
                 true

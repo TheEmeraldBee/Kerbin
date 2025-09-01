@@ -46,7 +46,7 @@ pub fn kerbin(
     let output = quote! {
         #[unsafe(no_mangle)]
         #attr_tokens
-        #vis #async_ extern "C" #sig {
+        #vis #async_ #sig {
             #body
         }
     };

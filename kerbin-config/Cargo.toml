@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 kerbin-core.workspace = true
+kerbin-state-machine = { path = "../kerbin-state-machine" }
 serde.workspace = true
 
 ascii-forge.workspace = true

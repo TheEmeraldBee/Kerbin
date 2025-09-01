@@ -1,4 +1,5 @@
 use kerbin_macros::Command;
+use kerbin_state_machine::State;
 
 use crate::*;
 
@@ -15,8 +16,8 @@ pub enum PaletteCommand {
 }
 
 impl Command for PaletteCommand {
-    fn apply(&self, state: std::sync::Arc<State>) -> bool {
-        let mut palette = state.palette.write().unwrap();
+    fn apply(&self, state: &mut State) -> bool {
+        let mut palette = state.lock_state::<CommandPaletteState>().unwrap();
 
         match self {
             Self::PushPalette(content) => {
@@ -32,7 +33,24 @@ impl Command for PaletteCommand {
             Self::ExecutePalette => {
                 let content = palette.input.clone();
                 drop(palette);
-                state.call_command(&content)
+                let command = state
+                    .lock_state::<CommandRegistry>()
+                    .unwrap()
+                    .parse_command(
+                        CommandRegistry::split_command(&content),
+                        true,
+                        true,
+                        &state.lock_state::<CommandPrefixRegistry>().unwrap(),
+                        &state.lock_state::<ModeStack>().unwrap(),
+                    );
+                if let Some(command) = command {
+                    state
+                        .lock_state::<CommandSender>()
+                        .unwrap()
+                        .send(command)
+                        .unwrap();
+                }
+                false
             }
         }
     }

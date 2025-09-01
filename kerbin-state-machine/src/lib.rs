@@ -1,7 +1,7 @@
 use std::{
     any::{Any, TypeId},
     collections::{HashMap, HashSet},
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock, RwLockWriteGuard},
 };
 
 use crate::{
@@ -14,7 +14,7 @@ pub mod system;
 
 #[derive(Default)]
 pub struct State {
-    storage: StateStorage,
+    pub storage: StateStorage,
     hooks: HashMap<TypeId, Vec<Box<dyn System>>>,
 }
 
@@ -30,11 +30,29 @@ impl State {
         self
     }
 
+    pub fn lock_state<'a, T: Any + Send + Sync + 'static>(
+        &'a self,
+    ) -> Option<RwLockWriteGuard<'a, T>> {
+        Some(
+            self.storage
+                .states
+                .get(&TypeId::of::<T>())?
+                .as_any()
+                .downcast_ref::<Arc<RwLock<T>>>()?
+                .write()
+                .unwrap(),
+        )
+    }
+
     pub fn on_hook<H: 'static>(&mut self) -> HookBuilder<'_> {
         HookBuilder {
             type_id: TypeId::of::<H>(),
             state: self,
         }
+    }
+
+    pub async fn call<I, D>(&self, sys: impl IntoSystem<I, D>) {
+        sys.into_system().call(&self.storage).await
     }
 
     pub async fn call_hook<H: 'static>(&self) {
