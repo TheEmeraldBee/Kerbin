@@ -1,11 +1,4 @@
-use std::{
-    fs::File,
-    mem::ManuallyDrop,
-    panic,
-    pin::Pin,
-    sync::Mutex,
-    time::{Duration, SystemTime},
-};
+use std::{fs::File, panic, sync::Mutex, time::Duration};
 
 use ascii_forge::{
     prelude::*,
@@ -23,33 +16,31 @@ use tokio::sync::mpsc::unbounded_channel;
 
 use tracing::Level;
 
-pub mod hooks;
-
-macro_rules! get_mut {
-    ($($item:ident),*) => {
-        $(
-            let mut $item = $item.get();
-        )*
-    };
-
-}
+#[macro_export]
 macro_rules! get {
-    ($($item:ident),*) => {
-        $(
-            let $item = $item.get();
-        )*
+    (@inner $name:ident $(, $($t:tt)+)?) => {
+        let $name = $name.get();
+        get!(@inner $($($t)+)?)
+    };
+    (@inner mut $name:ident $(, $($t:tt)+)?) => {
+        let mut $name = $name.get();
+        get!(@inner $($($t)*)?)
+    };
+    (@inner $($t:tt)+) => {
+        compile_error!("Expected comma-separated list of (mut item) or (item), but got an error while parsing. Make sure you don't have a trailing `,`");
+    };
+    (@inner) => {};
+    ($($t:tt)*) => {
+        get!(@inner $($t)*)
     };
 }
 
 pub async fn render_cursor(
-    window: ResMut<Window>,
+    window: ResMut<WindowState>,
     buffers: Res<Buffers>,
     mode_stack: Res<ModeStack>,
 ) {
-    get_mut! { window };
-    get! { buffers, mode_stack };
-
-    render!(window, (0, 0) => [format!("{:?}", SystemTime::now())]);
+    get!(mut window, buffers, mode_stack);
 
     let current_buffer_handle = buffers.cur_buffer();
     let buffer = current_buffer_handle.read().unwrap();
@@ -119,13 +110,12 @@ async fn main() {
     let config = Config::load(None).unwrap();
 
     let plugins = config.get_plugins();
-    let mut plugins = ManuallyDrop::new(Box::pin(plugins));
-
-    for plugin in plugins.iter() {
-        let _: () = plugin.call_func(b"init", &mut state);
-    }
 
     config.apply(&mut state);
+
+    for plugin in &plugins {
+        let _: () = plugin.call_func(b"init", &mut state);
+    }
 
     let mut commands = state.lock_state::<CommandRegistry>().unwrap();
 
@@ -146,21 +136,21 @@ async fn main() {
     drop(commands);
 
     state
-        .on_hook::<hooks::Update>()
+        .on_hook(Update)
         .system(handle_inputs)
         .system(handle_command_palette_input)
         .system(update_palette_suggestions)
         .system(update_buffer);
 
     state
-        .on_hook::<hooks::Render>()
+        .on_hook(Render)
         .system(render_buffers)
         .system(render_statusline)
         .system(render_command_palette)
         .system(render_help_menu)
         .system(render_cursor);
 
-    state.call_hook::<bool>().await;
+    state.call_hook(PostInit).await;
 
     loop {
         tokio::select! {
@@ -168,11 +158,11 @@ async fn main() {
                 cmd.apply(&mut state);
             }
             _ = tokio::time::sleep(Duration::from_millis(16)) => {
-                state.call_hook::<hooks::Update>().await;
-                state.call_hook::<hooks::Render>().await;
+                state.call_hook(Update).await;
+                state.call_hook(Render).await;
 
                 state
-                    .lock_state::<Window>()
+                    .lock_state::<WindowState>()
                     .unwrap()
                     .update(Duration::from_millis(0))
                     .unwrap();
@@ -184,11 +174,14 @@ async fn main() {
         };
     }
 
+    // Plugins must survive until program exit
+    for plugin in plugins.into_iter() {
+        std::mem::forget(plugin);
+    }
+
     state
-        .lock_state::<Window>()
+        .lock_state::<WindowState>()
         .unwrap()
         .restore()
         .expect("Window should restore fine");
-
-    unsafe { ManuallyDrop::drop(&mut plugins) };
 }

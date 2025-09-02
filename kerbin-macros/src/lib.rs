@@ -4,7 +4,29 @@ use darling::{
 };
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{Ident, ItemFn, Path, Type, parse_macro_input};
+use syn::{DeriveInput, Ident, ItemFn, Path, Type, parse_macro_input};
+
+#[proc_macro_derive(State)]
+pub fn derive_state(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = &input.ident;
+
+    let expanded = quote! {
+        impl StaticState for #name {
+            fn static_name() -> String {
+                format!("{}::{}", module_path!(), stringify!(#name))
+            }
+        }
+
+        impl StateName for #name {
+            fn name(&self) -> String {
+                <Self as StaticState>::static_name()
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
 
 #[derive(Debug, FromMeta, Default)]
 #[darling(derive_syn_parse, default)]

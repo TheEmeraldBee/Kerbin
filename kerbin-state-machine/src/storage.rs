@@ -1,18 +1,40 @@
-use std::any::{Any, TypeId};
+use std::any::Any;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 #[derive(Default)]
 pub struct StateStorage {
-    pub states: HashMap<TypeId, Box<dyn AnyResourceRwLock>>,
+    pub states: HashMap<String, Box<dyn StateName>>,
 }
 
-pub trait AnyResourceRwLock: Send + Sync + 'static {
-    fn as_any(&self) -> &dyn Any;
+pub trait StateName: Any + Send + Sync + 'static {
+    /// Returns the concatenated (crate_name::module::Type) type_name
+    /// This is consistent across the ffi boundary
+    fn name(&self) -> String;
 }
 
-impl<T: Send + Sync + 'static> AnyResourceRwLock for Arc<RwLock<T>> {
-    fn as_any(&self) -> &dyn Any {
-        self
+impl<S: StateName + StaticState> StateName for Arc<RwLock<S>> {
+    fn name(&self) -> String {
+        S::static_name()
+    }
+}
+
+impl<S: StateName + StaticState> StaticState for Arc<RwLock<S>> {
+    fn static_name() -> String {
+        S::static_name()
+    }
+}
+
+pub trait StaticState {
+    fn static_name() -> String;
+}
+
+impl dyn StateName {
+    pub fn downcast<S: StateName + StaticState>(&self) -> Option<&Arc<RwLock<S>>> {
+        if S::static_name() == self.name() {
+            Some(unsafe { &*(self as *const dyn StateName as *const Arc<RwLock<S>>) })
+        } else {
+            None
+        }
     }
 }

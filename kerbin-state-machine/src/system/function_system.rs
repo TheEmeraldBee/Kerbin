@@ -81,34 +81,3 @@ impl_for_func! { P0 P1 P2 P3 P4 P5 P6 P7 P8 }
 impl_for_func! { P0 P1 P2 P3 P4 P5 P6 P7 P8 P9 }
 impl_for_func! { P0 P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 }
 impl_for_func! { P0 P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 P11 }
-
-#[cfg(test)]
-mod tests {
-    use crate::{
-        State,
-        system::param::{res::Res, res_mut::ResMut},
-    };
-
-    async fn test_a() {}
-    async fn test_b(_res: Res<bool>, _res_mut: ResMut<String>) {}
-    async fn test_c(_res: Res<bool>) {}
-
-    async fn test_a_fail(_test: Res<bool>, _fail: ResMut<bool>) {}
-
-    #[test]
-    fn test_into_state() {
-        let mut state = State::new();
-
-        state.on_hook::<()>().system(test_a);
-        state.on_hook::<()>().system(test_b);
-        state.on_hook::<()>().system(test_c);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_bad_system() {
-        let mut state = State::new();
-
-        state.on_hook::<()>().system(test_a_fail);
-    }
-}

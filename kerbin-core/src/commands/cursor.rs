@@ -68,7 +68,7 @@ impl Command for CursorCommand {
                 true
             }
 
-            Self::ApplyAll(_cmd) => {
+            Self::ApplyAll(cmd) => {
                 let primary_cursor = cur_buf.primary_cursor;
                 let cursor_count = cur_buf.cursors.len();
 
@@ -82,15 +82,23 @@ impl Command for CursorCommand {
                         .unwrap()
                         .primary_cursor = i;
 
-                    //match state.parse_command(cmd.clone(), true, true) {
-                    //    Some(t) => {
-                    //        t.apply(state);
-                    //    }
-                    //    None => {
-                    //        res = false;
-                    //        break;
-                    //    }
-                    //};
+                    let command = state
+                        .lock_state::<CommandRegistry>()
+                        .unwrap()
+                        .parse_command(
+                            cmd.clone(),
+                            true,
+                            true,
+                            &state.lock_state::<CommandPrefixRegistry>().unwrap(),
+                            &state.lock_state::<ModeStack>().unwrap(),
+                        );
+                    if let Some(command) = command {
+                        state
+                            .lock_state::<CommandSender>()
+                            .unwrap()
+                            .send(command)
+                            .unwrap();
+                    }
 
                     if state
                         .lock_state::<Buffers>()

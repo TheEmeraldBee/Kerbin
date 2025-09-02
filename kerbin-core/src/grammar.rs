@@ -1,8 +1,11 @@
+use kerbin_macros::State;
+use kerbin_state_machine::storage::*;
 use libloading::{Library, Symbol};
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tree_sitter::{Language, Query};
 
 /// Manages loading and caching Tree-sitter grammars from shared libraries.
+#[derive(State)]
 pub struct GrammarManager {
     /// Base path where grammars are stored, e.g., `runtime/grammars`
     base_path: PathBuf,

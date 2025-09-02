@@ -1,11 +1,14 @@
 use std::{
     collections::HashMap,
+    ops::{Deref, DerefMut},
     sync::{Arc, RwLock},
 };
 
 use ascii_forge::prelude::*;
+use kerbin_macros::State;
 use kerbin_plugin::Plugin;
 use kerbin_state_machine::State;
+use kerbin_state_machine::storage::*;
 use tokio::sync::mpsc::UnboundedSender;
 use toml::Value;
 
@@ -14,10 +17,13 @@ use crate::{
     InputState, TextBuffer, Theme, buffer::Buffers, rank,
 };
 
+#[derive(State)]
 pub struct Running(pub bool);
 
+#[derive(State)]
 pub struct Plugins(pub Vec<Plugin>);
 
+#[derive(State)]
 pub struct CommandRegistry(Vec<RegisteredCommandSet>);
 impl CommandRegistry {
     pub fn register<T: AsCommandInfo + 'static>(&mut self) {
@@ -166,6 +172,7 @@ impl CommandRegistry {
     }
 }
 
+#[derive(State)]
 pub struct CommandPrefixRegistry(pub Vec<CommandPrefix>);
 impl CommandPrefixRegistry {
     pub fn register(&mut self, prefix: CommandPrefix) {
@@ -173,9 +180,43 @@ impl CommandPrefixRegistry {
     }
 }
 
+#[derive(State)]
 pub struct ModeStack(pub Vec<char>);
 
+#[derive(State)]
 pub struct PluginConfig(pub HashMap<String, Value>);
+
+#[derive(State)]
+pub struct CommandSender(UnboundedSender<Box<dyn Command>>);
+
+impl Deref for CommandSender {
+    type Target = UnboundedSender<Box<dyn Command>>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for CommandSender {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+#[derive(State)]
+pub struct WindowState(Window);
+
+impl Deref for WindowState {
+    type Target = Window;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for WindowState {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 type CommandFn = Box<dyn Fn(&[String]) -> Option<Result<Box<dyn Command>, String>> + Send + Sync>;
 
@@ -184,7 +225,7 @@ pub struct RegisteredCommandSet {
     pub infos: Vec<CommandInfo>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, State)]
 pub struct CommandPrefix {
     pub modes: Vec<char>,
     pub prefix_cmd: String,
@@ -227,16 +268,14 @@ impl ModeStack {
     }
 }
 
-pub type CommandSender = UnboundedSender<Box<dyn Command>>;
-
 pub fn init_state(window: Window, cmd_sender: UnboundedSender<Box<dyn Command>>) -> State {
     let mut state = State::default();
 
     state
         .state(Running(true))
-        .state(window)
+        .state(WindowState(window))
         .state(Plugins(vec![]))
-        .state(cmd_sender)
+        .state(CommandSender(cmd_sender))
         .state({
             let mut buffers = Buffers::default();
             buffers

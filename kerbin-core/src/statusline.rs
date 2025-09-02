@@ -22,7 +22,7 @@ pub struct StatuslineConfig {
 }
 
 pub async fn render_statusline(
-    window: ResMut<Window>,
+    window: ResMut<WindowState>,
     plugin_config: Res<PluginConfig>,
     theme: Res<Theme>,
     mode_stack: Res<ModeStack>,

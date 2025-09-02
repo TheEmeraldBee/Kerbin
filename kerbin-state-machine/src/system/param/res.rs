@@ -3,19 +3,21 @@ use std::any::type_name;
 use std::any::TypeId;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
+use crate::storage::StateName;
 use crate::storage::StateStorage;
+use crate::storage::StaticState;
 use crate::system::param::SystemParamDesc;
 
 use super::SystemParam;
 
-pub struct Res<T: Send + Sync + 'static> {
+pub struct Res<T: StateName + StaticState + 'static> {
     value: Arc<RwLock<T>>,
 }
 
-impl<T: Send + Sync + 'static> SystemParam for Res<T> {
+impl<T: StateName + StaticState> SystemParam for Res<T> {
     type Item<'new> = Res<T>;
     fn retrieve(resources: &StateStorage) -> Self::Item<'_> {
-        let arc_rwlock_any = resources.states.get(&TypeId::of::<T>()).unwrap_or_else(|| {
+        let arc_rwlock_any = resources.states.get(&T::static_name()).unwrap_or_else(|| {
             panic!(
                 "Resource: `{}` with id `{:?}` Not Found",
                 type_name::<T>(),
@@ -24,8 +26,7 @@ impl<T: Send + Sync + 'static> SystemParam for Res<T> {
         });
 
         let arc_rwlock_t = arc_rwlock_any
-            .as_any()
-            .downcast_ref::<Arc<RwLock<T>>>()
+            .downcast::<T>()
             .unwrap_or_else(|| {
                 panic!(
                     "Failed to downcast stored RwLock to RwLock<{}>",

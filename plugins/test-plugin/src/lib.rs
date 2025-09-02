@@ -1,6 +1,6 @@
 #![allow(improper_ctypes_definitions)]
 
-use kerbin_core::{GrammarManager, ResMut, State, SystemParam};
+use kerbin_core::{GrammarManager, PostInit, ResMut, State, SystemParam};
 
 #[unsafe(no_mangle)]
 pub async fn hi(grammars: ResMut<GrammarManager>) {
@@ -11,5 +11,5 @@ pub async fn hi(grammars: ResMut<GrammarManager>) {
 
 #[unsafe(no_mangle)]
 pub fn init(state: &mut State) {
-    state.on_hook::<bool>().system(hi);
+    state.on_hook(PostInit).system(hi);
 }

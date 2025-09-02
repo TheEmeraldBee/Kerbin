@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
 use ascii_forge::window::ContentStyle;
+use kerbin_macros::State;
+use kerbin_state_machine::storage::*;
 
-#[derive(Default)]
+#[derive(Default, State)]
 pub struct Theme {
     map: HashMap<String, ContentStyle>,
 }

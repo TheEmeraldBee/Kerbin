@@ -1,21 +1,44 @@
 use std::{
-    any::{Any, TypeId},
+    any::TypeId,
     collections::{HashMap, HashSet},
     sync::{Arc, RwLock, RwLockWriteGuard},
 };
 
 use crate::{
-    storage::StateStorage,
+    storage::{StateName, StateStorage, StaticState},
     system::{System, into_system::IntoSystem},
 };
 
 pub mod storage;
 pub mod system;
 
+pub trait Hook {
+    fn parts(&self) -> Vec<String>;
+}
+
+#[macro_export]
+macro_rules! get {
+    (@inner $name:ident $(, $($t:tt)+)?) => {
+        let $name = $name.get();
+        get!(@inner $($($t)+)?)
+    };
+    (@inner mut $name:ident $(, $($t:tt)+)?) => {
+        let mut $name = $name.get();
+        get!(@inner $($($t)*)?)
+    };
+    (@inner $($t:tt)+) => {
+        compile_error!("Expected comma-separated list of (mut item) or (item), but got an error while parsing. Make sure you don't have a trailing `,`");
+    };
+    (@inner) => {};
+    ($($t:tt)*) => {
+        get!(@inner $($t)*)
+    };
+}
+
 #[derive(Default)]
 pub struct State {
     pub storage: StateStorage,
-    hooks: HashMap<TypeId, Vec<Box<dyn System>>>,
+    hooks: HashMap<String, Vec<Box<dyn System>>>,
 }
 
 impl State {
@@ -23,40 +46,34 @@ impl State {
         Self::default()
     }
 
-    pub fn state<T: Any + Send + Sync + 'static>(&mut self, state: T) -> &mut Self {
+    pub fn state<T: StateName + StaticState + 'static>(&mut self, state: T) -> &mut Self {
         self.storage
             .states
-            .insert(state.type_id(), Box::new(Arc::new(RwLock::new(state))));
+            .insert(T::static_name(), Box::new(Arc::new(RwLock::new(state))));
         self
     }
 
-    pub fn lock_state<'a, T: Any + Send + Sync + 'static>(
-        &'a self,
-    ) -> Option<RwLockWriteGuard<'a, T>> {
+    pub fn lock_state<'a, S: StateName + StaticState>(&'a self) -> Option<RwLockWriteGuard<'a, S>> {
         Some(
             self.storage
                 .states
-                .get(&TypeId::of::<T>())?
-                .as_any()
-                .downcast_ref::<Arc<RwLock<T>>>()?
+                .get(&S::static_name())?
+                .downcast::<S>()?
                 .write()
                 .unwrap(),
         )
     }
 
-    pub fn on_hook<H: 'static>(&mut self) -> HookBuilder<'_> {
-        HookBuilder {
-            type_id: TypeId::of::<H>(),
-            state: self,
-        }
+    pub fn on_hook<H: Hook>(&mut self, hook: H) -> HookBuilder<'_, H> {
+        HookBuilder { hook, state: self }
     }
 
     pub async fn call<I, D>(&self, sys: impl IntoSystem<I, D>) {
         sys.into_system().call(&self.storage).await
     }
 
-    pub async fn call_hook<H: 'static>(&self) {
-        let Some(hooks) = self.hooks.get(&TypeId::of::<H>()) else {
+    pub async fn call_hook(&self, hook: impl Hook) {
+        let Some(hooks) = self.hooks.get(&hook.parts().join(".")) else {
             return;
         };
 
@@ -74,12 +91,12 @@ impl State {
     }
 }
 
-pub struct HookBuilder<'a> {
-    type_id: TypeId,
+pub struct HookBuilder<'a, H: Hook> {
+    hook: H,
     state: &'a mut State,
 }
 
-impl<'a> HookBuilder<'a> {
+impl<'a, H: Hook> HookBuilder<'a, H> {
     pub fn system<I, D, S: System + 'static>(
         &mut self,
         sys: impl IntoSystem<I, D, System = S>,
@@ -88,7 +105,7 @@ impl<'a> HookBuilder<'a> {
         guarentee_params(&system);
         self.state
             .hooks
-            .entry(self.type_id)
+            .entry(self.hook.parts().join("."))
             .or_default()
             .push(Box::new(system));
         self

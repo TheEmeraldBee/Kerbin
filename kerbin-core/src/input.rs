@@ -1,9 +1,11 @@
 use std::collections::VecDeque;
 
 use ascii_forge::{prelude::*, widgets::border::Border};
+use kerbin_macros::State;
+use kerbin_state_machine::storage::*;
 use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
 
-use crate::{CommandPrefixRegistry, CommandRegistry, CommandSender, ModeStack};
+use crate::{CommandPrefixRegistry, CommandRegistry, CommandSender, ModeStack, WindowState};
 
 pub enum InputResult {
     Failed,
@@ -91,7 +93,7 @@ impl Input {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, State)]
 pub struct InputConfig {
     inputs: VecDeque<Input>,
 }
@@ -102,14 +104,14 @@ impl InputConfig {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, State)]
 pub struct InputState {
     pub(crate) repeat_count: String,
     pub(crate) active_inputs: Vec<(usize, usize)>,
 }
 
 pub async fn render_help_menu(
-    window: ResMut<Window>,
+    window: ResMut<WindowState>,
     input: Res<InputState>,
     input_config: Res<InputConfig>,
 ) {
@@ -133,7 +135,7 @@ pub async fn render_help_menu(
 }
 
 pub async fn handle_inputs(
-    window: Res<Window>,
+    window: Res<WindowState>,
     input: ResMut<InputState>,
     input_config: Res<InputConfig>,
     modes: Res<ModeStack>,

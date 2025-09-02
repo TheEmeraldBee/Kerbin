@@ -1,13 +1,15 @@
 use std::sync::{Arc, RwLock};
 
-use crate::{GrammarManager, ModeStack, Theme, get_canonical_path_with_non_existent};
+use crate::{GrammarManager, ModeStack, Theme, WindowState, get_canonical_path_with_non_existent};
 
 use super::TextBuffer;
 use ascii_forge::prelude::*;
+use kerbin_macros::State;
+use kerbin_state_machine::storage::*;
 use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
 use ropey::LineType;
 
-#[derive(Default)]
+#[derive(Default, State)]
 pub struct Buffers {
     pub selected_buffer: usize,
     pub tab_scroll: usize,
@@ -192,7 +194,7 @@ fn get_unique_paths(paths: impl Iterator<Item = String>, len: usize) -> Vec<Stri
 }
 
 pub async fn render_buffers(
-    window: ResMut<Window>,
+    window: ResMut<WindowState>,
     buffers: ResMut<Buffers>,
     theme: Res<Theme>,
     modes: Res<ModeStack>,
@@ -208,7 +210,7 @@ pub async fn render_buffers(
     buffers.render(vec2(0, 0), window.buffer_mut(), &theme, modes.0.clone());
 }
 
-pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<Window>) {
+pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<WindowState>) {
     let mut buffers = buffers.get();
     let window = window.get();
 
@@ -254,7 +256,7 @@ pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<Wind
     }
 }
 
-pub async fn update_buffer(window: Res<Window>, buffers: Res<Buffers>, theme: Res<Theme>) {
+pub async fn update_buffer(window: Res<WindowState>, buffers: Res<Buffers>, theme: Res<Theme>) {
     let window = window.get();
     let buffers = buffers.get();
     let theme = theme.get();

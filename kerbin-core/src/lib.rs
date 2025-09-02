@@ -34,3 +34,6 @@ pub use palette::*;
 
 pub mod statusline;
 pub use statusline::*;
+
+pub mod hooks;
+pub use hooks::*;

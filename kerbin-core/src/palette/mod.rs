@@ -1,12 +1,14 @@
 use ascii_forge::prelude::*;
+use kerbin_macros::State;
+use kerbin_state_machine::storage::*;
 use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
 
-use crate::{CommandPrefixRegistry, CommandRegistry, CommandSender, ModeStack, Theme};
+use crate::{CommandPrefixRegistry, CommandRegistry, CommandSender, ModeStack, Theme, WindowState};
 
 pub mod ranking;
 pub use ranking::*;
 
-#[derive(Default)]
+#[derive(Default, State)]
 pub struct CommandPaletteState {
     pub old_input: String,
     pub input: String,
@@ -48,7 +50,7 @@ pub async fn update_palette_suggestions(
 }
 
 pub async fn handle_command_palette_input(
-    window: Res<Window>,
+    window: Res<WindowState>,
     palette: ResMut<CommandPaletteState>,
     modes: ResMut<ModeStack>,
 
@@ -105,7 +107,7 @@ pub async fn handle_command_palette_input(
 }
 
 pub async fn render_command_palette(
-    window: ResMut<Window>,
+    window: ResMut<WindowState>,
     palette: Res<CommandPaletteState>,
     modes: Res<ModeStack>,
 
