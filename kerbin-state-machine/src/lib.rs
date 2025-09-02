@@ -215,11 +215,15 @@ fn guarentee_params<S: System>(system: &S) {
     let mut param_set = HashSet::new();
     for param in &params {
         if param.reserved && param_count > 1 {
+            tracing::info!("Hek");
+
             panic!(
                 "System has too many arguments to have a reserved argument, please only take one reserved arg in any given function"
             )
         }
         if !param_set.insert(param.type_id) {
+            tracing::info!("Hek");
+
             panic!(
                 "The same type was requested by the system more than once, please ensure you're only requesting the type once."
             )
