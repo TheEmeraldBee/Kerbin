@@ -144,11 +144,14 @@ async fn main() {
 
     state
         .on_hook(Render)
-        .system(render_buffers)
         .system(render_statusline)
         .system(render_command_palette)
         .system(render_help_menu)
         .system(render_cursor);
+
+    state
+        .on_hook(RenderFiletype::new("rs | toml"))
+        .system(render_buffers);
 
     state.hook(PostInit).call().await;
 
@@ -158,8 +161,17 @@ async fn main() {
                 cmd.apply(&mut state);
             }
             _ = tokio::time::sleep(Duration::from_millis(16)) => {
+                // Update all states
                 state.hook(Update).call().await;
-                state.hook(Render).call().await;
+
+                // Call the file renderer
+                state.hook(RenderFiletype::new("py")).call().await;
+
+                // Render the rest of the state
+                state
+                    .hook(Render)
+                    .call()
+                    .await;
 
                 state
                     .lock_state::<WindowState>()

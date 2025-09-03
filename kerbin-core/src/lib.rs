@@ -37,3 +37,6 @@ pub use statusline::*;
 
 pub mod hooks;
 pub use hooks::*;
+
+pub mod layout;
+pub use layout::*;

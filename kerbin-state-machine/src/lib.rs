@@ -16,12 +16,11 @@ pub trait Hook {
     fn info(&self) -> HookInfo;
 }
 
-/// A Hook Path Component allows for having wildcards that will match anything.
 #[derive(Debug, Clone, PartialEq)]
 pub enum HookPathComponent {
     Wildcard,
-    /// Anything without a :: in it (Ie, rs, gieoajigpea, but not a::b)
     Path(String),
+    OneOf(Vec<String>),
 }
 
 impl HookPathComponent {
@@ -29,12 +28,12 @@ impl HookPathComponent {
         let mut res = vec![];
         let parts = input.split("::");
 
-        for (i, part) in parts.enumerate() {
+        for part in parts {
             res.push(if part == "*" {
-                if i == 0 {
-                    panic!("Invalid path match, wildcards cannot match on the root path");
-                }
                 HookPathComponent::Wildcard
+            } else if part.contains("|") {
+                let options: Vec<String> = part.split("|").map(|s| s.trim().to_string()).collect();
+                HookPathComponent::OneOf(options)
             } else {
                 HookPathComponent::Path(part.to_string())
             });
@@ -47,8 +46,10 @@ impl HookPathComponent {
         let mut rank = 0;
 
         for component in input {
-            if *component == HookPathComponent::Wildcard {
-                rank -= 1;
+            match component {
+                HookPathComponent::Wildcard => rank -= 2,
+                HookPathComponent::OneOf(_) => rank -= 1,
+                HookPathComponent::Path(_) => {}
             }
         }
 
@@ -56,8 +57,6 @@ impl HookPathComponent {
     }
 }
 
-/// Hook Info shows the info for the hooks, how they should be used, and ensure they're run on
-/// certain hooks over others.
 pub struct HookInfo {
     pub path: Vec<HookPathComponent>,
     pub rank: i8,
@@ -79,6 +78,9 @@ impl HookInfo {
             matches = match (component, path) {
                 (HookPathComponent::Wildcard, _) => true,
                 (HookPathComponent::Path(s), HookPathComponent::Path(p)) => p == s,
+                (HookPathComponent::OneOf(options), HookPathComponent::Path(p)) => {
+                    options.contains(p)
+                }
                 (_, _) => true,
             };
 
@@ -178,6 +180,7 @@ impl<'a> HookCallBuilder<'a> {
                     if let Some((rank, _)) = most_valid_hooks.as_ref() {
                         old_rank = *rank;
                     }
+
                     if old_rank < new_rank {
                         most_valid_hooks = Some((new_rank, hooks))
                     }

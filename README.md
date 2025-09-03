@@ -38,5 +38,6 @@ This checklist is for when I feel the project will be ready for use in my own en
 - [x] Selection Support
 - [x] Multicursor Support
 - [x] TreeSitter Rendering (Currently In the Core, not a plugin (which i want it to be), requires Hooks to be done)
+- [ ] Full Adjustment to using Layouts, then allowing passage of specific chunks for rendering. (Chunk system parameters)
 - [x] Plugin Hooks (Replacing rendering systems, Adjusting how things render/work, adding new render calls to the statusline, etc)
 - [ ] Lsp Support
