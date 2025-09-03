@@ -5,7 +5,10 @@ use kerbin_macros::State;
 use kerbin_state_machine::storage::*;
 use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
 
-use crate::{CommandPrefixRegistry, CommandRegistry, CommandSender, ModeStack, WindowState};
+use crate::{
+    Chunk, Chunks, CommandPrefixRegistry, CommandRegistry, CommandSender, HelpChunk, Layout,
+    ModeStack, WindowState, fixed, flexible, percent,
+};
 
 pub enum InputResult {
     Failed,
@@ -15,7 +18,6 @@ pub enum InputResult {
 
 pub enum InputEvent {
     Commands(Vec<String>),
-    //Func(Box<dyn Fn(Arc<State>, usize) -> bool + Send + Sync>),
 }
 
 pub struct Input {
@@ -36,23 +38,6 @@ pub fn check_key_code(a: KeyCode, b: KeyCode) -> bool {
 }
 
 impl Input {
-    //pub fn new(
-    //    modes: impl IntoIterator<Item = char>,
-    //invalid_modes: impl IntoIterator<Item = char>,
-    //sequence: impl IntoIterator<Item = (KeyModifiers, KeyCode)>,
-    //event: Box<dyn Fn(Arc<State>, usize) -> bool + Send + Sync>,
-    //
-    //desc: String,
-    //) -> Self {
-    //    Self {
-    //        valid_modes: modes.into_iter().collect(),
-    //        invalid_modes: invalid_modes.into_iter().collect(),
-    //        key_sequence: sequence.into_iter().collect(),
-    //        event: InputEvent::Func(event),
-    //
-    //        desc,
-    //    }
-    //}
     pub fn step(&self, window: &Window, mode: char, step: usize) -> InputResult {
         if (!self.valid_modes.is_empty() && !self.valid_modes.contains(&mode))
             || self.invalid_modes.contains(&mode)
@@ -110,28 +95,58 @@ pub struct InputState {
     pub(crate) active_inputs: Vec<(usize, usize)>,
 }
 
-pub async fn render_help_menu(
-    window: ResMut<WindowState>,
+pub async fn register_help_menu_chunk(
+    window: Res<WindowState>,
+    chunks: ResMut<Chunks>,
     input: Res<InputState>,
-    input_config: Res<InputConfig>,
 ) {
-    let mut window = window.get();
     let input = input.get();
-    let input_config = input_config.get();
-
     if input.active_inputs.is_empty() {
         return;
     }
 
-    let border = Border::square(40, 12);
+    let mut chunks = chunks.get();
+    let window = window.get();
 
-    for i in 0..input.active_inputs.len().min(10) {
-        let active = input.active_inputs[i];
-        let binding = &input_config.inputs[active.0];
-        render!(window, window.size() - vec2(39, 14 - i as u16) => [ binding.sequence_str(active.1), " - ", binding.desc ]);
+    // Place a layout in the bottom right corner
+    let rect = Layout::new(window.size())
+        .row(flexible(), vec![flexible()])
+        .row(
+            // Ensure space for all active inputs (+2 for border)
+            fixed(input.active_inputs.len() as u16 + 2),
+            vec![flexible(), percent(20.0), fixed(1)],
+        )
+        .row(fixed(1), vec![])
+        .calculate()
+        .unwrap()[1][1];
+
+    // This must render above the buffer, or the 0 z-index
+    chunks.register_chunk::<HelpChunk>(1, rect);
+}
+
+pub async fn render_help_menu(
+    chunk: Chunk<HelpChunk>,
+    input: Res<InputState>,
+    input_config: Res<InputConfig>,
+) {
+    let input = input.get();
+    if input.active_inputs.is_empty() {
+        return;
     }
 
-    render!(window, window.size() - vec2(40, 15) => [border]);
+    let mut chunk = &mut chunk.get().unwrap();
+    let input_config = input_config.get();
+
+    let border = Border::square(chunk.size().x, chunk.size().y);
+
+    // Render up to the chunk's height (-2 on size for border)
+    for i in 0..input.active_inputs.len().min(chunk.size().y as usize - 2) {
+        let active = input.active_inputs[i];
+        let binding = &input_config.inputs[active.0];
+        render!(&mut chunk, vec2(1, 1 + i as u16) => [ binding.sequence_str(active.1), " - ", binding.desc ]);
+    }
+
+    render!(&mut chunk, (0, 0) => [border]);
 }
 
 pub async fn handle_inputs(
@@ -232,9 +247,6 @@ pub async fn handle_inputs(
                 completed_input = true;
 
                 match &input_config.inputs[*idx].event {
-                    //InputEvent::Func(f) => {
-                    //f(state.clone(), repeat_count);
-                    //}
                     InputEvent::Commands(c) => {
                         for _ in 0..repeat_count {
                             for command in c {

@@ -14,7 +14,7 @@ use toml::Value;
 
 use crate::{
     AsCommandInfo, Command, CommandInfo, CommandPaletteState, GrammarManager, InputConfig,
-    InputState, TextBuffer, Theme, buffer::Buffers, rank,
+    InputState, Rect, TextBuffer, Theme, buffer::Buffers, rank,
 };
 
 #[derive(State)]
@@ -189,6 +189,48 @@ pub struct PluginConfig(pub HashMap<String, Value>);
 #[derive(State)]
 pub struct CommandSender(UnboundedSender<Box<dyn Command>>);
 
+#[derive(State, Default)]
+pub struct Chunks {
+    pub buffers: Vec<Vec<(Vec2, Arc<RwLock<Buffer>>)>>,
+    chunk_idx_map: HashMap<String, (usize, usize)>,
+}
+
+impl Chunks {
+    pub fn clear(&mut self) {
+        self.buffers.clear();
+        self.chunk_idx_map.clear();
+    }
+
+    pub fn register_chunk<C: StateName + StaticState>(&mut self, z_index: usize, rect: Rect) {
+        let size = (rect.width, rect.height);
+        let pos = (rect.x, rect.y);
+
+        if self.buffers.len() <= z_index {
+            self.buffers.resize(z_index + 1, Vec::default());
+        }
+
+        let coords = self
+            .chunk_idx_map
+            .entry(C::static_name())
+            .or_insert((z_index, self.buffers[z_index].len()));
+
+        if self.buffers[z_index].len() == coords.1 {
+            self.buffers[z_index].push((pos.into(), Arc::new(RwLock::new(Buffer::new(size)))));
+        } else {
+            self.buffers[z_index][coords.1] =
+                (pos.into(), Arc::new(RwLock::new(Buffer::new(size))));
+        }
+    }
+
+    pub fn get_chunk<C: StateName + StaticState>(&self) -> Option<Arc<RwLock<Buffer>>> {
+        let id = C::static_name();
+
+        let (ia, ib) = self.chunk_idx_map.get(&id)?;
+
+        Some(self.buffers[*ia][*ib].1.clone())
+    }
+}
+
 impl Deref for CommandSender {
     type Target = UnboundedSender<Box<dyn Command>>;
     fn deref(&self) -> &Self::Target {
@@ -291,6 +333,7 @@ pub fn init_state(window: Window, cmd_sender: UnboundedSender<Box<dyn Command>>)
         .state(ModeStack(vec!['n']))
         .state(CommandRegistry(vec![]))
         .state(CommandPrefixRegistry(vec![]))
+        .state(Chunks::default())
         .state(PluginConfig(HashMap::default()));
 
     state

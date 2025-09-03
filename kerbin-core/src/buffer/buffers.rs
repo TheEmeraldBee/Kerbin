@@ -1,6 +1,9 @@
 use std::sync::{Arc, RwLock};
 
-use crate::{GrammarManager, ModeStack, Theme, WindowState, get_canonical_path_with_non_existent};
+use crate::{
+    BufferChunk, BufferlineChunk, Chunk, GrammarManager, ModeStack, Theme, WindowState,
+    get_canonical_path_with_non_existent,
+};
 
 use super::TextBuffer;
 use ascii_forge::prelude::*;
@@ -74,17 +77,7 @@ impl Buffers {
         self.buffers.len() - 1
     }
 
-    pub fn render(
-        &mut self,
-        loc: Vec2,
-        buffer: &mut ascii_forge::prelude::Buffer,
-        theme: &Theme,
-        modes: Vec<char>,
-    ) -> Vec2 {
-        self.update_paths();
-
-        let mut inner_buffer = Buffer::new(buffer.size() - vec2(0, 3));
-        let initial_loc = loc;
+    pub fn render_bufferline(&self, buffer: &mut Buffer, theme: &Theme) {
         let mut current_char_offset = 0;
 
         for (i, short_path) in self.buffer_paths.iter().enumerate() {
@@ -112,21 +105,20 @@ impl Buffers {
                     title.chars().skip(slice_start).take(slice_len).collect();
 
                 let render_x = (overlap_start - self.tab_scroll) as u16;
-                render!(buffer, initial_loc + vec2(render_x, 0) => [ StyledContent::new(style, visible_part) ]);
+                render!(buffer, vec2(render_x, 0) => [ StyledContent::new(style, visible_part) ]);
             }
 
             current_char_offset += title_width;
         }
+    }
 
-        let mut content_loc = initial_loc;
-        content_loc.y += 1;
-        self.buffers[self.selected_buffer].read().unwrap().render(
-            vec2(0, 0),
-            &mut inner_buffer,
-            theme,
-            modes,
-        );
-        render!(buffer, content_loc => [ inner_buffer ])
+    pub fn render(&mut self, buffer: &mut Buffer, theme: &Theme, modes: Vec<char>) {
+        self.update_paths();
+
+        self.buffers[self.selected_buffer]
+            .read()
+            .unwrap()
+            .render(buffer, theme, modes);
     }
 
     pub fn update_paths(&mut self) {
@@ -193,21 +185,30 @@ fn get_unique_paths(paths: impl Iterator<Item = String>, len: usize) -> Vec<Stri
     truncated_paths
 }
 
+pub async fn render_bufferline(
+    chunk: Chunk<BufferlineChunk>,
+    buffers: Res<Buffers>,
+    theme: Res<Theme>,
+) {
+    let chunk = &mut chunk.get().unwrap();
+    let buffers = buffers.get();
+    let theme = theme.get();
+
+    buffers.render_bufferline(chunk, &theme);
+}
+
 pub async fn render_buffers(
-    window: ResMut<WindowState>,
+    chunk: Chunk<BufferChunk>,
     buffers: ResMut<Buffers>,
     theme: Res<Theme>,
     modes: Res<ModeStack>,
 ) {
     let theme = theme.get();
-    let mut window = window.get();
     let mut buffers = buffers.get();
     let modes = modes.get();
+    let mut chunk = &mut chunk.get().unwrap();
 
-    //let mut top_bar = Buffer::new(vec2(window.size().x, 1));
-    //top_bar.style_line(0, |_| style);
-    //render!(window.buffer_mut(), vec2(0, 0) => [top_bar]);
-    buffers.render(vec2(0, 0), window.buffer_mut(), &theme, modes.0.clone());
+    buffers.render(&mut chunk, &theme, modes.0.clone());
 }
 
 pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<WindowState>) {

@@ -1,6 +1,4 @@
-use std::any::{Any, TypeId};
-
-use crate::storage::StateStorage;
+use crate::storage::{StateName, StateStorage, StaticState};
 
 pub mod res;
 pub mod res_mut;
@@ -17,24 +15,24 @@ pub trait SystemParam {
     fn desc() -> SystemParamDesc;
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct SystemParamDesc {
-    pub type_id: TypeId,
+    pub type_name: String,
     pub reserved: bool,
     pub write: bool,
 }
 
 impl SystemParamDesc {
-    pub fn new<T: Any>(write: bool) -> Self {
+    pub fn new<T: StateName + StaticState>(write: bool) -> Self {
         Self {
-            type_id: TypeId::of::<T>(),
+            type_name: T::static_name(),
             write,
             reserved: false,
         }
     }
-    pub fn new_reserved<T: Any>() -> Self {
+    pub fn new_reserved<T: StateName + StaticState>() -> Self {
         Self {
-            type_id: TypeId::of::<T>(),
+            type_name: T::static_name(),
             write: true,
             reserved: true,
         }

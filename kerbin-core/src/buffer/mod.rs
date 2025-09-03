@@ -493,7 +493,8 @@ impl TextBuffer {
         }
     }
 
-    fn render(&self, mut loc: Vec2, buffer: &mut Buffer, theme: &Theme, modes: Vec<char>) -> Vec2 {
+    fn render(&self, buffer: &mut Buffer, theme: &Theme, modes: Vec<char>) -> Vec2 {
+        let mut loc = vec2(0, 0);
         let default_style = theme
             .get("ui.text")
             .unwrap_or_else(|| ContentStyle::new().with(Color::Rgb { r: 0, g: 0, b: 0 }));

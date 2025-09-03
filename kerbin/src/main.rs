@@ -86,6 +86,33 @@ pub async fn render_cursor(
     .unwrap();
 }
 
+pub async fn register_default_chunks(chunks: ResMut<Chunks>, window: Res<WindowState>) {
+    get!(mut chunks, window);
+
+    let layout = Layout::new(window.size())
+        .row(fixed(1), vec![percent(100.0)])
+        .row(flexible(), vec![percent(100.0)])
+        .row(fixed(1), vec![percent(100.0)])
+        .row(fixed(1), vec![percent(100.0)])
+        .calculate()
+        .unwrap();
+
+    chunks.register_chunk::<BufferlineChunk>(0, layout[0][0]);
+    chunks.register_chunk::<BufferChunk>(0, layout[1][0]);
+    chunks.register_chunk::<StatuslineChunk>(0, layout[2][0]);
+}
+
+pub async fn render_chunks(chunks: Res<Chunks>, window: ResMut<WindowState>) {
+    get!(chunks, mut window);
+
+    for layer in &chunks.buffers {
+        for buffer in layer {
+            let buf = buffer.1.read().unwrap();
+            render!(window, buffer.0 => [ &buf ]);
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let log_file = File::options()
@@ -136,6 +163,11 @@ async fn main() {
     drop(commands);
 
     state
+        .on_hook(ChunkRegister)
+        .system(register_default_chunks)
+        .system(register_help_menu_chunk);
+
+    state
         .on_hook(Update)
         .system(handle_inputs)
         .system(handle_command_palette_input)
@@ -147,11 +179,14 @@ async fn main() {
         .system(render_statusline)
         .system(render_command_palette)
         .system(render_help_menu)
+        .system(render_bufferline)
         .system(render_cursor);
 
     state
-        .on_hook(RenderFiletype::new("rs | toml"))
+        .on_hook(RenderFiletype::new("*"))
         .system(render_buffers);
+
+    state.on_hook(RenderChunks).system(render_chunks);
 
     state.hook(PostInit).call().await;
 
@@ -164,14 +199,22 @@ async fn main() {
                 // Update all states
                 state.hook(Update).call().await;
 
+                // Clear the chunks for the next frame (allows for conditional chunks)
+                state.lock_state::<Chunks>().unwrap().clear();
+
+                // Register all major chunk types
+                state.hook(ChunkRegister).call().await;
+
                 // Call the file renderer
-                state.hook(RenderFiletype::new("py")).call().await;
+                state.hook(RenderFiletype::new("*")).call().await;
 
                 // Render the rest of the state
                 state
                     .hook(Render)
                     .call()
                     .await;
+
+                state.hook(RenderChunks).call().await;
 
                 state
                     .lock_state::<WindowState>()

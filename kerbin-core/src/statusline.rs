@@ -22,7 +22,7 @@ pub struct StatuslineConfig {
 }
 
 pub async fn render_statusline(
-    window: ResMut<WindowState>,
+    chunk: Chunk<StatuslineChunk>,
     plugin_config: Res<PluginConfig>,
     theme: Res<Theme>,
     mode_stack: Res<ModeStack>,
@@ -39,7 +39,7 @@ pub async fn render_statusline(
     let theme = theme.get();
     let mode_stack = mode_stack.get();
 
-    let mut window = window.get();
+    let mut chunk = chunk.get().unwrap();
 
     let mut parts = vec![];
 
@@ -79,32 +79,31 @@ pub async fn render_statusline(
         );
     }
 
-    let mut loc = window.size() - vec2(0, 2);
-    loc.x = 0;
+    let mut loc = vec2(0, 0);
 
     for (i, (text, theme)) in parts.into_iter().enumerate().take(4) {
-        if loc.x >= window.size().x {
+        if loc.x >= chunk.size().x {
             return;
         }
-        loc = render!(window, loc => [if i != 0 {" -> "} else {""}, theme.apply(text)]);
+        loc = render!(chunk, loc => [if i != 0 {" -> "} else {""}, theme.apply(text)]);
     }
 
     let cur_buf = buffers.get().cur_buffer();
     let cur_buf = cur_buf.read().unwrap();
 
-    let mut loc = window.size() - vec2(1, 2);
+    let mut loc = chunk.size() - vec2(1, 0);
 
     let cursor_count = cur_buf.cursors.len().saturating_sub(1);
     if cursor_count == 0 {
         let sel_style =
             theme.get_fallback_default(["statusline.selections.one", "statusline.selections"]);
-        render!(window, loc - vec2(5, 0) => [sel_style.apply("1 sel")]);
+        render!(chunk, loc - vec2(5, 0) => [sel_style.apply("1 sel")]);
     } else {
         let sel_style =
             theme.get_fallback_default(["statusline.selections.multi", "statusline.selections"]);
         let primary_cursor = cur_buf.primary_cursor;
         let render_text = format!("{primary_cursor}/{cursor_count} sels");
         loc.x = loc.x.saturating_sub(render_text.len() as u16);
-        render!(window, loc => [sel_style.apply(render_text)]);
+        render!(chunk, loc => [sel_style.apply(render_text)]);
     }
 }

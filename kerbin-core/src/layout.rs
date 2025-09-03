@@ -1,3 +1,5 @@
+use ascii_forge::math::Vec2;
+
 #[derive(Debug, Clone)]
 pub enum Constraint {
     Percentage(f32),
@@ -11,6 +13,25 @@ pub enum LayoutError {
     InsufficientSpace,
     InvalidPercentages,
     ConstraintConflict,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct Rect {
+    pub x: u16,
+    pub y: u16,
+    pub width: u16,
+    pub height: u16,
+}
+
+impl Rect {
+    pub fn new(x: u16, y: u16, width: u16, height: u16) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
 }
 
 pub fn percent(value: f32) -> Constraint {
@@ -38,9 +59,10 @@ pub struct Layout {
 }
 
 impl Layout {
-    pub fn new(total_space: (u16, u16)) -> Self {
+    pub fn new(total_space: impl Into<Vec2>) -> Self {
+        let total_space = total_space.into();
         Self {
-            total_space,
+            total_space: (total_space.x, total_space.y),
             rows: Vec::new(),
         }
     }
@@ -58,28 +80,36 @@ impl Layout {
         self.add_row(height_constraint, width_constraints)
     }
 
-    pub fn calculate(self) -> Result<Vec<Vec<(u16, u16)>>, LayoutError> {
+    pub fn calculate(self) -> Result<Vec<Vec<Rect>>, LayoutError> {
         calculate_layout(self.total_space, self.rows)
     }
 }
 
 pub fn calculate_layout(
-    total_space: (u16, u16),
+    total_space: impl Into<Vec2>,
     rows: Vec<(Constraint, Vec<Constraint>)>,
-) -> Result<Vec<Vec<(u16, u16)>>, LayoutError> {
+) -> Result<Vec<Vec<Rect>>, LayoutError> {
+    let total_space = total_space.into();
     let height_constraints: Vec<Constraint> = rows.iter().map(|(h, _)| h.clone()).collect();
 
-    let row_heights = resolve_constraints(&height_constraints, total_space.1)?;
+    let row_heights = resolve_constraints(&height_constraints, total_space.y)?;
     let mut result = Vec::new();
+    let mut current_y = 0u16;
 
     for (row_idx, (_, width_constraints)) in rows.iter().enumerate() {
         let row_height = row_heights[row_idx];
-        let widths = resolve_constraints(width_constraints, total_space.0)?;
+        let widths = resolve_constraints(width_constraints, total_space.x)?;
 
-        let row_elements: Vec<(u16, u16)> =
-            widths.iter().map(|&width| (width, row_height)).collect();
+        let mut row_elements = Vec::new();
+        let mut current_x = 0u16;
+
+        for width in widths {
+            row_elements.push(Rect::new(current_x, current_y, width, row_height));
+            current_x += width;
+        }
 
         result.push(row_elements);
+        current_y += row_height;
     }
 
     Ok(result)
@@ -220,23 +250,6 @@ pub fn resolve_constraints(
     Ok(allocated_sizes)
 }
 
-fn main() {
-    let layout_result = Layout::new((320, 200))
-        .row(percent(30.0), vec![percent(50.0), fixed(5), range(5, 50)])
-        .row(percent(70.0), vec![percent(100.0)])
-        .calculate();
-
-    match layout_result {
-        Ok(rows) => {
-            println!("Layout result:");
-            for (row_idx, row) in rows.iter().enumerate() {
-                println!("Row {}: {:?}", row_idx, row);
-            }
-        }
-        Err(e) => println!("Layout failed: {:?}", e),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,7 +261,13 @@ mod tests {
             .row(fixed(5), vec![percent(100.0)])
             .calculate()
             .unwrap();
-        assert_eq!(layout_result, vec![vec![(100, 95)], vec![(100, 5)]]);
+        assert_eq!(
+            layout_result,
+            vec![
+                vec![Rect::new(0, 0, 100, 95)],
+                vec![Rect::new(0, 95, 100, 5)]
+            ]
+        );
     }
 
     #[test]
@@ -260,7 +279,10 @@ mod tests {
             .unwrap();
         assert_eq!(
             layout_result,
-            vec![vec![(50, 50), (50, 50)], vec![(50, 50), (50, 50)]]
+            vec![
+                vec![Rect::new(0, 0, 50, 50), Rect::new(50, 0, 50, 50)],
+                vec![Rect::new(0, 50, 50, 50), Rect::new(50, 50, 50, 50)]
+            ]
         );
     }
 
@@ -274,8 +296,16 @@ mod tests {
         assert_eq!(
             layout_result,
             vec![
-                vec![(25, 50), (25, 50), (50, 50)],
-                vec![(25, 50), (25, 50), (50, 50)]
+                vec![
+                    Rect::new(0, 0, 25, 50),
+                    Rect::new(25, 0, 25, 50),
+                    Rect::new(50, 0, 50, 50)
+                ],
+                vec![
+                    Rect::new(0, 50, 25, 50),
+                    Rect::new(25, 50, 25, 50),
+                    Rect::new(50, 50, 50, 50)
+                ]
             ]
         );
     }
@@ -325,5 +355,39 @@ mod tests {
     fn test_range_exceeds_available_min() {
         let sizes = resolve_constraints(&[range(50, 100)], 30);
         assert_eq!(sizes, Err(LayoutError::InsufficientSpace));
+    }
+
+    #[test]
+    fn test_positions_single_row() {
+        let layout_result = Layout::new((200, 50))
+            .row(flexible(), vec![fixed(50), fixed(75), flexible()])
+            .calculate()
+            .unwrap();
+        assert_eq!(
+            layout_result,
+            vec![vec![
+                Rect::new(0, 0, 50, 50),
+                Rect::new(50, 0, 75, 50),
+                Rect::new(125, 0, 75, 50)
+            ]]
+        );
+    }
+
+    #[test]
+    fn test_positions_multiple_rows() {
+        let layout_result = Layout::new((100, 100))
+            .row(fixed(30), vec![flexible()])
+            .row(fixed(20), vec![flexible()])
+            .row(flexible(), vec![flexible()])
+            .calculate()
+            .unwrap();
+        assert_eq!(
+            layout_result,
+            vec![
+                vec![Rect::new(0, 0, 100, 30)],
+                vec![Rect::new(0, 30, 100, 20)],
+                vec![Rect::new(0, 50, 100, 50)]
+            ]
+        );
     }
 }

@@ -16,6 +16,14 @@ impl Hook for Update {
     }
 }
 
+/// This runs after Update, but before render, so that chunks can be stateful
+pub struct ChunkRegister;
+impl Hook for ChunkRegister {
+    fn info(&self) -> HookInfo {
+        HookInfo::new("chunk_register")
+    }
+}
+
 /// This runs at the end of each frame
 pub struct Render;
 impl Hook for Render {
@@ -24,6 +32,13 @@ impl Hook for Render {
     }
 }
 
+/// This runs before each frame, should be used to register chunks by layouts
+pub struct RenderChunks;
+impl Hook for RenderChunks {
+    fn info(&self) -> HookInfo {
+        HookInfo::new("render_chunks")
+    }
+}
 /// This runs when rendering the filetype
 pub struct RenderFiletype(pub HookInfo);
 

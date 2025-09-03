@@ -242,9 +242,9 @@ fn group_concurrent_system_indices(systems: &[Box<dyn System>]) -> Vec<Vec<usize
     system_indices.sort();
 
     while !system_indices.is_empty() {
-        let mut current_group_indices: Vec<usize> = Vec::new();
-        let mut types_in_group: HashSet<TypeId> = HashSet::new();
-        let mut write_types_in_group: HashSet<TypeId> = HashSet::new();
+        let mut current_group_indices = Vec::new();
+        let mut types_in_group = HashSet::new();
+        let mut write_types_in_group = HashSet::new();
         let mut indices_to_remove_from_system_indices: Vec<usize> = Vec::new();
 
         'outer: for (i, &system_idx) in system_indices.iter().enumerate() {
@@ -305,21 +305,21 @@ fn group_concurrent_system_indices(systems: &[Box<dyn System>]) -> Vec<Vec<usize
                 if param.write {
                     // If it's a write, conflict if any item in the group
                     // (read or write) uses the same type_id
-                    if types_in_group.contains(&param.type_id) {
+                    if types_in_group.contains(&param.type_name) {
                         local_conflicts = true;
                         break;
                     }
                 } else {
                     // If it's a read, conflict if any write item in the group
                     // uses the same type_id
-                    if write_types_in_group.contains(&param.type_id) {
+                    if write_types_in_group.contains(&param.type_name) {
                         local_conflicts = true;
                         break;
                     }
                 }
-                potential_types_in_group.insert(param.type_id);
+                potential_types_in_group.insert(param.type_name.clone());
                 if param.write {
-                    potential_write_types_in_group.insert(param.type_id);
+                    potential_write_types_in_group.insert(param.type_name.clone());
                 }
             }
 
@@ -362,7 +362,7 @@ fn guarentee_params<S: System>(system: &S) {
                 "System has too many arguments to have a reserved argument, please only take one reserved arg in any given function"
             )
         }
-        if !param_set.insert(param.type_id) {
+        if !param_set.insert(param.type_name.as_str()) {
             tracing::info!("Hek");
 
             panic!(
