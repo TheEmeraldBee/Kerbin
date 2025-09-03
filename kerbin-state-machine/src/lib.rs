@@ -1,6 +1,6 @@
 use std::{
     any::TypeId,
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     sync::{Arc, RwLock, RwLockWriteGuard},
 };
 
@@ -13,7 +13,82 @@ pub mod storage;
 pub mod system;
 
 pub trait Hook {
-    fn parts(&self) -> Vec<String>;
+    fn info(&self) -> HookInfo;
+}
+
+/// A Hook Path Component allows for having wildcards that will match anything.
+#[derive(Debug, Clone, PartialEq)]
+pub enum HookPathComponent {
+    Wildcard,
+    /// Anything without a :: in it (Ie, rs, gieoajigpea, but not a::b)
+    Path(String),
+}
+
+impl HookPathComponent {
+    pub fn parse(input: &str) -> Vec<HookPathComponent> {
+        let mut res = vec![];
+        let parts = input.split("::");
+
+        for (i, part) in parts.enumerate() {
+            res.push(if part == "*" {
+                if i == 0 {
+                    panic!("Invalid path match, wildcards cannot match on the root path");
+                }
+                HookPathComponent::Wildcard
+            } else {
+                HookPathComponent::Path(part.to_string())
+            });
+        }
+
+        res
+    }
+
+    pub fn default_rank(input: &[HookPathComponent]) -> i8 {
+        let mut rank = 0;
+
+        for component in input {
+            if *component == HookPathComponent::Wildcard {
+                rank -= 1;
+            }
+        }
+
+        rank
+    }
+}
+
+/// Hook Info shows the info for the hooks, how they should be used, and ensure they're run on
+/// certain hooks over others.
+pub struct HookInfo {
+    pub path: Vec<HookPathComponent>,
+    pub rank: i8,
+}
+
+impl HookInfo {
+    pub fn new(path: &str) -> Self {
+        let path = HookPathComponent::parse(path);
+        Self {
+            rank: HookPathComponent::default_rank(&path),
+            path,
+        }
+    }
+
+    pub fn matches(&self, path: &[HookPathComponent]) -> Option<i8> {
+        let mut matches = true;
+
+        for (path, component) in path.iter().zip(self.path.iter()) {
+            matches = match (component, path) {
+                (HookPathComponent::Wildcard, _) => true,
+                (HookPathComponent::Path(s), HookPathComponent::Path(p)) => p == s,
+                (_, _) => true,
+            };
+
+            if !matches {
+                break;
+            }
+        }
+
+        if matches { Some(self.rank) } else { None }
+    }
 }
 
 #[macro_export]
@@ -38,7 +113,7 @@ macro_rules! get {
 #[derive(Default)]
 pub struct State {
     pub storage: StateStorage,
-    hooks: HashMap<String, Vec<Box<dyn System>>>,
+    hooks: Vec<(HookInfo, Vec<Box<dyn System>>)>,
 }
 
 impl State {
@@ -73,7 +148,24 @@ impl State {
     }
 
     pub async fn call_hook(&self, hook: impl Hook) {
-        let Some(hooks) = self.hooks.get(&hook.parts().join(".")) else {
+        let path = hook.info().path;
+
+        let mut most_valid_hooks = None;
+        for (info, hooks) in self.hooks.iter() {
+            if let Some(new_rank) = info.matches(&path) {
+                // Worst possible rank
+                let mut old_rank = i8::MIN;
+
+                if let Some((rank, _)) = most_valid_hooks.as_ref() {
+                    old_rank = *rank;
+                }
+                if old_rank < new_rank {
+                    most_valid_hooks = Some((new_rank, hooks))
+                }
+            }
+        }
+
+        let Some((_, hooks)) = most_valid_hooks else {
             return;
         };
 
@@ -103,11 +195,19 @@ impl<'a, H: Hook> HookBuilder<'a, H> {
     ) -> &mut Self {
         let system = sys.into_system();
         guarentee_params(&system);
-        self.state
+        let hook_info = self.hook.info();
+        let entry = self
+            .state
             .hooks
-            .entry(self.hook.parts().join("."))
-            .or_default()
-            .push(Box::new(system));
+            .iter_mut()
+            .find(|x| x.0.path == hook_info.path);
+
+        if let Some(entry) = entry {
+            entry.1.push(Box::new(system))
+        } else {
+            self.state.hooks.push((hook_info, vec![Box::new(system)]));
+        }
+
         self
     }
 }
@@ -221,6 +321,8 @@ fn group_concurrent_system_indices(systems: &[Box<dyn System>]) -> Vec<Vec<usize
             system_indices.remove(i);
         }
     }
+
+    tracing::warn!("{:?}", grouped_index_sets);
 
     grouped_index_sets
 }

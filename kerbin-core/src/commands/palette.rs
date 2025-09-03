@@ -39,7 +39,7 @@ impl Command for PaletteCommand {
                     .parse_command(
                         CommandRegistry::split_command(&content),
                         true,
-                        true,
+                        false,
                         &state.lock_state::<CommandPrefixRegistry>().unwrap(),
                         &state.lock_state::<ModeStack>().unwrap(),
                     );

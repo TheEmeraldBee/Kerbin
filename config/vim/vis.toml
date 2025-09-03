@@ -97,6 +97,24 @@ desc = "Select Line"
 
 [[keybind]]
 modes = ["v"]
+keys = ["0"]
+commands = ["slb true", "gsb"]
+desc = "Goto Line Start"
+
+[[keybind]]
+modes = ["v"]
+keys = ["$"]
+commands = ["sle true", "gse"]
+desc = "Goto Line End"
+
+[[keybind]]
+modes = ["v"]
+keys = ["^"]
+commands = ["sfw true"]
+desc = "Goto Line End"
+
+[[keybind]]
+modes = ["v"]
 keys = [","]
 commands = ["sc"]
 desc = "Collapse Selection"

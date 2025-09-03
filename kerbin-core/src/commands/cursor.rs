@@ -72,6 +72,21 @@ impl Command for CursorCommand {
                 let primary_cursor = cur_buf.primary_cursor;
                 let cursor_count = cur_buf.cursors.len();
 
+                let command = state
+                    .lock_state::<CommandRegistry>()
+                    .unwrap()
+                    .parse_command(
+                        cmd.clone(),
+                        true,
+                        true,
+                        &state.lock_state::<CommandPrefixRegistry>().unwrap(),
+                        &state.lock_state::<ModeStack>().unwrap(),
+                    );
+
+                let Some(command) = command else {
+                    return false;
+                };
+
                 drop(cur_buf);
                 for i in 0..cursor_count {
                     state
@@ -82,23 +97,7 @@ impl Command for CursorCommand {
                         .unwrap()
                         .primary_cursor = i;
 
-                    let command = state
-                        .lock_state::<CommandRegistry>()
-                        .unwrap()
-                        .parse_command(
-                            cmd.clone(),
-                            true,
-                            true,
-                            &state.lock_state::<CommandPrefixRegistry>().unwrap(),
-                            &state.lock_state::<ModeStack>().unwrap(),
-                        );
-                    if let Some(command) = command {
-                        state
-                            .lock_state::<CommandSender>()
-                            .unwrap()
-                            .send(command)
-                            .unwrap();
-                    }
+                    command.apply(state);
 
                     if state
                         .lock_state::<Buffers>()

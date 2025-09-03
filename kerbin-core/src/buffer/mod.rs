@@ -609,7 +609,7 @@ impl TextBuffer {
                     if char_col >= self.h_scroll {
                         let render_col = (char_col - self.h_scroll) as u16;
 
-                        if render_col >= buffer.size().x {
+                        if render_col >= buffer.size().x - 1 {
                             break;
                         }
 

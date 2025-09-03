@@ -168,7 +168,7 @@ pub async fn handle_inputs(
             let command = command_registry.get().parse_command(
                 CommandRegistry::split_command(&format!("a \'{chr}\' false")),
                 true,
-                true,
+                false,
                 &prefix_registry.get(),
                 &modes,
             );
@@ -241,7 +241,7 @@ pub async fn handle_inputs(
                                 let command = command_registry.get().parse_command(
                                     CommandRegistry::split_command(command),
                                     true,
-                                    true,
+                                    false,
                                     &prefix_registry.get(),
                                     &modes,
                                 );
@@ -287,7 +287,7 @@ pub async fn handle_inputs(
                                 let command = command_registry.get().parse_command(
                                     CommandRegistry::split_command(command),
                                     true,
-                                    true,
+                                    false,
                                     &prefix_registry.get(),
                                     &modes,
                                 );
