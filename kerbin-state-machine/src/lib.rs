@@ -147,38 +147,57 @@ impl State {
         sys.into_system().call(&self.storage).await
     }
 
-    pub async fn call_hook(&self, hook: impl Hook) {
-        let path = hook.info().path;
-
-        let mut most_valid_hooks = None;
-        for (info, hooks) in self.hooks.iter() {
-            if let Some(new_rank) = info.matches(&path) {
-                // Worst possible rank
-                let mut old_rank = i8::MIN;
-
-                if let Some((rank, _)) = most_valid_hooks.as_ref() {
-                    old_rank = *rank;
-                }
-                if old_rank < new_rank {
-                    most_valid_hooks = Some((new_rank, hooks))
-                }
-            }
+    pub fn hook(&self, hook: impl Hook + 'static) -> HookCallBuilder<'_> {
+        HookCallBuilder {
+            state: self,
+            hooks: vec![Box::new(hook)],
         }
+    }
+}
 
-        let Some((_, hooks)) = most_valid_hooks else {
-            return;
-        };
+pub struct HookCallBuilder<'a> {
+    state: &'a State,
+    hooks: Vec<Box<dyn Hook>>,
+}
 
-        // Get what systems can be run concurrently
-        let indices = group_concurrent_system_indices(hooks);
+impl<'a> HookCallBuilder<'a> {
+    pub fn hook(mut self, hook: impl Hook + 'static) -> Self {
+        self.hooks.push(Box::new(hook));
+        self
+    }
 
-        for group in indices {
-            let mut futures = vec![];
-            for indice in group {
-                futures.push(hooks[indice].call(&self.storage));
+    pub async fn call(self) {
+        for hook in self.hooks {
+            let path = hook.info().path;
+
+            let mut most_valid_hooks = None;
+            for (info, hooks) in self.state.hooks.iter() {
+                if let Some(new_rank) = info.matches(&path) {
+                    let mut old_rank = i8::MIN;
+
+                    if let Some((rank, _)) = most_valid_hooks.as_ref() {
+                        old_rank = *rank;
+                    }
+                    if old_rank < new_rank {
+                        most_valid_hooks = Some((new_rank, hooks))
+                    }
+                }
             }
 
-            futures::future::join_all(futures).await;
+            let Some((_, hooks)) = most_valid_hooks else {
+                continue;
+            };
+
+            let indices = group_concurrent_system_indices(hooks);
+
+            for group in indices {
+                let mut futures = vec![];
+                for indice in group {
+                    futures.push(hooks[indice].call(&self.state.storage));
+                }
+
+                futures::future::join_all(futures).await;
+            }
         }
     }
 }

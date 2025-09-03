@@ -1,3 +1,5 @@
+use std::process::Stdio;
+
 use kerbin_macros::Command;
 use kerbin_state_machine::State;
 
@@ -51,6 +53,8 @@ impl Command for ShellCommand {
             }
             Self::Spawn(args) => match std::process::Command::new(&args[0])
                 .args(&args[1..])
+                .stdout(Stdio::piped())
+                .stdin(Stdio::piped())
                 .spawn()
             {
                 Ok(_) => true,

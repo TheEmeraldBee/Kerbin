@@ -37,9 +37,6 @@ This checklist is for when I feel the project will be ready for use in my own en
 - [x] Basic Editor Functionality (insertions, deletions, etc.)
 - [x] Selection Support
 - [x] Multicursor Support
-- [ ] Transition to Ratatui for terminal rendering (This should make plugins easier)
-      This one is tough, because Ascii Forge is my project, so it's hard to leave behind, but neccissary for future functionality,
-      and better plugin support
-- [/] TreeSitter Rendering (Currently In the Core, not a plugin, requires Hooks to be done)
-- [ ] Plugin Hooks (Replacing rendering systems, Adjusting how things render/work, adding new render calls to the statusline, etc)
+- [x] TreeSitter Rendering (Currently In the Core, not a plugin (which i want it to be), requires Hooks to be done)
+- [x] Plugin Hooks (Replacing rendering systems, Adjusting how things render/work, adding new render calls to the statusline, etc)
 - [ ] Lsp Support

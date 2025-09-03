@@ -150,7 +150,7 @@ async fn main() {
         .system(render_help_menu)
         .system(render_cursor);
 
-    state.call_hook(PostInit).await;
+    state.hook(PostInit).call().await;
 
     loop {
         tokio::select! {
@@ -158,8 +158,8 @@ async fn main() {
                 cmd.apply(&mut state);
             }
             _ = tokio::time::sleep(Duration::from_millis(16)) => {
-                state.call_hook(Update).await;
-                state.call_hook(Render).await;
+                state.hook(Update).call().await;
+                state.hook(Render).call().await;
 
                 state
                     .lock_state::<WindowState>()

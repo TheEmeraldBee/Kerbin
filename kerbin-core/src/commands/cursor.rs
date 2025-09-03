@@ -87,7 +87,9 @@ impl Command for CursorCommand {
                     return false;
                 };
 
+                // Drop lock to prevent deadlock
                 drop(cur_buf);
+
                 for i in 0..cursor_count {
                     state
                         .lock_state::<Buffers>()
