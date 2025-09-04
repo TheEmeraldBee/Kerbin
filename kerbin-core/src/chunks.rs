@@ -12,3 +12,12 @@ pub struct HelpChunk;
 
 #[derive(State)]
 pub struct StatuslineChunk;
+
+#[derive(State)]
+pub struct CommandlineChunk;
+
+#[derive(State)]
+pub struct CommandSuggestionsChunk;
+
+#[derive(State)]
+pub struct CommandDescChunk;

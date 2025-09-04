@@ -2,18 +2,16 @@ use std::marker::PhantomData;
 use std::sync::RwLockWriteGuard;
 use std::sync::{Arc, RwLock};
 
-use ascii_forge::math::Vec2;
-use ascii_forge::window::Buffer;
 use kerbin_state_machine::storage::*;
 use kerbin_state_machine::system::param::SystemParamDesc;
 use kerbin_state_machine::system::param::res::Res;
 
-use crate::Chunks;
+use crate::{Chunks, InnerChunk};
 
-use super::SystemParam;
+use crate::SystemParam;
 
 pub struct Chunk<T: StateName + StaticState + 'static> {
-    value: Option<Arc<RwLock<Buffer>>>,
+    value: Option<Arc<RwLock<InnerChunk>>>,
     phantom_t: PhantomData<T>,
 }
 
@@ -39,16 +37,13 @@ impl<T: StateName + StaticState> SystemParam for Chunk<T> {
 
         Chunk {
             value: buf,
-            phantom_t: PhantomData::<T>::default(),
+            phantom_t: PhantomData::<T>,
         }
     }
 
-    type Inner<'a> = Option<RwLockWriteGuard<'a, Buffer>>;
+    type Inner<'a> = Option<RwLockWriteGuard<'a, InnerChunk>>;
     fn get(&self) -> Self::Inner<'_> {
-        match self.value.as_ref() {
-            Some(t) => Some(t.write().unwrap()),
-            None => None,
-        }
+        self.value.as_ref().map(|x| x.write().unwrap())
     }
 
     fn desc() -> SystemParamDesc {

@@ -109,7 +109,7 @@ pub async fn register_help_menu_chunk(
     let window = window.get();
 
     // Place a layout in the bottom right corner
-    let rect = Layout::new(window.size())
+    let rect = Layout::new()
         .row(flexible(), vec![flexible()])
         .row(
             // Ensure space for all active inputs (+2 for border)
@@ -117,7 +117,7 @@ pub async fn register_help_menu_chunk(
             vec![flexible(), percent(20.0), fixed(1)],
         )
         .row(fixed(1), vec![])
-        .calculate()
+        .calculate(window.size())
         .unwrap()[1][1];
 
     // This must render above the buffer, or the 0 z-index

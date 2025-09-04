@@ -54,20 +54,17 @@ pub fn flexible() -> Constraint {
 }
 
 pub struct Layout {
-    total_space: (u16, u16),
     rows: Vec<(Constraint, Vec<Constraint>)>,
 }
 
 impl Layout {
-    pub fn new(total_space: impl Into<Vec2>) -> Self {
-        let total_space = total_space.into();
-        Self {
-            total_space: (total_space.x, total_space.y),
-            rows: Vec::new(),
-        }
+    /// Starts a layout with a total space (usually the window size)
+    pub fn new() -> Self {
+        Self { rows: Vec::new() }
     }
 
-    pub fn add_row(
+    /// Creates a row that is then sub-split into other systems
+    pub fn row(
         mut self,
         height_constraint: Constraint,
         width_constraints: Vec<Constraint>,
@@ -76,12 +73,14 @@ impl Layout {
         self
     }
 
-    pub fn row(self, height_constraint: Constraint, width_constraints: Vec<Constraint>) -> Self {
-        self.add_row(height_constraint, width_constraints)
+    /// Creates a row that takes up the full row in width.
+    pub fn empty_row(self, constraint: Constraint) -> Self {
+        self.row(constraint, vec![])
     }
 
-    pub fn calculate(self) -> Result<Vec<Vec<Rect>>, LayoutError> {
-        calculate_layout(self.total_space, self.rows)
+    /// Calculates based on the total space, and gets the Rects for those
+    pub fn calculate(self, space: impl Into<Vec2>) -> Result<Vec<Vec<Rect>>, LayoutError> {
+        calculate_layout(space, self.rows)
     }
 }
 
@@ -197,10 +196,8 @@ pub fn resolve_constraints(
         .map(|(i, _)| i)
         .collect();
 
-    let expandable_indices: Vec<usize> = flexible_indices
-        .into_iter()
-        .chain(range_indices.into_iter())
-        .collect();
+    let expandable_indices: Vec<usize> =
+        flexible_indices.into_iter().chain(range_indices).collect();
 
     if !expandable_indices.is_empty() && remaining_space > 0 {
         while remaining_space > 0 {
@@ -256,10 +253,10 @@ mod tests {
 
     #[test]
     fn test_percent_plus_fixed_heights() {
-        let layout_result = Layout::new((100, 100))
+        let layout_result = Layout::new()
             .row(percent(100.0), vec![percent(100.0)])
             .row(fixed(5), vec![percent(100.0)])
-            .calculate()
+            .calculate((100, 100))
             .unwrap();
         assert_eq!(
             layout_result,
@@ -272,10 +269,10 @@ mod tests {
 
     #[test]
     fn test_even_flexible_split() {
-        let layout_result = Layout::new((100, 100))
+        let layout_result = Layout::new()
             .row(flexible(), vec![flexible(), flexible()])
             .row(flexible(), vec![flexible(), flexible()])
-            .calculate()
+            .calculate((100, 100))
             .unwrap();
         assert_eq!(
             layout_result,
@@ -288,10 +285,10 @@ mod tests {
 
     #[test]
     fn test_mixed_height_fixed_width() {
-        let layout_result = Layout::new((100, 100))
+        let layout_result = Layout::new()
             .row(percent(50.0), vec![fixed(25), fixed(25), flexible()])
             .row(flexible(), vec![fixed(25), fixed(25), flexible()])
-            .calculate()
+            .calculate((100, 100))
             .unwrap();
         assert_eq!(
             layout_result,
@@ -312,18 +309,18 @@ mod tests {
 
     #[test]
     fn test_insufficient_space_fixed_width() {
-        let layout_result = Layout::new((100, 100))
+        let layout_result = Layout::new()
             .row(fixed(10), vec![fixed(60), fixed(60)])
-            .calculate();
+            .calculate((100, 100));
         assert_eq!(layout_result, Err(LayoutError::InsufficientSpace));
     }
 
     #[test]
     fn test_invalid_percentage_height() {
-        let layout_result = Layout::new((100, 100))
+        let layout_result = Layout::new()
             .row(percent(60.0), vec![percent(100.0)])
             .row(percent(50.0), vec![percent(100.0)])
-            .calculate();
+            .calculate((100, 100));
         assert_eq!(layout_result, Err(LayoutError::InvalidPercentages));
     }
 
@@ -359,9 +356,9 @@ mod tests {
 
     #[test]
     fn test_positions_single_row() {
-        let layout_result = Layout::new((200, 50))
+        let layout_result = Layout::new()
             .row(flexible(), vec![fixed(50), fixed(75), flexible()])
-            .calculate()
+            .calculate((200, 50))
             .unwrap();
         assert_eq!(
             layout_result,
@@ -375,11 +372,11 @@ mod tests {
 
     #[test]
     fn test_positions_multiple_rows() {
-        let layout_result = Layout::new((100, 100))
+        let layout_result = Layout::new()
             .row(fixed(30), vec![flexible()])
             .row(fixed(20), vec![flexible()])
             .row(flexible(), vec![flexible()])
-            .calculate()
+            .calculate((100, 100))
             .unwrap();
         assert_eq!(
             layout_result,

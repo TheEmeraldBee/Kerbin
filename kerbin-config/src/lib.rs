@@ -1,5 +1,5 @@
 use ascii_forge::prelude::*;
-use kerbin_core::{CommandPrefix, CommandPrefixRegistry, InputConfig, Plugin, Theme};
+use kerbin_core::{CommandPrefix, CommandPrefixRegistry, InputConfig, Theme};
 use kerbin_core::{InputEvent, PluginConfig};
 use kerbin_state_machine::State;
 use serde::Deserialize;
@@ -282,19 +282,10 @@ pub struct ImportEntry {
     pub paths: Vec<String>,
 }
 
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
-pub struct PluginEntry {
-    path: Option<String>,
-    git: Option<String>,
-}
-
 #[derive(Debug, Default)]
 pub struct Config {
     keybindings: Vec<Input>,
     prefixes: Vec<Prefix>,
-
-    plugins: Vec<PluginEntry>,
 
     palette: HashMap<String, String>,
     theme: HashMap<String, UnresolvedStyle>,
@@ -302,11 +293,8 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load(path_option: Option<String>) -> Result<Self, Box<dyn Error>> {
-        let path = match path_option {
-            Some(s) => PathBuf::from(s),
-            None => PathBuf::from("config/config.toml"),
-        };
+    pub fn load(path: impl ToString) -> Result<Self, Box<dyn Error>> {
+        let path = PathBuf::from(path.to_string());
         Self::load_from_path(&path)
     }
 
@@ -336,23 +324,6 @@ impl Config {
                     } else {
                         return Err(format!(
                             "`import` section in {:?} must be an array of tables",
-                            path
-                        )
-                        .into());
-                    }
-                }
-                "plugins" => {
-                    if let Value::Array(plugin_array) = value {
-                        for import_val in plugin_array {
-                            if let Ok(plugin_entry) = import_val.try_into::<PluginEntry>() {
-                                final_config.plugins.push(plugin_entry);
-                            } else {
-                                return Err(format!("Invalid import entry in {:?}", path).into());
-                            }
-                        }
-                    } else {
-                        return Err(format!(
-                            "`plugins` section in {:?} must be an array of tables",
                             path
                         )
                         .into());
@@ -442,7 +413,6 @@ impl Config {
     fn merge(&mut self, other: Config) {
         self.keybindings.extend(other.keybindings);
         self.prefixes.extend(other.prefixes);
-        self.plugins.extend(other.plugins);
         self.palette.extend(other.palette);
         self.theme.extend(other.theme);
         self.plugin_config.extend(other.plugin_config);
@@ -480,14 +450,6 @@ impl Config {
         }
 
         Ok(resolved)
-    }
-
-    pub fn get_plugins(&self) -> Vec<Plugin> {
-        let mut res = vec![];
-        for plugin in &self.plugins {
-            res.push(Plugin::load(plugin.path.as_ref().unwrap()))
-        }
-        res
     }
 
     pub fn apply(self, state: &mut State) {

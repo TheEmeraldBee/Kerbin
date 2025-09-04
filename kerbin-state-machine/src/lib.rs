@@ -1,16 +1,15 @@
 use std::{
-    any::TypeId,
     collections::HashSet,
     sync::{Arc, RwLock, RwLockWriteGuard},
 };
 
-use crate::{
-    storage::{StateName, StateStorage, StaticState},
-    system::{System, into_system::IntoSystem},
-};
+use crate::system::{System, into_system::IntoSystem};
 
 pub mod storage;
 pub mod system;
+
+pub use storage::*;
+pub use system::param::{SystemParam, SystemParamDesc, res::Res, res_mut::ResMut};
 
 pub trait Hook {
     fn info(&self) -> HookInfo;
@@ -235,139 +234,450 @@ impl<'a, H: Hook> HookBuilder<'a, H> {
 }
 
 fn group_concurrent_system_indices(systems: &[Box<dyn System>]) -> Vec<Vec<usize>> {
-    let mut system_indices: Vec<usize> = (0..systems.len()).collect();
-    let mut grouped_index_sets: Vec<Vec<usize>> = Vec::new();
+    let mut remaining_indices: Vec<usize> = (0..systems.len()).collect();
+    let mut groups: Vec<Vec<usize>> = Vec::new();
 
-    // Sort original indices to ensure deterministic grouping (optional but good for testing)
-    system_indices.sort();
+    while !remaining_indices.is_empty() {
+        let mut current_group = Vec::new();
+        let mut used_types = HashSet::new();
+        let mut write_types = HashSet::new();
+        let mut indices_to_remove = Vec::new();
 
-    while !system_indices.is_empty() {
-        let mut current_group_indices = Vec::new();
-        let mut types_in_group = HashSet::new();
-        let mut write_types_in_group = HashSet::new();
-        let mut indices_to_remove_from_system_indices: Vec<usize> = Vec::new();
-
-        'outer: for (i, &system_idx) in system_indices.iter().enumerate() {
+        for (pos, &system_idx) in remaining_indices.iter().enumerate() {
             let system_params = systems[system_idx].params();
 
-            let mut conflicts = false;
-            let mut is_reserved_system = false;
+            let has_reserved = system_params.iter().any(|p| p.reserved);
 
-            // Check if this system has any reserved parameters
-            for param in &system_params {
-                if param.reserved {
-                    is_reserved_system = true;
+            if has_reserved {
+                if current_group.is_empty() {
+                    current_group.push(system_idx);
+                    indices_to_remove.push(pos);
                     break;
-                }
-            }
-
-            if is_reserved_system {
-                // If a reserved system, it must run alone.
-                // If current_group is empty, add it and move on.
-                // Otherwise, it cannot join the current group.
-                if current_group_indices.is_empty() {
-                    current_group_indices.push(system_idx);
-                    indices_to_remove_from_system_indices.push(i);
-                    // No other systems can be in this group with a reserved system
-                    break 'outer;
                 } else {
-                    // Cannot add a reserved system to an already forming group
                     continue;
                 }
             }
 
-            // If the current group already contains a reserved system,
-            // no other systems can be added.
-            if !current_group_indices.is_empty() {
-                for &existing_sys_idx in &current_group_indices {
-                    for existing_param in systems[existing_sys_idx].params() {
-                        if existing_param.reserved {
-                            conflicts = true;
-                            break;
-                        }
-                    }
-                    if conflicts {
-                        break;
-                    }
+            if !current_group.is_empty() {
+                let group_has_reserved = current_group
+                    .iter()
+                    .any(|&idx| systems[idx].params().iter().any(|p| p.reserved));
+                if group_has_reserved {
+                    continue;
                 }
             }
 
-            if conflicts {
-                continue;
-            }
-
-            // Check for conflicts with existing items in the current_group
-            let mut potential_types_in_group = types_in_group.clone();
-            let mut potential_write_types_in_group = write_types_in_group.clone();
-            let mut local_conflicts = false;
+            let mut can_add = true;
+            let mut conflicting_types = Vec::new();
 
             for param in &system_params {
-                if param.write {
-                    // If it's a write, conflict if any item in the group
-                    // (read or write) uses the same type_id
-                    if types_in_group.contains(&param.type_name) {
-                        local_conflicts = true;
-                        break;
+                // Write access conflicts with any existing usage (read or write)
+                if param.write && used_types.contains(&param.type_name) {
+                    can_add = false;
+                    if write_types.contains(&param.type_name) {
+                        conflicting_types.push((&param.type_name, "write", "existing write"));
+                    } else {
+                        conflicting_types.push((&param.type_name, "write", "existing read"));
                     }
-                } else {
-                    // If it's a read, conflict if any write item in the group
-                    // uses the same type_id
-                    if write_types_in_group.contains(&param.type_name) {
-                        local_conflicts = true;
-                        break;
-                    }
-                }
-                potential_types_in_group.insert(param.type_name.clone());
-                if param.write {
-                    potential_write_types_in_group.insert(param.type_name.clone());
+                    break;
+                } else if write_types.contains(&param.type_name) {
+                    can_add = false;
+                    conflicting_types.push((&param.type_name, "read", "existing write"));
+                    break;
                 }
             }
 
-            if !local_conflicts {
-                current_group_indices.push(system_idx);
-                indices_to_remove_from_system_indices.push(i);
-                types_in_group = potential_types_in_group;
-                write_types_in_group = potential_write_types_in_group;
+            if can_add {
+                current_group.push(system_idx);
+                indices_to_remove.push(pos);
+
+                for param in &system_params {
+                    used_types.insert(param.type_name.clone());
+                    if param.write {
+                        write_types.insert(param.type_name.clone());
+                    }
+                }
             }
         }
 
-        // Add the formed group
-        if !current_group_indices.is_empty() {
-            grouped_index_sets.push(current_group_indices);
+        if !current_group.is_empty() {
+            groups.push(current_group);
         }
 
-        // Remove the processed items from `system_indices`
-        // Sort in reverse to remove from the end first, avoiding index issues
-        indices_to_remove_from_system_indices.sort_by(|a, b| b.cmp(a));
-        for i in indices_to_remove_from_system_indices {
-            system_indices.remove(i);
+        indices_to_remove.sort_by(|a, b| b.cmp(a));
+        for pos in indices_to_remove {
+            remaining_indices.remove(pos);
         }
     }
 
-    tracing::warn!("{:?}", grouped_index_sets);
-
-    grouped_index_sets
+    groups
 }
 
-/// Verifies that no params are overlapping
 fn guarentee_params<S: System>(system: &S) {
     let params = system.params();
     let param_count = params.len();
-    let mut param_set = HashSet::new();
+    let mut param_types = HashSet::new();
+    let mut write_types = HashSet::new();
+
     for param in &params {
         if param.reserved && param_count > 1 {
-            tracing::info!("Hek");
-
             panic!(
                 "System has too many arguments to have a reserved argument, please only take one reserved arg in any given function"
             )
         }
-        if !param_set.insert(param.type_name.as_str()) {
-            tracing::info!("Hek");
 
-            panic!(
-                "The same type was requested by the system more than once, please ensure you're only requesting the type once."
-            )
-        };
+        if param.write {
+            // Write conflicts with any existing usage (read or write)
+            if param_types.contains(param.type_name.as_str()) {
+                panic!(
+                    "The same type was requested by the system more than once, please ensure you're only requesting the type once."
+                );
+            }
+            write_types.insert(param.type_name.as_str());
+        } else {
+            // Read conflicts only with existing writes
+            if write_types.contains(param.type_name.as_str()) {
+                panic!(
+                    "The same type was requested by the system more than once, please ensure you're only requesting the type once."
+                );
+            }
+        }
+
+        param_types.insert(param.type_name.as_str());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::system::param::SystemParamDesc;
+
+    use super::*;
+    use std::pin::Pin;
+
+    #[derive(Debug, Clone)]
+    pub struct MockParam {
+        pub type_name: String,
+        pub write: bool,
+        pub reserved: bool,
+    }
+
+    pub struct MockSystem {
+        params: Vec<MockParam>,
+    }
+
+    impl MockSystem {
+        pub fn new(params: Vec<(&str, bool, bool)>) -> Self {
+            Self {
+                params: params
+                    .into_iter()
+                    .map(|(name, write, reserved)| MockParam {
+                        type_name: name.to_string(),
+                        write,
+                        reserved,
+                    })
+                    .collect(),
+            }
+        }
+    }
+
+    impl System for MockSystem {
+        fn params(&self) -> Vec<SystemParamDesc> {
+            let mut res = vec![];
+            for item in &self.params {
+                res.push(SystemParamDesc {
+                    type_name: item.type_name.clone(),
+                    write: item.write,
+                    reserved: item.reserved,
+                })
+            }
+
+            res
+        }
+
+        fn call<'a>(
+            &'a self,
+            _storage: &StateStorage,
+        ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+            Box::pin(async {})
+        }
+    }
+
+    fn create_systems(system_configs: Vec<Vec<(&str, bool, bool)>>) -> Vec<Box<dyn System>> {
+        system_configs
+            .into_iter()
+            .map(|config| Box::new(MockSystem::new(config)) as Box<dyn System>)
+            .collect()
+    }
+
+    #[test]
+    fn test_no_conflicts() {
+        let systems = create_systems(vec![
+            vec![("TypeA", false, false)],
+            vec![("TypeB", false, false)],
+            vec![("TypeC", true, false)],
+        ]);
+
+        let groups = group_concurrent_system_indices(&systems);
+
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0], vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_multiple_reads_same_type() {
+        let systems = create_systems(vec![
+            vec![("TypeA", false, false)],
+            vec![("TypeA", false, false)],
+            vec![("TypeA", false, false)],
+        ]);
+
+        let groups = group_concurrent_system_indices(&systems);
+
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0], vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_write_write_conflict() {
+        let systems = create_systems(vec![
+            vec![("TypeA", true, false)], // System 0: write TypeA
+            vec![("TypeA", true, false)], // System 1: write TypeA
+        ]);
+
+        let groups = group_concurrent_system_indices(&systems);
+
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0], vec![0]);
+        assert_eq!(groups[1], vec![1]);
+    }
+
+    #[test]
+    fn test_read_write_conflict() {
+        let systems = create_systems(vec![
+            vec![("TypeA", false, false)], // System 0: read TypeA
+            vec![("TypeA", true, false)],  // System 1: write TypeA
+        ]);
+
+        let groups = group_concurrent_system_indices(&systems);
+
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0], vec![0]);
+        assert_eq!(groups[1], vec![1]);
+    }
+
+    #[test]
+    fn test_write_read_conflict() {
+        let systems = create_systems(vec![
+            vec![("TypeA", true, false)],  // System 0: write TypeA
+            vec![("TypeA", false, false)], // System 1: read TypeA
+        ]);
+
+        let groups = group_concurrent_system_indices(&systems);
+
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0], vec![0]);
+        assert_eq!(groups[1], vec![1]);
+    }
+
+    #[test]
+    fn test_reserved_system_alone() {
+        let systems = create_systems(vec![
+            vec![("TypeA", false, true)],
+            vec![("TypeB", false, false)],
+            vec![("TypeC", false, false)],
+        ]);
+
+        let groups = group_concurrent_system_indices(&systems);
+
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0], vec![0]);
+        assert_eq!(groups[1], vec![1, 2]);
+    }
+
+    #[test]
+    fn test_multiple_reserved_systems() {
+        let systems = create_systems(vec![
+            vec![("TypeA", false, true)],
+            vec![("TypeB", true, true)],
+            vec![("TypeC", false, false)],
+        ]);
+
+        let groups = group_concurrent_system_indices(&systems);
+
+        assert_eq!(groups.len(), 3);
+        assert_eq!(groups[0], vec![0]);
+        assert_eq!(groups[1], vec![1]);
+        assert_eq!(groups[2], vec![2]);
+    }
+
+    #[test]
+    fn test_complex_scenario() {
+        let systems = create_systems(vec![
+            vec![("TypeA", false, false)],
+            vec![("TypeB", false, false)],
+            vec![("TypeA", true, false)],
+            vec![("TypeC", false, false)],
+            vec![("TypeB", false, false)],
+            vec![("TypeD", false, true)],
+        ]);
+
+        let groups = group_concurrent_system_indices(&systems);
+
+        assert_eq!(groups.len(), 3);
+        assert!(groups[0].contains(&0));
+        assert!(groups[0].contains(&1));
+        assert!(groups[0].contains(&3));
+        assert!(groups[0].contains(&4));
+
+        let system_2_group = groups.iter().find(|g| g.contains(&2)).unwrap();
+        assert_eq!(system_2_group.len(), 1);
+
+        let system_5_group = groups.iter().find(|g| g.contains(&5)).unwrap();
+        assert_eq!(system_5_group.len(), 1);
+    }
+
+    #[test]
+    fn test_multi_param_system_conflicts() {
+        let systems = create_systems(vec![
+            vec![("TypeA", false, false), ("TypeB", true, false)],
+            vec![("TypeC", false, false), ("TypeA", false, false)],
+            vec![("TypeB", false, false)],
+        ]);
+
+        let groups = group_concurrent_system_indices(&systems);
+
+        assert_eq!(groups.len(), 2);
+
+        let first_group = &groups[0];
+        let second_group = &groups[1];
+
+        assert!(first_group.contains(&0) && first_group.contains(&1));
+        assert_eq!(second_group, &vec![2]);
+    }
+
+    #[test]
+    fn test_reserved_with_multiple_params_fails() {
+        let systems = create_systems(vec![vec![("TypeA", false, true), ("TypeB", false, false)]]);
+
+        let groups = group_concurrent_system_indices(&systems);
+
+        // Should still create a group with just this system
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0], vec![0]);
+    }
+
+    #[test]
+    fn test_empty_systems() {
+        let systems: Vec<Box<dyn System>> = vec![];
+        let groups = group_concurrent_system_indices(&systems);
+        assert_eq!(groups.len(), 0);
+    }
+
+    #[test]
+    fn test_single_system() {
+        let systems = create_systems(vec![
+            vec![("TypeA", false, false)], // System 0: read TypeA
+        ]);
+
+        let groups = group_concurrent_system_indices(&systems);
+
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0], vec![0]);
+    }
+
+    #[test]
+    fn test_guarantee_params_no_conflicts() {
+        let system = MockSystem::new(vec![
+            ("TypeA", false, false),
+            ("TypeB", true, false),
+            ("TypeC", false, false),
+        ]);
+
+        // Should not panic
+        guarentee_params(&system);
+    }
+
+    #[test]
+    fn test_guarantee_params_duplicate_read_types() {
+        let system = MockSystem::new(vec![
+            ("TypeA", false, false),
+            ("TypeB", true, false),
+            ("TypeA", false, false), // Since TypeA is read twice, this is actually just fine
+        ]);
+
+        guarentee_params(&system);
+    }
+
+    #[test]
+    #[should_panic(expected = "The same type was requested by the system more than once")]
+    fn test_guarantee_params_duplicate_types_different_access() {
+        let system = MockSystem::new(vec![
+            ("TypeA", false, false), // read TypeA
+            ("TypeA", true, false),  // write TypeA - still a duplicate
+        ]);
+
+        guarentee_params(&system);
+    }
+
+    #[test]
+    #[should_panic(expected = "System has too many arguments to have a reserved argument")]
+    fn test_guarantee_params_reserved_with_multiple_params() {
+        let system = MockSystem::new(vec![
+            ("TypeA", false, true),  // reserved
+            ("TypeB", false, false), // normal param
+        ]);
+
+        guarentee_params(&system);
+    }
+
+    #[test]
+    #[should_panic(expected = "System has too many arguments to have a reserved argument")]
+    fn test_guarantee_params_multiple_reserved_params() {
+        let system = MockSystem::new(vec![
+            ("TypeA", false, true), // reserved
+            ("TypeB", true, true),  // also reserved
+        ]);
+
+        guarentee_params(&system);
+    }
+
+    #[test]
+    fn test_guarantee_params_single_reserved_param() {
+        let system = MockSystem::new(vec![
+            ("TypeA", false, true), // single reserved param
+        ]);
+
+        // Should not panic
+        guarentee_params(&system);
+    }
+
+    #[test]
+    fn test_guarantee_params_empty_params() {
+        let system = MockSystem::new(vec![]);
+
+        // Should not panic
+        guarentee_params(&system);
+    }
+
+    #[test]
+    fn test_guarantee_params_single_normal_param() {
+        let system = MockSystem::new(vec![("TypeA", false, false)]);
+
+        // Should not panic
+        guarentee_params(&system);
+    }
+
+    #[test]
+    #[should_panic(expected = "The same type was requested by the system more than once")]
+    fn test_guarantee_params_many_duplicates() {
+        let system = MockSystem::new(vec![
+            ("TypeA", false, false),
+            ("TypeB", true, false),
+            ("TypeC", false, false),
+            ("TypeA", true, false),  // Duplicate TypeA
+            ("TypeB", false, false), // Duplicate TypeB
+        ]);
+
+        guarentee_params(&system);
     }
 }

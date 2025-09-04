@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use crate::{
-    BufferChunk, BufferlineChunk, Chunk, GrammarManager, ModeStack, Theme, WindowState,
+    BufferChunk, BufferlineChunk, Chunk, GrammarManager, InnerChunk, ModeStack, Theme, WindowState,
     get_canonical_path_with_non_existent,
 };
 
@@ -112,7 +112,7 @@ impl Buffers {
         }
     }
 
-    pub fn render(&mut self, buffer: &mut Buffer, theme: &Theme, modes: Vec<char>) {
+    pub fn render(&mut self, buffer: &mut InnerChunk, theme: &Theme, modes: Vec<char>) {
         self.update_paths();
 
         self.buffers[self.selected_buffer]
@@ -206,7 +206,7 @@ pub async fn render_buffers(
     let theme = theme.get();
     let mut buffers = buffers.get();
     let modes = modes.get();
-    let mut chunk = &mut chunk.get().unwrap();
+    let mut chunk = chunk.get().unwrap();
 
     buffers.render(&mut chunk, &theme, modes.0.clone());
 }

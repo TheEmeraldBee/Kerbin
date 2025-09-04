@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use ascii_forge::prelude::*;
+use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
 use kerbin_macros::State;
 use kerbin_plugin::Plugin;
 use kerbin_state_machine::State;
@@ -19,9 +19,6 @@ use crate::{
 
 #[derive(State)]
 pub struct Running(pub bool);
-
-#[derive(State)]
-pub struct Plugins(pub Vec<Plugin>);
 
 #[derive(State)]
 pub struct CommandRegistry(Vec<RegisteredCommandSet>);
@@ -189,9 +186,57 @@ pub struct PluginConfig(pub HashMap<String, Value>);
 #[derive(State)]
 pub struct CommandSender(UnboundedSender<Box<dyn Command>>);
 
+#[derive(State)]
+pub struct InnerChunk {
+    buffer: Buffer,
+    cursor: Option<(usize, Vec2, SetCursorStyle)>,
+}
+
+impl Deref for InnerChunk {
+    type Target = Buffer;
+    fn deref(&self) -> &Self::Target {
+        &self.buffer
+    }
+}
+
+impl DerefMut for InnerChunk {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.buffer
+    }
+}
+
+impl InnerChunk {
+    pub fn new(buf: Buffer) -> Self {
+        Self {
+            buffer: buf,
+            cursor: None,
+        }
+    }
+
+    pub fn remove_cursor(&mut self) {
+        self.cursor = None;
+    }
+
+    pub fn set_cursor(&mut self, priority: usize, pos: Vec2, style: SetCursorStyle) {
+        self.cursor = Some((priority, pos, style))
+    }
+
+    pub fn cursor_pos(&self) -> Option<Vec2> {
+        self.cursor.as_ref().map(|x| x.1)
+    }
+
+    pub fn cursor_set(&self) -> bool {
+        self.cursor.is_some()
+    }
+
+    pub fn get_full_cursor(&self) -> &Option<(usize, Vec2, SetCursorStyle)> {
+        &self.cursor
+    }
+}
+
 #[derive(State, Default)]
 pub struct Chunks {
-    pub buffers: Vec<Vec<(Vec2, Arc<RwLock<Buffer>>)>>,
+    pub buffers: Vec<Vec<(Vec2, Arc<RwLock<InnerChunk>>)>>,
     chunk_idx_map: HashMap<String, (usize, usize)>,
 }
 
@@ -215,14 +260,19 @@ impl Chunks {
             .or_insert((z_index, self.buffers[z_index].len()));
 
         if self.buffers[z_index].len() == coords.1 {
-            self.buffers[z_index].push((pos.into(), Arc::new(RwLock::new(Buffer::new(size)))));
+            self.buffers[z_index].push((
+                pos.into(),
+                Arc::new(RwLock::new(InnerChunk::new(Buffer::new(size)))),
+            ));
         } else {
-            self.buffers[z_index][coords.1] =
-                (pos.into(), Arc::new(RwLock::new(Buffer::new(size))));
+            self.buffers[z_index][coords.1] = (
+                pos.into(),
+                Arc::new(RwLock::new(InnerChunk::new(Buffer::new(size)))),
+            );
         }
     }
 
-    pub fn get_chunk<C: StateName + StaticState>(&self) -> Option<Arc<RwLock<Buffer>>> {
+    pub fn get_chunk<C: StateName + StaticState>(&self) -> Option<Arc<RwLock<InnerChunk>>> {
         let id = C::static_name();
 
         let (ia, ib) = self.chunk_idx_map.get(&id)?;
@@ -316,7 +366,6 @@ pub fn init_state(window: Window, cmd_sender: UnboundedSender<Box<dyn Command>>)
     state
         .state(Running(true))
         .state(WindowState(window))
-        .state(Plugins(vec![]))
         .state(CommandSender(cmd_sender))
         .state({
             let mut buffers = Buffers::default();

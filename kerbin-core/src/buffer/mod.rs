@@ -16,9 +16,9 @@ use ::tree_sitter::{InputEdit, Point};
 use ropey::{LineType, Rope};
 use tree_sitter::*;
 
-use ascii_forge::prelude::*;
+use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
 
-use crate::{ContentStyleExt, GrammarManager, Theme};
+use crate::{ContentStyleExt, GrammarManager, InnerChunk, Theme};
 
 #[derive(Default)]
 pub struct ChangeGroup(Vec<Cursor>, Vec<Box<dyn BufferAction>>);
@@ -493,8 +493,40 @@ impl TextBuffer {
         }
     }
 
-    fn render(&self, buffer: &mut Buffer, theme: &Theme, modes: Vec<char>) -> Vec2 {
+    fn render(&self, buffer: &mut InnerChunk, theme: &Theme, modes: Vec<char>) -> Vec2 {
         let mut loc = vec2(0, 0);
+
+        let mut byte_offset = self.rope.line_to_byte_idx(self.scroll, LineType::LF_CR);
+
+        let row = self
+            .rope
+            .byte_to_line_idx(self.primary_cursor().get_cursor_byte(), LineType::LF_CR);
+
+        let cursor_byte = self.primary_cursor().get_cursor_byte();
+        let rope = &self.rope;
+
+        let current_row_idx = rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
+        let line_start_byte_idx = rope.line_to_byte_idx(current_row_idx, LineType::LF_CR);
+        let current_col_idx = rope
+            .byte_to_char_idx(cursor_byte)
+            .saturating_sub(rope.byte_to_char_idx(line_start_byte_idx));
+
+        let cursor_style = match modes.last().unwrap() {
+            'i' => SetCursorStyle::SteadyBar,
+            _ => SetCursorStyle::SteadyBlock,
+        };
+
+        // Buffer should always be 0 priority (should always be set)
+        buffer.set_cursor(
+            0,
+            (
+                current_col_idx as u16 + 6 - self.h_scroll as u16,
+                current_row_idx as u16 - self.scroll as u16,
+            )
+                .into(),
+            cursor_style,
+        );
+
         let default_style = theme
             .get("ui.text")
             .unwrap_or_else(|| ContentStyle::new().with(Color::Rgb { r: 0, g: 0, b: 0 }));
@@ -508,6 +540,7 @@ impl TextBuffer {
         let mut cursor_parts = modes.iter().map(|x| x.to_string()).collect::<VecDeque<_>>();
 
         let mut cursor_style = None;
+
         while !cursor_parts.is_empty() {
             if let Some(s) = theme.get(&format!(
                 "ui.cursor.{}",
@@ -527,12 +560,6 @@ impl TextBuffer {
             Some(s) => s,
             None => theme.get("ui.cursor").unwrap_or_default(),
         };
-
-        let mut byte_offset = self.rope.line_to_byte_idx(self.scroll, LineType::LF_CR);
-
-        let row = self
-            .rope
-            .byte_to_line_idx(self.primary_cursor().get_cursor_byte(), LineType::LF_CR);
 
         let gutter_width = 6;
         let start_x = loc.x;

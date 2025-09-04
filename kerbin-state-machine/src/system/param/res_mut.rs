@@ -47,6 +47,6 @@ impl<T: StateName + StaticState> SystemParam for ResMut<T> {
     }
 
     fn desc() -> SystemParamDesc {
-        SystemParamDesc::new::<T>(false)
+        SystemParamDesc::new::<T>(true)
     }
 }

@@ -6,9 +6,6 @@
 # Just place it either later in the paths list here
 # Or later in the file in another import entry
 
-[[plugins]]
-path = "./target/release/libtest_plugin.so"
-
 [[import]]
 # Just import theme here for organization
 paths = ["./theme.toml"]

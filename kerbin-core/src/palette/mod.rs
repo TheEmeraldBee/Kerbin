@@ -1,9 +1,6 @@
-use ascii_forge::prelude::*;
+use crate::*;
+use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
 use kerbin_macros::State;
-use kerbin_state_machine::storage::*;
-use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
-
-use crate::{CommandPrefixRegistry, CommandRegistry, CommandSender, ModeStack, Theme, WindowState};
 
 pub mod ranking;
 pub use ranking::*;
@@ -106,14 +103,67 @@ pub async fn handle_command_palette_input(
     }
 }
 
+pub async fn register_command_palette_chunks(
+    chunks: ResMut<Chunks>,
+    window: Res<WindowState>,
+    modes: Res<ModeStack>,
+
+    palette: Res<CommandPaletteState>,
+) {
+    let modes = modes.get();
+
+    if !modes.mode_on_stack('c') {
+        return;
+    }
+
+    let palette = palette.get();
+
+    let mut chunks = chunks.get();
+    let window = window.get();
+
+    let mut desc_height = 0;
+    if let Some(h) = palette.desc.as_ref().map(|x| x.size().y) {
+        desc_height += h + 1
+    }
+
+    let mut sug_height = 0;
+    if !palette.suggestions.is_empty() {
+        sug_height = palette.suggestions.len().min(5) as u16
+    }
+
+    let layout = Layout::new()
+        // Take up the whole top
+        .row(flexible(), vec![])
+        .row(fixed(desc_height), vec![flexible()])
+        .row(fixed(sug_height), vec![flexible()])
+        // Take up a row for a gap
+        .row(fixed(1), vec![flexible()])
+        .row(fixed(1), vec![flexible()])
+        .calculate(window.size())
+        .unwrap();
+
+    if desc_height != 0 {
+        chunks.register_chunk::<CommandDescChunk>(2, layout[1][0]);
+    }
+
+    if sug_height != 0 {
+        chunks.register_chunk::<CommandSuggestionsChunk>(2, layout[2][0]);
+    }
+
+    chunks.register_chunk::<CommandlineChunk>(2, layout[4][0]);
+}
+
 pub async fn render_command_palette(
-    window: ResMut<WindowState>,
+    line_chunk: Chunk<CommandlineChunk>,
+
+    suggestions_chunk: Chunk<CommandSuggestionsChunk>,
+    desc_chunk: Chunk<CommandDescChunk>,
+
     palette: Res<CommandPaletteState>,
     modes: Res<ModeStack>,
 
     theme: Res<Theme>,
 ) {
-    let mut window = window.get();
     let palette = palette.get();
     let modes = modes.get();
     let theme = theme.get();
@@ -122,27 +172,13 @@ pub async fn render_command_palette(
         return;
     }
 
-    let size = window.size();
-    let command_line_y = size.y.saturating_sub(1);
+    let mut line_chunk = line_chunk.get().unwrap();
 
-    let suggestion_count = palette.suggestions.len().min(5);
-    let desc_height = palette.desc.as_ref().map_or(0, |b| b.size().y);
-
-    let mut total_palette_height = 2;
-
-    if suggestion_count > 0 {
-        total_palette_height += suggestion_count as u16;
-    }
-    if desc_height > 0 {
-        total_palette_height += 1;
-        total_palette_height += desc_height;
-    }
-
-    render!(window, (0, command_line_y) => [" ".repeat(size.x as usize)]);
-
-    for i in 0..=total_palette_height.saturating_sub(2) {
-        render!(window, (0, size.y.saturating_sub(i)) => [" ".repeat(size.x as usize)]);
-    }
+    line_chunk.set_cursor(
+        1,
+        vec2(palette.input.len() as u16 + 1, 0),
+        SetCursorStyle::SteadyBar,
+    );
 
     let style = if palette.input_valid {
         theme
@@ -153,24 +189,22 @@ pub async fn render_command_palette(
             .get("ui.commandline.invalid")
             .unwrap_or(ContentStyle::default().red())
     };
-    render!(window, (0, command_line_y) => [":", StyledContent::new(style, palette.input.as_str())]);
+    render!(&mut line_chunk, (0, 0) => [":", StyledContent::new(style, palette.input.as_str())]);
 
-    let mut current_y = command_line_y.saturating_sub(2);
-
-    if suggestion_count > 0 {
-        let suggestions_start_y =
-            current_y.saturating_sub(suggestion_count.saturating_sub(1) as u16);
-        for i in 0..suggestion_count {
-            render!(window, (2, suggestions_start_y + i as u16) => [palette.suggestions[i]]);
+    let suggestion_count = palette.suggestions.len();
+    if let Some(mut suggestions_chunk) = suggestions_chunk.get()
+        && suggestion_count > 0
+    {
+        for i in 0..suggestion_count.min(suggestions_chunk.size().y as usize + 1) {
+            render!(&mut suggestions_chunk, (0, i as u16) => [palette.suggestions[i]]);
         }
-        current_y = suggestions_start_y.saturating_sub(1);
     }
 
-    if let Some(desc_buffer) = &palette.desc {
-        render!(window, (2, current_y) => ["─".repeat(size.x as usize - 2)]);
-        current_y = current_y.saturating_sub(1);
+    if let Some(mut desc_chunk) = desc_chunk.get()
+        && let Some(desc_buffer) = &palette.desc
+    {
+        render!(&mut desc_chunk, (0, desc_chunk.size().y - 1) => ["─".repeat(desc_chunk.size().x as usize - 1)]);
 
-        let desc_render_y = current_y.saturating_sub(desc_height.saturating_sub(1));
-        render!(window, (2, desc_render_y) => [desc_buffer]);
+        render!(&mut desc_chunk, (0, 0) => [desc_buffer]);
     }
 }

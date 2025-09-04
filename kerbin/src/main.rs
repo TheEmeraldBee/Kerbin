@@ -3,7 +3,7 @@ use std::{fs::File, panic, sync::Mutex, time::Duration};
 use ascii_forge::{
     prelude::*,
     window::crossterm::{
-        cursor::{Hide, MoveTo, SetCursorStyle, Show},
+        cursor::{Hide, MoveTo, Show},
         execute,
     },
 };
@@ -35,66 +35,15 @@ macro_rules! get {
     };
 }
 
-pub async fn render_cursor(
-    window: ResMut<WindowState>,
-    buffers: Res<Buffers>,
-    mode_stack: Res<ModeStack>,
-) {
-    get!(mut window, buffers, mode_stack);
-
-    let current_buffer_handle = buffers.cur_buffer();
-    let buffer = current_buffer_handle.read().unwrap();
-
-    let cursor_byte = buffer.primary_cursor().get_cursor_byte();
-    let rope = &buffer.rope;
-
-    let mut current_row_idx = rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
-    let line_start_byte_idx = rope.line_to_byte_idx(current_row_idx, LineType::LF_CR);
-    let mut current_col_idx = rope
-        .byte_to_char_idx(cursor_byte)
-        .saturating_sub(rope.byte_to_char_idx(line_start_byte_idx));
-
-    let scroll = buffer.scroll;
-    let h_scroll = buffer.h_scroll;
-
-    if scroll > current_row_idx {
-        execute!(window.io(), Hide).unwrap();
-        return;
-    }
-
-    current_row_idx = current_row_idx.saturating_sub(scroll);
-    current_col_idx = current_col_idx.saturating_sub(h_scroll);
-
-    let display_row = (current_row_idx + 1) as u16;
-
-    if display_row > window.size().y {
-        execute!(window.io(), Hide).unwrap();
-        return;
-    }
-
-    let cursor_style = match mode_stack.get_mode() {
-        'i' => SetCursorStyle::SteadyBar,
-        _ => SetCursorStyle::SteadyBlock,
-    };
-
-    execute!(
-        window.io(),
-        MoveTo(current_col_idx as u16 + 6, display_row),
-        cursor_style,
-        Show,
-    )
-    .unwrap();
-}
-
 pub async fn register_default_chunks(chunks: ResMut<Chunks>, window: Res<WindowState>) {
     get!(mut chunks, window);
 
-    let layout = Layout::new(window.size())
-        .row(fixed(1), vec![percent(100.0)])
-        .row(flexible(), vec![percent(100.0)])
-        .row(fixed(1), vec![percent(100.0)])
-        .row(fixed(1), vec![percent(100.0)])
-        .calculate()
+    let layout = Layout::new()
+        .row(fixed(1), vec![flexible()])
+        .row(flexible(), vec![flexible()])
+        .row(fixed(1), vec![flexible()])
+        .row(fixed(1), vec![flexible()])
+        .calculate(window.size())
         .unwrap();
 
     chunks.register_chunk::<BufferlineChunk>(0, layout[0][0]);
@@ -105,11 +54,32 @@ pub async fn register_default_chunks(chunks: ResMut<Chunks>, window: Res<WindowS
 pub async fn render_chunks(chunks: Res<Chunks>, window: ResMut<WindowState>) {
     get!(chunks, mut window);
 
+    let mut best_cursor = None;
+
     for layer in &chunks.buffers {
         for buffer in layer {
             let buf = buffer.1.read().unwrap();
+            if let Some(cur) = buf.get_full_cursor() {
+                let replace = match best_cursor {
+                    Some((i, _, _)) => cur.0 > i,
+                    None => true,
+                };
+
+                if replace {
+                    // Add the buffer offset to the cursor pos
+                    let x = cur.1.x.min(buf.size().x) + buffer.0.x;
+                    let y = cur.1.y.min(buf.size().y) + buffer.0.y;
+                    best_cursor = Some((cur.0, vec2(x, y), cur.2));
+                }
+            }
             render!(window, buffer.0 => [ &buf ]);
         }
+    }
+
+    if let Some((_, pos, sty)) = best_cursor {
+        execute!(window.io(), Show, MoveTo(pos.x, pos.y), sty).unwrap();
+    } else {
+        execute!(window.io(), Hide, MoveTo(0, 0)).unwrap();
     }
 }
 
@@ -123,7 +93,7 @@ async fn main() {
 
     tracing_subscriber::fmt()
         .with_ansi(false)
-        .with_max_level(Level::INFO)
+        .with_max_level(Level::DEBUG)
         .with_writer(Mutex::new(log_file))
         .init();
 
@@ -134,37 +104,34 @@ async fn main() {
 
     let mut state = init_state(window, command_sender);
 
-    let config = Config::load(None).unwrap();
-
-    let plugins = config.get_plugins();
+    let config = Config::load("./config/config.toml").unwrap();
+    let plugin = Plugin::load("./config/config.so");
 
     config.apply(&mut state);
 
-    for plugin in &plugins {
-        let _: () = plugin.call_func(b"init", &mut state);
+    // Register command types
+    {
+        let mut commands = state.lock_state::<CommandRegistry>().unwrap();
+
+        commands.register::<BufferCommand>();
+        commands.register::<CommitCommand>();
+
+        commands.register::<CursorCommand>();
+
+        commands.register::<BuffersCommand>();
+
+        commands.register::<ModeCommand>();
+        commands.register::<StateCommand>();
+
+        commands.register::<MotionCommand>();
+
+        commands.register::<ShellCommand>();
     }
-
-    let mut commands = state.lock_state::<CommandRegistry>().unwrap();
-
-    commands.register::<BufferCommand>();
-    commands.register::<CommitCommand>();
-
-    commands.register::<CursorCommand>();
-
-    commands.register::<BuffersCommand>();
-
-    commands.register::<ModeCommand>();
-    commands.register::<StateCommand>();
-
-    commands.register::<MotionCommand>();
-
-    commands.register::<ShellCommand>();
-
-    drop(commands);
 
     state
         .on_hook(ChunkRegister)
         .system(register_default_chunks)
+        .system(register_command_palette_chunks)
         .system(register_help_menu_chunk);
 
     state
@@ -179,8 +146,7 @@ async fn main() {
         .system(render_statusline)
         .system(render_command_palette)
         .system(render_help_menu)
-        .system(render_bufferline)
-        .system(render_cursor);
+        .system(render_bufferline);
 
     state
         .on_hook(RenderFiletype::new("*"))
@@ -214,6 +180,7 @@ async fn main() {
                     .call()
                     .await;
 
+                // Render all chunks to the window
                 state.hook(RenderChunks).call().await;
 
                 state
@@ -229,10 +196,8 @@ async fn main() {
         };
     }
 
-    // Plugins must survive until program exit
-    for plugin in plugins.into_iter() {
-        std::mem::forget(plugin);
-    }
+    // Plugin must survive until program exit
+    std::mem::forget(plugin);
 
     state
         .lock_state::<WindowState>()
