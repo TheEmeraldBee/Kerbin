@@ -1,0 +1,14 @@
+[package]
+name = "config"
+version = "0.0.0"
+edition = "2024"
+
+[lib]
+crate-type = ["dylib"]
+name = "config"
+
+[dependencies]
+kerbin-core = { path = "../kerbin-core" }
+
+# Plugins
+kerbin-tree-sitter = { path = "../plugins/kerbin-tree-sitter" }

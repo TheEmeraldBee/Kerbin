@@ -60,3 +60,20 @@ impl Hook for RenderFiletype {
         }
     }
 }
+
+/// Runs immediately after update
+pub struct PostUpdate;
+impl Hook for PostUpdate {
+    fn info(&self) -> HookInfo {
+        HookInfo::new("post_update")
+    }
+}
+
+/// This state runst after all updates, should be used to clear states, and not render, update, or
+/// read anything
+pub struct UpdateCleanup;
+impl Hook for UpdateCleanup {
+    fn info(&self) -> HookInfo {
+        HookInfo::new("update_cleanup")
+    }
+}

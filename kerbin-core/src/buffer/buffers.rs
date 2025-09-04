@@ -1,9 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use crate::{
-    BufferChunk, BufferlineChunk, Chunk, GrammarManager, InnerChunk, ModeStack, Theme, WindowState,
-    get_canonical_path_with_non_existent,
-};
+use crate::{BufferlineChunk, Chunk, Theme, WindowState, get_canonical_path_with_non_existent};
 
 use super::TextBuffer;
 use ascii_forge::prelude::*;
@@ -47,12 +44,7 @@ impl Buffers {
         self.change_buffer(0);
     }
 
-    pub fn open(
-        &mut self,
-        path: String,
-        grammar_manager: &mut GrammarManager,
-        theme: &Theme,
-    ) -> usize {
+    pub fn open(&mut self, path: String) -> usize {
         let check_path = get_canonical_path_with_non_existent(&path)
             .to_str()
             .unwrap()
@@ -66,11 +58,8 @@ impl Buffers {
         }) {
             self.set_selected_buffer(buffer_id);
         } else {
-            self.buffers.push(Arc::new(RwLock::new(TextBuffer::open(
-                path,
-                grammar_manager,
-                theme,
-            ))));
+            self.buffers
+                .push(Arc::new(RwLock::new(TextBuffer::open(path))));
             self.set_selected_buffer(self.buffers.len() - 1);
         }
 
@@ -110,15 +99,6 @@ impl Buffers {
 
             current_char_offset += title_width;
         }
-    }
-
-    pub fn render(&mut self, buffer: &mut InnerChunk, theme: &Theme, modes: Vec<char>) {
-        self.update_paths();
-
-        self.buffers[self.selected_buffer]
-            .read()
-            .unwrap()
-            .render(buffer, theme, modes);
     }
 
     pub fn update_paths(&mut self) {
@@ -197,20 +177,6 @@ pub async fn render_bufferline(
     buffers.render_bufferline(chunk, &theme);
 }
 
-pub async fn render_buffers(
-    chunk: Chunk<BufferChunk>,
-    buffers: ResMut<Buffers>,
-    theme: Res<Theme>,
-    modes: Res<ModeStack>,
-) {
-    let theme = theme.get();
-    let mut buffers = buffers.get();
-    let modes = modes.get();
-    let mut chunk = chunk.get().unwrap();
-
-    buffers.render(&mut chunk, &theme, modes.0.clone());
-}
-
 pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<WindowState>) {
     let mut buffers = buffers.get();
     let window = window.get();
@@ -257,17 +223,18 @@ pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<Wind
     }
 }
 
-pub async fn update_buffer(window: Res<WindowState>, buffers: Res<Buffers>, theme: Res<Theme>) {
+pub async fn update_buffer(window: Res<WindowState>, buffers: ResMut<Buffers>) {
     let window = window.get();
-    let buffers = buffers.get();
-    let theme = theme.get();
+    let mut buffers = buffers.get();
+
+    buffers.update_paths();
 
     let viewport_height = window.size().y.saturating_sub(3);
     let viewport_width = window.size().x.saturating_sub(7);
     let buffer = buffers.cur_buffer();
     let mut buffer = buffer.write().unwrap();
 
-    buffer.update(&theme);
+    buffer.update();
 
     // Calculate current row and column based on the cursor byte index
     let current_row = buffer

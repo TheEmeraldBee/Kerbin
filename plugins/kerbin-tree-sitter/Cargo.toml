@@ -1,0 +1,13 @@
+[package]
+name = "kerbin-tree-sitter"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ropey = { version = "=2.0.0-beta.1", features = ["metric_chars", "metric_lines_lf"] }
+tree-sitter = "0.25.8"
+libloading = "0.8.8"
+
+tracing.workspace = true
+
+kerbin-core = { path = "../../kerbin-core" }

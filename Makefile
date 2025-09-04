@@ -1,5 +1,8 @@
-run: build-plugin
+build:
+	cargo build
+
+run: build build-config
 	cargo run
 
-build-plugin:
-	cargo build -p test_plugin --release
+build-config:
+	cd config && make build

@@ -1,7 +1,27 @@
 #![allow(improper_ctypes_definitions)]
 
+#[macro_export]
+macro_rules! get {
+    (@inner $name:ident $(, $($t:tt)+)?) => {
+        let $name = $name.get();
+        get!(@inner $($($t)+)?)
+    };
+    (@inner mut $name:ident $(, $($t:tt)+)?) => {
+        let mut $name = $name.get();
+        get!(@inner $($($t)*)?)
+    };
+    (@inner $($t:tt)+) => {
+        compile_error!("Expected comma-separated list of (mut item) or (item), but got an error while parsing. Make sure you don't have a trailing `,`");
+    };
+    (@inner) => {};
+    ($($t:tt)*) => {
+        get!(@inner $($t)*)
+    };
+}
+
 // Export useful types
-pub use kerbin_macros;
+pub extern crate kerbin_macros;
+
 pub use kerbin_plugin::Plugin;
 pub use kerbin_state_machine::*;
 
@@ -9,9 +29,6 @@ pub use ascii_forge;
 
 pub mod regex;
 pub use regex::*;
-
-pub mod grammar;
-pub use grammar::*;
 
 pub mod state;
 pub use state::*;

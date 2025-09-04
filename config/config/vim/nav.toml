@@ -51,7 +51,7 @@ desc = "Move Right"
 [[keybind]]
 modes = []
 keys = ["w"]
-commands = ['rxc (?:\\w+|[^\\w\\s]+|\\s+)(.) 1 false', "gse", "sc"]
+commands = ['rxc (?:\\w+|[^\\w\\s]+|\\s+)(\\s?) 1 false', "gse", "sc"]
 desc = "Go Word"
 
 [[keybind]]
@@ -63,13 +63,13 @@ desc = "Go Word End"
 [[keybind]]
 modes = []
 keys = ["b"]
-commands = ['rxcb (?:\\w+|[^\\w\\s]+|\\s+)(.) -1 false', "gsb", "sc"]
+commands = ['rxcb (?:\\w+|[^\\w\\s]+|\\s+)(\\s?) -1 false', "gsb", "sc"]
 desc = "Go Back Word"
 
 [[keybind]]
 modes = []
 keys = ["shift-w"]
-commands = ['rxc (?:\\s+|\\S+)(.) 1 false', "gse", "sc"]
+commands = ['rxc (?:\\s+|\\S+)(\\s?) 1 false', "gse", "sc"]
 desc = "Go WORD"
 
 [[keybind]]
@@ -81,7 +81,7 @@ desc = "Go WORD end"
 [[keybind]]
 modes = []
 keys = ["shift-b"]
-commands = ['rxcb (?:\\s+|\\S+)(.) -1 false', "gsb", "sc"]
+commands = ['rxcb (?:\\s+|\\S+)(\\s?) -1 false', "gsb", "sc"]
 desc = "Go Back WORD"
 
 [[keybind]]

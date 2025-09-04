@@ -9,13 +9,18 @@ pub enum Constraint {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+/// The possible error results of the layout systems
 pub enum LayoutError {
+    /// At least one constraint was unable to fit within the space
     InsufficientSpace,
+
     InvalidPercentages,
+
     ConstraintConflict,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+/// An area that a layout set takes up.
 pub struct Rect {
     pub x: u16,
     pub y: u16,
@@ -34,14 +39,18 @@ impl Rect {
     }
 }
 
+/// Takes up a percentage of the total area
+/// Will shrink if it has to
 pub fn percent(value: f32) -> Constraint {
     Constraint::Percentage(value)
 }
 
+/// Takes up a fixed amount of space, that errors if it is to small
 pub fn fixed(value: u16) -> Constraint {
     Constraint::Fixed(value)
 }
 
+/// Takes up at least min_val, and at max max_val
 pub fn range(min_val: u16, max_val: u16) -> Constraint {
     Constraint::Range {
         min: min_val,
@@ -49,10 +58,14 @@ pub fn range(min_val: u16, max_val: u16) -> Constraint {
     }
 }
 
+/// Takes up the remaining space
 pub fn flexible() -> Constraint {
     Constraint::Flexible
 }
 
+#[derive(Default)]
+/// Defines a horizontal x vertical grid layout setup.
+/// used for separating a given space out into easy chunks for rendering
 pub struct Layout {
     rows: Vec<(Constraint, Vec<Constraint>)>,
 }
@@ -60,7 +73,7 @@ pub struct Layout {
 impl Layout {
     /// Starts a layout with a total space (usually the window size)
     pub fn new() -> Self {
-        Self { rows: Vec::new() }
+        Self::default()
     }
 
     /// Creates a row that is then sub-split into other systems

@@ -14,37 +14,37 @@ desc = "Delete Sel"
 [[keybind]]
 modes = []
 keys = ["d", "w"]
-commands = ['rxc (\\w+|[^\\w\\s]+|\\s+) 1 true', "gsb", "commit d"]
+commands = ['rxc (?:\\w+|[^\\w\\s]+|\\s+)(\\s?) 1 true', "gsb", "commit d"]
 desc = "Delete Word"
 
 [[keybind]]
 modes = []
 keys = ["d", "e"]
-commands = ['rxc (?:\\w+|[^\\w\\s]+|\\s+)(.) 1 true', "gsb", "commit d"]
+commands = ['rxc (\\w+|[^\\w\\s]+|\\s+) 1 true', "gsb", "commit d"]
 desc = "Delete Word End"
 
 [[keybind]]
 modes = []
 keys = ["d", "b"]
-commands = ['rxcb (?:\\w+|[^\\w\\s]+|\\s+)(.) -1 true', "gsb", "commit d"]
+commands = ['rxcb (?:\\w+|[^\\w\\s]+|\\s+)(\\s?) -1 true', "gsb", "commit d"]
 desc = "Delete Back Word"
 
 [[keybind]]
 modes = []
 keys = ["d", "shift-w"]
-commands = ['rxc (\\s+|\\S+) 1 true', "gsb", "commit d"]
+commands = ['rxc (\\s+|\\S+)(\\s?) 1 true', "gsb", "commit d"]
 desc = "Delete WORD"
 
 [[keybind]]
 modes = []
 keys = ["d", "shift-e"]
-commands = ['rxc (?:\\s+|\\S+)(.) 1 true', "gsb", "commit d"]
+commands = ['rxc (\\s+|\\S+) 1 true', "gsb", "commit d"]
 desc = "Delete WORD End"
 
 [[keybind]]
 modes = []
 keys = ["d", "shift-b"]
-commands = ['rxcb (?:\\s+|\\S+)(.) -1 true', "gsb", "commit d"]
+commands = ['rxcb (?:\\s+|\\S+)(\\s?) -1 true', "gsb", "commit d"]
 desc = "Delete Back WORD"
 
 [[keybind]]

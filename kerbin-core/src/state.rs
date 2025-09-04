@@ -6,15 +6,14 @@ use std::{
 
 use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
 use kerbin_macros::State;
-use kerbin_plugin::Plugin;
 use kerbin_state_machine::State;
 use kerbin_state_machine::storage::*;
 use tokio::sync::mpsc::UnboundedSender;
 use toml::Value;
 
 use crate::{
-    AsCommandInfo, Command, CommandInfo, CommandPaletteState, GrammarManager, InputConfig,
-    InputState, Rect, TextBuffer, Theme, buffer::Buffers, rank,
+    AsCommandInfo, Command, CommandInfo, CommandPaletteState, InputConfig, InputState, Rect,
+    TextBuffer, Theme, buffer::Buffers, rank,
 };
 
 #[derive(State)]
@@ -376,7 +375,6 @@ pub fn init_state(window: Window, cmd_sender: UnboundedSender<Box<dyn Command>>)
         })
         .state(InputConfig::default())
         .state(InputState::default())
-        .state(GrammarManager::default())
         .state(Theme::default())
         .state(CommandPaletteState::default())
         .state(ModeStack(vec!['n']))

@@ -1,4 +1,3 @@
-pub mod action;
 use std::{
     collections::VecDeque,
     io::{BufReader, BufWriter, ErrorKind, Write},
@@ -6,19 +5,18 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub mod action;
 pub use action::*;
 
 pub mod buffers;
 pub use buffers::*;
 
-pub mod tree_sitter;
-use ::tree_sitter::{InputEdit, Point};
+use kerbin_state_machine::{Res, SystemParam};
 use ropey::{LineType, Rope};
-use tree_sitter::*;
 
 use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
 
-use crate::{ContentStyleExt, GrammarManager, InnerChunk, Theme};
+use crate::{BufferChunk, Chunk, ModeStack, Theme};
 
 #[derive(Default)]
 pub struct ChangeGroup(Vec<Cursor>, Vec<Box<dyn BufferAction>>);
@@ -86,12 +84,12 @@ pub struct TextBuffer {
     pub cursors: Vec<Cursor>,
     pub primary_cursor: usize,
 
+    pub byte_changes: Vec<[((usize, usize), usize); 3]>,
+
     current_change: Option<ChangeGroup>,
 
     undo_stack: Vec<ChangeGroup>,
     redo_stack: Vec<ChangeGroup>,
-
-    pub ts_state: Option<TSState>,
 
     pub scroll: usize,
     pub h_scroll: usize,
@@ -108,19 +106,19 @@ impl TextBuffer {
             cursors: vec![Cursor::default()],
             primary_cursor: 0,
 
+            byte_changes: vec![],
+
             current_change: None,
 
             undo_stack: vec![],
             redo_stack: vec![],
-
-            ts_state: None,
 
             scroll: 0,
             h_scroll: 0,
         }
     }
 
-    pub fn open(path_str: String, grammar_manager: &mut GrammarManager, theme: &Theme) -> Self {
+    pub fn open(path_str: String) -> Self {
         let mut found_ext = "".to_string();
 
         let path = get_canonical_path_with_non_existent(&path_str);
@@ -137,11 +135,8 @@ impl TextBuffer {
             }
         };
 
-        let mut ts_state = None;
-
         if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
             found_ext = ext.to_string();
-            ts_state = TSState::init(ext, &rope, grammar_manager, theme);
         }
 
         Self {
@@ -152,43 +147,31 @@ impl TextBuffer {
             cursors: vec![Cursor::default()],
             primary_cursor: 0,
 
+            byte_changes: vec![],
+
             undo_stack: vec![],
             redo_stack: vec![],
             current_change: None,
-
-            ts_state,
 
             scroll: 0,
             h_scroll: 0,
         }
     }
 
-    pub fn get_edit_part(&self, byte: usize) -> (Point, usize) {
+    pub fn get_edit_part(&self, byte: usize) -> ((usize, usize), usize) {
         let line_idx = self.rope.byte_to_line_idx(byte, LineType::LF_CR);
         let col = byte - line_idx;
 
-        (Point::new(line_idx, col), byte)
+        ((line_idx, col), byte)
     }
 
     pub fn register_input_edit(
         &mut self,
-        start: (Point, usize),
-        old_end: (Point, usize),
-        new_end: (Point, usize),
+        start: ((usize, usize), usize),
+        old_end: ((usize, usize), usize),
+        new_end: ((usize, usize), usize),
     ) {
-        if let Some(ts) = &mut self.ts_state {
-            ts.tree_sitter_dirty = true;
-            ts.changes.push(InputEdit {
-                start_position: start.0,
-                start_byte: start.1,
-
-                old_end_position: old_end.0,
-                old_end_byte: old_end.1,
-
-                new_end_position: new_end.0,
-                new_end_byte: new_end.1,
-            })
-        }
+        self.byte_changes.push([start, old_end, new_end]);
     }
 
     pub fn action(&mut self, action: impl BufferAction) -> bool {
@@ -359,7 +342,11 @@ impl TextBuffer {
 
         self.rope
             .write_to(
-                match std::fs::OpenOptions::new().write(true).open(&self.path) {
+                match std::fs::OpenOptions::new()
+                    .write(true)
+                    .truncate(true)
+                    .open(&self.path)
+                {
                     Ok(f) => BufWriter::new(f),
                     Err(e) => {
                         tracing::error!("Failed to write to {}: {e}", self.path);
@@ -486,175 +473,133 @@ impl TextBuffer {
         }
     }
 
-    pub fn update(&mut self, theme: &Theme) {
+    pub fn update(&mut self) {
         self.merge_overlapping_cursors();
-        if let Some(s) = &mut self.ts_state {
-            s.update_tree_and_highlights(&self.rope, theme);
+        self.byte_changes.clear();
+    }
+}
+
+pub async fn render_buffer_default(
+    chunk: Chunk<BufferChunk>,
+    theme: Res<Theme>,
+    modes: Res<ModeStack>,
+    bufs: Res<Buffers>,
+) {
+    let mut chunk = chunk.get().unwrap();
+    get!(bufs, modes, theme);
+    let mut loc = vec2(0, 0);
+
+    let buf = bufs.cur_buffer();
+    let buf = buf.read().unwrap();
+
+    let mut byte_offset = buf.rope.line_to_byte_idx(buf.scroll, LineType::LF_CR);
+
+    let row = buf
+        .rope
+        .byte_to_line_idx(buf.primary_cursor().get_cursor_byte(), LineType::LF_CR);
+
+    let cursor_byte = buf.primary_cursor().get_cursor_byte();
+    let rope = &buf.rope;
+
+    let current_row_idx = rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
+    let line_start_byte_idx = rope.line_to_byte_idx(current_row_idx, LineType::LF_CR);
+    let current_col_idx = rope
+        .byte_to_char_idx(cursor_byte)
+        .saturating_sub(rope.byte_to_char_idx(line_start_byte_idx));
+
+    let cursor_style = match modes.get_mode() {
+        'i' => SetCursorStyle::SteadyBar,
+        _ => SetCursorStyle::SteadyBlock,
+    };
+
+    // Buffer should always be 0 priority (should always be set)
+    chunk.set_cursor(
+        0,
+        (
+            current_col_idx as u16 + 6 - buf.h_scroll as u16,
+            current_row_idx as u16 - buf.scroll as u16,
+        )
+            .into(),
+        cursor_style,
+    );
+
+    let default_style = theme
+        .get("ui.text")
+        .unwrap_or_else(|| ContentStyle::new().with(Color::Rgb { r: 0, g: 0, b: 0 }));
+
+    let line_style = theme
+        .get("ui.linenum")
+        .unwrap_or(ContentStyle::new().dark_grey());
+
+    let sel_style = theme.get("ui.selection");
+
+    let mut cursor_parts = modes
+        .0
+        .iter()
+        .map(|x| x.to_string())
+        .collect::<VecDeque<_>>();
+
+    let mut cursor_style = None;
+
+    while !cursor_parts.is_empty() {
+        if let Some(s) = theme.get(&format!(
+            "ui.cursor.{}",
+            cursor_parts
+                .iter()
+                .cloned()
+                .reduce(|l, r| format!("{l}.{r}"))
+                .unwrap()
+        )) {
+            cursor_style = Some(s);
+            break;
         }
+        cursor_parts.pop_front();
     }
 
-    fn render(&self, buffer: &mut InnerChunk, theme: &Theme, modes: Vec<char>) -> Vec2 {
-        let mut loc = vec2(0, 0);
+    let cursor_style = match cursor_style {
+        Some(s) => s,
+        None => theme.get("ui.cursor").unwrap_or_default(),
+    };
 
-        let mut byte_offset = self.rope.line_to_byte_idx(self.scroll, LineType::LF_CR);
+    let gutter_width = 6;
+    let start_x = loc.x;
 
-        let row = self
-            .rope
-            .byte_to_line_idx(self.primary_cursor().get_cursor_byte(), LineType::LF_CR);
+    let mut i = buf.scroll;
 
-        let cursor_byte = self.primary_cursor().get_cursor_byte();
-        let rope = &self.rope;
-
-        let current_row_idx = rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
-        let line_start_byte_idx = rope.line_to_byte_idx(current_row_idx, LineType::LF_CR);
-        let current_col_idx = rope
-            .byte_to_char_idx(cursor_byte)
-            .saturating_sub(rope.byte_to_char_idx(line_start_byte_idx));
-
-        let cursor_style = match modes.last().unwrap() {
-            'i' => SetCursorStyle::SteadyBar,
-            _ => SetCursorStyle::SteadyBlock,
-        };
-
-        // Buffer should always be 0 priority (should always be set)
-        buffer.set_cursor(
-            0,
-            (
-                current_col_idx as u16 + 6 - self.h_scroll as u16,
-                current_row_idx as u16 - self.scroll as u16,
-            )
-                .into(),
-            cursor_style,
-        );
-
-        let default_style = theme
-            .get("ui.text")
-            .unwrap_or_else(|| ContentStyle::new().with(Color::Rgb { r: 0, g: 0, b: 0 }));
-
-        let line_style = theme
-            .get("ui.linenum")
-            .unwrap_or(ContentStyle::new().dark_grey());
-
-        let sel_style = theme.get("ui.selection");
-
-        let mut cursor_parts = modes.iter().map(|x| x.to_string()).collect::<VecDeque<_>>();
-
-        let mut cursor_style = None;
-
-        while !cursor_parts.is_empty() {
-            if let Some(s) = theme.get(&format!(
-                "ui.cursor.{}",
-                cursor_parts
-                    .iter()
-                    .cloned()
-                    .reduce(|l, r| format!("{l}.{r}"))
-                    .unwrap()
-            )) {
-                cursor_style = Some(s);
-                break;
-            }
-            cursor_parts.pop_front();
+    for line in buf
+        .rope
+        .lines_at(buf.scroll, LineType::LF_CR)
+        .take(chunk.size().y as usize)
+    {
+        loc.x = start_x;
+        let mut num_line = (i + 1).to_string();
+        if num_line.len() > 5 {
+            num_line = num_line[0..5].to_string();
         }
 
-        let cursor_style = match cursor_style {
-            Some(s) => s,
-            None => theme.get("ui.cursor").unwrap_or_default(),
-        };
-
-        let gutter_width = 6;
-        let start_x = loc.x;
-
-        let mut i = self.scroll;
-
-        for line in self
-            .rope
-            .lines_at(self.scroll, LineType::LF_CR)
-            .take(buffer.size().y as usize)
-        {
-            loc.x = start_x;
-            let mut num_line = (i + 1).to_string();
-            if num_line.len() > 5 {
-                num_line = num_line[0..5].to_string();
-            }
-
-            if i == row {
-                num_line = format!(
-                    "{}{}",
-                    " ".repeat(4usize.saturating_sub(num_line.len())),
-                    num_line
-                );
-            } else {
-                num_line = format!(
-                    "{}{}",
-                    " ".repeat(5usize.saturating_sub(num_line.len())),
-                    num_line
-                );
-            }
-
-            render!(buffer, loc => [StyledContent::new(line_style, num_line)]);
-
-            loc.x += gutter_width;
-
-            if let Some(ts) = &self.ts_state {
-                let mut current_style = ts
-                    .highlights
-                    .range(..=byte_offset)
-                    .next_back()
-                    .map(|(_, style)| *style)
-                    .unwrap_or(default_style);
-
-                for (char_col, (char_byte_idx, ch)) in line.char_indices().enumerate() {
-                    let absolute_byte_idx = byte_offset + char_byte_idx;
-
-                    if let Some(new_style) = ts.highlights.get(&absolute_byte_idx) {
-                        current_style = *new_style;
-                    }
-
-                    let mut in_selection = false;
-                    let mut is_cursor = false;
-                    for (i, cursor) in self.cursors.iter().enumerate() {
-                        if cursor.get_cursor_byte() == absolute_byte_idx {
-                            // Don't style the primary cursor, only non-primary ones.
-                            if i != self.primary_cursor {
-                                is_cursor = true;
-                            }
-                            break;
-                        }
-                        if cursor.sel().contains(&absolute_byte_idx) {
-                            in_selection = true;
-                            break;
-                        }
-                    }
-
-                    let resulting_style = match (is_cursor, in_selection) {
-                        (false, false) => current_style,
-                        (true, _) => cursor_style.combined_with(&cursor_style),
-                        (false, true) => sel_style
-                            .map(|x| x.combined_with(&current_style))
-                            .unwrap_or(current_style.on_grey()),
-                    };
-
-                    if char_col >= self.h_scroll {
-                        let render_col = (char_col - self.h_scroll) as u16;
-
-                        if render_col >= buffer.size().x - 1 {
-                            break;
-                        }
-
-                        render!(buffer, loc + vec2(render_col, 0) => [StyledContent::new(resulting_style, ch)]);
-                    }
-                }
-            } else {
-                // Fallback for files with no syntax highlighting
-                render!(buffer, loc => [ line.to_string() ]);
-            }
-
-            loc.y += 1;
-            byte_offset += line.len();
-            i += 1;
+        if i == row {
+            num_line = format!(
+                "{}{}",
+                " ".repeat(4usize.saturating_sub(num_line.len())),
+                num_line
+            );
+        } else {
+            num_line = format!(
+                "{}{}",
+                " ".repeat(5usize.saturating_sub(num_line.len())),
+                num_line
+            );
         }
 
-        loc
+        render!(chunk, loc => [StyledContent::new(line_style, num_line)]);
+
+        loc.x += gutter_width;
+
+        render!(chunk, loc => [ line.to_string() ]);
+
+        loc.y += 1;
+        byte_offset += line.len();
+        i += 1;
     }
 }
 

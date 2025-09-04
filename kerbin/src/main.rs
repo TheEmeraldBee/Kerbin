@@ -16,25 +16,6 @@ use tokio::sync::mpsc::unbounded_channel;
 
 use tracing::Level;
 
-#[macro_export]
-macro_rules! get {
-    (@inner $name:ident $(, $($t:tt)+)?) => {
-        let $name = $name.get();
-        get!(@inner $($($t)+)?)
-    };
-    (@inner mut $name:ident $(, $($t:tt)+)?) => {
-        let mut $name = $name.get();
-        get!(@inner $($($t)*)?)
-    };
-    (@inner $($t:tt)+) => {
-        compile_error!("Expected comma-separated list of (mut item) or (item), but got an error while parsing. Make sure you don't have a trailing `,`");
-    };
-    (@inner) => {};
-    ($($t:tt)*) => {
-        get!(@inner $($t)*)
-    };
-}
-
 pub async fn register_default_chunks(chunks: ResMut<Chunks>, window: Res<WindowState>) {
     get!(mut chunks, window);
 
@@ -93,7 +74,7 @@ async fn main() {
 
     tracing_subscriber::fmt()
         .with_ansi(false)
-        .with_max_level(Level::DEBUG)
+        .with_max_level(Level::INFO)
         .with_writer(Mutex::new(log_file))
         .init();
 
@@ -104,10 +85,14 @@ async fn main() {
 
     let mut state = init_state(window, command_sender);
 
-    let config = Config::load("./config/config.toml").unwrap();
-    let plugin = Plugin::load("./config/config.so");
+    let config = Config::load("./config/config/config.toml").unwrap();
 
     config.apply(&mut state);
+
+    let plugin = Plugin::load("./target/release/libconfig.so");
+
+    // Run the plugin's init
+    let _: () = plugin.call_func(b"init", &mut state);
 
     // Register command types
     {
@@ -138,8 +123,9 @@ async fn main() {
         .on_hook(Update)
         .system(handle_inputs)
         .system(handle_command_palette_input)
-        .system(update_palette_suggestions)
-        .system(update_buffer);
+        .system(update_palette_suggestions);
+
+    state.on_hook(UpdateCleanup).system(update_buffer);
 
     state
         .on_hook(Render)
@@ -150,7 +136,7 @@ async fn main() {
 
     state
         .on_hook(RenderFiletype::new("*"))
-        .system(render_buffers);
+        .system(render_buffer_default);
 
     state.on_hook(RenderChunks).system(render_chunks);
 
@@ -165,6 +151,10 @@ async fn main() {
                 // Update all states
                 state.hook(Update).call().await;
 
+                state.hook(PostUpdate).call().await;
+
+                state.hook(UpdateCleanup).call().await;
+
                 // Clear the chunks for the next frame (allows for conditional chunks)
                 state.lock_state::<Chunks>().unwrap().clear();
 
@@ -172,10 +162,14 @@ async fn main() {
                 state.hook(ChunkRegister).call().await;
 
                 // Call the file renderer
-                state.hook(RenderFiletype::new("*")).call().await;
+                let filetype = {
+                    let bufs = state.lock_state::<Buffers>().unwrap();
+                    bufs.cur_buffer().read().unwrap().ext.clone()
+                };
 
                 // Render the rest of the state
                 state
+                    .hook(RenderFiletype::new(filetype))
                     .hook(Render)
                     .call()
                     .await;

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = [ "kerbin", "kerbin-config", "kerbin-core", "kerbin-macros", "kerbin-plugin", "kerbin-state-machine" , "plugins/*" ]
+members = [ "kerbin", "kerbin-config", "kerbin-core", "kerbin-macros", "kerbin-plugin", "kerbin-state-machine", "config" , "plugins/*"]
 
 [workspace.package]
 version = "0.1.0"

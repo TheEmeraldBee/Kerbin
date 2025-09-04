@@ -41,7 +41,7 @@ impl Command for CommitCommand {
                         .parse_command(
                             after.clone(),
                             true,
-                            true,
+                            false,
                             &state.lock_state::<CommandPrefixRegistry>().unwrap(),
                             &state.lock_state::<ModeStack>().unwrap(),
                         );
@@ -206,11 +206,7 @@ impl Command for BuffersCommand {
 
         match self {
             Self::OpenFile(path) => {
-                let buffer_id = buffers.open(
-                    path.clone(),
-                    &mut state.lock_state::<GrammarManager>().unwrap(),
-                    &state.lock_state::<Theme>().unwrap(),
-                );
+                let buffer_id = buffers.open(path.clone());
                 buffers.set_selected_buffer(buffer_id);
                 true
             }

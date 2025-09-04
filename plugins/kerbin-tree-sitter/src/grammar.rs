@@ -1,5 +1,5 @@
-use kerbin_macros::State;
-use kerbin_state_machine::storage::*;
+use kerbin_core::kerbin_macros::State;
+use kerbin_core::*;
 use libloading::{Library, Symbol};
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tree_sitter::{Language, Query};
