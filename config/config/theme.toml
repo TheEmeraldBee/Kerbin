@@ -5,8 +5,10 @@
 [theme]
 "ui.linenum" = { fg = "#555555" }
 
+
 "ts.attribute" = "yellow"
 
+"ts.property" = "blue"
 "ts.type" = "yellow"
 "ts.type.enum.variant" = "teal"
 
@@ -39,7 +41,7 @@
 "ts.operator" = "sky"
 
 "ts.function" = "blue"
-"ts.function.macro" = "rosewater"
+"ts.function.macro" = "mauve"
 
 "ts.tag" = "blue"
 
@@ -84,7 +86,8 @@
 "ui.cursor" = { bg = "overlay0" }
 
 # In the editor, rendering multicursor style is done with ui.cursor.mode0.mode1.etc
-# IE: if the mode stack is nxi (default multicursor insert) you could do ui.cursor.n.x.i, or ui.cursor.x.i, or ui.cursor.i, and it would match one all three, n.x.i first.
+# IE: if the mode stack is nxi (default multicursor insert) you could do ui.cursor.n.x.i, 
+#     or ui.cursor.x.i, or ui.cursor.i, and it would match one all three, n.x.i first.
 "ui.cursor.x.i" = { bg = "green", attrs = ["bold"] }
 "ui.cursor.x.v" = { bg = "sky", attrs = ["bold", "italic"] }
 "ui.cursor.x" = { bg = "lavender" }

@@ -16,6 +16,7 @@ libloading.workspace = true
 tokio.workspace = true
 
 tracing.workspace = true
+tracing-subscriber = "0.3.19"
 
 shellwords = "1.1.0"
 serde.workspace = true

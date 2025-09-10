@@ -1,4 +1,4 @@
-use std::{fs::File, panic, sync::Mutex, time::Duration};
+use std::{panic, time::Duration};
 
 use ascii_forge::{
     prelude::*,
@@ -13,8 +13,6 @@ use kerbin_core::*;
 
 use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
 use tokio::sync::mpsc::unbounded_channel;
-
-use tracing::Level;
 
 pub async fn register_default_chunks(chunks: ResMut<Chunks>, window: Res<WindowState>) {
     get!(mut chunks, window);
@@ -58,25 +56,60 @@ pub async fn render_chunks(chunks: Res<Chunks>, window: ResMut<WindowState>) {
     }
 
     if let Some((_, pos, sty)) = best_cursor {
-        execute!(window.io(), Show, MoveTo(pos.x, pos.y), sty).unwrap();
+        if window.mouse_pos() != pos {
+            execute!(window.io(), Show, MoveTo(pos.x, pos.y), sty).unwrap();
+        }
     } else {
         execute!(window.io(), Hide, MoveTo(0, 0)).unwrap();
     }
 }
 
+async fn update(state: &mut State) {
+    // Update all states
+    state.hook(Update).call().await;
+
+    state.hook(PostUpdate).call().await;
+
+    state.hook(UpdateCleanup).call().await;
+
+    // Clear the chunks for the next frame (allows for conditional chunks)
+    state.lock_state::<Chunks>().unwrap().clear();
+
+    // Register all chunks for rendering
+    state.hook(ChunkRegister).call().await;
+
+    // Call the file renderer
+    let filetype = {
+        let bufs = state.lock_state::<Buffers>().unwrap();
+        bufs.cur_buffer().read().unwrap().ext.clone()
+    };
+
+    // Render the rest of the state (This will chain rendering the file,
+    // allows for many async systems to run at "once" (async, non-threaded)
+    state
+        .hook(RenderFiletype::new(filetype))
+        .hook(Render)
+        .call()
+        .await;
+
+    // Render all chunks to the window
+    state.hook(RenderChunks).call().await;
+
+    match state
+        .lock_state::<WindowState>()
+        .unwrap()
+        .update(Duration::from_millis(0))
+    {
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!("{e}");
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
-    let log_file = File::options()
-        .create(true)
-        .append(true)
-        .open("kerbin.log")
-        .expect("file should be able to open");
-
-    tracing_subscriber::fmt()
-        .with_ansi(false)
-        .with_max_level(Level::INFO)
-        .with_writer(Mutex::new(log_file))
-        .init();
+    init_log();
 
     handle_panics();
     let window = Window::init().unwrap();
@@ -148,40 +181,8 @@ async fn main() {
                 cmd.apply(&mut state);
             }
             _ = tokio::time::sleep(Duration::from_millis(16)) => {
-                // Update all states
-                state.hook(Update).call().await;
 
-                state.hook(PostUpdate).call().await;
-
-                state.hook(UpdateCleanup).call().await;
-
-                // Clear the chunks for the next frame (allows for conditional chunks)
-                state.lock_state::<Chunks>().unwrap().clear();
-
-                // Register all major chunk types
-                state.hook(ChunkRegister).call().await;
-
-                // Call the file renderer
-                let filetype = {
-                    let bufs = state.lock_state::<Buffers>().unwrap();
-                    bufs.cur_buffer().read().unwrap().ext.clone()
-                };
-
-                // Render the rest of the state
-                state
-                    .hook(RenderFiletype::new(filetype))
-                    .hook(Render)
-                    .call()
-                    .await;
-
-                // Render all chunks to the window
-                state.hook(RenderChunks).call().await;
-
-                state
-                    .lock_state::<WindowState>()
-                    .unwrap()
-                    .update(Duration::from_millis(0))
-                    .unwrap();
+                update(&mut state).await;
 
                 if !state.lock_state::<Running>().unwrap().0 {
                     break
@@ -190,12 +191,14 @@ async fn main() {
         };
     }
 
-    // Plugin must survive until program exit
-    std::mem::forget(plugin);
-
     state
         .lock_state::<WindowState>()
         .unwrap()
         .restore()
         .expect("Window should restore fine");
+
+    // State **MUST** Be dropped before the plugin,
+    // as state may store references to memory in state
+    drop(state);
+    drop(plugin);
 }

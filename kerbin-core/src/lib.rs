@@ -19,8 +19,37 @@ macro_rules! get {
     };
 }
 
+pub fn init_log() {
+    let log_file = File::options()
+        .create(true)
+        .append(true)
+        .open("kerbin.log")
+        .expect("file should be able to open");
+
+    tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_max_level(Level::INFO)
+        .with_writer(Mutex::new(log_file))
+        .init();
+}
+
+pub fn init_conf() {
+    init_log();
+
+    let original_hook = std::panic::take_hook();
+
+    // Since we can't handle plugin panics in the editor,
+    // just log them. This will allow for quickly looking over crashes
+    std::panic::set_hook(Box::new(move |e| {
+        tracing::error!("{e}");
+        original_hook(e);
+    }));
+}
+
 // Export useful types
 pub extern crate kerbin_macros;
+
+use std::{fs::File, sync::Mutex};
 
 pub use kerbin_plugin::Plugin;
 pub use kerbin_state_machine::*;
@@ -62,3 +91,4 @@ pub use chunk::*;
 
 pub mod chunks;
 pub use chunks::*;
+use tracing::Level;

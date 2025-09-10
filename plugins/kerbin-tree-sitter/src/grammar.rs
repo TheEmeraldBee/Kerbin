@@ -10,14 +10,14 @@ pub struct GrammarManager {
     /// Base path where grammars are stored, e.g., `runtime/grammars`
     base_path: PathBuf,
 
-    /// Maps a grammar name (e.g., "rust") to its loaded query
-    loaded_queries: HashMap<String, Arc<Query>>,
+    /// Maps a grammar name to a map of its loaded queries by name (e.g., "highlight").
+    loaded_queries: HashMap<String, HashMap<String, Arc<Query>>>,
 
     /// Maps a grammar name (e.g., "rust") to its loaded Language object.
     loaded_grammars: HashMap<String, Language>,
 
     /// Maps a file extension (e.g., "rs") to a grammar name ("rust").
-    extension_map: HashMap<String, String>,
+    pub extension_map: HashMap<String, String>,
 }
 
 impl Default for GrammarManager {
@@ -53,35 +53,61 @@ impl GrammarManager {
         extension: &str,
     ) -> Option<(Language, Option<Arc<Query>>)> {
         let lang_name = self.extension_map.get(extension)?.clone();
-
         let language = self.get_language(&lang_name)?;
+        let query = self.get_query(&lang_name, "highlight");
 
-        // Now, load the query if it's not already cached.
-        if !self.loaded_queries.contains_key(&lang_name) {
-            let query_path = self
-                .base_path
-                .join(format!("tree-sitter-{lang_name}/queries/highlights.scm"));
+        Some((language, query))
+    }
 
-            if let Ok(query_source) = std::fs::read_to_string(query_path) {
-                let query = match Query::new(&language, &query_source) {
-                    Ok(q) => q,
-                    Err(e) => {
-                        tracing::error!("Failed to parse query file for '{}': {:?}", lang_name, e);
-                        return Some((language, None));
-                    }
-                };
-                self.loaded_queries
-                    .insert(lang_name.to_string(), Arc::new(query));
-            } else {
-                return Some((language, None));
-            }
+    /// Gets a query for a given language by name (e.g., "highlight", "indent").
+    /// It loads and caches the query if it hasn't been loaded yet.
+    pub fn get_query(&mut self, lang_name: &str, query_name: &str) -> Option<Arc<Query>> {
+        let language = self.get_language(lang_name)?;
+
+        if let Some(queries) = self.loaded_queries.get(lang_name)
+            && let Some(query) = queries.get(query_name)
+        {
+            return Some(query.clone());
         }
 
-        Some((language, self.loaded_queries.get(&lang_name).cloned()))
+        let query_filename = if query_name.ends_with("s") {
+            format!("{}.scm", query_name.to_lowercase())
+        } else {
+            format!("{}s.scm", query_name.to_lowercase())
+        };
+
+        let query_path = self.base_path.join(format!(
+            "tree-sitter-{}/queries/{}",
+            lang_name, query_filename
+        ));
+
+        if let Ok(query_source) = std::fs::read_to_string(query_path) {
+            let query = match Query::new(&language, &query_source) {
+                Ok(q) => Arc::new(q),
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to parse query file for '{}' (query: {}): {:?}",
+                        lang_name,
+                        query_name,
+                        e
+                    );
+                    return None;
+                }
+            };
+
+            self.loaded_queries
+                .entry(lang_name.to_string())
+                .or_default()
+                .insert(query_name.to_string(), query.clone());
+
+            Some(query)
+        } else {
+            None
+        }
     }
 
     /// Loads a grammar by its name (e.g., "rust").
-    fn get_language(&mut self, name: &str) -> Option<Language> {
+    pub fn get_language(&mut self, name: &str) -> Option<Language> {
         if let Some(lang) = self.loaded_grammars.get(name) {
             return Some(lang.clone());
         }

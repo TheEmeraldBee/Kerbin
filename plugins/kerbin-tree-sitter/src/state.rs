@@ -2,29 +2,30 @@ use kerbin_core::{
     ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle},
     *,
 };
+use kerbin_macros::State;
 
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     ops::Range,
-    sync::Arc,
 };
 
 use ropey::Rope;
-use tree_sitter::{InputEdit, Parser, Query, QueryCursor, StreamingIterator, TextProvider, Tree};
+use tree_sitter::{
+    InputEdit, Parser, Query, QueryCapture, QueryCursor, StreamingIterator, TextProvider, Tree,
+};
 
-use crate::{GrammarManager, TreeSitterStates};
+use crate::GrammarManager;
+
+#[derive(State, Default)]
+pub struct HighlightMap(pub BTreeMap<String, BTreeMap<usize, ContentStyle>>);
 
 pub struct TSState {
     pub parser: Parser,
-
-    pub tree: Option<Tree>,
-
-    pub query: Option<Arc<Query>>,
-
-    pub highlights: BTreeMap<usize, ContentStyle>,
-
+    pub primary_tree: Option<Tree>,
+    pub injected_parsers: HashMap<String, (Parser, Option<Tree>)>,
     pub tree_sitter_dirty: bool,
     pub changes: Vec<InputEdit>,
+    pub language_name: String,
 }
 
 impl Default for TSState {
@@ -37,77 +38,27 @@ impl TSState {
     pub fn new() -> Self {
         Self {
             parser: Parser::new(),
-
-            tree: None,
-
-            query: None,
-
-            highlights: BTreeMap::new(),
-
-            tree_sitter_dirty: false,
+            primary_tree: None,
+            injected_parsers: HashMap::new(),
+            tree_sitter_dirty: true,
             changes: vec![],
+            language_name: String::new(),
         }
     }
 
-    pub fn init(
-        ext: &str,
-        text: &Rope,
-        grammar_manager: &mut GrammarManager,
-        theme: &Theme,
-    ) -> Option<Self> {
+    pub fn init(ext: &str, grammar_manager: &mut GrammarManager) -> Option<Self> {
         let mut s;
+        let lang_name = grammar_manager.extension_map.get(ext).cloned();
 
-        if let Some((language, q)) = grammar_manager.get_language_and_query_for_ext(ext) {
+        if let Some(language) = grammar_manager.get_language_for_ext(ext) {
             s = Self::new();
             s.parser.set_language(&language).unwrap();
-
-            s.query = q
+            s.language_name = lang_name.unwrap_or_default();
         } else {
             return None;
         }
 
-        let tree = s.parser.parse_with_options(
-            &mut |byte, _point| {
-                let res = text.get_chunk(byte);
-                res.map(|x| &x.0[(byte - x.1)..]).unwrap_or_default()
-            },
-            None,
-            None,
-        );
-
-        if let (Some(q), Some(t)) = (s.query.as_ref(), tree.as_ref()) {
-            s.highlights = highlight(text, t, q, theme);
-        }
-
         Some(s)
-    }
-
-    pub fn update_tree_and_highlights(&mut self, text: &Rope, theme: &Theme) {
-        if !self.tree_sitter_dirty {
-            return;
-        }
-
-        if let Some(tree) = &mut self.tree {
-            for edit in &self.changes {
-                tree.edit(edit);
-            }
-        }
-
-        self.tree = self.parser.parse_with_options(
-            &mut |byte, _point| {
-                let res = text.get_chunk(byte);
-                res.map(|x| &x.0[(byte - x.1)..]).unwrap_or_default()
-            },
-            self.tree.as_ref(),
-            None,
-        );
-
-        if let (Some(t), Some(q)) = (self.tree.as_ref(), self.query.as_ref()) {
-            self.highlights = highlight(text, t, q, theme);
-        }
-
-        self.tree_sitter_dirty = false;
-        self.changes.clear();
     }
 }
 
@@ -143,41 +94,65 @@ impl<'a> Iterator for ChunksBytes<'a> {
     }
 }
 
+pub fn map_query<'a, T, F>(
+    tree: &'a Tree,
+    query: &'a Query,
+    text: &'a Rope,
+    mut mapper: F,
+) -> Vec<T>
+where
+    F: FnMut(QueryCapture<'a>, &str) -> Option<T>,
+{
+    let mut query_cursor = QueryCursor::new();
+    let provider = TextProviderRope(text);
+    let mut matches = query_cursor.matches(query, tree.root_node(), &provider);
+    let mut results = Vec::new();
+
+    while let Some(m) = matches.next() {
+        for capture in m.captures {
+            let capture_name = query.capture_names()[capture.index as usize];
+            if let Some(mapped_value) = mapper(*capture, capture_name) {
+                results.push(mapped_value);
+            }
+        }
+    }
+    results
+}
+
 pub fn highlight(
     text: &Rope,
     tree: &Tree,
     query: &Query,
     theme: &Theme,
 ) -> BTreeMap<usize, ContentStyle> {
-    let mut query_cursor = QueryCursor::new();
+    let mut highlights = map_query(tree, query, text, |capture, capture_name| {
+        let mut components: Vec<&str> = capture_name.split('.').collect();
+        let mut found_style: Option<ContentStyle> = None;
 
-    let provider = TextProviderRope(text);
-    let mut matches = query_cursor.matches(query, tree.root_node(), &provider);
-    let mut highlights: Vec<Highlight> = Vec::new();
-
-    while let Some(m) = matches.next() {
-        for capture in m.captures {
-            let capture_name = &query.capture_names()[capture.index as usize];
-
-            let mut components: Vec<&str> = capture_name.split('.').collect();
-            let mut found_style: Option<ContentStyle> = None;
-
-            while !components.is_empty() {
-                let current_name = components.join(".");
-                if let Some(style) = theme.get(&format!("ts.{}", current_name)) {
-                    found_style = Some(style);
-                    break;
-                }
-                components.pop();
+        while !components.is_empty() {
+            let current_name = components.join(".");
+            if let Some(style) = theme.get(&format!("ts.{}", current_name)) {
+                found_style = Some(style);
+                break;
             }
-
-            if let Some(style) = found_style {
-                highlights.push(Highlight {
-                    range: capture.node.byte_range(),
-                    style,
-                });
-            }
+            components.pop();
         }
+
+        if let Some(style) = found_style {
+            Some(Highlight {
+                range: capture.node.byte_range(),
+                style,
+            })
+        } else {
+            tracing::info!("No query match found for: {capture_name}");
+            None
+        }
+    });
+
+    if highlights.is_empty() {
+        let mut map = BTreeMap::new();
+        map.insert(0, ContentStyle::default());
+        return map;
     }
 
     highlights.sort_by(|a, b| {
@@ -187,33 +162,46 @@ pub fn highlight(
             .then_with(|| b.range.end.cmp(&a.range.end))
     });
 
-    let mut highlight_map = BTreeMap::new();
+    let mut result_map = BTreeMap::new();
+    let mut style_stack: Vec<(usize, ContentStyle)> = vec![(usize::MAX, ContentStyle::default())];
     let mut last_pos = 0;
 
-    for h in highlights {
-        if h.range.start > last_pos {
-            highlight_map
-                .entry(last_pos)
-                .or_insert(ContentStyle::default());
+    for highlight in highlights {
+        let start = highlight.range.start;
+        let end = highlight.range.end;
+
+        while style_stack.last().unwrap().0 <= start {
+            let (expiry_pos, _) = style_stack.pop().unwrap();
+            let current_style = style_stack.last().unwrap().1;
+
+            if expiry_pos > last_pos {
+                result_map.insert(expiry_pos, current_style);
+                last_pos = expiry_pos;
+            }
         }
 
-        let style_at_end = highlight_map
-            .range(..=h.range.end)
-            .next_back()
-            .map(|(_, &style)| style)
-            .unwrap_or_default();
+        let current_style = style_stack.last().unwrap().1;
+        if highlight.style != current_style {
+            result_map.insert(start, highlight.style);
+            last_pos = start;
+        }
 
-        highlight_map.insert(h.range.start, h.style);
-        highlight_map.insert(h.range.end, style_at_end);
-
-        last_pos = h.range.end;
+        style_stack.push((end, highlight.style));
+        style_stack.sort_by(|a, b| b.0.cmp(&a.0));
     }
 
-    highlight_map.entry(0).or_insert(ContentStyle::default());
+    while style_stack.len() > 1 {
+        let (expiry_pos, _) = style_stack.pop().unwrap();
+        let current_style = style_stack.last().unwrap().1;
+        if expiry_pos > last_pos {
+            result_map.insert(expiry_pos, current_style);
+            last_pos = expiry_pos;
+        }
+    }
 
     let mut final_map = BTreeMap::new();
     let mut last_style: Option<ContentStyle> = None;
-    for (pos, style) in highlight_map {
+    for (pos, style) in result_map {
         if Some(style) != last_style {
             final_map.insert(pos, style);
             last_style = Some(style);
@@ -228,16 +216,16 @@ pub async fn render_tree_sitter_buffer(
     theme: Res<Theme>,
     modes: Res<ModeStack>,
     bufs: Res<Buffers>,
-    ts_states: Res<TreeSitterStates>,
+    highlights: Res<HighlightMap>,
 ) {
     let mut chunk = chunk.get().unwrap();
-    get!(bufs, modes, theme, ts_states);
+    get!(bufs, modes, theme, highlights);
     let mut loc = vec2(0, 0);
 
     let buf = bufs.cur_buffer();
     let buf = buf.read().unwrap();
 
-    let state = ts_states.bufs.get(&buf.path).unwrap();
+    let highlight_map = highlights.0.get(&buf.path);
 
     let mut byte_offset = buf.rope.line_to_byte_idx(buf.scroll, LineType::LF_CR);
 
@@ -259,7 +247,6 @@ pub async fn render_tree_sitter_buffer(
         _ => SetCursorStyle::SteadyBlock,
     };
 
-    // Buffer should always be 0 priority (should always be set)
     chunk.set_cursor(
         0,
         (
@@ -286,7 +273,7 @@ pub async fn render_tree_sitter_buffer(
         .map(|x| x.to_string())
         .collect::<VecDeque<_>>();
 
-    let mut cursor_style = None;
+    let mut cursor_style_theme = None;
 
     while !cursor_parts.is_empty() {
         if let Some(s) = theme.get(&format!(
@@ -297,13 +284,13 @@ pub async fn render_tree_sitter_buffer(
                 .reduce(|l, r| format!("{l}.{r}"))
                 .unwrap()
         )) {
-            cursor_style = Some(s);
+            cursor_style_theme = Some(s);
             break;
         }
         cursor_parts.pop_front();
     }
 
-    let cursor_style = match cursor_style {
+    let cursor_style = match cursor_style_theme {
         Some(s) => s,
         None => theme.get("ui.cursor").unwrap_or_default(),
     };
@@ -342,9 +329,8 @@ pub async fn render_tree_sitter_buffer(
 
         loc.x += gutter_width;
 
-        if let Some(ts) = &state {
-            let mut current_style = ts
-                .highlights
+        if let Some(highlights_for_buf) = highlight_map {
+            let mut current_style = highlights_for_buf
                 .range(..=byte_offset)
                 .next_back()
                 .map(|(_, style)| *style)
@@ -353,16 +339,15 @@ pub async fn render_tree_sitter_buffer(
             for (char_col, (char_byte_idx, ch)) in line.char_indices().enumerate() {
                 let absolute_byte_idx = byte_offset + char_byte_idx;
 
-                if let Some(new_style) = ts.highlights.get(&absolute_byte_idx) {
+                if let Some(new_style) = highlights_for_buf.get(&absolute_byte_idx) {
                     current_style = *new_style;
                 }
 
                 let mut in_selection = false;
                 let mut is_cursor = false;
-                for (i, cursor) in buf.cursors.iter().enumerate() {
+                for (cursor_idx, cursor) in buf.cursors.iter().enumerate() {
                     if cursor.get_cursor_byte() == absolute_byte_idx {
-                        // Don't style the primary cursor, only non-primary ones.
-                        if i != buf.primary_cursor {
+                        if cursor_idx != buf.primary_cursor {
                             is_cursor = true;
                         }
                         break;
@@ -392,7 +377,6 @@ pub async fn render_tree_sitter_buffer(
                 }
             }
         } else {
-            // Fallback for files with no syntax highlighting
             render!(chunk, loc => [ line.to_string() ]);
         }
 

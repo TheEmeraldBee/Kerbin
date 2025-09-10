@@ -1,0 +1,11 @@
+[[keybind]]
+modes = []
+keys = ["o"]
+commands = ["start_change", "sle false", "gse", "sc", "a '\n' false", "pm i"]
+desc = "Start insert at new line"
+
+[[keybind]]
+modes = []
+keys = ["shift-o"]
+commands = ["start_change", "slb false", "gsb", "sc", "i '\n'", "pm i"]
+desc = "Start insert at new line before"

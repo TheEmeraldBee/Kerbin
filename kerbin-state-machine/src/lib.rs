@@ -140,6 +140,26 @@ impl State {
         )
     }
 
+    pub fn set_hook<H: Hook, I, D, S: System + 'static>(
+        &mut self,
+        hook: H,
+        sys: impl IntoSystem<I, D, System = S>,
+    ) -> &mut Self {
+        let system = sys.into_system();
+        guarentee_params(&system);
+        let hook_info = hook.info();
+        let entry = self.hooks.iter_mut().find(|x| x.0.path == hook_info.path);
+
+        if let Some(entry) = entry {
+            entry.1.clear();
+            entry.1.push(Box::new(system));
+        } else {
+            self.hooks.push((hook_info, vec![Box::new(system)]));
+        }
+
+        self
+    }
+
     pub fn on_hook<H: Hook>(&mut self, hook: H) -> HookBuilder<'_, H> {
         HookBuilder { hook, state: self }
     }

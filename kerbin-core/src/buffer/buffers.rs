@@ -70,7 +70,7 @@ impl Buffers {
         let mut current_char_offset = 0;
 
         for (i, short_path) in self.buffer_paths.iter().enumerate() {
-            let title = format!("   {}   ", short_path);
+            let title = format!(" {} ", short_path);
             let title_width = title.chars().count();
 
             let visible_range_start = self.tab_scroll;

@@ -1,2 +1,2 @@
 [[import]]
-paths = ["./nav.toml", "./mode.toml", "./del.toml", "./go.toml", "./vis.toml", "./cursor.toml"]
+paths = ["./nav.toml", "./mode.toml", "./del.toml", "./go.toml", "./vis.toml", "./cursor.toml", "./ins.toml"]
