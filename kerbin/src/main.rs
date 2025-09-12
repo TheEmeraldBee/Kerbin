@@ -1,4 +1,7 @@
-use std::{panic, time::Duration};
+use std::{
+    panic,
+    time::{Duration, Instant},
+};
 
 use ascii_forge::{
     prelude::*,
@@ -11,6 +14,7 @@ use ascii_forge::{
 use kerbin_config::Config;
 use kerbin_core::*;
 
+use kerbin_macros::State;
 use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -62,6 +66,10 @@ pub async fn render_chunks(chunks: Res<Chunks>, window: ResMut<WindowState>) {
     } else {
         execute!(window.io(), Hide, MoveTo(0, 0)).unwrap();
     }
+}
+
+async fn wait() {
+    std::thread::sleep(Duration::from_millis(500));
 }
 
 async fn update(state: &mut State) {
@@ -172,8 +180,6 @@ async fn main() {
         .system(render_buffer_default);
 
     state.on_hook(RenderChunks).system(render_chunks);
-
-    state.hook(PostInit).call().await;
 
     loop {
         tokio::select! {

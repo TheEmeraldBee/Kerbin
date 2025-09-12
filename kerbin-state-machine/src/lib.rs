@@ -2,6 +2,7 @@ use std::{
     collections::HashSet,
     sync::{Arc, RwLock, RwLockWriteGuard},
 };
+use tokio::task::{JoinError, JoinSet, LocalSet};
 
 use crate::system::{System, into_system::IntoSystem};
 
@@ -119,7 +120,10 @@ pub struct State {
 
 impl State {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            storage: StateStorage::default(),
+            ..Default::default()
+        }
     }
 
     pub fn state<T: StateName + StaticState + 'static>(&mut self, state: T) -> &mut Self {
@@ -165,7 +169,9 @@ impl State {
     }
 
     pub async fn call<I, D>(&self, sys: impl IntoSystem<I, D>) {
-        sys.into_system().call(&self.storage).await
+        let system = sys.into_system();
+
+        system.call(&self.storage).await;
     }
 
     pub fn hook(&self, hook: impl Hook + 'static) -> HookCallBuilder<'_> {
@@ -213,12 +219,19 @@ impl<'a> HookCallBuilder<'a> {
             let indices = group_concurrent_system_indices(hooks);
 
             for group in indices {
-                let mut futures = vec![];
-                for indice in group {
-                    futures.push(hooks[indice].call(&self.state.storage));
-                }
+                let (_, res) = async_scoped::TokioScope::scope_and_block(|s| {
+                    for indice in group {
+                        let system_future = hooks[indice].call(&self.state.storage);
 
-                futures::future::join_all(futures).await;
+                        s.spawn(system_future);
+                    }
+                });
+
+                for res in res {
+                    if let Err(e) = res {
+                        tracing::error!("{e}");
+                    }
+                }
             }
         }
     }
@@ -291,7 +304,6 @@ fn group_concurrent_system_indices(systems: &[Box<dyn System>]) -> Vec<Vec<usize
             let mut conflicting_types = Vec::new();
 
             for param in &system_params {
-                // Write access conflicts with any existing usage (read or write)
                 if param.write && used_types.contains(&param.type_name) {
                     can_add = false;
                     if write_types.contains(&param.type_name) {
@@ -347,7 +359,6 @@ fn guarentee_params<S: System>(system: &S) {
         }
 
         if param.write {
-            // Write conflicts with any existing usage (read or write)
             if param_types.contains(param.type_name.as_str()) {
                 panic!(
                     "The same type was requested by the system more than once, please ensure you're only requesting the type once."
@@ -355,7 +366,6 @@ fn guarentee_params<S: System>(system: &S) {
             }
             write_types.insert(param.type_name.as_str());
         } else {
-            // Read conflicts only with existing writes
             if write_types.contains(param.type_name.as_str()) {
                 panic!(
                     "The same type was requested by the system more than once, please ensure you're only requesting the type once."
@@ -460,8 +470,8 @@ mod tests {
     #[test]
     fn test_write_write_conflict() {
         let systems = create_systems(vec![
-            vec![("TypeA", true, false)], // System 0: write TypeA
-            vec![("TypeA", true, false)], // System 1: write TypeA
+            vec![("TypeA", true, false)],
+            vec![("TypeA", true, false)],
         ]);
 
         let groups = group_concurrent_system_indices(&systems);
@@ -474,8 +484,8 @@ mod tests {
     #[test]
     fn test_read_write_conflict() {
         let systems = create_systems(vec![
-            vec![("TypeA", false, false)], // System 0: read TypeA
-            vec![("TypeA", true, false)],  // System 1: write TypeA
+            vec![("TypeA", false, false)],
+            vec![("TypeA", true, false)],
         ]);
 
         let groups = group_concurrent_system_indices(&systems);
@@ -488,8 +498,8 @@ mod tests {
     #[test]
     fn test_write_read_conflict() {
         let systems = create_systems(vec![
-            vec![("TypeA", true, false)],  // System 0: write TypeA
-            vec![("TypeA", false, false)], // System 1: read TypeA
+            vec![("TypeA", true, false)],
+            vec![("TypeA", false, false)],
         ]);
 
         let groups = group_concurrent_system_indices(&systems);
@@ -581,7 +591,6 @@ mod tests {
 
         let groups = group_concurrent_system_indices(&systems);
 
-        // Should still create a group with just this system
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0], vec![0]);
     }
@@ -595,9 +604,7 @@ mod tests {
 
     #[test]
     fn test_single_system() {
-        let systems = create_systems(vec![
-            vec![("TypeA", false, false)], // System 0: read TypeA
-        ]);
+        let systems = create_systems(vec![vec![("TypeA", false, false)]]);
 
         let groups = group_concurrent_system_indices(&systems);
 
@@ -613,7 +620,6 @@ mod tests {
             ("TypeC", false, false),
         ]);
 
-        // Should not panic
         guarentee_params(&system);
     }
 
@@ -622,7 +628,7 @@ mod tests {
         let system = MockSystem::new(vec![
             ("TypeA", false, false),
             ("TypeB", true, false),
-            ("TypeA", false, false), // Since TypeA is read twice, this is actually just fine
+            ("TypeA", false, false),
         ]);
 
         guarentee_params(&system);
@@ -631,10 +637,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "The same type was requested by the system more than once")]
     fn test_guarantee_params_duplicate_types_different_access() {
-        let system = MockSystem::new(vec![
-            ("TypeA", false, false), // read TypeA
-            ("TypeA", true, false),  // write TypeA - still a duplicate
-        ]);
+        let system = MockSystem::new(vec![("TypeA", false, false), ("TypeA", true, false)]);
 
         guarentee_params(&system);
     }
@@ -642,10 +645,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "System has too many arguments to have a reserved argument")]
     fn test_guarantee_params_reserved_with_multiple_params() {
-        let system = MockSystem::new(vec![
-            ("TypeA", false, true),  // reserved
-            ("TypeB", false, false), // normal param
-        ]);
+        let system = MockSystem::new(vec![("TypeA", false, true), ("TypeB", false, false)]);
 
         guarentee_params(&system);
     }
@@ -653,21 +653,15 @@ mod tests {
     #[test]
     #[should_panic(expected = "System has too many arguments to have a reserved argument")]
     fn test_guarantee_params_multiple_reserved_params() {
-        let system = MockSystem::new(vec![
-            ("TypeA", false, true), // reserved
-            ("TypeB", true, true),  // also reserved
-        ]);
+        let system = MockSystem::new(vec![("TypeA", false, true), ("TypeB", true, true)]);
 
         guarentee_params(&system);
     }
 
     #[test]
     fn test_guarantee_params_single_reserved_param() {
-        let system = MockSystem::new(vec![
-            ("TypeA", false, true), // single reserved param
-        ]);
+        let system = MockSystem::new(vec![("TypeA", false, true)]);
 
-        // Should not panic
         guarentee_params(&system);
     }
 
@@ -675,7 +669,6 @@ mod tests {
     fn test_guarantee_params_empty_params() {
         let system = MockSystem::new(vec![]);
 
-        // Should not panic
         guarentee_params(&system);
     }
 
@@ -683,7 +676,6 @@ mod tests {
     fn test_guarantee_params_single_normal_param() {
         let system = MockSystem::new(vec![("TypeA", false, false)]);
 
-        // Should not panic
         guarentee_params(&system);
     }
 
@@ -694,8 +686,8 @@ mod tests {
             ("TypeA", false, false),
             ("TypeB", true, false),
             ("TypeC", false, false),
-            ("TypeA", true, false),  // Duplicate TypeA
-            ("TypeB", false, false), // Duplicate TypeB
+            ("TypeA", true, false),
+            ("TypeB", false, false),
         ]);
 
         guarentee_params(&system);
