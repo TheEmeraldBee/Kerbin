@@ -1,7 +1,4 @@
-use std::{
-    panic,
-    time::{Duration, Instant},
-};
+use std::{panic, time::Duration};
 
 use ascii_forge::{
     prelude::*,
@@ -14,7 +11,6 @@ use ascii_forge::{
 use kerbin_config::Config;
 use kerbin_core::*;
 
-use kerbin_macros::State;
 use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -66,10 +62,6 @@ pub async fn render_chunks(chunks: Res<Chunks>, window: ResMut<WindowState>) {
     } else {
         execute!(window.io(), Hide, MoveTo(0, 0)).unwrap();
     }
-}
-
-async fn wait() {
-    std::thread::sleep(Duration::from_millis(500));
 }
 
 async fn update(state: &mut State) {
@@ -182,19 +174,36 @@ async fn main() {
     state.on_hook(RenderChunks).system(render_chunks);
 
     loop {
-        tokio::select! {
-            Some(cmd) = command_reciever.recv() => {
-                cmd.apply(&mut state);
-            }
-            _ = tokio::time::sleep(Duration::from_millis(16)) => {
+        let frame_start = tokio::time::Instant::now();
 
-                update(&mut state).await;
+        // Process all available commands with blocking
+        while let Ok(cmd) = command_reciever.try_recv() {
+            cmd.apply(&mut state);
+        }
 
-                if !state.lock_state::<Running>().unwrap().0 {
-                    break
+        // Run the update cycle
+        update(&mut state).await;
+
+        if !state.lock_state::<Running>().unwrap().0 {
+            break;
+        }
+
+        // Sleep for remaining time while handling commands
+        let target_frame_time = Duration::from_millis(12);
+        let deadline = frame_start + target_frame_time;
+
+        while tokio::time::Instant::now() < deadline {
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+
+            tokio::select! {
+                Some(cmd) = command_reciever.recv() => {
+                    cmd.apply(&mut state);
+                }
+                _ = tokio::time::sleep(remaining) => {
+                    break;
                 }
             }
-        };
+        }
     }
 
     state

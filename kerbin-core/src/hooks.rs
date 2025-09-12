@@ -69,7 +69,7 @@ impl Hook for PostUpdate {
     }
 }
 
-/// This state runst after all updates, should be used to clear states, and not render, update, or
+/// This state runs after all updates, should be used to clear states, and not render, update, or
 /// read anything
 pub struct UpdateCleanup;
 impl Hook for UpdateCleanup {
