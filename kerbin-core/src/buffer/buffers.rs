@@ -10,19 +10,28 @@ use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut
 use ropey::LineType;
 
 #[derive(Default, State)]
+/// Stores all buffers, along with their unique paths.
 pub struct Buffers {
+    /// The index of the currently selected buffer
     pub selected_buffer: usize,
+
+    /// The current scroll of the tab-bar
     pub tab_scroll: usize,
 
+    /// The internal storage of TextBuffers
     pub buffers: Vec<Arc<RwLock<TextBuffer>>>,
+
+    /// The list of unique paths that define each buffer
     pub buffer_paths: Vec<String>,
 }
 
 impl Buffers {
+    /// Returns the current selected buffer, allowing you to lock it yourself
     pub fn cur_buffer(&self) -> Arc<RwLock<TextBuffer>> {
         self.buffers[self.selected_buffer].clone()
     }
 
+    /// Changes the selected buffer by a given distance, doesn't wrap
     pub fn change_buffer(&mut self, dist: isize) {
         self.selected_buffer = self
             .selected_buffer
@@ -30,10 +39,12 @@ impl Buffers {
             .clamp(0, self.buffers.len() - 1);
     }
 
+    /// Sets the selected buffer to a passed index
     pub fn set_selected_buffer(&mut self, id: usize) {
         self.selected_buffer = id.clamp(0, self.buffers.len() - 1);
     }
 
+    /// Deletes the buffer at the given index, and ensures that at least 1 buffer is in the system
     pub fn close_buffer(&mut self, idx: usize) {
         self.buffers.remove(idx);
         if self.buffers.is_empty() {
@@ -44,6 +55,9 @@ impl Buffers {
         self.change_buffer(0);
     }
 
+    /// Opens a buffer with the given path, returning the index of the buffer, setting the buffer
+    /// to the new one. If the buffer is already in the system, sets the selected buffer instead of
+    /// opening a copy of the file.
     pub fn open(&mut self, path: String) -> usize {
         let check_path = get_canonical_path_with_non_existent(&path)
             .to_str()
@@ -66,6 +80,7 @@ impl Buffers {
         self.buffers.len() - 1
     }
 
+    /// Renders the top bufferline with a scroll value
     pub fn render_bufferline(&self, buffer: &mut Buffer, theme: &Theme) {
         let mut current_char_offset = 0;
 
@@ -101,17 +116,21 @@ impl Buffers {
         }
     }
 
+    /// Updates the unique paths of the system
     pub fn update_paths(&mut self) {
         let paths = self.buffers.iter().map(|b| b.read().unwrap().path.clone());
         let unique_paths = get_unique_paths(paths, self.buffers.len());
         self.buffer_paths = unique_paths
     }
 
+    /// Returns the unique path of the passed buffer index,
+    /// returning None if that path doesn't exist
     pub fn unique_path_of(&self, idx: usize) -> Option<String> {
         self.buffer_paths.get(idx).cloned()
     }
 }
 
+/// Turns a list of paths into a nice grouping of readable paths
 fn get_unique_paths(paths: impl Iterator<Item = String>, len: usize) -> Vec<String> {
     if len == 0 {
         return vec![];
@@ -165,6 +184,7 @@ fn get_unique_paths(paths: impl Iterator<Item = String>, len: usize) -> Vec<Stri
     truncated_paths
 }
 
+/// System used to render the bufferline to the BufferlineChunk
 pub async fn render_bufferline(
     chunk: Chunk<BufferlineChunk>,
     buffers: Res<Buffers>,
@@ -177,6 +197,7 @@ pub async fn render_bufferline(
     buffers.render_bufferline(chunk, &theme);
 }
 
+/// Takes the window size and updates the scroll for the bufferline
 pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<WindowState>) {
     let mut buffers = buffers.get();
     let window = window.get();

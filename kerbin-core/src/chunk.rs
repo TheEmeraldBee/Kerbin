@@ -10,6 +10,8 @@ use crate::{Chunks, InnerChunk};
 
 use crate::SystemParam;
 
+/// A SystemRes that stores a chunk
+/// used for making the rendering of a chunk faster and easier
 pub struct Chunk<T: StateName + StaticState + 'static> {
     value: Option<Arc<RwLock<InnerChunk>>>,
     phantom_t: PhantomData<T>,

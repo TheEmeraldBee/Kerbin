@@ -6,6 +6,9 @@ pub mod ranking;
 pub use ranking::*;
 
 #[derive(Default, State)]
+/// The internal state of the command palette
+/// Used for handling inputs and autocompletions
+/// Used to validate and check typed string into the palette
 pub struct CommandPaletteState {
     pub old_input: String,
     pub input: String,
@@ -17,6 +20,8 @@ pub struct CommandPaletteState {
     pub input_valid: bool,
 }
 
+/// System used to update the engine's palette
+/// Updates suggestions, and marks whether the system is valid
 pub async fn update_palette_suggestions(
     modes: Res<ModeStack>,
     palette: ResMut<CommandPaletteState>,
@@ -46,6 +51,7 @@ pub async fn update_palette_suggestions(
     palette.input_valid = commands.validate_command(&palette.input, &prefix_registry, &modes);
 }
 
+/// Handles the internal input for the 'c' mode
 pub async fn handle_command_palette_input(
     window: Res<WindowState>,
     palette: ResMut<CommandPaletteState>,
@@ -103,6 +109,8 @@ pub async fn handle_command_palette_input(
     }
 }
 
+/// Registers the command palette's required chunks,
+/// Dynamically requires the space to improve rendering
 pub async fn register_command_palette_chunks(
     chunks: ResMut<Chunks>,
     window: Res<WindowState>,
@@ -153,6 +161,7 @@ pub async fn register_command_palette_chunks(
     chunks.register_chunk::<CommandlineChunk>(2, layout[4][0]);
 }
 
+/// Renders the command palette to the window
 pub async fn render_command_palette(
     line_chunk: Chunk<CommandlineChunk>,
 

@@ -94,14 +94,14 @@ impl<'a> Iterator for ChunksBytes<'a> {
     }
 }
 
-pub fn map_query<'a, T, F>(
+pub fn map_query<'a: 'b + 'c, 'b, 'c, T, F>(
     tree: &'a Tree,
-    query: &'a Query,
-    text: &'a Rope,
+    query: &'b Query,
+    text: &'c Rope,
     mut mapper: F,
 ) -> Vec<T>
 where
-    F: FnMut(QueryCapture<'a>, &str) -> Option<T>,
+    F: FnMut(QueryCapture<'b>, &str) -> Option<T>,
 {
     let mut query_cursor = QueryCursor::new();
     let provider = TextProviderRope(text);

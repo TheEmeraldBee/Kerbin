@@ -24,11 +24,13 @@ pub use cursor::*;
 pub mod palette;
 pub use palette::*;
 
+/// An applyable command that will change the whole state in some way
 pub trait Command: Send + Sync {
     fn apply(&self, state: &mut State) -> bool;
 }
 
 #[derive(Debug)]
+/// The text info of what a command expects and uses
 pub struct CommandInfo {
     pub valid_names: Vec<String>,
     pub args: Vec<(String, String)>,
@@ -51,10 +53,13 @@ impl CommandInfo {
         }
     }
 
+    /// Checks if the name passed is valid in the CommandInfo's eyes
     pub fn check_name(&self, name: impl ToString) -> bool {
         self.valid_names.contains(&name.to_string())
     }
 
+    /// Returns a optional buffer that contains the description of the command
+    /// Is None if the description of the command is empty
     pub fn desc_buf(&self, theme: &Theme) -> Option<Buffer> {
         if self.desc.is_empty() {
             return None;
@@ -73,6 +78,8 @@ impl CommandInfo {
         Some(buf)
     }
 
+    /// Returns a suggestion line that will apply the given style automatically
+    /// will_autocomplete chooses if the style should use auto_name or not
     pub fn as_suggestion(&self, will_autocomplete: bool, theme: &Theme) -> Buffer {
         let mut buf = Buffer::new((500, 1));
         let mut loc = render!(

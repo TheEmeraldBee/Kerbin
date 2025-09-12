@@ -3,11 +3,17 @@ use tree_sitter::{InputEdit, Parser, QueryCursor, Range as TSRange, StreamingIte
 
 use std::collections::{BTreeMap, HashMap};
 
+pub mod util;
+pub use util::*;
+
 pub mod grammar;
 pub use grammar::*;
 
 pub mod state;
 pub use state::*;
+
+pub mod commands;
+pub use commands::*;
 
 #[derive(State, Default)]
 pub struct TreeSitterStates {
@@ -211,4 +217,9 @@ pub fn init(state: &mut State) {
         .system(sync_buffer_changes_to_ts)
         .system(parse_dirty_trees)
         .system(calculate_highlights);
+
+    {
+        let mut commands = state.lock_state::<CommandRegistry>().unwrap();
+        commands.register::<TSCommand>();
+    }
 }

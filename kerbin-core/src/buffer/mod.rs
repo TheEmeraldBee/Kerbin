@@ -16,12 +16,17 @@ use ropey::{LineType, Rope};
 
 use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
 
-use crate::{BufferChunk, Chunk, ModeStack, Theme};
+use crate::{BufferChunk, Chunk, ContentStyleExt, ModeStack, Theme};
 
 #[derive(Default)]
+/// Used internally for defining a set of actions that were applied.
+/// Used for undoing and redoing changes
 pub struct ChangeGroup(Vec<Cursor>, Vec<Box<dyn BufferAction>>);
 
 #[derive(Clone, Debug)]
+/// A selected point of text
+/// The core for editing files, it marks a selection.
+/// Required for multicursor support
 pub struct Cursor {
     at_start: bool,
     sel: RangeInclusive<usize>,
@@ -75,15 +80,31 @@ impl Cursor {
     }
 }
 
+/// The core storage of an open text buffer inside of the editor
+/// Used to render, modify, support many render methods, etc for a file.
+/// Handles much of the requirements to support multicursors and systems.
 pub struct TextBuffer {
+    /// Internal storage of the text itself. Please use actions to edit or add to byte changes
+    /// manually, direct edits could very easily mess with tree-sitter or similar systems
     pub rope: Rope,
 
+    /// The path of the file (should always be absolute, so saving is easy)
     pub path: String,
+
+    /// The Extension of the file (used for rendering the file itself)
     pub ext: String,
 
+    /// The cursors for the buffer
     pub cursors: Vec<Cursor>,
+
+    /// The index of the cursors that would be the primary cursor
     pub primary_cursor: usize,
 
+    /// A list of data that marks what bytes have been changed
+    /// Each index in the list contains a point (col, row) and a byte
+    /// [0] is the start position
+    /// [1] is the previous ending position
+    /// [2] is the new ending position
     pub byte_changes: Vec<[((usize, usize), usize); 3]>,
 
     current_change: Option<ChangeGroup>,
@@ -91,11 +112,17 @@ pub struct TextBuffer {
     undo_stack: Vec<ChangeGroup>,
     redo_stack: Vec<ChangeGroup>,
 
+    /// The current vertical scroll of the buffer's viewport (used for rendering)
     pub scroll: usize,
+
+    /// The current horizontal scroll of the buffer's viewport (used for rendering)
     pub h_scroll: usize,
 }
 
 impl TextBuffer {
+    /// Creates a new scratch file, which is an unsavable, pretty much useless file.
+    /// Could be used if the path is unknown when created,
+    /// but is mainly used to open to in the start of the editor
     pub fn scratch() -> Self {
         Self {
             rope: Rope::new(),
@@ -118,6 +145,10 @@ impl TextBuffer {
         }
     }
 
+    /// Opens a file with a provided path
+    /// Path can be absolute or relative
+    /// Path will be canonicalized, whether the file exists or not.
+    /// This will also handle getting the extension, setting up cursors, reading the file, etc
     pub fn open(path_str: String) -> Self {
         let mut found_ext = "".to_string();
 
@@ -158,6 +189,8 @@ impl TextBuffer {
         }
     }
 
+    /// Given the byte passed in, will return the point and byte in a easy way for registering
+    /// edits. Should be used in coersion with `TextBuffer::register_input_edit`
     pub fn get_edit_part(&self, byte: usize) -> ((usize, usize), usize) {
         let line_idx = self.rope.byte_to_line_idx(byte, LineType::LF_CR);
         let col = byte - line_idx;
@@ -165,6 +198,9 @@ impl TextBuffer {
         ((line_idx, col), byte)
     }
 
+    /// Given a start, old_end, and new_end,
+    /// will store the edit for usage within
+    /// tree-sitter or similar buffer renderers
     pub fn register_input_edit(
         &mut self,
         start: ((usize, usize), usize),
@@ -174,6 +210,9 @@ impl TextBuffer {
         self.byte_changes.push([start, old_end, new_end]);
     }
 
+    /// Applies a given action to the editor, returning whether the action was a success.
+    /// This is used for all edits of the internal rope, as it will be able to store changes, and
+    /// allow for easy undoing of the changes.
     pub fn action(&mut self, action: impl BufferAction) -> bool {
         if self.current_change.is_none() {
             self.start_change_group();
@@ -231,14 +270,18 @@ impl TextBuffer {
             .clamp(0, self.cursors.len() - 1);
     }
 
+    /// Returns a reference to the current primary cursor of the buffer
     pub fn primary_cursor(&self) -> &Cursor {
         &self.cursors[self.primary_cursor]
     }
 
+    /// Returns a mutable reference to the current primary cursor of the buffer
     pub fn primary_cursor_mut(&mut self) -> &mut Cursor {
         &mut self.cursors[self.primary_cursor]
     }
 
+    /// Applies the undo operation of the last change group on the stack,
+    /// commiting changes and clearing the redo stack in the process
     pub fn undo(&mut self) {
         self.commit_change_group();
         if let Some(group) = self.undo_stack.pop() {
@@ -259,6 +302,8 @@ impl TextBuffer {
         }
     }
 
+    /// Applies the redo operation from the redo stack, commiting changes and clearing the undo
+    /// stack in the process
     pub fn redo(&mut self) {
         self.commit_change_group();
         if let Some(group) = self.redo_stack.pop() {
@@ -277,11 +322,13 @@ impl TextBuffer {
         }
     }
 
+    /// Commits the current change group and starts a change for the editor.
     pub fn start_change_group(&mut self) {
         self.commit_change_group();
         self.current_change = Some(ChangeGroup(self.cursors.clone(), vec![]));
     }
 
+    /// Commits the current change assuming it isn't empty
     pub fn commit_change_group(&mut self) {
         if let Some(group) = self.current_change.take()
             && !group.1.is_empty()
@@ -290,6 +337,7 @@ impl TextBuffer {
         }
     }
 
+    /// Scrolls vertically a passed delta
     pub fn scroll_lines(&mut self, delta: isize) -> bool {
         if delta == 0 {
             return true;
@@ -304,6 +352,7 @@ impl TextBuffer {
         self.scroll != old_scroll
     }
 
+    /// Scrolls horizontally a passed delta
     pub fn scroll_horizontal(&mut self, delta: isize) -> bool {
         if delta == 0 {
             return true;
@@ -313,6 +362,8 @@ impl TextBuffer {
         self.h_scroll != old_scroll
     }
 
+    /// Given an optional path, it will either use the passed path, or the stored,
+    /// it will update the path, then write the file out to disk
     pub fn write_file(&mut self, path: Option<String>) {
         if let Some(new_path) = path {
             let path = Path::new(&new_path);
@@ -357,6 +408,7 @@ impl TextBuffer {
             .unwrap();
     }
 
+    /// Moves the cursor by the given rows and cols, wrapping when needed
     pub fn move_cursor(&mut self, rows: isize, cols: isize, extend_selection: bool) -> bool {
         if rows == 0 && cols == 0 {
             return true;
@@ -435,6 +487,7 @@ impl TextBuffer {
         moved_any
     }
 
+    /// Mainly used internally and should rarely need to be called locally.
     pub fn merge_overlapping_cursors(&mut self) {
         if self.cursors.len() <= 1 {
             return;
@@ -473,12 +526,16 @@ impl TextBuffer {
         }
     }
 
+    /// Applies the major update functions all in one nice function.
+    /// This is called each frame, allowing to correctly handle changes
     pub fn update(&mut self) {
         self.merge_overlapping_cursors();
         self.byte_changes.clear();
     }
 }
 
+/// The default renderer for a buffer.
+/// System will take a file, and render the buffer using scrolling and basic systems
 pub async fn render_buffer_default(
     chunk: Chunk<BufferChunk>,
     theme: Res<Theme>,
@@ -494,10 +551,6 @@ pub async fn render_buffer_default(
 
     let mut byte_offset = buf.rope.line_to_byte_idx(buf.scroll, LineType::LF_CR);
 
-    let row = buf
-        .rope
-        .byte_to_line_idx(buf.primary_cursor().get_cursor_byte(), LineType::LF_CR);
-
     let cursor_byte = buf.primary_cursor().get_cursor_byte();
     let rope = &buf.rope;
 
@@ -507,12 +560,11 @@ pub async fn render_buffer_default(
         .byte_to_char_idx(cursor_byte)
         .saturating_sub(rope.byte_to_char_idx(line_start_byte_idx));
 
-    let cursor_style = match modes.get_mode() {
+    let cursor_style_shape = match modes.get_mode() {
         'i' => SetCursorStyle::SteadyBar,
         _ => SetCursorStyle::SteadyBlock,
     };
 
-    // Buffer should always be 0 priority (should always be set)
     chunk.set_cursor(
         0,
         (
@@ -520,7 +572,7 @@ pub async fn render_buffer_default(
             current_row_idx as u16 - buf.scroll as u16,
         )
             .into(),
-        cursor_style,
+        cursor_style_shape,
     );
 
     let default_style = theme
@@ -539,7 +591,7 @@ pub async fn render_buffer_default(
         .map(|x| x.to_string())
         .collect::<VecDeque<_>>();
 
-    let mut cursor_style = None;
+    let mut cursor_style_theme = None;
 
     while !cursor_parts.is_empty() {
         if let Some(s) = theme.get(&format!(
@@ -550,21 +602,25 @@ pub async fn render_buffer_default(
                 .reduce(|l, r| format!("{l}.{r}"))
                 .unwrap()
         )) {
-            cursor_style = Some(s);
+            cursor_style_theme = Some(s);
             break;
         }
         cursor_parts.pop_front();
     }
 
-    let cursor_style = match cursor_style {
-        Some(s) => s,
-        None => theme.get("ui.cursor").unwrap_or_default(),
-    };
+    let primary_cursor_style = cursor_style_theme
+        .or_else(|| theme.get("ui.cursor"))
+        .unwrap_or_default();
+
+    let secondary_cursor_style = theme
+        .get("ui.cursor.secondary")
+        .unwrap_or_else(|| primary_cursor_style.on_dark_grey());
 
     let gutter_width = 6;
     let start_x = loc.x;
+    let visible_width = chunk.size().x.saturating_sub(gutter_width);
 
-    let mut i = buf.scroll;
+    let mut line_idx = buf.scroll;
 
     for line in buf
         .rope
@@ -572,12 +628,13 @@ pub async fn render_buffer_default(
         .take(chunk.size().y as usize)
     {
         loc.x = start_x;
-        let mut num_line = (i + 1).to_string();
+
+        let mut num_line = (line_idx + 1).to_string();
         if num_line.len() > 5 {
             num_line = num_line[0..5].to_string();
         }
 
-        if i == row {
+        if line_idx == current_row_idx {
             num_line = format!(
                 "{}{}",
                 " ".repeat(4usize.saturating_sub(num_line.len())),
@@ -592,14 +649,64 @@ pub async fn render_buffer_default(
         }
 
         render!(chunk, loc => [StyledContent::new(line_style, num_line)]);
-
         loc.x += gutter_width;
 
-        render!(chunk, loc => [ line.to_string() ]);
+        let line_chars: Vec<(usize, char)> = line.char_indices().collect();
+
+        for (char_col, (char_byte_idx, ch)) in line_chars.iter().enumerate() {
+            if char_col < buf.h_scroll {
+                continue;
+            }
+
+            let render_col = char_col - buf.h_scroll;
+            if render_col >= visible_width as usize {
+                break;
+            }
+
+            let absolute_byte_idx = byte_offset + char_byte_idx;
+
+            let mut is_primary_cursor = false;
+            let mut is_secondary_cursor = false;
+            let mut in_selection = false;
+
+            for (cursor_idx, cursor) in buf.cursors.iter().enumerate() {
+                if cursor.get_cursor_byte() == absolute_byte_idx {
+                    if cursor_idx == buf.primary_cursor {
+                        is_primary_cursor = true;
+                    } else {
+                        is_secondary_cursor = true;
+                    }
+                }
+
+                if cursor.sel().contains(&absolute_byte_idx)
+                    && cursor.sel().start() != cursor.sel().end()
+                {
+                    in_selection = true;
+                }
+            }
+
+            let final_style = if is_primary_cursor {
+                primary_cursor_style
+            } else if is_secondary_cursor {
+                secondary_cursor_style
+            } else if in_selection {
+                sel_style
+                    .map(|s| s.combined_with(&default_style))
+                    .unwrap_or(default_style.on_grey())
+            } else {
+                default_style
+            };
+
+            render!(
+                chunk,
+                loc + vec2(render_col as u16, 0) =>
+                [StyledContent::new(final_style, *ch)]
+            );
+        }
 
         loc.y += 1;
         byte_offset += line.len();
-        i += 1;
+        line_idx += 1;
     }
 }
 

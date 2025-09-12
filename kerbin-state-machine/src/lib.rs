@@ -2,7 +2,6 @@ use std::{
     collections::HashSet,
     sync::{Arc, RwLock, RwLockWriteGuard},
 };
-use tokio::task::{JoinError, JoinSet, LocalSet};
 
 use crate::system::{System, into_system::IntoSystem};
 
@@ -365,12 +364,10 @@ fn guarentee_params<S: System>(system: &S) {
                 );
             }
             write_types.insert(param.type_name.as_str());
-        } else {
-            if write_types.contains(param.type_name.as_str()) {
-                panic!(
-                    "The same type was requested by the system more than once, please ensure you're only requesting the type once."
-                );
-            }
+        } else if write_types.contains(param.type_name.as_str()) {
+            panic!(
+                "The same type was requested by the system more than once, please ensure you're only requesting the type once."
+            );
         }
 
         param_types.insert(param.type_name.as_str());

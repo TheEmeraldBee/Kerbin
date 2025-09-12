@@ -29,7 +29,7 @@ desc = "Join Line"
 [[keybind]]
 modes = ["i"]
 keys = ["enter"]
-commands = ["a '\n' false"]
+commands = ["ts_nl", "gse", "sc"]
 desc = "Insert Newline"
 
 [[keybind]]

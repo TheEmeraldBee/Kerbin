@@ -1,6 +1,15 @@
 #![allow(improper_ctypes_definitions)]
 
 #[macro_export]
+/// Automatically calls the `.get()` method on all systems
+/// Useful for System parameters like Res and ResMut.
+///
+/// Each item can be prepended with mut. Required for ResMut and any write locked item
+/**
+```rust
+get!(a, mut b, c, d, mut e);
+```
+*/
 macro_rules! get {
     (@inner $name:ident $(, $($t:tt)+)?) => {
         let $name = $name.get();
@@ -19,6 +28,8 @@ macro_rules! get {
     };
 }
 
+/// Initializes the logging system for the core
+/// Is called automatically within `init_conf`
 pub fn init_log() {
     let log_file = File::options()
         .create(true)
@@ -33,6 +44,8 @@ pub fn init_log() {
         .init();
 }
 
+/// Should **always** be called at the beginning of your config. It will initialize logging, and
+/// set a hook so panics are logged to the console instead of lost
 pub fn init_conf() {
     init_log();
 
