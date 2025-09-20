@@ -83,7 +83,7 @@ deemed missing or prioritized differently.
 *   [x] TreeSitter Indentation Queries
 
 ### Documentation & Refinement
-*   [ ] Document core systems and sub modules
+*   [x] Document core systems and sub modules
 *   [ ] Go through systems and refactor code
 *   [ ] Write out design document
 *   [ ] Write out main wiki for writing configuration and plugins
@@ -95,4 +95,3 @@ deemed missing or prioritized differently.
 *   [ ] Write out CLI systems for handling command-line arguments
     within plugins and handling custom systems
 *   [ ] Lsp Support using plugin system
-*   [ ] Update this readme to be prettier and have better organization
