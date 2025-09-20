@@ -2,49 +2,49 @@
 [[keybind]]
 modes = []
 keys = ["left"]
-commands = ["move_cursor -1 0"]
+commands = ["mc -1"]
 desc = "Move Left"
 
 [[keybind]]
 modes = []
 keys = ["down"]
-commands = ["move_cursor 0 1"]
+commands = ["ml 1"]
 desc = "Move Down"
 
 [[keybind]]
 modes = []
 keys = ["up"]
-commands = ["move_cursor 0 -1"]
+commands = ["ml -1"]
 desc = "Move Up"
 
 [[keybind]]
 modes = []
 keys = ["right"]
-commands = ["move_cursor 1 0"]
+commands = ["mc 1"]
 desc = "Move Right"
 
 [[keybind]]
 modes = []
 keys = ["h"]
-commands = ["move_cursor -1 0"]
+commands = ["mc -1"]
 desc = "Move Left"
 
 [[keybind]]
 modes = []
 keys = ["j"]
-commands = ["move_cursor 0 1"]
+commands = ["ml 1"]
 desc = "Move Down"
 
 [[keybind]]
 modes = []
 keys = ["k"]
-commands = ["move_cursor 0 -1"]
+commands = ["ml -1"]
 desc = "Move Up"
 
 [[keybind]]
 modes = []
 keys = ["l"]
-commands = ["move_cursor 1 0"]
+commands = ["mc 1"]
 desc = "Move Right"
 
 # Jump movements (motions)

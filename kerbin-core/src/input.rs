@@ -10,26 +10,52 @@ use crate::{
     ModeStack, WindowState, fixed, flexible, percent,
 };
 
+/// Represents the possible outcomes when processing a single step of an input sequence.
 pub enum InputResult {
+    /// The input step did not match the expected key, or the mode was invalid.
     Failed,
+    /// The input step matched, and more steps are expected to complete the sequence.
     Step,
+    /// The input step matched, and the entire sequence is now complete.
     Complete,
 }
 
+/// Represents the event or action triggered when an `Input` sequence is completed.
 pub enum InputEvent {
+    /// A list of command strings to be executed.
     Commands(Vec<String>),
 }
 
+/// Represents a single input binding, mapping a key sequence to an action.
 pub struct Input {
+    /// A list of modes in which this input binding is valid. If empty, it's valid in all modes
+    /// not listed in `invalid_modes`.
     pub valid_modes: Vec<char>,
+    /// A list of modes in which this input binding is explicitly invalid.
     pub invalid_modes: Vec<char>,
+    /// The sequence of key presses (modifiers + key code) that triggers this input.
     pub key_sequence: Vec<(KeyModifiers, KeyCode)>,
+    /// The event that will be triggered when this input sequence is completed.
     pub event: InputEvent,
 
+    /// A short description of what this input binding does, used in help menus.
     pub desc: String,
 }
 
-/// Wierd ass function that is required thanks to crossterm being kinda wierd
+/// A utility function to check if two `KeyCode`s are equal, handling case-insensitive
+/// comparison for `KeyCode::Char` variants.
+///
+/// This is required because `crossterm`'s `KeyCode::Char` does not automatically
+/// handle case-insensitivity in its `PartialEq` implementation.
+///
+/// # Arguments
+///
+/// * `a`: The first `KeyCode`.
+/// * `b`: The second `KeyCode`.
+///
+/// # Returns
+///
+/// `true` if the key codes are considered equal (case-insensitive for `Char`), `false` otherwise.
 pub fn check_key_code(a: KeyCode, b: KeyCode) -> bool {
     match (a, b) {
         (KeyCode::Char(aa), KeyCode::Char(bb)) => aa.eq_ignore_ascii_case(&bb),
@@ -38,6 +64,20 @@ pub fn check_key_code(a: KeyCode, b: KeyCode) -> bool {
 }
 
 impl Input {
+    /// Processes a single key event against the current step of this input binding.
+    ///
+    /// Checks if the provided mode is valid for this binding and if the current key event
+    /// matches the expected key at `step` in the `key_sequence`.
+    ///
+    /// # Arguments
+    ///
+    /// * `window`: A reference to the `Window` resource to access recent key events.
+    /// * `mode`: The current active editor mode.
+    /// * `step`: The current step in the `key_sequence` being matched.
+    ///
+    /// # Returns
+    ///
+    /// An `InputResult` indicating whether the step failed, advanced, or completed the sequence.
     pub fn step(&self, window: &Window, mode: char, step: usize) -> InputResult {
         if (!self.valid_modes.is_empty() && !self.valid_modes.contains(&mode))
             || self.invalid_modes.contains(&mode)
@@ -57,6 +97,18 @@ impl Input {
         }
     }
 
+    /// Generates a string representation of the remaining key sequence for display.
+    ///
+    /// This is used, for example, in the help menu to show users what keys they still need to press.
+    ///
+    /// # Arguments
+    ///
+    /// * `skip`: The number of initial key sequence steps to skip (e.g., how many steps have already been matched).
+    ///
+    /// # Returns
+    ///
+    /// A `String` representing the remaining key sequence, with modifiers and key codes
+    /// formatted in a readable way (e.g., "ctrl-x y").
     pub fn sequence_str(&self, skip: usize) -> String {
         self.key_sequence
             .iter()
@@ -78,23 +130,51 @@ impl Input {
     }
 }
 
+/// Stores all registered input bindings in the editor.
+///
+/// Input bindings are processed in reverse order of registration (most recently
+/// registered inputs are checked first).
 #[derive(Default, State)]
 pub struct InputConfig {
+    /// A double-ended queue holding all registered `Input` bindings.
     inputs: VecDeque<Input>,
 }
 
 impl InputConfig {
+    /// Registers a new input binding, pushing it to the front of the queue.
+    ///
+    /// This means newly registered inputs will take precedence over older ones
+    /// if their key sequences overlap.
+    ///
+    /// # Arguments
+    ///
+    /// * `input`: The `Input` binding to register.
     pub fn register_input(&mut self, input: Input) {
         self.inputs.push_front(input)
     }
 }
 
+/// Stores the current state of input processing, including repeat counts and active multi-key sequences.
 #[derive(Default, State)]
 pub struct InputState {
+    /// A string representing a numeric repeat count entered by the user (e.g., "5" for `5dd`).
     pub(crate) repeat_count: String,
+    /// A vector of currently active multi-key input sequences.
+    /// Each tuple `(input_idx, step)` indicates which `Input` binding from `InputConfig`
+    /// is active (`input_idx`) and which `step` in its `key_sequence` has been matched so far.
     pub(crate) active_inputs: Vec<(usize, usize)>,
 }
 
+/// Registers the help menu chunk in the UI if there are active input sequences.
+///
+/// This system dynamically creates a dedicated drawing area (`HelpChunk`) in the
+/// bottom-right corner of the window to display active input sequences.
+///
+/// # Arguments
+///
+/// * `window`: `Res<WindowState>` providing access to window dimensions.
+/// * `chunks`: `ResMut<Chunks>` for registering new drawing chunks.
+/// * `input`: `Res<InputState>` to check if any input sequences are currently active.
 pub async fn register_help_menu_chunk(
     window: Res<WindowState>,
     chunks: ResMut<Chunks>,
@@ -116,7 +196,7 @@ pub async fn register_help_menu_chunk(
             fixed(input.active_inputs.len() as u16 + 2),
             vec![flexible(), percent(20.0), fixed(1)],
         )
-        .row(fixed(1), vec![])
+        .row(fixed(1), vec![flexible()])
         .calculate(window.size())
         .unwrap()[1][1];
 
@@ -124,6 +204,16 @@ pub async fn register_help_menu_chunk(
     chunks.register_chunk::<HelpChunk>(1, rect);
 }
 
+/// Renders the help menu, displaying currently active input sequences.
+///
+/// This system draws the border and the descriptions of the key sequences
+/// that are partially matched, providing user feedback for multi-key bindings.
+///
+/// # Arguments
+///
+/// * `chunk`: `Chunk<HelpChunk>` providing mutable access to the help menu's drawing buffer.
+/// * `input`: `Res<InputState>` to get the list of active input sequences.
+/// * `input_config`: `Res<InputConfig>` to retrieve the full `Input` binding details.
 pub async fn render_help_menu(
     chunk: Chunk<HelpChunk>,
     input: Res<InputState>,
@@ -149,6 +239,24 @@ pub async fn render_help_menu(
     render!(&mut chunk, (0, 0) => [border]);
 }
 
+/// Handles incoming key events, processes input sequences, and dispatches commands.
+///
+/// This is the central input processing system of the editor. It:
+/// 1. Handles character input in insert mode.
+/// 2. Accumulates numeric repeat counts.
+/// 3. Matches active multi-key sequences.
+/// 4. Dispatches commands when an input sequence is completed.
+/// 5. Initiates new input sequences.
+///
+/// # Arguments
+///
+/// * `window`: `Res<WindowState>` to access key events.
+/// * `input`: `ResMut<InputState>` for mutable access to repeat count and active inputs.
+/// * `input_config`: `Res<InputConfig>` for registered input bindings.
+/// * `modes`: `Res<ModeStack>` to get the current editor mode.
+/// * `command_registry`: `Res<CommandRegistry>` for parsing command strings.
+/// * `prefix_registry`: `Res<CommandPrefixRegistry>` for applying command prefixes.
+/// * `command_sender`: `ResMut<CommandSender>` for dispatching executed commands.
 pub async fn handle_inputs(
     window: Res<WindowState>,
     input: ResMut<InputState>,
@@ -215,8 +323,6 @@ pub async fn handle_inputs(
         };
 
         if ch.is_numeric() {
-            // We don't care about 0 if you press it when string is empty
-            // You can't trigger an event 0 times. Might as well allow that as a keybind!
             if *ch == '0' && input.repeat_count.is_empty() {
                 continue;
             }

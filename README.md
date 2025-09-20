@@ -1,43 +1,98 @@
 # Kerbin
-Kerbin is a [Helix](https://helix-editor.com/) and [Neovim](https://neovim.io/) inspired editor written
-with the goal of easy, fast, and effective extensibility, on top of good roots.
 
-# Showcase
-There's nothing here yet! Check back in a little bit when the editor is a bit more fleshed out (around the 10th or 12th of September)
+Kerbin is a powerful, extensible editor inspired by
+[Helix](https://helix-editor.com/) and [Neovim](https://neovim.io/).
+Built for ease of use, while keeping powerusers 
+in good hands with plugins and configurations
+that could rival those of neovim.
 
-# Comparisons
-## What makes it different from **Helix**?
-Unlike Helix, **Kerbin** Has plugins. They are written using pure rust using ffi. Plugins will be able to be written, installed, and 
-worked with as simply as calling a shell command and writing some code.
+---
 
-## What makes it similar to **Helix**?
-Similarly to Helix, **Kerbin** uses TOML to configure. This tops everything else on the market, as rust code isn't required for about 90% of use cases.
-**Kerbin** also comes with major default plugins and configuration, with a similar goal of helix to not be neccissary to add plugins for many users.
+# ✨ Showcase ✨
 
-## What makes it different from **Neovim**?
-Unlike Neovim, **Kerbin's** Plugins are written in rust, making them faster, memory safe\*, and be better interopped with the editor itself.
-This allows for writing cpu "heavy" plugins easily, as well as hooking into the render engine incredibly easily
+*There's nothing here yet!* 
+Check back in a bit for full demonstrations
+when the editor is more fleshed out (around mid October).
 
-## What makes it similar to **Neovim**?
-Similarly to neovim, the whole idea is that the editor is functional, but built for extensibility. Meaning you can install the editor, and it is quite lightweight,
-but installing plugins is what makes the editor whole.
+---
 
-### But This Contradicts The Statement Before?
-Not quite, as plugins are coming directly from you're config, some of the major plugins (LSPs, TreeSitter, Vim/Helix/Kakoune Bindings) are Plugins that are managed
-by the editor itself, and come preadded to the default config, making it much more "out of the box".
+# 💡 Key Comparisons 💡
 
-# Development Progress
-Currently, development is going very strongly. Most of the major pieces of the editor are implemented and functional. The editor in it's current state is installable,
-and usable if you don't care about lsp support. Of course there will be bugs, as with all **alpha** software, but I am very active with issues, so if you find something
-please reach out and we should be able to help. If you're more curious about next steps, look below at the progress checklist (may be slightly out of date)
+## How Kerbin Differs from **Helix**
 
-## Progress Checklist (for v0.1.0)
-Below is the current project checklist. It is being implemented in order in the list, but it is subject to change if I feel I've missed an important piece
-This checklist is for when I feel the project will be ready for use in my own environment
-- [x] Basic Editor Functionality (insertions, deletions, etc.)
-- [x] Selection Support
-- [x] Multicursor Support
-- [x] TreeSitter Rendering (Currently In the Core, not a plugin (which i want it to be), requires Hooks to be done)
-- [ ] Full Adjustment to using Layouts, then allowing passage of specific chunks for rendering. (Chunk system parameters)
-- [x] Plugin Hooks (Replacing rendering systems, Adjusting how things render/work, adding new render calls to the statusline, etc)
-- [ ] Lsp Support
+Unlike Helix, **Kerbin** embraces a robust plugin system. Plugins
+are written in pure Rust, leveraging FFI for unparalleled speed, memory
+safety, and deep integration with the editor. This design allows you
+to write, install, and manage plugins with the simplicity of a shell
+command, empowering you to extend Kerbin's capabilities effortlessly.
+
+## How Kerbin is Similar to **Helix**
+
+**Kerbin** shares Helix's philosophy on configuration, utilizing TOML for
+straightforward setup. This approach eliminates the need for Rust code in
+most use cases, prioritizing user convenience. Furthermore,
+Kerbin comes pre-packaged with essential default plugins and
+configurations, mirroring Helix's goal of providing a rich,
+out-of-the-box experience that many users won't need to customize
+extensively.
+
+---
+
+## How Kerbin Differs from **Neovim**
+
+A key differentiator from Neovim is **Kerbin's** plugin architecture.
+By writing plugins in Rust, you're able to achieve superior performance, memory
+safety\, and seamless interoperability with the editor's core. This
+empowers developers to create CPU-intensive plugins and hook into the
+rendering engine with remarkable ease, unlocking new possibilities for
+custom functionality.
+
+## How Kerbin is Similar to **Neovim**
+
+Similar to Neovim, **Kerbin** is built on the premise that the editor
+is fundamentally functional but designed for deep extensibility. While
+lightweight on its own, the true power of Kerbin is unleashed through
+its plugin system, allowing you to tailor it precisely to your workflow.
+
+### Contradictory Statements?
+
+This might seem to contradict the previous statement, but it doesn't.
+While custom plugins are managed via your configuration, several core
+plugins such as Language Server Protocol (LSP) support, TreeSitter,
+and keybindings (Vim/Helix/Kakoune) are managed directly by the editor
+and come pre-added to the default configuration. This ensures a rich
+and functional experience right out of the box.
+
+---
+
+# 🗺️ Roadmap 🗺️
+
+Below is the current project checklist. Items are being implemented in
+order, but the list is subject to change if an important piece is
+deemed missing or prioritized differently.
+
+### Core Development
+*   [x] Basic Editor Functionality (insertions, deletions, etc.)
+*   [x] Selection Support
+*   [x] Multicursor Support
+*   [x] TreeSitter Rendering
+*   [x] Full Adjustment to using Layouts, then allowing passage of
+    specific chunks for rendering. (Chunk system parameters)
+*   [x] Plugin Hooks (Replacing rendering systems, Adjusting how
+    things render/work, adding new render calls to the statusline, etc.)
+*   [x] TreeSitter Indentation Queries
+
+### Documentation & Refinement
+*   [ ] Document core systems and sub modules
+*   [ ] Go through systems and refactor code
+*   [ ] Write out design document
+*   [ ] Write out main wiki for writing configuration and plugins
+
+### Stability & Enhancements
+*   [ ] Fix major bugs
+*   [ ] Implement sending messages to the process using interprocess
+    file communication systems
+*   [ ] Write out CLI systems for handling command-line arguments
+    within plugins and handling custom systems
+*   [ ] Lsp Support using plugin system
+*   [ ] Update this readme to be prettier and have better organization

@@ -2,7 +2,7 @@
 [[keybind]]
 modes = ["i"]
 keys = ["backspace"]
-commands = ["mc -1 0", "d"]
+commands = ["mc -1", "d"]
 desc = "Backspace"
 
 [[keybind]]

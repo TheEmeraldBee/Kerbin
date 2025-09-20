@@ -8,49 +8,49 @@ desc = "Visual Mode"
 [[keybind]]
 modes = ["v"]
 keys = ["left"]
-commands = ["move_cursor -1 0 true"]
+commands = ["mc -1 true"]
 desc = "Move Left"
 
 [[keybind]]
 modes = ["v"]
 keys = ["down"]
-commands = ["move_cursor 0 1 true"]
+commands = ["ml 1 true"]
 desc = "Move Down"
 
 [[keybind]]
 modes = ["v"]
 keys = ["up"]
-commands = ["move_cursor 0 -1 true"]
+commands = ["ml -1 true"]
 desc = "Move Up"
 
 [[keybind]]
 modes = ["v"]
 keys = ["right"]
-commands = ["move_cursor 1 0 true"]
+commands = ["mc 1 true"]
 desc = "Move Right"
 
 [[keybind]]
 modes = ["v"]
 keys = ["h"]
-commands = ["move_cursor -1 0 true"]
+commands = ["mc -1 true"]
 desc = "Move Left"
 
 [[keybind]]
 modes = ["v"]
 keys = ["j"]
-commands = ["move_cursor 0 1 true"]
+commands = ["ml 1 true"]
 desc = "Move Down"
 
 [[keybind]]
 modes = ["v"]
 keys = ["k"]
-commands = ["move_cursor 0 -1 true"]
+commands = ["ml -1 true"]
 desc = "Move Up"
 
 [[keybind]]
 modes = ["v"]
 keys = ["l"]
-commands = ["move_cursor 1 0 true"]
+commands = ["mc 1 true"]
 desc = "Move Right"
 
 [[keybind]]

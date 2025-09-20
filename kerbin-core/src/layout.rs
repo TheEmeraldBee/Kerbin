@@ -1,34 +1,70 @@
 use ascii_forge::math::Vec2;
 
+/// Defines a constraint for sizing elements within a layout.
+///
+/// Constraints determine how much space an element should occupy relative
+/// to the available space or other elements.
 #[derive(Debug, Clone)]
 pub enum Constraint {
+    /// Takes up a specified percentage of the total available space (0.0 to 100.0).
+    /// It will shrink if necessary to fit within the available space.
     Percentage(f32),
+    /// Takes up a fixed amount of space in units (e.g., characters or rows).
+    /// If the available space is less than the fixed size, an error may occur.
     Fixed(u16),
+    /// Takes up space within a specified minimum and maximum range.
+    /// It will try to fit its content but won't go below `min` or above `max`.
     Range { min: u16, max: u16 },
+    /// Takes up all the remaining available space after other constraints have been resolved.
+    /// Multiple flexible constraints will share the remaining space evenly.
     Flexible,
 }
 
+/// The possible error results that can occur during layout calculation.
 #[derive(Debug, PartialEq, Eq)]
-/// The possible error results of the layout systems
 pub enum LayoutError {
-    /// At least one constraint was unable to fit within the space
+    /// Indicates that at least one constraint (e.g., a `Fixed` or `Range` with too high `min`)
+    /// could not fit within the allocated space.
     InsufficientSpace,
 
+    /// Occurs when `Percentage` constraints sum up to more than 100%, or a percentage
+    /// value is outside the 0.0-100.0 range.
     InvalidPercentages,
 
+    /// Reserved for potential future conflicts where constraints are logically impossible
+    /// to satisfy simultaneously (currently not explicitly triggered by `resolve_constraints`).
     ConstraintConflict,
 }
 
+/// An area that a layout element takes up.
+///
+/// Represents a rectangular region on the screen, defined by its top-left
+/// corner (x, y) and its dimensions (width, height).
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-/// An area that a layout set takes up.
 pub struct Rect {
+    /// The X-coordinate of the top-left corner.
     pub x: u16,
+    /// The Y-coordinate of the top-left corner.
     pub y: u16,
+    /// The width of the rectangle.
     pub width: u16,
+    /// The height of the rectangle.
     pub height: u16,
 }
 
 impl Rect {
+    /// Creates a new `Rect` with the specified position and dimensions.
+    ///
+    /// # Arguments
+    ///
+    /// * `x`: The X-coordinate of the top-left corner.
+    /// * `y`: The Y-coordinate of the top-left corner.
+    /// * `width`: The width of the rectangle.
+    /// * `height`: The height of the rectangle.
+    ///
+    /// # Returns
+    ///
+    /// A new `Rect` instance.
     pub fn new(x: u16, y: u16, width: u16, height: u16) -> Self {
         Self {
             x,
@@ -39,18 +75,51 @@ impl Rect {
     }
 }
 
-/// Takes up a percentage of the total area
-/// Will shrink if it has to
+/// Creates a `Constraint::Percentage` variant.
+///
+/// This helper function is a convenient way to specify a percentage-based constraint.
+/// The `value` should be between 0.0 and 100.0.
+///
+/// # Arguments
+///
+/// * `value`: The percentage as a `f32`.
+///
+/// # Returns
+///
+/// A `Constraint::Percentage` instance.
 pub fn percent(value: f32) -> Constraint {
     Constraint::Percentage(value)
 }
 
-/// Takes up a fixed amount of space, that errors if it is to small
+/// Creates a `Constraint::Fixed` variant.
+///
+/// This helper function specifies that an element should occupy an exact
+/// fixed amount of space.
+///
+/// # Arguments
+///
+/// * `value`: The fixed size in units as a `u16`.
+///
+/// # Returns
+///
+/// A `Constraint::Fixed` instance.
 pub fn fixed(value: u16) -> Constraint {
     Constraint::Fixed(value)
 }
 
-/// Takes up at least min_val, and at max max_val
+/// Creates a `Constraint::Range` variant.
+///
+/// This helper function specifies that an element should occupy space within
+/// a given minimum and maximum bound.
+///
+/// # Arguments
+///
+/// * `min_val`: The minimum allowed size in units as a `u16`.
+/// * `max_val`: The maximum allowed size in units as a `u16`.
+///
+/// # Returns
+///
+/// A `Constraint::Range` instance.
 pub fn range(min_val: u16, max_val: u16) -> Constraint {
     Constraint::Range {
         min: min_val,
@@ -58,25 +127,49 @@ pub fn range(min_val: u16, max_val: u16) -> Constraint {
     }
 }
 
-/// Takes up the remaining space
+/// Creates a `Constraint::Flexible` variant.
+///
+/// This helper function specifies that an element should take up any
+/// remaining space.
+///
+/// # Returns
+///
+/// A `Constraint::Flexible` instance.
 pub fn flexible() -> Constraint {
     Constraint::Flexible
 }
 
+/// Defines a horizontal and vertical grid layout setup.
+///
+/// `Layout` is used for separating a given total space (e.g., the window size)
+/// into easy-to-manage rectangular chunks for rendering UI elements.
 #[derive(Default)]
-/// Defines a horizontal x vertical grid layout setup.
-/// used for separating a given space out into easy chunks for rendering
 pub struct Layout {
+    /// A vector where each tuple represents a row: `(height_constraint, width_constraints_for_columns)`.
     rows: Vec<(Constraint, Vec<Constraint>)>,
 }
 
 impl Layout {
-    /// Starts a layout with a total space (usually the window size)
+    /// Starts a new `Layout` definition.
+    ///
+    /// # Returns
+    ///
+    /// An empty `Layout` instance.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Creates a row that is then sub-split into other systems
+    /// Adds a new row to the layout with specified height and column width constraints.
+    ///
+    /// # Arguments
+    ///
+    /// * `height_constraint`: The `Constraint` that determines the height of this row.
+    /// * `width_constraints`: A `Vec<Constraint>` where each constraint determines the width
+    ///                        of a column within this row.
+    ///
+    /// # Returns
+    ///
+    /// The `Layout` instance, allowing for method chaining.
     pub fn row(
         mut self,
         height_constraint: Constraint,
@@ -86,17 +179,60 @@ impl Layout {
         self
     }
 
-    /// Creates a row that takes up the full row in width.
+    /// Creates a row that takes up the full width of the available space with a single height constraint.
+    ///
+    /// This is a convenience method for `row` when a row only contains one conceptual column
+    /// that spans the entire width.
+    ///
+    /// # Arguments
+    ///
+    /// * `constraint`: The `Constraint` that determines the height of this row.
+    ///
+    /// # Returns
+    ///
+    /// The `Layout` instance, allowing for method chaining.
     pub fn empty_row(self, constraint: Constraint) -> Self {
-        self.row(constraint, vec![])
+        self.row(constraint, vec![flexible()]) // A single flexible width constraint
     }
 
-    /// Calculates based on the total space, and gets the Rects for those
+    /// Calculates the `Rect`s for all elements in the layout based on the total available space.
+    ///
+    /// This method consumes the `Layout` instance and computes the final rectangular
+    /// areas for all rows and columns.
+    ///
+    /// # Arguments
+    ///
+    /// * `space`: The total `Vec2` representing the available width and height for the layout.
+    ///            Can be any type that converts into `Vec2`.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` which is:
+    /// - `Ok(Vec<Vec<Rect>>)`: A nested vector where the outer vector corresponds to rows,
+    ///   and the inner vectors contain the `Rect`s for the columns within that row.
+    /// - `Err(LayoutError)`: If the constraints cannot be satisfied (e.g., insufficient space).
     pub fn calculate(self, space: impl Into<Vec2>) -> Result<Vec<Vec<Rect>>, LayoutError> {
         calculate_layout(space, self.rows)
     }
 }
 
+/// Calculates the layout of a grid, resolving constraints for rows and columns.
+///
+/// This is the core logic for the `Layout::calculate` method. It first resolves
+/// height constraints for all rows, then for each row, resolves the width constraints
+/// for its columns.
+///
+/// # Arguments
+///
+/// * `total_space`: The total `Vec2` representing the available width and height.
+/// * `rows`: A vector of tuples, each containing a `Constraint` for row height
+///           and a `Vec<Constraint>` for column widths within that row.
+///
+/// # Returns
+///
+/// A `Result` which is:
+/// - `Ok(Vec<Vec<Rect>>)`: A nested vector of calculated `Rect`s.
+/// - `Err(LayoutError)`: If constraints cannot be resolved.
 pub fn calculate_layout(
     total_space: impl Into<Vec2>,
     rows: Vec<(Constraint, Vec<Constraint>)>,
@@ -104,10 +240,12 @@ pub fn calculate_layout(
     let total_space = total_space.into();
     let height_constraints: Vec<Constraint> = rows.iter().map(|(h, _)| h.clone()).collect();
 
+    // Resolve heights for all rows
     let row_heights = resolve_constraints(&height_constraints, total_space.y)?;
     let mut result = Vec::new();
     let mut current_y = 0u16;
 
+    // Iterate through rows to resolve column widths and create Rects
     for (row_idx, (_, width_constraints)) in rows.iter().enumerate() {
         let row_height = row_heights[row_idx];
         let widths = resolve_constraints(width_constraints, total_space.x)?;
@@ -127,6 +265,28 @@ pub fn calculate_layout(
     Ok(result)
 }
 
+/// Resolves a list of `Constraint`s for a single dimension (either width or height).
+///
+/// This function attempts to distribute `available` space among a set of constraints,
+/// adhering to fixed sizes, percentages, ranges, and flexible space distribution.
+///
+/// The resolution order is generally:
+/// 1. Validate percentages.
+/// 2. Allocate fixed sizes.
+/// 3. Allocate percentage sizes (with potential shrinking if total > available).
+/// 4. Ensure minimums of `Range` constraints are met.
+/// 5. Distribute remaining space to `Flexible` and `Range` (up to their max) constraints.
+///
+/// # Arguments
+///
+/// * `constraints`: A slice of `Constraint`s to resolve for the given dimension.
+/// * `available`: The total `u16` space available in that dimension.
+///
+/// # Returns
+///
+/// A `Result` which is:
+/// - `Ok(Vec<u16>)`: A vector of calculated sizes for each constraint, summing up to `available`.
+/// - `Err(LayoutError)`: If the constraints cannot be satisfied (e.g., not enough space, invalid percentages).
 pub fn resolve_constraints(
     constraints: &[Constraint],
     available: u16,
@@ -172,6 +332,7 @@ pub fn resolve_constraints(
         }
     }
 
+    // If combined fixed and percentage exceeds available, shrink percentages proportionally
     if fixed_total + percentage_total > available as u32 {
         let shrink_factor = (available as u32 - fixed_total) as f32 / percentage_total as f32;
         for (i, constraint) in constraints.iter().enumerate() {
@@ -181,6 +342,7 @@ pub fn resolve_constraints(
         }
     }
 
+    // Ensure range minimums are met
     for (i, constraint) in constraints.iter().enumerate() {
         if let Constraint::Range { min: min_val, .. } = constraint {
             allocated_sizes[i] = allocated_sizes[i].max(*min_val);
@@ -190,11 +352,14 @@ pub fn resolve_constraints(
     let used_space: u32 = allocated_sizes.iter().map(|&x| x as u32).sum();
 
     if used_space > available as u32 {
+        // After ensuring minimums, if we've exceeded space, it's an error.
+        // This could happen if fixed + initial percentages + range mins > available
         return Err(LayoutError::InsufficientSpace);
     }
 
     let mut remaining_space = (available as u32) - used_space;
 
+    // Identify indices of flexible and range constraints for expansion
     let flexible_indices: Vec<usize> = constraints
         .iter()
         .enumerate()
@@ -212,6 +377,7 @@ pub fn resolve_constraints(
     let expandable_indices: Vec<usize> =
         flexible_indices.into_iter().chain(range_indices).collect();
 
+    // Distribute remaining space to flexible and range constraints (up to their max)
     if !expandable_indices.is_empty() && remaining_space > 0 {
         while remaining_space > 0 {
             let mut distributed = 0u32;
@@ -220,17 +386,18 @@ pub fn resolve_constraints(
                 .filter(|&&idx| {
                     let max_val = match &constraints[idx] {
                         Constraint::Range { max: m, .. } => *m,
-                        Constraint::Flexible => u16::MAX,
-                        _ => 0,
+                        Constraint::Flexible => u16::MAX, // Flexible has no upper bound
+                        _ => 0, // Other constraints are not expandable here
                     };
-                    allocated_sizes[idx] < max_val
+                    allocated_sizes[idx] < max_val // Only expand if not yet at max
                 })
                 .count();
 
             if eligible_count == 0 {
-                break;
+                break; // No more eligible items to expand, or remaining_space is 0
             }
 
+            // Distribute space as evenly as possible, ensuring at least 1 unit per item
             let space_per_item = std::cmp::max(1, remaining_space / eligible_count as u32);
 
             for &idx in &expandable_indices {
@@ -241,9 +408,11 @@ pub fn resolve_constraints(
                 };
 
                 if allocated_sizes[idx] < max_val && remaining_space > 0 {
+                    // Calculate how much can be added to this item without exceeding its max
+                    // or the remaining overall space, or the per-item distribution amount.
                     let can_add = std::cmp::min(
-                        max_val.saturating_sub(allocated_sizes[idx]) as u32,
-                        std::cmp::min(space_per_item, remaining_space),
+                        max_val.saturating_sub(allocated_sizes[idx]) as u32, // Space left till max
+                        std::cmp::min(space_per_item, remaining_space),      // Space to distribute
                     );
                     allocated_sizes[idx] += can_add as u16;
                     distributed += can_add;
@@ -252,6 +421,8 @@ pub fn resolve_constraints(
             }
 
             if distributed == 0 {
+                // If no space was distributed in an iteration but `remaining_space` > 0,
+                // it means no more items can expand (e.g., all hit their max).
                 break;
             }
         }

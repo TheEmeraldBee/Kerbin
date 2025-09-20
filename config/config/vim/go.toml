@@ -1,11 +1,11 @@
 [[keybind]]
 modes = []
 keys = ["g", "g"]
-commands = ["move_cursor 0 -32000"]
+commands = ["ml -32000"]
 desc = "Goto Top Line"
 
 [[keybind]]
 modes = []
 keys = ["shift-g"]
-commands = ["move_cursor 0 32000"]
+commands = ["ml 32000"]
 desc = "Goto Bottom Line"

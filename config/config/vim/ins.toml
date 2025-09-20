@@ -7,7 +7,7 @@ desc = "Start insert at new line"
 [[keybind]]
 modes = []
 keys = ["shift-o"]
-commands = ["start_change", "mc 0 -1", "sle false", "gse", "sc", "ts_nl", "gse", "sc", "pm i"]
+commands = ["start_change", "ml -1", "sle false", "gse", "sc", "ts_nl", "gse", "sc", "pm i"]
 desc = "Start insert at new line before"
 
 [[keybind]]

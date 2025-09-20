@@ -71,14 +71,26 @@ impl Command for CommitCommand {
 
 #[derive(Clone, Debug, Command)]
 pub enum BufferCommand {
-    /// Moves primary cursor
-    ///
-    /// If extended is true, will extend selection instead of replacing it
-    #[command(name = "mc")]
-    MoveCursor {
-        cols: isize,
-        rows: isize,
+    #[command(name = "mb")]
+    /// Moves primary cursor by a given number of bytes
+    MoveBytes {
+        bytes: isize,
+        #[command(type_name = "bool?")]
+        extend: Option<bool>,
+    },
 
+    #[command(name = "ml")]
+    /// Moves primary cursor by a given number of lines
+    MoveLines {
+        lines: isize,
+        #[command(type_name = "bool?")]
+        extend: Option<bool>,
+    },
+
+    #[command(name = "mc")]
+    /// Moves primary cursor by a given number of characters
+    MoveChars {
+        chars: isize,
         #[command(type_name = "bool?")]
         extend: Option<bool>,
     },
@@ -128,8 +140,14 @@ impl Command for BufferCommand {
         let byte = cur_buffer.primary_cursor().get_cursor_byte();
 
         match self {
-            BufferCommand::MoveCursor { rows, cols, extend } => {
-                cur_buffer.move_cursor(*rows, *cols, extend.unwrap_or(false))
+            BufferCommand::MoveBytes { bytes, extend } => {
+                cur_buffer.move_bytes(*bytes, extend.unwrap_or(false))
+            }
+            BufferCommand::MoveLines { lines, extend } => {
+                cur_buffer.move_lines(*lines, extend.unwrap_or(false))
+            }
+            BufferCommand::MoveChars { chars, extend } => {
+                cur_buffer.move_chars(*chars, extend.unwrap_or(false))
             }
 
             BufferCommand::WriteFile { path } => {
@@ -157,7 +175,7 @@ impl Command for BufferCommand {
                     byte,
                     content: text.clone(),
                 });
-                cur_buffer.move_cursor(0, text.len() as isize, *extend)
+                cur_buffer.move_chars(text.len() as isize, *extend)
             }
 
             BufferCommand::Undo => {

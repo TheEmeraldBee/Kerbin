@@ -5,23 +5,43 @@ use kerbin_macros::State;
 pub mod ranking;
 pub use ranking::*;
 
+/// The internal state of the command palette.
+///
+/// This struct holds all information related to the command palette's current
+/// display and input processing, including user input, command suggestions,
+/// and validation status.
 #[derive(Default, State)]
-/// The internal state of the command palette
-/// Used for handling inputs and autocompletions
-/// Used to validate and check typed string into the palette
 pub struct CommandPaletteState {
+    /// The input string from the previous frame, used to detect changes and
+    /// optimize suggestion updates.
     pub old_input: String,
+    /// The current input string typed by the user in the command palette.
     pub input: String,
+    /// An optional string representing a potential auto-completion for the current input.
     pub completion: Option<String>,
+    /// A vector of `Buffer`s, each representing a command suggestion to display.
     pub suggestions: Vec<Buffer>,
 
+    /// An optional `Buffer` containing the detailed description of the top command suggestion.
     pub desc: Option<Buffer>,
 
+    /// A boolean indicating whether the current input string forms a valid command.
     pub input_valid: bool,
 }
 
-/// System used to update the engine's palette
-/// Updates suggestions, and marks whether the system is valid
+/// System used to update the command palette's suggestions and input validation status.
+///
+/// This system runs when the editor is in command palette mode ('c'). It compares
+/// the current input to the old input to determine if suggestions need to be re-calculated
+/// and if the input's validity needs to be re-evaluated.
+///
+/// # Arguments
+///
+/// * `modes`: `Res<ModeStack>` to check if the editor is in command palette mode.
+/// * `palette`: `ResMut<CommandPaletteState>` for mutable access to the palette's state.
+/// * `prefix_registry`: `Res<CommandPrefixRegistry>` for validating commands with prefixes.
+/// * `commands`: `Res<CommandRegistry>` for generating command suggestions and validating commands.
+/// * `theme`: `Res<Theme>` for styling command suggestions.
 pub async fn update_palette_suggestions(
     modes: Res<ModeStack>,
     palette: ResMut<CommandPaletteState>,
@@ -51,7 +71,20 @@ pub async fn update_palette_suggestions(
     palette.input_valid = commands.validate_command(&palette.input, &prefix_registry, &modes);
 }
 
-/// Handles the internal input for the 'c' mode
+/// Handles keyboard input specific to the command palette ('c' mode).
+///
+/// This system processes key events (characters, backspace, enter, escape, tab)
+/// when the command palette is active, updating the palette's input string
+/// and dispatching commands when `Enter` is pressed.
+///
+/// # Arguments
+///
+/// * `window`: `Res<WindowState>` to read key events.
+/// * `palette`: `ResMut<CommandPaletteState>` for mutable access to the palette's input.
+/// * `modes`: `ResMut<ModeStack>` for popping the command palette mode when finished.
+/// * `command_registry`: `Res<CommandRegistry>` for parsing the entered command.
+/// * `prefix_registry`: `Res<CommandPrefixRegistry>` for applying command prefixes during parsing.
+/// * `command_sender`: `ResMut<CommandSender>` for dispatching the parsed command.
 pub async fn handle_command_palette_input(
     window: Res<WindowState>,
     palette: ResMut<CommandPaletteState>,
@@ -109,8 +142,18 @@ pub async fn handle_command_palette_input(
     }
 }
 
-/// Registers the command palette's required chunks,
-/// Dynamically requires the space to improve rendering
+/// Registers the command palette's required chunks for rendering.
+///
+/// This system dynamically creates or updates drawing chunks for the command line input,
+/// suggestions, and command description, adjusting their sizes based on content.
+/// It only runs when the editor is in command palette mode.
+///
+/// # Arguments
+///
+/// * `chunks`: `ResMut<Chunks>` for registering drawing chunks.
+/// * `window`: `Res<WindowState>` to get the total window size for layout calculation.
+/// * `modes`: `Res<ModeStack>` to check if command palette mode is active.
+/// * `palette`: `Res<CommandPaletteState>` to get current palette state (e.g., number of suggestions, description height).
 pub async fn register_command_palette_chunks(
     chunks: ResMut<Chunks>,
     window: Res<WindowState>,
@@ -141,7 +184,7 @@ pub async fn register_command_palette_chunks(
 
     let layout = Layout::new()
         // Take up the whole top
-        .row(flexible(), vec![])
+        .row(flexible(), vec![flexible()])
         .row(fixed(desc_height), vec![flexible()])
         .row(fixed(sug_height), vec![flexible()])
         // Take up a row for a gap
@@ -161,7 +204,20 @@ pub async fn register_command_palette_chunks(
     chunks.register_chunk::<CommandlineChunk>(2, layout[4][0]);
 }
 
-/// Renders the command palette to the window
+/// Renders the command palette to the window, including input, suggestions, and description.
+///
+/// This system draws the current command line input, applies styling based on its
+/// validity, renders command suggestions, and displays the description of the top suggestion.
+/// It also places the cursor within the command input line.
+///
+/// # Arguments
+///
+/// * `line_chunk`: `Chunk<CommandlineChunk>` for the command line input area.
+/// * `suggestions_chunk`: `Chunk<CommandSuggestionsChunk>` for the suggestions area.
+/// * `desc_chunk`: `Chunk<CommandDescChunk>` for the command description area.
+/// * `palette`: `Res<CommandPaletteState>` for the current state of the palette.
+/// * `modes`: `Res<ModeStack>` to check if the editor is in command palette mode.
+/// * `theme`: `Res<Theme>` for retrieving styling information.
 pub async fn render_command_palette(
     line_chunk: Chunk<CommandlineChunk>,
 
@@ -212,7 +268,7 @@ pub async fn render_command_palette(
     if let Some(mut desc_chunk) = desc_chunk.get()
         && let Some(desc_buffer) = &palette.desc
     {
-        render!(&mut desc_chunk, (0, desc_chunk.size().y - 1) => ["─".repeat(desc_chunk.size().x as usize - 1)]);
+        render!(&mut desc_chunk, (0, desc_chunk.size().y - 1) => ["─".repeat(desc_chunk.size().x as usize)]);
 
         render!(&mut desc_chunk, (0, 0) => [desc_buffer]);
     }
