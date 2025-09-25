@@ -3,6 +3,7 @@ use kerbin_core::{
     *,
 };
 use kerbin_macros::State;
+use unicode_width::UnicodeWidthChar;
 
 use std::{
     collections::{BTreeMap, HashMap, VecDeque},
@@ -238,9 +239,24 @@ pub async fn render_tree_sitter_buffer(
 
     let current_row_idx = rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
     let line_start_byte_idx = rope.line_to_byte_idx(current_row_idx, LineType::LF_CR);
-    let current_col_idx = rope
-        .byte_to_char_idx(cursor_byte)
-        .saturating_sub(rope.byte_to_char_idx(line_start_byte_idx));
+
+    let mut cursor_vis_col = 0;
+    let mut current_byte = line_start_byte_idx;
+    while current_byte < cursor_byte {
+        let char_idx = rope.byte_to_char_idx(current_byte);
+        let mut next_char_byte = rope.char_to_byte_idx(char_idx + 1);
+
+        if next_char_byte > rope.len() {
+            next_char_byte = rope.len();
+        }
+
+        let substring = rope.slice(current_byte..next_char_byte);
+        let ch = substring.chars().next().unwrap();
+
+        let width = ch.width().unwrap_or(1);
+        cursor_vis_col += width as usize;
+        current_byte = next_char_byte;
+    }
 
     let cursor_style = match modes.get_mode() {
         'i' => SetCursorStyle::SteadyBar,
@@ -250,7 +266,7 @@ pub async fn render_tree_sitter_buffer(
     chunk.set_cursor(
         0,
         (
-            current_col_idx as u16 + 6 - buf.h_scroll as u16,
+            cursor_vis_col as u16 + 6 - buf.h_scroll as u16,
             current_row_idx as u16 - buf.scroll as u16,
         )
             .into(),
@@ -336,15 +352,17 @@ pub async fn render_tree_sitter_buffer(
                 .map(|(_, style)| *style)
                 .unwrap_or(default_style);
 
-            for (char_col, (char_byte_idx, ch)) in line.char_indices().enumerate() {
+            let mut current_vis_col = 0;
+            for (char_byte_idx, ch) in line.char_indices() {
                 let absolute_byte_idx = byte_offset + char_byte_idx;
-
                 if let Some(new_style) = highlights_for_buf.get(&absolute_byte_idx) {
                     current_style = *new_style;
                 }
 
+                let char_width = ch.width().unwrap_or(1);
                 let mut in_selection = false;
                 let mut is_cursor = false;
+
                 for (cursor_idx, cursor) in buf.cursors.iter().enumerate() {
                     if cursor.get_cursor_byte() == absolute_byte_idx {
                         if cursor_idx != buf.primary_cursor {
@@ -366,15 +384,16 @@ pub async fn render_tree_sitter_buffer(
                         .unwrap_or(current_style.on_grey()),
                 };
 
-                if char_col >= buf.h_scroll {
-                    let render_col = (char_col - buf.h_scroll) as u16;
-
-                    if render_col >= chunk.size().x - 1 {
+                if current_vis_col >= buf.h_scroll {
+                    let render_col = current_vis_col - buf.h_scroll;
+                    if render_col >= chunk.size().x as usize - 1 {
                         break;
                     }
 
-                    render!(chunk, loc + vec2(render_col, 0) => [StyledContent::new(resulting_style, ch)]);
+                    render!(chunk, loc + vec2(render_col as u16, 0) => [resulting_style.apply(ch)]);
                 }
+
+                current_vis_col += char_width;
             }
         } else {
             render!(chunk, loc => [ line.to_string() ]);

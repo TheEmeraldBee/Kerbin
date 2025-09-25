@@ -11,6 +11,7 @@ pub fn init(state: &mut State) {
     kerbin_tree_sitter::init(state);
     kerbin_tree_sitter::register_lang(state, "rust", ["rs"]);
     kerbin_tree_sitter::register_lang(state, "toml", ["toml"]);
+
     kerbin_tree_sitter::register_lang(state, "markdown", ["md"]);
-    kerbin_tree_sitter::register_lang(state, "markdown-inline", ["markdown-inline"]);
+    kerbin_tree_sitter::register_lang(state, "markdown-inline", empty::<String>());
 }

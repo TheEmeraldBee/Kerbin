@@ -1,3 +1,5 @@
+use crate::RopeExts;
+
 use super::TextBuffer;
 
 /// A result of an action that stores whether the action was applied
@@ -69,6 +71,7 @@ pub trait BufferAction: Send + Sync {
 /// Fails if the specified `byte` offset is beyond the current length of the rope.
 pub struct Insert {
     /// The byte offset within the `TextBuffer` where the content should be inserted.
+    /// Will be converted into a valid char boundary index
     pub byte: usize,
 
     /// The string content to be inserted at the specified location.
@@ -81,9 +84,11 @@ impl BufferAction for Insert {
             return ActionResult::none(false);
         }
 
-        let start = buf.get_edit_part(self.byte);
+        let actual_byte = buf.rope.byte_to_char_boundary_byte(self.byte);
 
-        buf.rope.insert(self.byte, &self.content);
+        let start = buf.get_edit_part(actual_byte);
+
+        buf.rope.insert(actual_byte, &self.content);
 
         let content_len = self.content.len();
         // Adjust other cursors to account for the inserted text
@@ -104,7 +109,7 @@ impl BufferAction for Insert {
             }
         }
 
-        let end = buf.get_edit_part(self.byte + self.content.len());
+        let end = buf.get_edit_part(actual_byte + self.content.len());
 
         // Register the edit for syntax highlighting updates
         buf.register_input_edit(start, start, end);
@@ -125,28 +130,35 @@ impl BufferAction for Insert {
 /// extends beyond the end of the rope.
 pub struct Delete {
     /// The starting byte offset of the text to be deleted.
+    /// Will be turned into a char index internally
     pub byte: usize,
 
-    /// The length in **bytes** of the text to be deleted.
+    /// The length in **chars** of the text to be deleted.
     pub len: usize,
 }
 
 impl BufferAction for Delete {
     extern "C" fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
-        if self.byte + self.len > buf.rope.len() {
+        if self.byte > buf.rope.len() {
             return ActionResult::none(false);
         }
 
-        let start = buf.get_edit_part(self.byte);
-        let old_end = buf.get_edit_part(self.byte + self.len);
+        let char_idx = buf.rope.byte_to_char_idx(self.byte);
+
+        let start_byte = buf.rope.char_to_byte_idx(char_idx);
+        let end_byte = buf.rope.char_to_byte_idx(char_idx + self.len);
+
+        let start = buf.get_edit_part(start_byte);
+        let old_end = buf.get_edit_part(end_byte);
+
+        if end_byte > buf.rope.len() {
+            return ActionResult::none(false);
+        }
 
         // Store the removed content for the inverse (Insert) action
-        let removed = buf
-            .rope
-            .slice(self.byte..(self.byte + self.len))
-            .to_string();
+        let removed = buf.rope.slice(start_byte..end_byte).to_string();
 
-        buf.rope.remove(self.byte..(self.byte + self.len));
+        buf.rope.remove(start_byte..end_byte);
 
         // Adjust other cursors to account for the deleted text
         for (i, cursor) in buf.cursors.iter_mut().enumerate() {

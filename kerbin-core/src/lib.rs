@@ -163,3 +163,7 @@ pub use chunk::*;
 /// Module for managing multiple rendering chunks.
 pub mod chunks;
 pub use chunks::*;
+
+/// Module used to extend the functionality of rope to make things simpler
+pub mod rope_exts;
+pub use rope_exts::*;

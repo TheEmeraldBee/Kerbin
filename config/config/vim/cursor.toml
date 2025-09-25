@@ -28,3 +28,15 @@ modes = []
 keys = [","]
 commands = ["dcs"]
 desc = "Delete Other Cursors"
+
+[[keybind]]
+modes = []
+keys = ['[']
+commands = ['cac -1']
+desc = "Change Primary Cursor Up"
+
+[[keybind]]
+modes = []
+keys = [']']
+commands = ['cac 1']
+desc = "Change Primary Cursor Down"
