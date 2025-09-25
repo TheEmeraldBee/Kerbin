@@ -2,7 +2,7 @@
 
 Kerbin is a powerful, extensible editor inspired by
 [Helix](https://helix-editor.com/) and [Neovim](https://neovim.io/).
-Built for ease of use, while keeping powerusers 
+Built for ease of use, while keeping powerusers
 in good hands with plugins and configurations
 that could rival those of neovim.
 
@@ -16,82 +16,71 @@ when the editor is more fleshed out (around mid October).
 
 ---
 
-# 💡 Key Comparisons 💡
+# 💡 Concepts 💡
 
-## How Kerbin Differs from **Helix**
+## Core Concepts
+- [Rust](https://www.rust-lang.org/) based plugin system
+    - Install plugins using `cargo`
+    - Write plugins using pure rust
+    - Configuration can be used with rust when toml doesn't work (complicated systems)
+- [Toml](https://toml.io/en/) based configuration
+    - Programming languages aren't the best way of writing
+    - Toml is an incredible configuration language for most use cases
+        - The remaining can be part of a plugin's init function
+- Flexible Bindings
+    - Kerbin's goal is to be usable by anyone, Vim, Kakoune, Emacs, Visual, etc.
+    Allowing anyone to use the plugin ecosystem, no matter they're keybindings!
+    - Allows for anyone to use kerbin, without worrying about necissarily relearning how
+    they write code
+- [TreeSitter](https://tree-sitter.github.io/tree-sitter/) and [Lsp](https://microsoft.github.io/language-server-protocol/) Drives Modern Editing
+    - Kerbin is fully on board with tree-sitter and lsps being the future.
+    - Many people will need tree-sitter and lsps to work with code (me included), but some won't.
+    For This reason, lsp and tree-sitter are plugins maintained within the core editor, but aren't used
+    unless defined within the rust plugins. Though the default configuration uses these plugins, people
+    can remove them without losing too much functionality.
 
-Unlike Helix, **Kerbin** embraces a robust plugin system. Plugins
-are written in pure Rust, leveraging FFI for unparalleled speed, memory
-safety, and deep integration with the editor. This design allows you
-to write, install, and manage plugins with the simplicity of a shell
-command, empowering you to extend Kerbin's capabilities effortlessly.
-
-## How Kerbin is Similar to **Helix**
-
-**Kerbin** shares Helix's philosophy on configuration, utilizing TOML for
-straightforward setup. This approach eliminates the need for Rust code in
-most use cases, prioritizing user convenience. Furthermore,
-Kerbin comes pre-packaged with essential default plugins and
-configurations, mirroring Helix's goal of providing a rich,
-out-of-the-box experience that many users won't need to customize
-extensively.
-
----
-
-## How Kerbin Differs from **Neovim**
-
-A key differentiator from Neovim is **Kerbin's** plugin architecture.
-By writing plugins in Rust, you're able to achieve superior performance, memory
-safety\, and seamless interoperability with the editor's core. This
-empowers developers to create CPU-intensive plugins and hook into the
-rendering engine with remarkable ease, unlocking new possibilities for
-custom functionality.
-
-## How Kerbin is Similar to **Neovim**
-
-Similar to Neovim, **Kerbin** is built on the premise that the editor
-is fundamentally functional but designed for deep extensibility. While
-lightweight on its own, the true power of Kerbin is unleashed through
-its plugin system, allowing you to tailor it precisely to your workflow.
-
-### Contradictory Statements?
-
-This might seem to contradict the previous statement, but it doesn't.
-While custom plugins are managed via your configuration, several core
-plugins such as Language Server Protocol (LSP) support, TreeSitter,
-and keybindings (Vim/Helix/Kakoune) are managed directly by the editor
-and come pre-added to the default configuration. This ensures a rich
-and functional experience right out of the box.
+## Unique Concepts
+- Stack based modal editing
+    - Although I haven't seen this within any other editor, I find it very intuitive. It allows for any version of modal editing by defining a
+    mode stack. This mode stack allows for many modes to be active at once, for example, `NORMAL -> CURSOR -> INSERT` within the default bindings,
+    defines that we are in a base mode of NORMAL, then we are in Multicursor mode, which prefixes commands with an `aa` command (apply next command to all cursors),
+    that finally, within the insert command writes the text to all of the cursors at the same time
+    - This allows for drastically simpler bindings for many shared binding types, as well as allowing users to create even more powerful editing systems quickly without
+    sacrificing time to write out the same bindings over and over again.
+- Kitty Terminal Support
+    - I personally love what kitty is doing with the terminal, making it more accessible to everyone, and making leaving the terminal less and less necissary.
+    Supporting the rendering protocols is a big part of making the core experience good, as allowing for things like image and markdown rendering is pretty awesome.
+    - This however should never be forced. Although this will be within the core rendering engine, all functionality will only be implemented using plugins.
 
 ---
 
 # 🗺️ Roadmap 🗺️
 
-Below is the current project checklist. Items are being implemented in
-order, but the list is subject to change if an important piece is
-deemed missing or prioritized differently.
-
-### Core Development
-*   [x] Basic Editor Functionality (insertions, deletions, etc.)
-*   [x] Selection Support
-*   [x] Multicursor Support
-*   [x] TreeSitter Rendering
-*   [x] Full Adjustment to using Layouts, then allowing passage of
+## Core Development
+-   [x] Basic Editor Functionality (insertions, deletions, etc.)
+-   [x] Selection Support
+-   [x] Multicursor Support
+-   [x] TreeSitter Rendering
+-   [x] Full Adjustment to using Layouts, then allowing passage of
     specific chunks for rendering. (Chunk system parameters)
-*   [x] Plugin Hooks (Replacing rendering systems, Adjusting how
+-   [x] Plugin Hooks (Replacing rendering systems, Adjusting how
     things render/work, adding new render calls to the statusline, etc.)
-*   [x] TreeSitter Indentation Queries
+-   [x] TreeSitter Indentation Queries
 
-### Documentation & Refinement
-*   [x] Document core systems and sub modules
-*   [ ] Go through systems and refactor code
-*   [ ] Write out design document
-*   [ ] Write out main wiki for writing configuration and plugins
+## Documentation & Refinement
+- [x] Document core systems and sub modules
+- [ ] Go through systems and refactor code
+    - Make everything more readable, and stop being afraid of adding more files :)
+- [ ] Write out design document
+- [ ] Write out main wiki for writing configuration and plugins
 
-### Stability & Enhancements
-*   [ ] Fix major bugs
-*   [ ] Implement sending messages to the process using interprocess
-    file communication systems
-*   [ ] Write out CLI systems for handling command-line arguments
-    within plugins and handling custom systems
-*   [ ] Lsp Support using plugin system
+## Stability & Enhancements
+- [ ] Fix major bugs
+- [ ] Implement sending messages to the process using interprocess
+  file communication systems
+- [ ] Write out CLI systems for handling command-line arguments
+  within plugins and handling custom systems
+- [ ] Implement Kitty Rendering Protocol Support
+    - Most likely within the chunk rendering to support
+    Images and Text Scaling (Mainly for markdown)
+- [ ] Lsp Support using plugin system
