@@ -112,6 +112,8 @@ impl GrammarManager {
             return Some(lang.clone());
         }
 
+        tracing::info!("Couldn't find `{name}` in loaded tree-sitter grammars, loading...");
+
         // Construct the path to the shared library.
         // e.g., runtime/grammars/tree-sitter-rust/
         let lib_path = self.base_path.join(format!("tree-sitter-{name}"));
@@ -123,9 +125,9 @@ impl GrammarManager {
             // Load the shared library.
             let library = Library::new(&lib_file).ok()?;
             // The symbol name is always `language`.
-            let language_func: Symbol<unsafe extern "C" fn() -> Language> = library
-                .get(format!("tree_sitter_{name}\0").as_bytes())
-                .ok()?;
+            let lib_symbol = format!("tree_sitter_{}\0", name.replace("-", "_"));
+            let language_func: Symbol<unsafe extern "C" fn() -> Language> =
+                library.get(lib_symbol.as_bytes()).ok()?;
 
             let language = language_func();
 

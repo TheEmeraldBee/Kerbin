@@ -111,21 +111,24 @@ pub async fn parse_dirty_trees(
 
             while let Some(m) = matches.next() {
                 let mut content_node = None;
-                let lang_name = injection_query
+                let mut lang_name = injection_query
                     .property_settings(m.pattern_index)
                     .iter()
                     .find(|prop| prop.key.as_ref() == "injection.language")
                     .and_then(|prop| prop.value.as_ref().map(|x| x.to_string()));
 
-                if lang_name.is_none() {
-                    continue;
-                }
-
                 for cap in m.captures {
                     if injection_query.capture_names()[cap.index as usize] == "injection.content" {
                         content_node = Some(cap.node);
-                        break;
+                    } else if injection_query.capture_names()[cap.index as usize]
+                        == "injection.language"
+                    {
+                        lang_name = Some(buf.rope.slice(cap.node.byte_range()).to_string());
                     }
+                }
+
+                if lang_name.is_none() {
+                    continue;
                 }
 
                 if let (Some(content), Some(lang)) = (content_node, lang_name) {
@@ -144,6 +147,8 @@ pub async fn parse_dirty_trees(
                     let mut new_parser = Parser::new();
                     if let Some(language) = grammars.get_language(&lang) {
                         new_parser.set_language(&language).unwrap();
+                    } else {
+                        tracing::error!("Couldn't find `{lang}` in tree-sitter grammars");
                     }
                     (new_parser, None)
                 });

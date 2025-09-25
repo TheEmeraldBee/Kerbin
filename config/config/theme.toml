@@ -49,6 +49,9 @@
 
 "ts.special" = "blue" # fuzzy highlight
 
+"ts.text.title" = "red"
+"ts.text.literal" = "peach"
+
 "ts.markup.heading.1" = "red"
 "ts.markup.heading.2" = "peach"
 "ts.markup.heading.3" = "yellow"

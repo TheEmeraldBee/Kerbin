@@ -648,7 +648,7 @@ impl TextBuffer {
         let line_slice = self.rope.line(target_line_idx, LineType::LF_CR);
         let line_len_with_ending = line_slice.len_chars();
         let endline_text = line_slice
-            .chars_at(line_slice.len().saturating_sub(2))
+            .chars_at(line_slice.char_to_byte_idx(line_len_with_ending.saturating_sub(2)))
             .collect::<String>();
 
         let line_ending_len = if endline_text.ends_with("\r\n") {

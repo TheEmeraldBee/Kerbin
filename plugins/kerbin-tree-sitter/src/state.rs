@@ -144,7 +144,7 @@ pub fn highlight(
                 style,
             })
         } else {
-            tracing::info!("No query match found for: {capture_name}");
+            tracing::debug!("No query match found for: {capture_name}");
             None
         }
     });
