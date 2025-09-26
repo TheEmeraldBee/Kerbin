@@ -57,25 +57,21 @@ when the editor is more fleshed out (around mid October).
 # 🗺️ Roadmap 🗺️
 
 ## Core Development
--   [x] Basic Editor Functionality (insertions, deletions, etc.)
--   [x] Selection Support
--   [x] Multicursor Support
--   [x] TreeSitter Rendering
--   [x] Full Adjustment to using Layouts, then allowing passage of
-    specific chunks for rendering. (Chunk system parameters)
--   [x] Plugin Hooks (Replacing rendering systems, Adjusting how
-    things render/work, adding new render calls to the statusline, etc.)
--   [x] TreeSitter Indentation Queries
-
-## Documentation & Refinement
-- [x] Document core systems and sub modules
-- [ ] Go through systems and refactor code
-    - Make everything more readable, and stop being afraid of adding more files :)
-- [ ] Write out design document
-- [ ] Write out main wiki for writing configuration and plugins
-
-## Stability & Enhancements
-- [ ] Fix major bugs
+- [x] Basic Editor Functionality (insertions, deletions, etc.)
+- [x] Selection Support
+- [x] Multicursor Support
+- [x] TreeSitter Rendering
+- [x] Full Adjustment to using Layouts, then allowing passage of
+  specific chunks for rendering. (Chunk system parameters)
+- [x] Plugin Hooks (Replacing rendering systems, Adjusting how
+  things render/work, adding new render calls to the statusline, etc.)
+- [x] TreeSitter Indentation Queries
+- [ ] Implement File dirty systems to prevent exit without forcing
+    - [ ] Dirty Flag on Text Buffers
+    - [ ] QuitForce, CloseBufferForce, etc
+- [ ] Prevent overriding newer changes on file without w!
+- [ ] Implement Reload File Command which will reload the file from disk
+    - Prevent reloading without forcing if dirty flag is set
 - [ ] Implement sending messages to the process using interprocess
   file communication systems
 - [ ] Write out CLI systems for handling command-line arguments
@@ -84,3 +80,24 @@ when the editor is more fleshed out (around mid October).
     - Most likely within the chunk rendering to support
     Images and Text Scaling (Mainly for markdown)
 - [ ] Lsp Support using plugin system
+- [ ] Mouse Scrolling Support
+    - Allow Mapping Scroll Wheel to a command (scroll up = "ml -1") or something
+    This would allow for the most flexible system, and make mouse pretty strong
+- [ ] Mouse Click & Drag Support (Commands to map actions onto bytes?)
+    - This ones a doozey, as file rendering isn't static
+    Maybe we can use rendering as a way to map a screen location
+    onto a byte. Either way, this will be incredibly tricky
+
+## Documentation & Refinement
+- [x] Document core systems and sub modules
+- [x] Go through systems and refactor code (More of this will need to be done)
+    - Make everything more readable, and stop being afraid of adding more files :)
+- [ ] Write out main wiki for writing configuration and plugins
+
+## Stability
+- [ ] Cursors don't render on newline chars
+- [ ] Outside of Zellij, a large number of characters
+are rendered next to the location of the systems until they are replaced
+probably an issue from how we setup the first buffers
+- [ ] Tree-Sitter Auto Indent isn't quite right in implementation
+(See multiline list items in markdown)
