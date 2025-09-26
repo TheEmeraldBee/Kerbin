@@ -127,6 +127,14 @@ fn calculate_indent(
         let start_row = current_node.start_position().row;
         let end_row = current_node.end_position().row;
 
+        if let Some(ignore_nodes) = captures.get("indent.auto")
+            && ignore_nodes.contains_key(&node_id)
+            && start_row < target_line
+            && target_line <= end_row
+        {
+            return Some(i32::MAX);
+        }
+
         if let Some(ignore_nodes) = captures.get("indent.ignore")
             && ignore_nodes.contains_key(&node_id)
             && start_row < target_line
@@ -216,7 +224,24 @@ impl Command for TSCommand {
                         .unwrap_or(0)
                         .max(0) as usize;
 
-                let new_indent_str = " ".repeat(indent_amount * indent_width);
+                let new_indent_str = if indent_amount == i32::MAX as usize {
+                    // i32::MAX is reserved for auto. This then gets the chars that are considered
+                    // whitespace to clone the start of the line :)
+                    let mut res = String::new();
+                    for chr in buffer.rope.line(current_line_idx, LineType::LF_CR).chars() {
+                        match chr {
+                            ' ' => res.push(' '),
+                            '\t' => res.push('\t'),
+
+                            // Not whitespace
+                            _ => break,
+                        }
+                    }
+
+                    res
+                } else {
+                    " ".repeat(indent_amount * indent_width)
+                };
 
                 state
                     .lock_state::<CommandSender>()

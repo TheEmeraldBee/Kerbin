@@ -1,7 +1,5 @@
 use std::{
-    collections::VecDeque,
     io::{BufReader, BufWriter, ErrorKind, Write},
-    ops::RangeInclusive,
     path::{Path, PathBuf},
 };
 
@@ -11,12 +9,13 @@ pub use action::*;
 pub mod buffers;
 pub use buffers::*;
 
-use kerbin_state_machine::{Res, SystemParam};
+pub mod systems;
+pub use systems::*;
+
+pub mod cursor;
+pub use cursor::*;
+
 use ropey::{LineType, Rope};
-
-use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
-
-use crate::{BufferChunk, Chunk, ContentStyleExt, ModeStack, Theme};
 
 /// Used internally for defining a set of actions that were applied together as a single undo/redo unit.
 ///
@@ -24,87 +23,6 @@ use crate::{BufferChunk, Chunk, ContentStyleExt, ModeStack, Theme};
 /// and a list of `BufferAction` inverses to reverse the changes.
 #[derive(Default)]
 pub struct ChangeGroup(Vec<Cursor>, Vec<Box<dyn BufferAction>>);
-
-/// A selected point of text within a `TextBuffer`.
-///
-/// This struct is the core for editing files, marking a selection, and is
-/// essential for supporting multicursor functionality.
-#[derive(Clone, Debug)]
-pub struct Cursor {
-    /// Indicates whether the "caret" (active end of the selection) is at the start (`true`)
-    /// or end (`false`) of the `sel` range. This affects how selections are extended.
-    at_start: bool,
-    /// The inclusive byte range of the text selected by this cursor.
-    sel: RangeInclusive<usize>,
-}
-
-impl Default for Cursor {
-    fn default() -> Self {
-        Self {
-            at_start: false,
-            sel: 0..=0, // Default to a collapsed selection at byte 0
-        }
-    }
-}
-
-impl Cursor {
-    /// Returns the byte position of where the actual cursor (caret) would be.
-    ///
-    /// This is either the start or the end of the selection, depending on `at_start`.
-    ///
-    /// # Returns
-    ///
-    /// The byte index of the cursor's caret.
-    pub fn get_cursor_byte(&self) -> usize {
-        match self.at_start {
-            true => *self.sel.start(),
-            false => *self.sel.end(),
-        }
-    }
-
-    /// Returns `true` if the cursor's caret is at the start of its selection, `false` otherwise.
-    pub fn at_start(&self) -> bool {
-        self.at_start
-    }
-
-    /// Sets whether the cursor's caret should be at the start or end of its selection.
-    ///
-    /// # Arguments
-    ///
-    /// * `at_start`: `true` to place the caret at the start, `false` for the end.
-    pub fn set_at_start(&mut self, at_start: bool) {
-        self.at_start = at_start
-    }
-
-    /// Returns a reference to the inclusive byte range of the selection for this cursor.
-    ///
-    /// # Returns
-    ///
-    /// A `&RangeInclusive<usize>` representing the selection.
-    pub fn sel(&self) -> &RangeInclusive<usize> {
-        &self.sel
-    }
-
-    /// Sets the inclusive byte range of the selection for this cursor.
-    ///
-    /// # Arguments
-    ///
-    /// * `range`: The new `RangeInclusive<usize>` for the selection.
-    pub fn set_sel(&mut self, range: RangeInclusive<usize>) {
-        self.sel = range;
-    }
-
-    /// Collapses the selection into the location of the cursor's caret.
-    ///
-    /// If `at_start` is true, the selection collapses to `*sel.start()`.
-    /// If `at_start` is false, it collapses to `*sel.end()`.
-    pub fn collapse_sel(&mut self) {
-        match self.at_start {
-            true => self.sel = *self.sel.start()..=*self.sel.start(),
-            false => self.sel = *self.sel.end()..=*self.sel.end(),
-        }
-    }
-}
 
 /// The core storage of an open text buffer inside of the editor.
 ///
@@ -787,192 +705,6 @@ impl TextBuffer {
     pub fn update(&mut self) {
         self.merge_overlapping_cursors();
         self.byte_changes.clear();
-    }
-}
-
-/// The default renderer for a `TextBuffer`.
-///
-/// This system takes a `TextBuffer` and renders its content to a `BufferChunk`,
-/// handling scrolling, line numbers, basic syntax highlighting (default and selection colors),
-/// and cursor display based on the current editor mode.
-///
-/// # Arguments
-///
-/// * `chunk`: `Chunk<BufferChunk>` providing mutable access to the buffer's drawing area.
-/// * `theme`: `Res<Theme>` for retrieving `ContentStyle`s for text, line numbers, selections, and cursors.
-/// * `modes`: `Res<ModeStack>` to determine the current editor mode for cursor styling.
-/// * `bufs`: `Res<Buffers>` to access the current `TextBuffer` and its associated data.
-pub async fn render_buffer_default(
-    chunk: Chunk<BufferChunk>,
-    theme: Res<Theme>,
-    modes: Res<ModeStack>,
-    bufs: Res<Buffers>,
-) {
-    let mut chunk = chunk.get().unwrap();
-    get!(bufs, modes, theme);
-    let mut loc = vec2(0, 0);
-
-    let buf = bufs.cur_buffer();
-    let buf = buf.read().unwrap();
-
-    let mut byte_offset = buf.rope.line_to_byte_idx(buf.scroll, LineType::LF_CR);
-
-    let cursor_byte = buf.primary_cursor().get_cursor_byte();
-    let rope = &buf.rope;
-
-    let current_row_idx = rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
-    let line_start_byte_idx = rope.line_to_byte_idx(current_row_idx, LineType::LF_CR);
-    let current_col_idx = rope
-        .byte_to_char_idx(cursor_byte)
-        .saturating_sub(rope.byte_to_char_idx(line_start_byte_idx));
-
-    let cursor_style_shape = match modes.get_mode() {
-        'i' => SetCursorStyle::SteadyBar,
-        _ => SetCursorStyle::SteadyBlock,
-    };
-
-    chunk.set_cursor(
-        0,
-        (
-            current_col_idx as u16 + 6 - buf.h_scroll as u16,
-            current_row_idx as u16 - buf.scroll as u16,
-        )
-            .into(),
-        cursor_style_shape,
-    );
-
-    let default_style = theme
-        .get("ui.text")
-        .unwrap_or_else(|| ContentStyle::new().with(Color::Rgb { r: 0, g: 0, b: 0 }));
-
-    let line_style = theme
-        .get("ui.linenum")
-        .unwrap_or(ContentStyle::new().dark_grey());
-
-    let sel_style = theme.get("ui.selection");
-
-    let mut cursor_parts = modes
-        .0
-        .iter()
-        .map(|x| x.to_string())
-        .collect::<VecDeque<_>>();
-
-    let mut cursor_style_theme = None;
-
-    while !cursor_parts.is_empty() {
-        if let Some(s) = theme.get(&format!(
-            "ui.cursor.{}",
-            cursor_parts
-                .iter()
-                .cloned()
-                .reduce(|l, r| format!("{l}.{r}"))
-                .unwrap()
-        )) {
-            cursor_style_theme = Some(s);
-            break;
-        }
-        cursor_parts.pop_front();
-    }
-
-    let primary_cursor_style = cursor_style_theme
-        .or_else(|| theme.get("ui.cursor"))
-        .unwrap_or_default();
-
-    let secondary_cursor_style = theme
-        .get("ui.cursor.secondary")
-        .unwrap_or_else(|| primary_cursor_style.on_dark_grey());
-
-    let gutter_width = 6;
-    let start_x = loc.x;
-    let visible_width = chunk.size().x.saturating_sub(gutter_width);
-
-    let mut line_idx = buf.scroll;
-
-    for line in buf
-        .rope
-        .lines_at(buf.scroll, LineType::LF_CR)
-        .take(chunk.size().y as usize)
-    {
-        loc.x = start_x;
-
-        let mut num_line = (line_idx + 1).to_string();
-        if num_line.len() > 5 {
-            num_line = num_line[0..5].to_string();
-        }
-
-        if line_idx == current_row_idx {
-            num_line = format!(
-                "{}{}",
-                " ".repeat(4usize.saturating_sub(num_line.len())),
-                num_line
-            );
-        } else {
-            num_line = format!(
-                "{}{}",
-                " ".repeat(5usize.saturating_sub(num_line.len())),
-                num_line
-            );
-        }
-
-        render!(chunk, loc => [StyledContent::new(line_style, num_line)]);
-        loc.x += gutter_width;
-
-        let line_chars: Vec<(usize, char)> = line.char_indices().collect();
-
-        for (char_col, (char_byte_idx, ch)) in line_chars.iter().enumerate() {
-            if char_col < buf.h_scroll {
-                continue;
-            }
-
-            let render_col = char_col - buf.h_scroll;
-            if render_col >= visible_width as usize {
-                break;
-            }
-
-            let absolute_byte_idx = byte_offset + char_byte_idx;
-
-            let mut is_primary_cursor = false;
-            let mut is_secondary_cursor = false;
-            let mut in_selection = false;
-
-            for (cursor_idx, cursor) in buf.cursors.iter().enumerate() {
-                if cursor.get_cursor_byte() == absolute_byte_idx {
-                    if cursor_idx == buf.primary_cursor {
-                        is_primary_cursor = true;
-                    } else {
-                        is_secondary_cursor = true;
-                    }
-                }
-
-                if cursor.sel().contains(&absolute_byte_idx)
-                    && cursor.sel().start() != cursor.sel().end()
-                {
-                    in_selection = true;
-                }
-            }
-
-            let final_style = if is_primary_cursor {
-                primary_cursor_style
-            } else if is_secondary_cursor {
-                secondary_cursor_style
-            } else if in_selection {
-                sel_style
-                    .map(|s| s.combined_with(&default_style))
-                    .unwrap_or(default_style.on_grey())
-            } else {
-                default_style
-            };
-
-            render!(
-                chunk,
-                loc + vec2(render_col as u16, 0) =>
-                [StyledContent::new(final_style, *ch)]
-            );
-        }
-
-        loc.y += 1;
-        byte_offset += line.len();
-        line_idx += 1;
     }
 }
 

@@ -106,7 +106,7 @@ pub fn init_conf() {
 }
 
 // Export useful types and modules from Kerbin's ecosystem.
-
+#[macro_use]
 pub extern crate kerbin_macros;
 
 use std::{fs::File, sync::Mutex};
@@ -121,8 +121,8 @@ pub mod regex;
 pub use regex::*;
 
 /// Module containing core editor state definitions.
-pub mod state;
-pub use state::*;
+pub mod states;
+pub use states::*;
 
 /// Module for managing text buffers.
 pub mod buffer;
@@ -167,3 +167,7 @@ pub use chunks::*;
 /// Module used to extend the functionality of rope to make things simpler
 pub mod rope_exts;
 pub use rope_exts::*;
+
+/// Module used to extend the functionality of ContentStyle within crossterm
+pub mod style_exts;
+pub use style_exts::*;

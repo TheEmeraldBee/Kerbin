@@ -3,26 +3,64 @@ use kerbin_state_machine::State;
 
 use crate::Theme;
 
-pub mod state;
+mod state;
 pub use state::*;
 
-pub mod buffer;
+mod buffer;
 pub use buffer::*;
 
-pub mod mode;
+mod mode;
 pub use mode::*;
 
-pub mod shell;
+mod shell;
 pub use shell::*;
 
-pub mod motion;
+mod motion;
 pub use motion::*;
 
-pub mod cursor;
+mod cursor;
 pub use cursor::*;
 
-pub mod palette;
+mod palette;
 pub use palette::*;
+
+/// Type alias for a command parsing function.
+///
+/// This defines the signature required for functions that can parse a slice of
+/// strings (command words) into an `Option` of `Result` containing a boxed `Command`.
+type CommandFn = Box<dyn Fn(&[String]) -> Option<Result<Box<dyn Command>, String>> + Send + Sync>;
+
+/// Represents a set of registered commands, including its parser and command information.
+///
+/// Each `RegisteredCommandSet` groups a parser function with the metadata
+/// (`CommandInfo`) for the commands it can parse.
+pub struct RegisteredCommandSet {
+    /// The function responsible for parsing a list of string arguments into a command.
+    pub parser: CommandFn,
+    /// A vector of `CommandInfo` structs, providing metadata for the commands handled by this parser.
+    pub infos: Vec<CommandInfo>,
+}
+
+/// Represents a command prefix configuration.
+///
+/// Command prefixes allow automatically prepending specific commands or arguments
+/// to user input based on the active editor mode.
+#[derive(Debug)]
+pub struct CommandPrefix {
+    /// A list of character codes representing the modes in which this prefix should be active.
+    /// If any of these modes are on the `ModeStack`, the prefix logic will be applied.
+    pub modes: Vec<char>,
+    /// The command string that will be prepended to the user's input. This string
+    /// is split into words using `shellwords::split` before prepending.
+    pub prefix_cmd: String,
+
+    /// A boolean indicating whether the `list` acts as an `include` filter (`true`)
+    /// or an `exclude` filter (`false`, default) for command names.
+    pub include: bool,
+    /// Depending on the `include` flag, this is either an inclusion list (only commands
+    /// in this list are prefixed) or an exclusion list (commands in this list are NOT prefixed).
+    pub list: Vec<String>,
+}
 
 /// An applyable command that will change the whole state in some way
 pub trait Command: Send + Sync {
