@@ -522,6 +522,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "tree-sitter",
+ "unicode-width",
 ]
 
 [[package]]
@@ -561,7 +562,6 @@ dependencies = [
  "ropey",
  "tracing",
  "tree-sitter",
- "unicode-width",
 ]
 
 [[package]]

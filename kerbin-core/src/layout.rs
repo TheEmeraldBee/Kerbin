@@ -165,7 +165,7 @@ impl Layout {
     ///
     /// * `height_constraint`: The `Constraint` that determines the height of this row.
     /// * `width_constraints`: A `Vec<Constraint>` where each constraint determines the width
-    ///                        of a column within this row.
+    ///   of a column within this row.
     ///
     /// # Returns
     ///
@@ -203,7 +203,7 @@ impl Layout {
     /// # Arguments
     ///
     /// * `space`: The total `Vec2` representing the available width and height for the layout.
-    ///            Can be any type that converts into `Vec2`.
+    ///   Can be any type that converts into `Vec2`.
     ///
     /// # Returns
     ///
@@ -226,7 +226,7 @@ impl Layout {
 ///
 /// * `total_space`: The total `Vec2` representing the available width and height.
 /// * `rows`: A vector of tuples, each containing a `Constraint` for row height
-///           and a `Vec<Constraint>` for column widths within that row.
+///   and a `Vec<Constraint>` for column widths within that row.
 ///
 /// # Returns
 ///

@@ -49,9 +49,9 @@ impl CommandRegistry {
     ///
     /// * `input`: The input string to validate.
     /// * `prefix_registry`: A reference to the `CommandPrefixRegistry` for checking against
-    ///                      registered command prefixes.
+    ///   registered command prefixes.
     /// * `modes`: A reference to the `ModeStack` to determine active modes for
-    ///            mode-specific command validation.
+    ///   mode-specific command validation.
     ///
     /// # Returns
     ///
@@ -156,15 +156,15 @@ impl CommandRegistry {
     /// # Arguments
     ///
     /// * `words`: A `Vec<String>` representing the command and its arguments. This vector
-    ///            might be modified if command prefixes are applied.
+    ///   might be modified if command prefixes are applied.
     /// * `log_errors`: If `true`, parsing errors (returned by command parsers) will be
-    ///                 logged using `tracing::error!`.
+    ///   logged using `tracing::error!`.
     /// * `prefix_checked`: If `true`, the command prefix application logic will be skipped.
-    ///                     This is useful if the command has already been pre-processed.
+    ///   This is useful if the command has already been pre-processed.
     /// * `prefix_registry`: A reference to the `CommandPrefixRegistry` used to find and
-    ///                      apply command prefixes based on the current mode.
+    ///   apply command prefixes based on the current mode.
     /// * `modes`: A reference to the `ModeStack` to determine the currently active modes,
-    ///            which influence which command prefixes are applied.
+    ///   which influence which command prefixes are applied.
     ///
     /// # Returns
     ///

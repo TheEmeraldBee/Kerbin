@@ -1,13 +1,11 @@
 use std::sync::{Arc, RwLock};
 
-use crate::{BufferlineChunk, Chunk, Theme, WindowState, get_canonical_path_with_non_existent};
+use crate::{Theme, get_canonical_path_with_non_existent};
 
 use super::TextBuffer;
 use ascii_forge::prelude::*;
 use kerbin_macros::State;
 use kerbin_state_machine::storage::*;
-use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
-use ropey::LineType;
 
 /// Stores all text buffers managed by the editor, along with their unique paths and selection state.
 #[derive(Default, State)]

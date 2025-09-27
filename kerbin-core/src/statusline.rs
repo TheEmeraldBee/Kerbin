@@ -44,14 +44,14 @@ pub struct StatuslineConfig {
 /// # Arguments
 ///
 /// * `chunk`: A `Chunk` resource representing the drawing area for the statusline.
-///            It holds an `Arc<RwLock<InnerChunk>>` for the `StatuslineChunk`.
+///   It holds an `Arc<RwLock<InnerChunk>>` for the `StatuslineChunk`.
 /// * `plugin_config`: A `Res` (resource) holding the `PluginConfig`, which is used
-///                    to extract statusline-specific configurations.
+///   to extract statusline-specific configurations.
 /// * `theme`: A `Res` holding the `Theme` resource, used to apply styling to the statusline elements.
 /// * `mode_stack`: A `Res` holding the `ModeStack` resource, indicating the currently
-///                 active editor modes.
+///   active editor modes.
 /// * `buffers`: A `Res` holding the `Buffers` resource, used to retrieve information
-///              about the current buffer and its cursors.
+///   about the current buffer and its cursors.
 pub async fn render_statusline(
     chunk: Chunk<StatuslineChunk>,
     plugin_config: Res<PluginConfig>,

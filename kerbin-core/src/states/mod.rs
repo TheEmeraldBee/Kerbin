@@ -33,7 +33,7 @@ pub use chunks::*;
 ///
 /// * `window`: The `ascii_forge` window instance that the editor will render to.
 /// * `cmd_sender`: An `UnboundedSender` used to send commands to the editor's
-///                 main command processing loop.
+///   main command processing loop.
 ///
 /// # Returns
 ///

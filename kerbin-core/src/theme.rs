@@ -54,7 +54,7 @@ impl Theme {
     /// # Arguments
     ///
     /// * `names`: An `IntoIterator` yielding items that can be converted to `String`.
-    ///            These names are tried in the order they are provided.
+    ///   These names are tried in the order they are provided.
     ///
     /// # Returns
     ///

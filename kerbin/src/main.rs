@@ -92,6 +92,9 @@ async fn update(state: &mut State) {
         .call()
         .await;
 
+    // Render the file with the extmarks
+    state.call(render_buffer_default).await;
+
     // Render all chunks to the window
     state.hook(RenderChunks).call().await;
 
@@ -165,11 +168,8 @@ async fn main() {
         .system(render_statusline)
         .system(render_command_palette)
         .system(render_help_menu)
-        .system(render_bufferline);
-
-    state
-        .on_hook(RenderFiletype::new("*"))
-        .system(render_buffer_default);
+        .system(render_bufferline)
+        .system(render_cursors_and_selections);
 
     state.on_hook(RenderChunks).system(render_chunks);
 

@@ -1,12 +1,8 @@
-use kerbin_core::{
-    ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle},
-    *,
-};
+use kerbin_core::{ascii_forge::prelude::*, *};
 use kerbin_macros::State;
-use unicode_width::UnicodeWidthChar;
 
 use std::{
-    collections::{BTreeMap, HashMap, VecDeque},
+    collections::{BTreeMap, HashMap},
     ops::Range,
 };
 
@@ -212,195 +208,45 @@ pub fn highlight(
     final_map
 }
 
-pub async fn render_tree_sitter_buffer(
-    chunk: Chunk<BufferChunk>,
-    theme: Res<Theme>,
-    modes: Res<ModeStack>,
-    bufs: Res<Buffers>,
-    highlights: Res<HighlightMap>,
-) {
-    let mut chunk = chunk.get().unwrap();
-    get!(bufs, modes, theme, highlights);
-    let mut loc = vec2(0, 0);
+pub async fn render_tree_sitter_extmarks(bufs: Res<Buffers>, highlights: Res<HighlightMap>) {
+    get!(bufs, highlights);
 
-    let buf = bufs.cur_buffer();
-    let buf = buf.read().unwrap();
+    let buf_arc = bufs.cur_buffer();
+    let mut buf = buf_arc.write().unwrap();
 
-    let highlight_map = highlights.0.get(&buf.path);
+    buf.clear_extmark_ns("tree-sitter::highlight");
 
-    let mut byte_offset = buf.rope.line_to_byte_idx(buf.scroll, LineType::LF_CR);
-
-    let row = buf
-        .rope
-        .byte_to_line_idx(buf.primary_cursor().get_cursor_byte(), LineType::LF_CR);
-
-    let cursor_byte = buf.primary_cursor().get_cursor_byte();
-    let rope = &buf.rope;
-
-    let current_row_idx = rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
-    let line_start_byte_idx = rope.line_to_byte_idx(current_row_idx, LineType::LF_CR);
-
-    let mut cursor_vis_col = 0;
-    let mut current_byte = line_start_byte_idx;
-    while current_byte < cursor_byte {
-        let char_idx = rope.byte_to_char_idx(current_byte);
-        let mut next_char_byte = rope.char_to_byte_idx(char_idx + 1);
-
-        if next_char_byte > rope.len() {
-            next_char_byte = rope.len();
-        }
-
-        let substring = rope.slice(current_byte..next_char_byte);
-        let ch = substring.chars().next().unwrap();
-
-        let width = ch.width().unwrap_or(1);
-        cursor_vis_col += width as usize;
-        current_byte = next_char_byte;
-    }
-
-    let cursor_style = match modes.get_mode() {
-        'i' => SetCursorStyle::SteadyBar,
-        _ => SetCursorStyle::SteadyBlock,
+    let Some(hl_map) = highlights.0.get(&buf.path) else {
+        return;
     };
 
-    chunk.set_cursor(
-        0,
-        (
-            cursor_vis_col as u16 + 6 - buf.h_scroll as u16,
-            current_row_idx as u16 - buf.scroll as u16,
-        )
-            .into(),
-        cursor_style,
-    );
+    let mut last_pos: Option<usize> = None;
+    let mut last_hl: Option<ContentStyle> = None;
 
-    let default_style = theme
-        .get("ui.text")
-        .unwrap_or_else(|| ContentStyle::new().with(Color::Rgb { r: 0, g: 0, b: 0 }));
-
-    let line_style = theme
-        .get("ui.linenum")
-        .unwrap_or(ContentStyle::new().dark_grey());
-
-    let sel_style = theme.get("ui.selection");
-
-    let mut cursor_parts = modes
-        .0
-        .iter()
-        .map(|x| x.to_string())
-        .collect::<VecDeque<_>>();
-
-    let mut cursor_style_theme = None;
-
-    while !cursor_parts.is_empty() {
-        if let Some(s) = theme.get(&format!(
-            "ui.cursor.{}",
-            cursor_parts
-                .iter()
-                .cloned()
-                .reduce(|l, r| format!("{l}.{r}"))
-                .unwrap()
-        )) {
-            cursor_style_theme = Some(s);
-            break;
-        }
-        cursor_parts.pop_front();
-    }
-
-    let cursor_style = match cursor_style_theme {
-        Some(s) => s,
-        None => theme.get("ui.cursor").unwrap_or_default(),
-    };
-
-    let gutter_width = 6;
-    let start_x = loc.x;
-
-    let mut i = buf.scroll;
-
-    for line in buf
-        .rope
-        .lines_at(buf.scroll, LineType::LF_CR)
-        .take(chunk.size().y as usize)
-    {
-        loc.x = start_x;
-        let mut num_line = (i + 1).to_string();
-        if num_line.len() > 5 {
-            num_line = num_line[0..5].to_string();
-        }
-
-        if i == row {
-            num_line = format!(
-                "{}{}",
-                " ".repeat(4usize.saturating_sub(num_line.len())),
-                num_line
-            );
-        } else {
-            num_line = format!(
-                "{}{}",
-                " ".repeat(5usize.saturating_sub(num_line.len())),
-                num_line
-            );
-        }
-
-        render!(chunk, loc => [StyledContent::new(line_style, num_line)]);
-
-        loc.x += gutter_width;
-
-        if let Some(highlights_for_buf) = highlight_map {
-            let mut current_style = highlights_for_buf
-                .range(..=byte_offset)
-                .next_back()
-                .map(|(_, style)| *style)
-                .unwrap_or(default_style);
-
-            let mut current_vis_col = 0;
-            for (char_byte_idx, ch) in line.char_indices() {
-                let absolute_byte_idx = byte_offset + char_byte_idx;
-                if let Some(new_style) = highlights_for_buf.get(&absolute_byte_idx) {
-                    current_style = *new_style;
-                }
-
-                let char_width = ch.width().unwrap_or(1);
-                let mut in_selection = false;
-                let mut is_cursor = false;
-
-                for (cursor_idx, cursor) in buf.cursors.iter().enumerate() {
-                    if cursor.get_cursor_byte() == absolute_byte_idx {
-                        if cursor_idx != buf.primary_cursor {
-                            is_cursor = true;
-                        }
-                        break;
-                    }
-                    if cursor.sel().contains(&absolute_byte_idx) {
-                        in_selection = true;
-                        break;
-                    }
-                }
-
-                let resulting_style = match (is_cursor, in_selection) {
-                    (false, false) => current_style,
-                    (true, _) => cursor_style.combined_with(&cursor_style),
-                    (false, true) => sel_style
-                        .map(|x| x.combined_with(&current_style))
-                        .unwrap_or(current_style.on_grey()),
-                };
-
-                if current_vis_col >= buf.h_scroll {
-                    let render_col = current_vis_col - buf.h_scroll;
-                    if render_col >= chunk.size().x as usize - 1 {
-                        break;
-                    }
-
-                    render!(chunk, loc + vec2(render_col as u16, 0) => [resulting_style.apply(ch)]);
-                }
-
-                current_vis_col += char_width;
+    for (&pos, &style) in hl_map.iter() {
+        if let (Some(start), Some(prev_style)) = (last_pos, last_hl) {
+            if pos > start {
+                buf.add_extmark_range(
+                    "tree-sitter::highlight",
+                    start..pos,
+                    0,
+                    vec![ExtmarkDecoration::Highlight { hl: prev_style }],
+                );
             }
-        } else {
-            render!(chunk, loc => [ line.to_string() ]);
         }
+        last_pos = Some(pos);
+        last_hl = Some(style);
+    }
 
-        loc.y += 1;
-        byte_offset += line.len();
-        i += 1;
+    if let (Some(start), Some(prev_style)) = (last_pos, last_hl) {
+        let len = buf.rope.len().saturating_sub(start);
+        if len > 0 {
+            buf.add_extmark_range(
+                "tree-sitter::highlight",
+                start..(start + len),
+                0,
+                vec![ExtmarkDecoration::Highlight { hl: prev_style }],
+            );
+        }
     }
 }

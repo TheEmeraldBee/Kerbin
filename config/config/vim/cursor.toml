@@ -2,7 +2,7 @@
 modes = ["x"]
 prefix = "aa"
 include = true
-list = ["mc", "rxc", "rxcb", "rxs", "sl", "sle", "slb", "sfw", "sc", "d", "i", "a", "gse", "gsb"]
+list = ["mc", "mb", "ml", "ts_nl", "rxc", "rxcb", "rxs", "sl", "sle", "slb", "sfw", "sc", "d", "i", "a", "gse", "gsb"]
 
 [[keybind]]
 modes = []

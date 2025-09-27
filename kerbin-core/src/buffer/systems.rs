@@ -2,67 +2,25 @@ use std::collections::VecDeque;
 
 use crate::*;
 use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-/// The default renderer for a `TextBuffer`.
+/// Projects `Cursor`s and their selections into temporary extmarks for rendering.
 ///
-/// This system takes a `TextBuffer` and renders its content to a `BufferChunk`,
-/// handling scrolling, line numbers, basic syntax highlighting (default and selection colors),
-/// and cursor display based on the current editor mode.
-///
-/// # Arguments
-///
-/// * `chunk`: `Chunk<BufferChunk>` providing mutable access to the buffer's drawing area.
-/// * `theme`: `Res<Theme>` for retrieving `ContentStyle`s for text, line numbers, selections, and cursors.
-/// * `modes`: `Res<ModeStack>` to determine the current editor mode for cursor styling.
-/// * `bufs`: `Res<Buffers>` to access the current `TextBuffer` and its associated data.
-pub async fn render_buffer_default(
-    chunk: Chunk<BufferChunk>,
-    theme: Res<Theme>,
-    modes: Res<ModeStack>,
+/// This system clears ephemeral extmarks each frame and recreates them from
+/// the current cursor state, allowing `render_buffer_default` to render them
+/// as part of the extmark pipeline.
+pub async fn render_cursors_and_selections(
     bufs: Res<Buffers>,
+    modes: Res<ModeStack>,
+    theme: Res<Theme>,
 ) {
-    let mut chunk = chunk.get().unwrap();
     get!(bufs, modes, theme);
-    let mut loc = vec2(0, 0);
 
-    let buf = bufs.cur_buffer();
-    let buf = buf.read().unwrap();
+    let buf_arc = bufs.cur_buffer();
+    let mut buf = buf_arc.write().unwrap();
 
-    let mut byte_offset = buf.rope.line_to_byte_idx(buf.scroll, LineType::LF_CR);
-
-    let cursor_byte = buf.primary_cursor().get_cursor_byte();
-    let rope = &buf.rope;
-
-    let current_row_idx = rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
-    let line_start_byte_idx = rope.line_to_byte_idx(current_row_idx, LineType::LF_CR);
-    let current_col_idx = rope
-        .byte_to_char_idx(cursor_byte)
-        .saturating_sub(rope.byte_to_char_idx(line_start_byte_idx));
-
-    let cursor_style_shape = match modes.get_mode() {
-        'i' => SetCursorStyle::SteadyBar,
-        _ => SetCursorStyle::SteadyBlock,
-    };
-
-    chunk.set_cursor(
-        0,
-        (
-            current_col_idx as u16 + 6 - buf.h_scroll as u16,
-            current_row_idx as u16 - buf.scroll as u16,
-        )
-            .into(),
-        cursor_style_shape,
-    );
-
-    let default_style = theme
-        .get("ui.text")
-        .unwrap_or_else(|| ContentStyle::new().with(Color::Rgb { r: 0, g: 0, b: 0 }));
-
-    let line_style = theme
-        .get("ui.linenum")
-        .unwrap_or(ContentStyle::new().dark_grey());
-
-    let sel_style = theme.get("ui.selection");
+    buf.clear_extmark_ns("inner::cursor");
+    buf.clear_extmark_ns("inner::selection");
 
     let mut cursor_parts = modes
         .0
@@ -87,13 +45,76 @@ pub async fn render_buffer_default(
         cursor_parts.pop_front();
     }
 
-    let primary_cursor_style = cursor_style_theme
+    let cursor_style = cursor_style_theme
         .or_else(|| theme.get("ui.cursor"))
         .unwrap_or_default();
 
-    let secondary_cursor_style = theme
-        .get("ui.cursor.secondary")
-        .unwrap_or_else(|| primary_cursor_style.on_dark_grey());
+    let sel_style = theme
+        .get("ui.selection")
+        .unwrap_or(ContentStyle::new().on_grey());
+
+    let primary_cursor = buf.primary_cursor;
+    for (i, cursor) in buf.cursors.clone().into_iter().enumerate() {
+        let caret_byte = cursor.get_cursor_byte();
+
+        if primary_cursor == i {
+            buf.add_extmark(
+                "inner::cursor",
+                caret_byte,
+                0,
+                vec![ExtmarkDecoration::Cursor {
+                    style: SetCursorStyle::SteadyBlock,
+                }],
+            );
+        } else {
+            buf.add_extmark(
+                "inner::cursor",
+                caret_byte,
+                0,
+                vec![ExtmarkDecoration::Highlight { hl: cursor_style }],
+            );
+        }
+
+        if cursor.sel().start() != cursor.sel().end() {
+            buf.add_extmark_range(
+                "inner::selection",
+                *cursor.sel().start()..*cursor.sel().end(),
+                1,
+                vec![ExtmarkDecoration::Highlight { hl: sel_style }],
+            );
+        }
+    }
+}
+
+/// Default renderer for a `TextBuffer`.
+///
+/// This function renders:
+/// - The rope text itself
+/// - Any extmarks in the visible viewport (highlights, ghost text, virtual lines, widgets, cursors)
+///
+/// Cursor positions and selections are *not* hardcoded here — they are provided
+/// each frame as [`Extmark`]s by the [`render_cursors_and_selections`] system.
+pub async fn render_buffer_default(
+    chunk: Chunk<BufferChunk>,
+    theme: Res<Theme>,
+    bufs: Res<Buffers>,
+) {
+    let mut chunk = chunk.get().unwrap();
+    get!(bufs, theme);
+    let mut loc = vec2(0, 0);
+
+    let buf = bufs.cur_buffer();
+    let buf = buf.read().unwrap();
+
+    let mut byte_offset = buf.rope.line_to_byte_idx(buf.scroll, LineType::LF_CR);
+
+    // Style lookups
+    let default_style = theme
+        .get("ui.text")
+        .unwrap_or_else(|| ContentStyle::new().with(Color::Rgb { r: 0, g: 0, b: 0 }));
+    let line_style = theme
+        .get("ui.linenum")
+        .unwrap_or(ContentStyle::new().dark_grey());
 
     let gutter_width = 6;
     let start_x = loc.x;
@@ -112,75 +133,88 @@ pub async fn render_buffer_default(
         if num_line.len() > 5 {
             num_line = num_line[0..5].to_string();
         }
-
-        if line_idx == current_row_idx {
-            num_line = format!(
-                "{}{}",
-                " ".repeat(4usize.saturating_sub(num_line.len())),
-                num_line
-            );
-        } else {
-            num_line = format!(
-                "{}{}",
-                " ".repeat(5usize.saturating_sub(num_line.len())),
-                num_line
-            );
-        }
+        num_line = format!(
+            "{}{}",
+            " ".repeat(5usize.saturating_sub(num_line.len())),
+            num_line
+        );
 
         render!(chunk, loc => [StyledContent::new(line_style, num_line)]);
         loc.x += gutter_width;
 
-        let line_chars: Vec<(usize, char)> = line.char_indices().collect();
+        let mut line_chars: Vec<(usize, char)> = line.char_indices().collect();
+        let line_start_byte = buf.rope.line_to_byte_idx(line_idx, LineType::LF_CR);
+        let line_end_byte = buf.rope.line_to_byte_idx(line_idx + 1, LineType::LF_CR);
 
-        for (char_col, (char_byte_idx, ch)) in line_chars.iter().enumerate() {
-            if char_col < buf.h_scroll {
-                continue;
+        if let Some((_, ch)) = line_chars.last() {
+            if *ch == '\n' || *ch == '\r' {
+                line_chars.pop();
             }
+        }
 
-            let render_col = char_col - buf.h_scroll;
-            if render_col >= visible_width as usize {
-                break;
-            }
+        if line_chars.is_empty() {
+            line_chars.push((0, ' '));
+        } else {
+            line_chars.push((line.len().saturating_sub(1).max(1), ' '));
+        }
 
+        let exts = buf.query_extmarks(line_start_byte..line_end_byte);
+
+        let mut col_count = 0;
+
+        for (char_byte_idx, ch) in line_chars.iter() {
             let absolute_byte_idx = byte_offset + char_byte_idx;
+            let mut style = default_style;
 
-            let mut is_primary_cursor = false;
-            let mut is_secondary_cursor = false;
-            let mut in_selection = false;
-
-            for (cursor_idx, cursor) in buf.cursors.iter().enumerate() {
-                if cursor.get_cursor_byte() == absolute_byte_idx {
-                    if cursor_idx == buf.primary_cursor {
-                        is_primary_cursor = true;
-                    } else {
-                        is_secondary_cursor = true;
+            for ext in &exts {
+                for deco in &ext.decorations {
+                    match deco {
+                        ExtmarkDecoration::Cursor { style } => {
+                            if ext.byte_range.start == absolute_byte_idx {
+                                chunk.set_cursor(
+                                    0,
+                                    (loc.x + col_count as u16, loc.y).into(),
+                                    *style,
+                                );
+                            }
+                        }
+                        ExtmarkDecoration::Highlight { hl } => {
+                            if ext.byte_range.contains(&absolute_byte_idx) {
+                                style = style.combined_with(hl);
+                            }
+                        }
+                        ExtmarkDecoration::VirtText { text, hl } => {
+                            if ext.byte_range.start == absolute_byte_idx {
+                                if col_count >= buf.h_scroll {
+                                    let render_col = col_count - buf.h_scroll;
+                                    if render_col < visible_width as usize {
+                                        let style = hl.unwrap_or(ContentStyle::new().dark_grey());
+                                        render!(
+                                            chunk,
+                                            loc + vec2(render_col as u16, 0) =>
+                                            [StyledContent::new(style, text.clone())]
+                                        );
+                                    }
+                                }
+                                col_count += text.width();
+                            }
+                        }
                     }
                 }
+            }
 
-                if cursor.sel().contains(&absolute_byte_idx)
-                    && cursor.sel().start() != cursor.sel().end()
-                {
-                    in_selection = true;
+            if col_count >= buf.h_scroll {
+                let render_col = col_count - buf.h_scroll;
+                if render_col < visible_width as usize {
+                    render!(
+                        chunk,
+                        loc + vec2(render_col as u16, 0) =>
+                        [StyledContent::new(style, ch)]
+                    );
                 }
             }
 
-            let final_style = if is_primary_cursor {
-                primary_cursor_style
-            } else if is_secondary_cursor {
-                secondary_cursor_style
-            } else if in_selection {
-                sel_style
-                    .map(|s| s.combined_with(&default_style))
-                    .unwrap_or(default_style.on_grey())
-            } else {
-                default_style
-            };
-
-            render!(
-                chunk,
-                loc + vec2(render_col as u16, 0) =>
-                [StyledContent::new(final_style, *ch)]
-            );
+            col_count += ch.width().unwrap_or(1);
         }
 
         loc.y += 1;
@@ -193,12 +227,6 @@ pub async fn render_buffer_default(
 ///
 /// This system retrieves the `Buffers` and `Theme` resources and delegates
 /// the actual rendering to the `Buffers::render_bufferline` method.
-///
-/// # Arguments
-///
-/// * `chunk`: `Chunk<BufferlineChunk>` providing mutable access to the bufferline's drawing buffer.
-/// * `buffers`: `Res<Buffers>` for information about open buffers and their paths.
-/// * `theme`: `Res<Theme>` for styling the bufferline.
 pub async fn render_bufferline(
     chunk: Chunk<BufferlineChunk>,
     buffers: Res<Buffers>,
@@ -215,11 +243,6 @@ pub async fn render_bufferline(
 ///
 /// This system ensures that the currently selected buffer's tab is always
 /// visible within the bufferline display area, adjusting `tab_scroll` as needed.
-///
-/// # Arguments
-///
-/// * `buffers`: `ResMut<Buffers>` for mutable access to the bufferline scroll state.
-/// * `window`: `Res<WindowState>` to get the current window width.
 pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<WindowState>) {
     let mut buffers = buffers.get();
     let window = window.get();
@@ -278,11 +301,6 @@ pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<Wind
 ///
 /// This system is crucial for ensuring the displayed buffer content is up-to-date
 /// and the user's cursor remains visible as they navigate and edit.
-///
-/// # Arguments
-///
-/// * `window`: `Res<WindowState>` to get the current window dimensions.
-/// * `buffers`: `ResMut<Buffers>` for mutable access to the active `TextBuffer`.
 pub async fn update_buffer(window: Res<WindowState>, buffers: ResMut<Buffers>) {
     let window = window.get();
     let mut buffers = buffers.get();

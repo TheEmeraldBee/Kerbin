@@ -40,12 +40,12 @@ impl Chunks {
     /// # Type Parameters
     ///
     /// * `C`: The state type that implements `StateName` and `StaticState`. This type's
-    ///        `static_name()` method provides a unique identifier for the chunk.
+    ///   `static_name()` method provides a unique identifier for the chunk.
     ///
     /// # Arguments
     ///
     /// * `z_index`: The Z-index (layer) at which to draw this chunk. Higher indices
-    ///              are drawn on top of lower indices.
+    ///   are drawn on top of lower indices.
     /// * `rect`: The `Rect` defining the position and size (width and height) of the chunk.
     pub fn register_chunk<C: StateName + StaticState>(&mut self, z_index: usize, rect: Rect) {
         let size = (rect.width, rect.height);
@@ -83,7 +83,7 @@ impl Chunks {
     /// # Type Parameters
     ///
     /// * `C`: The state type that implements `StateName` and `StaticState`, used to
-    ///        identify the chunk via `C::static_name()`.
+    ///   identify the chunk via `C::static_name()`.
     ///
     /// # Returns
     ///
