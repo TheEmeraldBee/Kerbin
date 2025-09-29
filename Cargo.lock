@@ -78,9 +78,9 @@ dependencies = [
 
 [[package]]
 name = "ascii-forge"
-version = "1.3.1"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0a9c12af1b8c1aeed8e131f35dd506c55c42d3421642e78b61c40083386aa38"
+checksum = "bad5e171d4716ed2fce561bef38b6df3af80e6bd6e917c7dd1907a23c568d14f"
 dependencies = [
  "compact_str",
  "crossterm",

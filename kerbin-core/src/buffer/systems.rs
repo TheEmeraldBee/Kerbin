@@ -90,7 +90,7 @@ pub async fn render_cursors_and_selections(
 ///
 /// This function renders:
 /// - The rope text itself
-/// - Any extmarks in the visible viewport (highlights, ghost text, virtual lines, widgets, cursors)
+/// - Any extmarks in the visible viewport
 ///
 /// Cursor positions and selections are *not* hardcoded here — they are provided
 /// each frame as [`Extmark`]s by the [`render_cursors_and_selections`] system.
@@ -127,6 +127,10 @@ pub async fn render_buffer_default(
         .lines_at(buf.scroll, LineType::LF_CR)
         .take(chunk.size().y as usize)
     {
+        if loc.y >= chunk.size().y {
+            return;
+        }
+
         loc.x = start_x;
 
         let mut num_line = (line_idx + 1).to_string();
@@ -162,7 +166,7 @@ pub async fn render_buffer_default(
 
         let mut col_count = 0;
 
-        for (char_byte_idx, ch) in line_chars.iter() {
+        for (char_byte_idx, ch) in line_chars.into_iter() {
             let absolute_byte_idx = byte_offset + char_byte_idx;
             let mut style = default_style;
 

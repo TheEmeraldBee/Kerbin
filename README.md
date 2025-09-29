@@ -66,6 +66,8 @@ when the editor is more fleshed out (around mid October).
 - [x] Plugin Hooks (Replacing rendering systems, Adjusting how
   things render/work, adding new render calls to the statusline, etc.)
 - [x] TreeSitter Indentation Queries
+- [ ] Adjust rendering system to instead use Extmarks (similarly to neovim)
+    - Will make plugins that add highlighting or ghost text much easier
 - [ ] Implement File dirty systems to prevent exit without forcing
     - [ ] Dirty Flag on Text Buffers
     - [ ] QuitForce, CloseBufferForce, etc
@@ -95,7 +97,7 @@ when the editor is more fleshed out (around mid October).
 - [ ] Write out main wiki for writing configuration and plugins
 
 ## Stability
-- [ ] Cursors don't render on newline chars
+- [x] Cursors don't render on newline chars
 - [ ] Outside of Zellij, a large number of characters
 are rendered next to the location of the systems until they are replaced
 probably an issue from how we setup the first buffers
