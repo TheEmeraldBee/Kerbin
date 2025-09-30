@@ -29,7 +29,7 @@ pub fn register_lang(
 
     for ext in exts.into_iter() {
         state
-            .on_hook(RenderFiletype::new(ext.to_string()))
+            .on_hook(UpdateFiletype::new(ext.to_string()))
             .system(render_tree_sitter_extmarks);
 
         state

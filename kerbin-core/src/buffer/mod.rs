@@ -1,7 +1,5 @@
 use std::{
-    collections::BTreeMap,
     io::{BufReader, BufWriter, ErrorKind, Write},
-    ops::Range,
     path::{Path, PathBuf},
 };
 
@@ -19,6 +17,9 @@ pub use cursor::*;
 
 pub mod extmark;
 pub use extmark::*;
+
+pub mod render;
+pub use render::*;
 
 use ropey::{LineType, Rope};
 
@@ -74,19 +75,13 @@ pub struct TextBuffer {
     /// A stack of `ChangeGroup`s representing undone changes that can be redone.
     redo_stack: Vec<ChangeGroup>,
 
-    /// The current vertical scroll offset (line index) of the buffer's viewport.
-    /// Used for rendering only a visible portion of the file.
-    pub scroll: usize,
-
-    /// The current horizontal scroll offset (character index) of the buffer's viewport.
-    /// Used for horizontal scrolling within long lines.
-    pub h_scroll: usize,
-
-    /// Table of extmarks currently attached to this buffer.
-    pub extmarks: BTreeMap<u64, Extmark>,
-
-    /// Auto-incrementing counter for assigning extmark IDs.
-    pub next_extmark_id: u64,
+    /// Stores the current render state of the buffer
+    /// used for handling the rendering of the buffer
+    ///
+    /// # Uses
+    /// - Stores Extmarks, which are used for applying highlights and rendering inline elements in the buffer
+    /// - Stores Scroll information which is used to update and handle the viewport of the buffer
+    pub renderer: BufferRenderer,
 }
 
 impl TextBuffer {
@@ -115,11 +110,7 @@ impl TextBuffer {
             undo_stack: vec![],
             redo_stack: vec![],
 
-            scroll: 0,
-            h_scroll: 0,
-
-            extmarks: BTreeMap::new(),
-            next_extmark_id: 0,
+            renderer: BufferRenderer::default(),
         }
     }
 
@@ -172,128 +163,8 @@ impl TextBuffer {
             redo_stack: vec![],
             current_change: None,
 
-            scroll: 0,
-            h_scroll: 0,
-
-            extmarks: BTreeMap::new(),
-            next_extmark_id: 0,
+            renderer: BufferRenderer::default(),
         }
-    }
-
-    /// Creates a new extmark in this buffer, with a single byte pos
-    ///
-    /// # Arguments
-    /// * `ns` - The Namespace of the Extmark
-    /// * `byte` - The byte index to place the extmark.
-    /// * `priority` - Rendering priority (higher → drawn on top).
-    /// * `decorations` - A vector of [`ExtmarkDecoration`] items.
-    ///
-    /// # Returns
-    /// The unique ID of the newly created extmark.
-    pub fn add_extmark(
-        &mut self,
-        ns: impl ToString,
-        byte: usize,
-        priority: i32,
-        decorations: Vec<ExtmarkDecoration>,
-    ) -> u64 {
-        let id = self.next_extmark_id;
-        self.next_extmark_id += 1;
-        let ext = Extmark {
-            namespace: ns.to_string(),
-            id,
-            byte_range: byte..byte + 1,
-            priority,
-            decorations,
-        };
-        self.extmarks.insert(id, ext);
-        id
-    }
-
-    /// Creates a new extmark in this buffer, taking up the given range of bytes
-    ///
-    /// # Arguments
-    /// * `ns` - The Namespace of the Extmark
-    /// * `byte_range` - The range of bytes that the decorations take up.
-    /// * `priority` - Rendering priority (higher → drawn on top).
-    /// * `decorations` - A vector of [`ExtmarkDecoration`] items.
-    ///
-    /// # Returns
-    /// The unique ID of the newly created extmark.
-    pub fn add_extmark_range(
-        &mut self,
-        ns: impl ToString,
-        byte_range: Range<usize>,
-        priority: i32,
-        decorations: Vec<ExtmarkDecoration>,
-    ) -> u64 {
-        let id = self.next_extmark_id;
-        self.next_extmark_id += 1;
-        let ext = Extmark {
-            namespace: ns.to_string(),
-            id,
-            byte_range,
-            priority,
-            decorations,
-        };
-        self.extmarks.insert(id, ext);
-        id
-    }
-
-    /// Clears all extmarks with the given namespace from the system
-    ///
-    /// # Arguments
-    /// * 'ns' - The namespace to remove
-    pub fn clear_extmark_ns(&mut self, ns: impl AsRef<str>) {
-        let ns = ns.as_ref();
-
-        self.extmarks.retain(|_, e| &e.namespace != ns);
-    }
-
-    /// Removes an extmark by its ID.
-    ///
-    /// # Arguments
-    /// * `id` - The id of the extmark to remove
-    ///
-    /// # Returns
-    /// `true` if successfully removed, `false` otherwise.
-    pub fn remove_extmark(&mut self, id: u64) -> bool {
-        self.extmarks.remove(&id).is_some()
-    }
-
-    /// Updates an existing extmark's decorations.
-    ///
-    /// # Arguments
-    /// * `id` - The id of the extmark to update
-    /// * `decorations` - A list of decorations to set the ID to
-    ///
-    /// # Returns
-    /// `true` if the extmark exists and was updated, `false` otherwise.
-    pub fn update_extmark(&mut self, id: u64, decorations: Vec<ExtmarkDecoration>) -> bool {
-        if let Some(ext) = self.extmarks.get_mut(&id) {
-            ext.decorations = decorations;
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Queries extmarks intersecting a byte range.
-    ///
-    /// # Arguments
-    /// * `range` - The byte range that should be included in the extmark list
-    ///
-    /// # Returns
-    ///
-    /// A list of extmarks found within the given range
-    pub fn query_extmarks(&self, range: std::ops::Range<usize>) -> Vec<&Extmark> {
-        let mut marks = self
-            .extmarks
-            .values()
-            .filter(|ext| ext.byte_range.start < range.end && ext.byte_range.end >= range.start)
-            .collect::<Vec<_>>();
-        marks.sort_by(|x, y| x.priority.cmp(&y.priority));
-        marks
     }
 
     /// Given a byte offset, returns a tuple containing the `((line_idx, col_idx), byte_idx)`.
@@ -505,53 +376,6 @@ impl TextBuffer {
         {
             self.undo_stack.push(group)
         }
-    }
-
-    /// Scrolls the buffer vertically by a given number of lines.
-    ///
-    /// The scroll position is clamped to prevent scrolling past the start
-    /// or end of the document.
-    ///
-    /// # Arguments
-    ///
-    /// * `delta`: The signed number of lines to scroll (positive for down, negative for up).
-    ///
-    /// # Returns
-    ///
-    /// `true` if the scroll position changed, `false` otherwise.
-    pub fn scroll_lines(&mut self, delta: isize) -> bool {
-        if delta == 0 {
-            return true;
-        }
-
-        let old_scroll = self.scroll;
-        self.scroll = self
-            .scroll
-            .saturating_add_signed(delta)
-            .clamp(0, self.rope.len_lines(LineType::LF_CR).saturating_sub(1));
-
-        self.scroll != old_scroll
-    }
-
-    /// Scrolls the buffer horizontally by a given number of characters.
-    ///
-    /// The scroll position is clamped to prevent scrolling past the start of a line.
-    /// There is no explicit right clamp as lines can be arbitrarily long.
-    ///
-    /// # Arguments
-    ///
-    /// * `delta`: The signed number of characters to scroll (positive for right, negative for left).
-    ///
-    /// # Returns
-    ///
-    /// `true` if the scroll position changed, `false` otherwise.
-    pub fn scroll_horizontal(&mut self, delta: isize) -> bool {
-        if delta == 0 {
-            return true;
-        }
-        let old_scroll = self.h_scroll;
-        self.h_scroll = self.h_scroll.saturating_add_signed(delta).max(0);
-        self.h_scroll != old_scroll
     }
 
     /// Writes the buffer's content to a file on disk.

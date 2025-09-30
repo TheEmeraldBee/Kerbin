@@ -84,16 +84,13 @@ async fn update(state: &mut State) {
         bufs.cur_buffer().read().unwrap().ext.clone()
     };
 
-    // Render the rest of the state (This will chain rendering the file,
-    // allows for many async systems to run at "once" (async, non-threaded)
-    state
-        .hook(RenderFiletype::new(filetype))
-        .hook(Render)
-        .call()
-        .await;
+    state.hook(UpdateFiletype::new(filetype)).call().await;
 
-    // Render the file with the extmarks
-    state.call(render_buffer_default).await;
+    state.hook(PreLines).call().await;
+
+    state.hook(CreateRenderLines).hook(PreRender).call().await;
+
+    state.hook(Render).call().await;
 
     // Render all chunks to the window
     state.hook(RenderChunks).call().await;
@@ -159,9 +156,17 @@ async fn main() {
         .on_hook(Update)
         .system(handle_inputs)
         .system(handle_command_palette_input)
-        .system(update_palette_suggestions);
+        .system(update_palette_suggestions)
+        .system(render_cursors_and_selections);
 
     state.on_hook(UpdateCleanup).system(update_buffer);
+
+    state.on_hook(CreateRenderLines).system(build_buffer_lines);
+
+    state
+        .on_hook(PreLines)
+        .system(update_buffer_horizontal_scroll)
+        .system(update_buffer_vertical_scroll);
 
     state
         .on_hook(Render)
@@ -169,7 +174,7 @@ async fn main() {
         .system(render_command_palette)
         .system(render_help_menu)
         .system(render_bufferline)
-        .system(render_cursors_and_selections);
+        .system(render_buffer_default);
 
     state.on_hook(RenderChunks).system(render_chunks);
 

@@ -214,7 +214,7 @@ pub async fn render_tree_sitter_extmarks(bufs: Res<Buffers>, highlights: Res<Hig
     let buf_arc = bufs.cur_buffer();
     let mut buf = buf_arc.write().unwrap();
 
-    buf.clear_extmark_ns("tree-sitter::highlight");
+    buf.renderer.clear_extmark_ns("tree-sitter::highlight");
 
     let Some(hl_map) = highlights.0.get(&buf.path) else {
         return;
@@ -224,15 +224,15 @@ pub async fn render_tree_sitter_extmarks(bufs: Res<Buffers>, highlights: Res<Hig
     let mut last_hl: Option<ContentStyle> = None;
 
     for (&pos, &style) in hl_map.iter() {
-        if let (Some(start), Some(prev_style)) = (last_pos, last_hl) {
-            if pos > start {
-                buf.add_extmark_range(
-                    "tree-sitter::highlight",
-                    start..pos,
-                    0,
-                    vec![ExtmarkDecoration::Highlight { hl: prev_style }],
-                );
-            }
+        if let (Some(start), Some(prev_style)) = (last_pos, last_hl)
+            && pos > start
+        {
+            buf.renderer.add_extmark_range(
+                "tree-sitter::highlight",
+                start..pos,
+                0,
+                vec![ExtmarkDecoration::Highlight { hl: prev_style }],
+            );
         }
         last_pos = Some(pos);
         last_hl = Some(style);
@@ -241,7 +241,7 @@ pub async fn render_tree_sitter_extmarks(bufs: Res<Buffers>, highlights: Res<Hig
     if let (Some(start), Some(prev_style)) = (last_pos, last_hl) {
         let len = buf.rope.len().saturating_sub(start);
         if len > 0 {
-            buf.add_extmark_range(
+            buf.renderer.add_extmark_range(
                 "tree-sitter::highlight",
                 start..(start + len),
                 0,

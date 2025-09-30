@@ -8,11 +8,11 @@ pub async fn hi_renderer(bufs: Res<Buffers>) {
     get!(bufs);
 
     let buf = bufs.cur_buffer();
-    let mut buf = buf.write().unwrap();
+    let rndr = &mut buf.write().unwrap().renderer;
 
-    buf.clear_extmark_ns("custom::hi");
+    rndr.clear_extmark_ns("custom::hi");
 
-    buf.add_extmark(
+    rndr.add_extmark(
         "custom::hi",
         0,
         0,
@@ -34,5 +34,5 @@ pub fn init(state: &mut State) {
     kerbin_tree_sitter::register_lang(state, "markdown", ["md"]);
     kerbin_tree_sitter::register_lang(state, "markdown-inline", empty::<String>());
 
-    state.on_hook(RenderFiletype::new("hi")).system(hi_renderer);
+    state.on_hook(UpdateFiletype::new("hi")).system(hi_renderer);
 }

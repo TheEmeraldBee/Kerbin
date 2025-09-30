@@ -24,6 +24,25 @@ impl Hook for ChunkRegister {
     }
 }
 
+/// This runs **RIGHT** before Render
+/// RenderLines are known at this point :)
+pub struct PreRender;
+impl Hook for PreRender {
+    fn info(&self) -> HookInfo {
+        HookInfo::new("pre_render")
+    }
+}
+
+/// This runs **RIGHT** before building RenderLines
+/// Should be used for building pieces that will be needed
+/// for RenderLines that are retrieved from update (ie. scrolling)
+pub struct PreLines;
+impl Hook for PreLines {
+    fn info(&self) -> HookInfo {
+        HookInfo::new("pre_lines")
+    }
+}
+
 /// This runs at the end of each frame
 pub struct Render;
 impl Hook for Render {
@@ -32,17 +51,18 @@ impl Hook for Render {
     }
 }
 
-/// This runs before each frame, should be used to register chunks by layouts
+/// This runs after update each frame, should be used to register chunks by layouts
 pub struct RenderChunks;
 impl Hook for RenderChunks {
     fn info(&self) -> HookInfo {
         HookInfo::new("render_chunks")
     }
 }
-/// This runs when rendering the filetype
-pub struct RenderFiletype(pub HookInfo);
 
-impl RenderFiletype {
+/// Runs before updating the buffer's lines, and after creating chunks
+pub struct UpdateFiletype(pub HookInfo);
+
+impl UpdateFiletype {
     pub fn new(info: impl AsRef<str>) -> Self {
         let info = HookInfo::new(info.as_ref());
 
@@ -50,14 +70,22 @@ impl RenderFiletype {
     }
 }
 
-impl Hook for RenderFiletype {
+impl Hook for UpdateFiletype {
     fn info(&self) -> HookInfo {
         let mut path = self.0.path.clone();
-        path.insert(0, HookPathComponent::Path("render_filetype".to_string()));
+        path.insert(0, HookPathComponent::Path("update_filetype".to_string()));
         HookInfo {
             path,
             rank: self.0.rank,
         }
+    }
+}
+
+/// Runs right after updating the filetype
+pub struct CreateRenderLines;
+impl Hook for CreateRenderLines {
+    fn info(&self) -> HookInfo {
+        HookInfo::new("create_render_lines")
     }
 }
 

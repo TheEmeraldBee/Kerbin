@@ -66,8 +66,12 @@ when the editor is more fleshed out (around mid October).
 - [x] Plugin Hooks (Replacing rendering systems, Adjusting how
   things render/work, adding new render calls to the statusline, etc.)
 - [x] TreeSitter Indentation Queries
-- [ ] Adjust rendering system to instead use Extmarks (similarly to neovim)
+- [x] Adjust rendering system to instead use Extmarks (similarly to neovim)
     - Will make plugins that add highlighting or ghost text much easier
+- [ ] Reimplement rendering engine to better work with extmarks, allowing for scrolling to work
+    - Current Ideas:
+        - Use a list of RenderEvents, that will persist throughout the frame, allowing rendering to better work
+        - Store the byte start of each RenderLine type so I only have to look at the last state to know what to render for the new state
 - [ ] Implement File dirty systems to prevent exit without forcing
     - [ ] Dirty Flag on Text Buffers
     - [ ] QuitForce, CloseBufferForce, etc
