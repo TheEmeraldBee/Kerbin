@@ -70,5 +70,7 @@ pub fn init(state: &mut State) {
     kerbin_tree_sitter::register_lang(state, "markdown", ["md"]);
     kerbin_tree_sitter::register_lang(state, "markdown-inline", empty::<String>());
 
-    state.on_hook(UpdateFiletype::new("hi")).system(hi_renderer);
+    state
+        .on_hook(hooks::UpdateFiletype::new("hi"))
+        .system(hi_renderer);
 }

@@ -19,14 +19,15 @@ pub async fn register_default_chunks(chunks: ResMut<Chunks>, window: Res<WindowS
 
     let layout = Layout::new()
         .row(fixed(1), vec![flexible()])
-        .row(flexible(), vec![flexible()])
+        .row(flexible(), vec![fixed(5), fixed(2), flexible()])
         .row(fixed(1), vec![flexible()])
         .row(fixed(1), vec![flexible()])
         .calculate(window.size())
         .unwrap();
 
     chunks.register_chunk::<BufferlineChunk>(0, layout[0][0]);
-    chunks.register_chunk::<BufferChunk>(0, layout[1][0]);
+    chunks.register_chunk::<BufferGutterChunk>(0, layout[1][0]);
+    chunks.register_chunk::<BufferChunk>(0, layout[1][2]);
     chunks.register_chunk::<StatuslineChunk>(0, layout[2][0]);
 }
 
@@ -72,17 +73,17 @@ pub async fn render_chunks(chunks: Res<Chunks>, window: ResMut<WindowState>) {
 
 async fn update(state: &mut State) {
     // Update all states
-    state.hook(Update).call().await;
+    state.hook(hooks::Update).call().await;
 
-    state.hook(PostUpdate).call().await;
+    state.hook(hooks::PostUpdate).call().await;
 
-    state.hook(UpdateCleanup).call().await;
+    state.hook(hooks::UpdateCleanup).call().await;
 
     // Clear the chunks for the next frame (allows for conditional chunks)
     state.lock_state::<Chunks>().unwrap().clear();
 
     // Register all chunks for rendering
-    state.hook(ChunkRegister).call().await;
+    state.hook(hooks::ChunkRegister).call().await;
 
     // Call the file renderer
     let filetype = {
@@ -90,16 +91,23 @@ async fn update(state: &mut State) {
         bufs.cur_buffer().read().unwrap().ext.clone()
     };
 
-    state.hook(UpdateFiletype::new(filetype)).call().await;
+    state
+        .hook(hooks::UpdateFiletype::new(filetype))
+        .call()
+        .await;
 
-    state.hook(PreLines).call().await;
+    state.hook(hooks::PreLines).call().await;
 
-    state.hook(CreateRenderLines).hook(PreRender).call().await;
+    state
+        .hook(hooks::CreateRenderLines)
+        .hook(hooks::PreRender)
+        .call()
+        .await;
 
-    state.hook(Render).call().await;
+    state.hook(hooks::Render).call().await;
 
     // Render all chunks to the window
-    state.hook(RenderChunks).call().await;
+    state.hook(hooks::RenderChunks).call().await;
 
     match state
         .lock_state::<WindowState>()
@@ -153,30 +161,32 @@ async fn main() {
     }
 
     state
-        .on_hook(ChunkRegister)
+        .on_hook(hooks::ChunkRegister)
         .system(register_default_chunks)
         .system(register_command_palette_chunks)
         .system(register_log_chunk)
         .system(register_help_menu_chunk);
 
     state
-        .on_hook(Update)
+        .on_hook(hooks::Update)
         .system(handle_inputs)
         .system(handle_command_palette_input)
         .system(update_palette_suggestions)
         .system(render_cursors_and_selections);
 
-    state.on_hook(UpdateCleanup).system(update_buffer);
-
-    state.on_hook(CreateRenderLines).system(build_buffer_lines);
+    state.on_hook(hooks::UpdateCleanup).system(update_buffer);
 
     state
-        .on_hook(PreLines)
+        .on_hook(hooks::CreateRenderLines)
+        .system(build_buffer_lines);
+
+    state
+        .on_hook(hooks::PreLines)
         .system(update_buffer_horizontal_scroll)
         .system(update_buffer_vertical_scroll);
 
     state
-        .on_hook(Render)
+        .on_hook(hooks::Render)
         .system(render_statusline)
         .system(render_command_palette)
         .system(render_help_menu)
@@ -184,7 +194,7 @@ async fn main() {
         .system(render_log)
         .system(render_buffer_default);
 
-    state.on_hook(RenderChunks).system(render_chunks);
+    state.on_hook(hooks::RenderChunks).system(render_chunks);
 
     loop {
         let frame_start = tokio::time::Instant::now();

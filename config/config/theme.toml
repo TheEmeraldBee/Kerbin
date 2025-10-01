@@ -3,9 +3,6 @@
 # Palette entries are also recursive, so you can have a palette entry
 # Copy another palette entry if you really wanted to.
 [theme]
-"ui.linenum" = { fg = "#555555" }
-
-
 "ts.attribute" = "yellow"
 
 "ts.property" = "blue"
@@ -70,6 +67,8 @@
 "ts.markup.quote" = "pink"
 
 "ui.text" = "text"
+
+"ui.linenum" = { fg = "#555555" }
 
 "ui.commandline.valid" = "teal"
 "ui.commandline.invalid" = "maroon"

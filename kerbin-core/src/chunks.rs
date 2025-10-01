@@ -8,6 +8,9 @@ pub struct BufferlineChunk;
 pub struct BufferChunk;
 
 #[derive(State)]
+pub struct BufferGutterChunk;
+
+#[derive(State)]
 pub struct HelpChunk;
 
 #[derive(State)]

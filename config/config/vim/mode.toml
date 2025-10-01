@@ -16,4 +16,4 @@ desc = "Enter Insert Mode"
 modes = []
 keys = ["esc"]
 commands = ["commit_change", "rm"]
-desc = "Back To Normal Mode"
+desc = "Pop Mode From Stack"

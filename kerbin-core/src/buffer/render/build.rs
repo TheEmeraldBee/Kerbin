@@ -1,5 +1,6 @@
 use crate::*;
 use ascii_forge::prelude::*;
+use unicode_width::UnicodeWidthStr;
 
 /// Builds out the rendered lines for the current buffer, only building the required sizes
 pub async fn build_buffer_lines(chunk: Chunk<BufferChunk>, bufs: Res<Buffers>, theme: Res<Theme>) {
@@ -13,6 +14,8 @@ pub async fn build_buffer_lines(chunk: Chunk<BufferChunk>, bufs: Res<Buffers>, t
     let default_style = theme
         .get("ui.text")
         .unwrap_or_else(|| ContentStyle::new().with(Color::Rgb { r: 0, g: 0, b: 0 }));
+
+    let line_style = theme.get_fallback_default(["ui.linenum", "ui.text"]);
 
     let mut lines = vec![];
 
@@ -31,6 +34,10 @@ pub async fn build_buffer_lines(chunk: Chunk<BufferChunk>, bufs: Res<Buffers>, t
         }
 
         let mut render = RenderLine::default();
+
+        let line_str = (line_idx + 1).to_string();
+        let line_width = line_str.width();
+        render!(render.gutter_mut(), vec2(0, 0) => [ line_style.apply(format!("{}{line_str}", " ".repeat(5 - line_width))) ]);
 
         let mut line_chars: Vec<(usize, char)> = line.char_indices().collect();
         let line_start_byte = buf.rope.line_to_byte_idx(line_idx, LineType::LF_CR);

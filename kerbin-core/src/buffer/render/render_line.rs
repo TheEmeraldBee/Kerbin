@@ -7,21 +7,52 @@ use unicode_width::*;
 /// A pre-visual representation of what a rendered byte line looks like
 /// This is updated so that visually we can find where bytes should be resulted
 /// Allows for visual scrolling to correctly work
-#[derive(Default)]
 pub struct RenderLine {
     /// A list of elements and their visual column start positions, and the element that will be
     /// drawn, this should allow for easy systems to render elements to the screen
     elements: Vec<(usize, RenderLineElement)>,
+
+    /// The far-left piece of the rendered line
+    /// Rendered at the BufferGutter location
+    gutter: Buffer,
+}
+
+impl Default for RenderLine {
+    fn default() -> Self {
+        Self {
+            elements: vec![],
+            gutter: Buffer::new((6, 1)),
+        }
+    }
 }
 
 impl RenderLine {
+    /// Returns a mutable reference to the buffer of the line's gutter
+    pub fn gutter_mut(&mut self) -> &mut Buffer {
+        &mut self.gutter
+    }
+
+    /// Returns the buffer of the line's gutter
+    pub fn gutter(&self) -> &Buffer {
+        &self.gutter
+    }
+
+    /// Renders the gutter to the location
+    ///
+    /// # Arguments
+    /// `chunk`: The visual chunk to render to
+    /// `loc`: The position to render at
+    pub fn render_gutter(&self, chunk: &mut InnerChunk, loc: Vec2) {
+        render!(chunk, loc => [ &self.gutter ]);
+    }
+
     /// Renders the Line to the passed buffer
     /// Will only render a max of 1 y location, and the buffer's width
     /// This will automatically apply scrolling algorithms to the system,
     /// Making rendering the line very easy
     ///
     /// # Arguments
-    /// * `buffer`: The visual buffer to render to
+    /// * `chunk`: The visual chunk to render to
     /// * `loc`: The offset on the buffer to render at
     /// * `horizontal_scroll`: The scroll of the line to apply
     pub fn render(&self, chunk: &mut InnerChunk, loc: Vec2, horizontal_scroll: usize) {
@@ -142,7 +173,7 @@ pub enum RenderLineElement {
     Text(String, ContentStyle),
 
     /// An element that's rendering is called straight by window
-    /// Should be paired with a ReservedSpace to correctly reserve space
+    /// Should be paired with ReservedSpace to correctly reserve space
     /// for the widget contained
     Element(Arc<Box<dyn Fn(&mut Window, Vec2) + Send + Sync>>),
 
@@ -173,7 +204,7 @@ impl RenderLineElement {
     /// Render the element with clipping support for scrolling
     ///
     /// # Arguments
-    /// * `buffer` - The buffer to render to
+    /// * `chunk` - The chunk to render to
     /// * `pos` - The position to render at
     /// * `skip` - How many visual columns to skip from the start
     /// * `max_width` - Maximum width to render

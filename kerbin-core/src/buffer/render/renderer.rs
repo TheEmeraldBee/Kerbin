@@ -5,20 +5,34 @@ use ascii_forge::window::crossterm::cursor::SetCursorStyle;
 
 use crate::*;
 
+/// The main element stored in a buffer that is used
+/// to render the buffer to the screen. Stores Extmarks,
+/// renderable lines, visual cursors, scroll values, etc.
 #[derive(Default)]
 pub struct BufferRenderer {
+    /// A set of marks that allow for decorating areas of text
+    /// Used for ghost text, hightlighting, etc.
     extmarks: BTreeMap<u64, Extmark>,
     next_id: u64,
 
+    /// The visual representation of the viewport for rendering
     pub lines: Vec<RenderLine>,
 
     /// Stores a byte position and cursor style for where the renderer
     /// should be rendering the cursor, allows for centeralized cursor rendering
     pub cursor: Option<(usize, SetCursorStyle)>,
 
+    /// The byte based scroll of the window
+    /// marks where to start the line building
     pub byte_scroll: usize,
+
+    /// The visual scroll, marks where rendered items should
+    /// be offset based on the byte_scroll.
+    ///
+    /// Helpful when working with images or inline tables, etc
     pub visual_scroll: usize,
 
+    /// The scroll horizontally of the lines.
     pub h_scroll: usize,
 }
 

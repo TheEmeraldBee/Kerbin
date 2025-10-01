@@ -27,8 +27,13 @@ use ascii_forge::prelude::*;
 ///
 /// Cursor positions and selections are *not* hardcoded here – they are provided
 /// each frame as [`Extmark`]s by the [`render_cursors_and_selections`] system.
-pub async fn render_buffer_default(chunk: Chunk<BufferChunk>, buffers: Res<Buffers>) {
+pub async fn render_buffer_default(
+    gutter_chunk: Chunk<BufferGutterChunk>,
+    chunk: Chunk<BufferChunk>,
+    buffers: Res<Buffers>,
+) {
     let Some(mut chunk) = chunk.get() else { return };
+    let mut gutter = gutter_chunk.get();
     get!(buffers);
 
     let buf = buffers.cur_buffer();
@@ -41,6 +46,10 @@ pub async fn render_buffer_default(chunk: Chunk<BufferChunk>, buffers: Res<Buffe
         // Stop rendering if we've filled the viewport
         if pos.y >= chunk.size().y {
             break;
+        }
+
+        if let Some(gutter) = &mut gutter {
+            line.render_gutter(gutter, vec2(0, pos.y));
         }
 
         line.render(&mut chunk, pos, buf.renderer.h_scroll);

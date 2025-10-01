@@ -29,7 +29,7 @@ pub fn register_lang(
 
     for ext in exts.into_iter() {
         state
-            .on_hook(UpdateFiletype::new(ext.to_string()))
+            .on_hook(hooks::UpdateFiletype::new(ext.to_string()))
             .system(render_tree_sitter_extmarks);
 
         state
@@ -218,7 +218,7 @@ pub fn init(state: &mut State) {
         .state(HighlightMap::default());
 
     state
-        .on_hook(PostUpdate)
+        .on_hook(hooks::PostUpdate)
         .system(sync_buffer_changes_to_ts)
         .system(parse_dirty_trees)
         .system(calculate_highlights);

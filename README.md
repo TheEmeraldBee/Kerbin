@@ -54,7 +54,7 @@ when the editor is more fleshed out (around mid October).
 
 ---
 
-# 🗺️ Roadmap 🗺️
+# 🗺  Roadmap 🗺
 
 ## Core Development
 - [x] Basic Editor Functionality (insertions, deletions, etc.)
@@ -75,7 +75,7 @@ when the editor is more fleshed out (around mid October).
 - [x] Implement File dirty systems to prevent exit without forcing
     - [x] Dirty Flag on Text Buffers
     - [x] QuitForce, CloseBufferForce, etc
-- [ ] Prevent overriding newer changes on file without w!
+- [x] Prevent overriding newer changes on file without w!
 - [ ] Implement Reload File Command which will reload the file from disk
     - Prevent reloading without forcing if dirty flag is set
 - [ ] Implement sending messages to the process using interprocess
@@ -99,6 +99,7 @@ when the editor is more fleshed out (around mid October).
 
 ## Stability
 - [x] Cursors don't render on newline chars
+- [ ] Cursor doesnt render on last character of file
 - [ ] Outside of Zellij, a large number of characters
 are rendered next to the location of the systems until they are replaced
 probably an issue from how we setup the first buffers
