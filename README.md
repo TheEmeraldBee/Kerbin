@@ -68,13 +68,13 @@ when the editor is more fleshed out (around mid October).
 - [x] TreeSitter Indentation Queries
 - [x] Adjust rendering system to instead use Extmarks (similarly to neovim)
     - Will make plugins that add highlighting or ghost text much easier
-- [ ] Reimplement rendering engine to better work with extmarks, allowing for scrolling to work
+- [x] Reimplement rendering engine to better work with extmarks, allowing for scrolling to work
     - Current Ideas:
         - Use a list of RenderEvents, that will persist throughout the frame, allowing rendering to better work
         - Store the byte start of each RenderLine type so I only have to look at the last state to know what to render for the new state
-- [ ] Implement File dirty systems to prevent exit without forcing
-    - [ ] Dirty Flag on Text Buffers
-    - [ ] QuitForce, CloseBufferForce, etc
+- [x] Implement File dirty systems to prevent exit without forcing
+    - [x] Dirty Flag on Text Buffers
+    - [x] QuitForce, CloseBufferForce, etc
 - [ ] Prevent overriding newer changes on file without w!
 - [ ] Implement Reload File Command which will reload the file from disk
     - Prevent reloading without forcing if dirty flag is set
@@ -82,9 +82,6 @@ when the editor is more fleshed out (around mid October).
   file communication systems
 - [ ] Write out CLI systems for handling command-line arguments
   within plugins and handling custom systems
-- [ ] Implement Kitty Rendering Protocol Support
-    - Most likely within the chunk rendering to support
-    Images and Text Scaling (Mainly for markdown)
 - [ ] Lsp Support using plugin system
 - [ ] Mouse Scrolling Support
     - Allow Mapping Scroll Wheel to a command (scroll up = "ml -1") or something

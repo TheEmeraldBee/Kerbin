@@ -41,9 +41,13 @@ pub use chunks::*;
 pub fn init_state(window: Window, cmd_sender: UnboundedSender<Box<dyn Command>>) -> State {
     let mut state = State::default();
 
+    let (log_state, log_sender) = LogState::new_with_channel();
+
     state
         // Editor's running status
         .state(Running(true))
+        .state(log_state)
+        .state(log_sender)
         // Window management
         .state(WindowState(window))
         // Command sending channel

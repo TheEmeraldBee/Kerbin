@@ -13,6 +13,7 @@ desc = "Enter Multicursor Mode"
 
 [[keybind]]
 modes = []
+invalid_modes = ["x"]
 keys = ["shift-c"]
 commands = ["cc", "ml 1"]
 desc = "Create cursor"

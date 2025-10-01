@@ -171,3 +171,6 @@ pub use rope_exts::*;
 /// Module used to extend the functionality of ContentStyle within crossterm
 pub mod style_exts;
 pub use style_exts::*;
+
+pub mod logging;
+pub use logging::*;

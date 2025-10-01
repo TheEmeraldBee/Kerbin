@@ -150,6 +150,7 @@ async fn main() {
         .on_hook(ChunkRegister)
         .system(register_default_chunks)
         .system(register_command_palette_chunks)
+        .system(register_log_chunk)
         .system(register_help_menu_chunk);
 
     state
@@ -174,6 +175,7 @@ async fn main() {
         .system(render_command_palette)
         .system(render_help_menu)
         .system(render_bufferline)
+        .system(render_log)
         .system(render_buffer_default);
 
     state.on_hook(RenderChunks).system(render_chunks);

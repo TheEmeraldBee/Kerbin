@@ -132,7 +132,14 @@ impl Buffers {
 
         for (i, short_path) in self.buffer_paths.iter().enumerate() {
             // Format the title with padding
-            let title = format!(" {} ", short_path);
+            let title = format!(
+                "   {} {} ",
+                short_path,
+                match self.buffers[i].read().unwrap().dirty {
+                    true => "*",
+                    false => " ",
+                }
+            );
             let title_width = title.chars().count();
 
             // Calculate the visible range of the bufferline chunk

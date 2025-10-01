@@ -1,6 +1,7 @@
 use std::{
     io::{BufReader, BufWriter, ErrorKind, Write},
     path::{Path, PathBuf},
+    time::SystemTime,
 };
 
 pub mod action;
@@ -26,6 +27,7 @@ use ropey::{LineType, Rope};
 /// Used internally for defining a set of actions that were applied together as a single undo/redo unit.
 ///
 /// A `ChangeGroup` stores the state of cursors *before* the actions were applied,
+/// whether the buffer was dirty or not in the change,
 /// and a list of `BufferAction` inverses to reverse the changes.
 #[derive(Default)]
 pub struct ChangeGroup(Vec<Cursor>, Vec<Box<dyn BufferAction>>);
@@ -36,6 +38,18 @@ pub struct ChangeGroup(Vec<Cursor>, Vec<Box<dyn BufferAction>>);
 /// managing file metadata (path, extension), tracking multiple cursors,
 /// handling undo/redo, and managing scroll positions for rendering.
 pub struct TextBuffer {
+    /// A marker for the text buffer that marks if it is unsaved
+    /// Used for commands that may do file operations or similar
+    pub dirty: bool,
+
+    /// An optional index into `undo_stack` that marks the point
+    /// where the content matches the last file save on disk.
+    pub save_point: Option<usize>,
+
+    /// The last stored time that the file was changed. None if the file didn't exist, or if
+    /// reading it failed. Used for commands that write to file, to check if external changes exist
+    pub changed: Option<SystemTime>,
+
     /// Internal storage of the text itself using `ropey::Rope`.
     ///
     /// Changes to the `Rope` should primarily be made through `BufferAction`s
@@ -84,17 +98,13 @@ pub struct TextBuffer {
     pub renderer: BufferRenderer,
 }
 
-impl TextBuffer {
-    /// Creates a new "scratch" file, which is an in-memory, unsavable buffer.
-    ///
-    /// Scratch buffers are typically used for new, unsaved files or as a default
-    /// buffer when the editor starts without opening a specific file.
-    ///
-    /// # Returns
-    ///
-    /// A new `TextBuffer` instance representing a scratch file.
-    pub fn scratch() -> Self {
+impl Default for TextBuffer {
+    fn default() -> Self {
         Self {
+            dirty: false,
+            save_point: None,
+            changed: None,
+
             rope: Rope::new(),
 
             path: "<scratch>".into(),
@@ -112,6 +122,20 @@ impl TextBuffer {
 
             renderer: BufferRenderer::default(),
         }
+    }
+}
+
+impl TextBuffer {
+    /// Creates a new "scratch" file, which is an in-memory, unsavable buffer.
+    ///
+    /// Scratch buffers are typically used for new, unsaved files or as a default
+    /// buffer when the editor starts without opening a specific file.
+    ///
+    /// # Returns
+    ///
+    /// A new `TextBuffer` instance representing a scratch file.
+    pub fn scratch() -> Self {
+        Self::default()
     }
 
     /// Opens a file with the provided path, loading its content into the buffer.
@@ -133,8 +157,11 @@ impl TextBuffer {
 
         let path = get_canonical_path_with_non_existent(&path_str);
 
+        let mut changed = None;
+
         let rope = match std::fs::File::open(&path) {
             Ok(f) => {
+                changed = f.metadata().unwrap().modified().ok();
                 Rope::from_reader(BufReader::new(f)).expect("Rope should be able to read file")
             }
             Err(e) => {
@@ -150,20 +177,15 @@ impl TextBuffer {
         }
 
         Self {
+            save_point: Some(0),
+
+            changed,
+
             rope,
             path: path.to_str().map(|x| x.to_string()).unwrap_or_default(),
             ext: found_ext,
 
-            cursors: vec![Cursor::default()],
-            primary_cursor: 0,
-
-            byte_changes: vec![],
-
-            undo_stack: vec![],
-            redo_stack: vec![],
-            current_change: None,
-
-            renderer: BufferRenderer::default(),
+            ..Default::default()
         }
     }
 
@@ -225,6 +247,9 @@ impl TextBuffer {
         if self.current_change.is_none() {
             self.start_change_group();
         }
+
+        // Any action marks the buffer as dirty (bytes changed)
+        self.dirty = true;
 
         let res = action.apply(self);
 
@@ -329,6 +354,14 @@ impl TextBuffer {
 
             self.cursors = group.0;
 
+            if self.save_point.is_some() && self.undo_stack.len() == self.save_point.unwrap() {
+                // We have undone back to the save point. The buffer is now clean.
+                self.dirty = false;
+            } else {
+                // We are either past the save point or haven't reached it. The buffer is dirty.
+                self.dirty = true;
+            }
+
             redo_group.reverse();
 
             self.redo_stack.push(ChangeGroup(redo_cursor, redo_group));
@@ -352,6 +385,22 @@ impl TextBuffer {
             }
 
             self.cursors = group.0;
+
+            if self.save_point.is_some() && self.undo_stack.len() + 1 > self.save_point.unwrap() {
+                // We have redone past the save point. The buffer is now dirty.
+                self.dirty = true;
+            } else {
+                // Push the redone group to the undo stack *before* checking the save point logic
+                self.undo_stack.push(ChangeGroup(undo_cursor, undo_group));
+
+                if self.save_point.is_some() && self.undo_stack.len() == self.save_point.unwrap() {
+                    // The current state is the save point. It is clean.
+                    self.dirty = false;
+                } else {
+                    self.dirty = true; // Any other state is dirty.
+                }
+                return; // Return early since the push happened inside the if block
+            }
 
             self.undo_stack.push(ChangeGroup(undo_cursor, undo_group));
         }
@@ -421,21 +470,46 @@ impl TextBuffer {
             std::fs::File::create(&self.path).unwrap().flush().unwrap();
         }
 
-        self.rope
-            .write_to(
-                match std::fs::OpenOptions::new()
-                    .write(true)
-                    .truncate(true)
-                    .open(&self.path)
-                {
-                    Ok(f) => BufWriter::new(f),
-                    Err(e) => {
-                        tracing::error!("Failed to write to {}: {e}", self.path);
-                        return;
-                    }
-                },
-            )
-            .unwrap();
+        self.dirty = false;
+
+        let write_result = self.rope.write_to(
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .open(&self.path)
+            {
+                Ok(f) => BufWriter::new(f),
+                Err(e) => {
+                    tracing::error!("Failed to write to {}: {e}", self.path);
+                    return;
+                }
+            },
+        );
+
+        if write_result.is_err() {
+            tracing::error!(
+                "Failed to write rope content to file: {:?}",
+                write_result.err()
+            );
+            return;
+        }
+
+        self.dirty = false;
+
+        self.save_point = Some(self.undo_stack.len());
+
+        match std::fs::metadata(&self.path) {
+            Ok(metadata) => {
+                self.changed = metadata.modified().ok();
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to get metadata after writing file {}: {e}",
+                    self.path
+                );
+                self.changed = None;
+            }
+        }
     }
 
     /// Moves the primary cursor by a given number of bytes.

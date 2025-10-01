@@ -21,3 +21,6 @@ pub struct CommandSuggestionsChunk;
 
 #[derive(State)]
 pub struct CommandDescChunk;
+
+#[derive(State)]
+pub struct LogChunk;

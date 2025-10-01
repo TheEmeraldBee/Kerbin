@@ -98,8 +98,18 @@ pub enum BufferCommand {
     #[command(name = "write", name = "w")]
     /// Writes the given file to disk
     /// An optional path can be given to write the file to a different name
-    /// Will not write if filename is <scratch>
+    /// Will not write if filename is <scratch>, or if there are external changes
+    ///
+    /// In order to not respect external changes, see `write_file!`
     WriteFile {
+        #[command(type_name = "string?")]
+        path: Option<String>,
+    },
+
+    #[command(drop_ident, name = "write_file!", name = "write!", name = "w!")]
+    /// Writes the given file to disk, ignoring metadata
+    /// if you want to respect external changes, see `write_file`
+    WriteFileForce {
         #[command(type_name = "string?")]
         path: Option<String>,
     },
@@ -134,6 +144,8 @@ impl Command for BufferCommand {
     fn apply(&self, state: &mut State) -> bool {
         let buffers = state.lock_state::<Buffers>().unwrap();
 
+        let log = state.lock_state::<LogSender>().unwrap();
+
         let cur_buffer = buffers.cur_buffer();
         let mut cur_buffer = cur_buffer.write().unwrap();
 
@@ -151,6 +163,53 @@ impl Command for BufferCommand {
             }
 
             BufferCommand::WriteFile { path } => {
+                let current_path = if let Some(new_path) = path {
+                    new_path.clone()
+                } else {
+                    cur_buffer.path.clone()
+                };
+
+                if current_path != "<scratch>" {
+                    match std::fs::metadata(&current_path) {
+                        Ok(metadata) => {
+                            let disk_modified = metadata.modified().ok();
+                            let buffer_changed = cur_buffer.changed;
+
+                            if let Some(disk_time) = disk_modified {
+                                if let Some(buffer_time) = buffer_changed {
+                                    // Comparing SystemTime requires an exact match for a simple check.
+                                    if disk_time != buffer_time {
+                                        let message = format!(
+                                            "File has been modified externally since last read/save: {}. Disk time: {:?}, Buffer time: {:?}",
+                                            current_path, disk_time, buffer_time
+                                        );
+
+                                        tracing::error!(message);
+                                        log.medium("command::write_file", message);
+                                        return false;
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                            let message =
+                                format!("Failed to read metadata for file {}: {}", current_path, e);
+                            tracing::error!(message);
+                            log.high("command::write_file", message);
+                            // Treat as if external file changes if the metadata isn't found
+                            return false;
+                        }
+                        _ => {
+                            // File not found on disk, so no conflict check needed.
+                        }
+                    }
+                }
+
+                cur_buffer.write_file(path.clone());
+                true
+            }
+
+            BufferCommand::WriteFileForce { path } => {
                 cur_buffer.write_file(path.clone());
                 true
             }
@@ -216,11 +275,17 @@ pub enum BuffersCommand {
     #[command(drop_ident, name = "buf_close", name = "bc")]
     /// Closes the current buffer unless an offset is passed
     CloseBufferOffset(Option<isize>),
+
+    #[command(drop_ident, name = "buf_close!", name = "bc!")]
+    /// Force closes the current buffer unless offset is passed (ignores dirty flag)
+    /// for a command that respects the dirty flag, see `buf_close`
+    CloseBufferOffsetForce(Option<isize>),
 }
 
 impl Command for BuffersCommand {
     fn apply(&self, state: &mut State) -> bool {
         let mut buffers = state.lock_state::<Buffers>().unwrap();
+        let log = state.lock_state::<LogSender>().unwrap();
 
         match self {
             Self::OpenFile(path) => {
@@ -235,6 +300,29 @@ impl Command for BuffersCommand {
             }
 
             Self::CloseBufferOffset(offset) => {
+                let offset = offset.unwrap_or(0);
+                let buf_idx = buffers.selected_buffer as isize + offset;
+
+                if buf_idx >= buffers.buffers.len() as isize || buf_idx < 0 {
+                    return false;
+                }
+
+                let dirty = buffers.buffers[buf_idx as usize].read().unwrap().dirty;
+
+                if dirty {
+                    log.medium(
+                        "command::close_buffer",
+                        "Cannot close buffer as it has changes!",
+                    );
+                    tracing::error!("Cannot close buffer as it has changes!");
+                    false
+                } else {
+                    buffers.close_buffer(buf_idx as usize);
+                    true
+                }
+            }
+
+            Self::CloseBufferOffsetForce(offset) => {
                 let offset = offset.unwrap_or(0);
                 let buf_idx = buffers.selected_buffer as isize + offset;
 
