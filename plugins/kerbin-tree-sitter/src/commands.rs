@@ -13,27 +13,6 @@ fn get_line_indent(buffer: &TextBuffer, line_idx: usize) -> usize {
     line_text.len() - line_text.trim_start().len()
 }
 
-fn is_empty_line(buffer: &TextBuffer, line_idx: usize) -> bool {
-    if line_idx >= buffer.rope.len_lines(LineType::LF_CR) {
-        return true;
-    }
-    let line_text = buffer.rope.line(line_idx, LineType::LF_CR).to_string();
-    line_text.trim().is_empty()
-}
-
-fn get_prev_non_blank_line(buffer: &TextBuffer, line_idx: usize) -> usize {
-    if line_idx == 0 {
-        return 0;
-    }
-
-    for i in (0..line_idx).rev() {
-        if !is_empty_line(buffer, i) {
-            return i;
-        }
-    }
-    0
-}
-
 fn get_node_at_position<'a>(
     buffer: &'a TextBuffer,
     ts_states: &'a TreeSitterStates,
@@ -98,20 +77,21 @@ fn calculate_indent(
     ts_states: &TreeSitterStates,
     grammars: &mut GrammarManager,
     target_line: usize,
+    cursor_col: Option<usize>,
 ) -> Option<i32> {
     let captures = collect_indent_captures(buffer, ts_states, grammars);
 
-    let mut node = if is_empty_line(buffer, target_line) {
-        let prev_line = get_prev_non_blank_line(buffer, target_line);
-        let prev_line_text = buffer.rope.line(prev_line, LineType::LF_CR).to_string();
-        let indent_cols = get_line_indent(buffer, prev_line);
-        let trimmed_len = prev_line_text.trim().len();
-        let col = indent_cols + trimmed_len.saturating_sub(1);
-        get_node_at_position(buffer, ts_states, prev_line, col)?
-    } else {
+    // Get the node at the cursor position on the target line
+    let col = cursor_col.unwrap_or_else(|| {
+        let line_text = buffer.rope.line(target_line, LineType::LF_CR).to_string();
         let indent_cols = get_line_indent(buffer, target_line);
-        get_node_at_position(buffer, ts_states, target_line, indent_cols)?
-    };
+        let trimmed_len = line_text.trim().len();
+        indent_cols + trimmed_len.saturating_sub(1).max(0)
+    });
+
+    let cursor_byte = buffer.rope.line_to_byte_idx(target_line, LineType::LF_CR) + col;
+
+    let mut node = get_node_at_position(buffer, ts_states, target_line, col)?;
 
     let mut indent = 0;
     let mut processed_rows = HashSet::new();
@@ -126,6 +106,7 @@ fn calculate_indent(
         let node_id = current_node.id();
         let start_row = current_node.start_position().row;
         let end_row = current_node.end_position().row;
+        let end_byte = current_node.end_byte();
 
         if let Some(ignore_nodes) = captures.get("indent.auto")
             && ignore_nodes.contains_key(&node_id)
@@ -167,10 +148,19 @@ fn calculate_indent(
             && let Some(begin_nodes) = captures.get("indent.begin")
             && begin_nodes.contains_key(&node_id)
             && (start_row != end_row)
-            && start_row != target_line
         {
-            indent += 1;
-            is_processed = true;
+            // For begin nodes, check if:
+            // 1. The node starts before the target line - always indent
+            // 2. The node starts on the target line, extends beyond, AND cursor is within the node's range
+            if start_row < target_line {
+                indent += 1;
+                is_processed = true;
+            } else if start_row == target_line && end_row > target_line && cursor_byte < end_byte {
+                // Only indent if cursor is still inside this begin node
+                // This prevents parameters from affecting indent after their closing paren
+                indent += 1;
+                is_processed = true;
+            }
         }
 
         if is_processed {
@@ -209,7 +199,12 @@ impl Command for TSCommand {
                 let cursor_byte = buffer.primary_cursor().get_cursor_byte();
                 let buffer_ext = buffer.ext.clone();
                 let current_line_idx = buffer.rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
-                let target_line_idx = current_line_idx + 1;
+
+                // Calculate cursor column position on current line
+                let line_start_byte = buffer
+                    .rope
+                    .line_to_byte_idx(current_line_idx, LineType::LF_CR);
+                let cursor_col = cursor_byte.saturating_sub(line_start_byte);
 
                 let indent_width = plugin_config
                     .0
@@ -219,10 +214,16 @@ impl Command for TSCommand {
                     .and_then(|indent_val| indent_val.as_integer())
                     .unwrap_or(4) as usize;
 
-                let indent_amount =
-                    calculate_indent(&buffer, &ts_states, &mut grammars, target_line_idx)
-                        .unwrap_or(0)
-                        .max(0) as usize;
+                // Calculate indent based on current position (before newline)
+                let indent_amount = calculate_indent(
+                    &buffer,
+                    &ts_states,
+                    &mut grammars,
+                    current_line_idx,
+                    Some(cursor_col),
+                )
+                .unwrap_or(0)
+                .max(0) as usize;
 
                 let new_indent_str = if indent_amount == i32::MAX as usize {
                     // i32::MAX is reserved for auto. This then gets the chars that are considered
