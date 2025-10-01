@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::*;
 use ascii_forge::prelude::*;
 use unicode_width::*;
@@ -5,7 +7,7 @@ use unicode_width::*;
 /// A pre-visual representation of what a rendered byte line looks like
 /// This is updated so that visually we can find where bytes should be resulted
 /// Allows for visual scrolling to correctly work
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct RenderLine {
     /// A list of elements and their visual column start positions, and the element that will be
     /// drawn, this should allow for easy systems to render elements to the screen
@@ -22,8 +24,8 @@ impl RenderLine {
     /// * `buffer`: The visual buffer to render to
     /// * `loc`: The offset on the buffer to render at
     /// * `horizontal_scroll`: The scroll of the line to apply
-    pub fn render(&self, buffer: &mut Buffer, loc: Vec2, horizontal_scroll: usize) {
-        let viewport_width = buffer.size().x.saturating_sub(loc.x) as usize;
+    pub fn render(&self, chunk: &mut InnerChunk, loc: Vec2, horizontal_scroll: usize) {
+        let viewport_width = chunk.size().x.saturating_sub(loc.x) as usize;
         let mut render_col = 0_u16;
 
         for (elem_start_col, elem) in &self.elements {
@@ -56,7 +58,7 @@ impl RenderLine {
 
             if visible_width > 0 {
                 elem.render(
-                    buffer,
+                    chunk,
                     loc + vec2(render_col, 0),
                     skip_in_element,
                     visible_width,
@@ -132,13 +134,17 @@ impl RenderLine {
 }
 
 /// A Renderable element for a RenderLine to render to the screen
-#[derive(Debug)]
 pub enum RenderLineElement {
     /// A character from the byte line with a style applied
     RopeChar(char, usize, ContentStyle),
 
     /// A text element with a style (can be any text)
     Text(String, ContentStyle),
+
+    /// An element that's rendering is called straight by window
+    /// Should be paired with a ReservedSpace to correctly reserve space
+    /// for the widget contained
+    Element(Arc<Box<dyn Fn(&mut Window, Vec2) + Send + Sync>>),
 
     /// A reserved width in columns for inline element rendering (height of 1 only)
     ReservedSpace(usize),
@@ -160,6 +166,7 @@ impl RenderLineElement {
             Self::RopeChar(ch, _, _) => ch.width().unwrap_or(1),
             Self::Text(t, _) => t.width(),
             Self::ReservedSpace(w) => *w,
+            Self::Element(_) => 1,
         }
     }
 
@@ -170,7 +177,7 @@ impl RenderLineElement {
     /// * `pos` - The position to render at
     /// * `skip` - How many visual columns to skip from the start
     /// * `max_width` - Maximum width to render
-    pub fn render(&self, buffer: &mut Buffer, pos: Vec2, skip: usize, max_width: usize) {
+    pub fn render(&self, chunk: &mut InnerChunk, pos: Vec2, skip: usize, max_width: usize) {
         match self {
             Self::RopeChar(ch, _, st) => {
                 let char_width = ch.width().unwrap_or(1);
@@ -182,7 +189,7 @@ impl RenderLineElement {
 
                 // If we're past the skip, render the char
                 if skip == 0 && char_width <= max_width {
-                    render!(buffer, pos => [ st.apply(ch) ]);
+                    render!(chunk, pos => [ st.apply(ch) ]);
                 }
             }
             Self::Text(txt, st) => {
@@ -218,8 +225,11 @@ impl RenderLineElement {
                 }
 
                 if !visible_chars.is_empty() {
-                    render!(buffer, pos => [ st.apply(&visible_chars) ]);
+                    render!(chunk, pos => [ st.apply(&visible_chars) ]);
                 }
+            }
+            Self::Element(func) => {
+                chunk.register_item(pos, func.clone());
             }
             Self::ReservedSpace(w) => {
                 let visible_width = if skip >= *w {
@@ -229,7 +239,7 @@ impl RenderLineElement {
                 };
 
                 if visible_width > 0 {
-                    render!(buffer, pos => [" ".repeat(visible_width)]);
+                    render!(chunk, pos => [" ".repeat(visible_width)]);
                 }
             }
         }

@@ -52,6 +52,12 @@ pub async fn render_chunks(chunks: Res<Chunks>, window: ResMut<WindowState>) {
                 }
             }
             render!(window, buffer.0 => [ &buf ]);
+
+            for (offset, item) in &buf.render_items {
+                let absolute_pos = buffer.0 + *offset;
+
+                item(&mut window, absolute_pos);
+            }
         }
     }
 

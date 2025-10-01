@@ -1,8 +1,33 @@
 #![allow(improper_ctypes_definitions)]
 
-use std::iter::empty;
+use std::{fmt::Display, iter::empty, sync::Arc};
 
-use kerbin_core::*;
+use kerbin_core::{
+    ascii_forge::{
+        math::Vec2,
+        window::{
+            Print, Window,
+            crossterm::{cursor::MoveTo, execute},
+        },
+    },
+    *,
+};
+
+pub fn large_text_render_method(
+    text: impl Display + Send + Sync + 'static,
+    size: u16,
+) -> Arc<Box<dyn Fn(&mut Window, Vec2) + Send + Sync>> {
+    Arc::new(Box::new(move |w, p| {
+        let io = w.io();
+
+        execute!(
+            io,
+            MoveTo(p.x, p.y),
+            Print(format!("\x1b]66;s={};{}\x07", size, text))
+        )
+        .unwrap()
+    }))
+}
 
 pub async fn hi_renderer(bufs: Res<Buffers>) {
     get!(bufs);
@@ -19,6 +44,17 @@ pub async fn hi_renderer(bufs: Res<Buffers>) {
         vec![ExtmarkDecoration::VirtText {
             text: "Hello, World".to_string(),
             hl: None,
+        }],
+    );
+
+    // Test Rendering a Kitty Large Text Element
+    rndr.add_extmark(
+        "custom::hi",
+        0,
+        0,
+        vec![ExtmarkDecoration::FullElement {
+            height: 2,
+            func: large_text_render_method("Hello, World", 2),
         }],
     );
 }

@@ -1,4 +1,7 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
 use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
 
@@ -10,6 +13,7 @@ use crate::*;
 /// within the editor, each potentially having its own cursor.
 pub struct InnerChunk {
     buffer: Buffer,
+    pub render_items: Vec<(Vec2, Arc<Box<dyn Fn(&mut Window, Vec2) + Send + Sync>>)>,
     cursor: Option<(usize, Vec2, SetCursorStyle)>,
 }
 
@@ -35,8 +39,23 @@ impl InnerChunk {
     pub fn new(buf: Buffer) -> Self {
         Self {
             buffer: buf,
+            render_items: vec![],
             cursor: None,
         }
+    }
+
+    /// Registers a special function that will render to the window
+    ///
+    /// # Arguments
+    ///
+    /// * `pos`: The offset within the chunk of the render call
+    /// * `func`: The function that will render to the window (terminal)
+    pub fn register_item(
+        &mut self,
+        pos: impl Into<Vec2>,
+        func: Arc<Box<dyn Fn(&mut Window, Vec2) + Send + Sync>>,
+    ) {
+        self.render_items.push((pos.into(), func));
     }
 
     /// Removes the cursor from this chunk, if one was set.

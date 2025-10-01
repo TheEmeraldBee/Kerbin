@@ -50,6 +50,8 @@ pub async fn build_buffer_lines(chunk: Chunk<BufferChunk>, bufs: Res<Buffers>, t
 
         let exts = buf.renderer.query_extmarks(line_start_byte..line_end_byte);
 
+        let mut post_line_elems = vec![];
+
         for (byte, ch) in line_chars.into_iter() {
             let absolute_byte_idx = byte_offset + byte;
 
@@ -78,6 +80,21 @@ pub async fn build_buffer_lines(chunk: Chunk<BufferChunk>, bufs: Res<Buffers>, t
                                 ));
                             }
                         }
+                        ExtmarkDecoration::FullElement { height, func } => {
+                            if ext.byte_range.start == absolute_byte_idx {
+                                post_line_elems.push(
+                                    RenderLine::default()
+                                        .with_element(RenderLineElement::Element(func.clone()))
+                                        .with_element(RenderLineElement::ReservedSpace(1)),
+                                );
+                                for _ in 1..*height {
+                                    post_line_elems.push(
+                                        RenderLine::default()
+                                            .with_element(RenderLineElement::ReservedSpace(1)),
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -93,6 +110,8 @@ pub async fn build_buffer_lines(chunk: Chunk<BufferChunk>, bufs: Res<Buffers>, t
         line_idx += 1;
         byte_offset += line.len();
         lines.push(render);
+
+        lines.extend(post_line_elems);
     }
 
     buf.renderer.cursor = cursor;
