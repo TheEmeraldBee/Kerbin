@@ -7,6 +7,7 @@ edition.workspace = true
 kerbin-config = { path = "../kerbin-config" }
 kerbin-core = { path = "../kerbin-core" }
 kerbin-plugin = { path = "../kerbin-plugin" }
+kerbin-cli = { path = "../kerbin-cli" }
 
 kerbin-state-machine = { path = "../kerbin-state-machine" }
 
@@ -18,3 +19,6 @@ ascii-forge.workspace = true
 
 tracing.workspace = true
 tracing-subscriber = "0.3.19"
+
+queue-file = "1.4.10"
+dirs = "6.0.0"

@@ -146,12 +146,21 @@ impl BufferAction for Delete {
         let char_idx = buf.rope.byte_to_char_idx(self.byte);
 
         let start_byte = buf.rope.char_to_byte_idx(char_idx);
-        let end_byte = buf.rope.char_to_byte_idx(char_idx + self.len);
+
+        let end_byte = if buf.rope.len_chars() < char_idx + self.len {
+            buf.rope.char_to_byte_idx(buf.rope.len())
+        } else {
+            buf.rope.char_to_byte_idx(char_idx + self.len)
+        };
 
         let start = buf.get_edit_part(start_byte);
         let old_end = buf.get_edit_part(end_byte);
 
         if end_byte > buf.rope.len() {
+            return ActionResult::none(false);
+        }
+
+        if start_byte == end_byte {
             return ActionResult::none(false);
         }
 

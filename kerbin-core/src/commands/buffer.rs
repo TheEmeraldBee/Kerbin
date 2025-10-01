@@ -114,6 +114,17 @@ pub enum BufferCommand {
         path: Option<String>,
     },
 
+    #[command(name = "reload", name = "e")]
+    /// Reloads the current buffer from disk
+    /// Will not reload if the buffer is dirty (has unsaved changes)
+    /// For a version that ignores the dirty flag, see `reload_file!`
+    ReloadFile,
+
+    #[command(drop_ident, name = "reload!", name = "e!")]
+    /// Reloads the current buffer from disk, ignoring the dirty flag
+    /// If you want to respect the dirty flag, see `reload_file`
+    ReloadFileForce,
+
     /// Starts a comittable change (allows for undo and redo)
     StartChange,
     /// Commits the active change (does nothing if no change is active)
@@ -212,6 +223,94 @@ impl Command for BufferCommand {
             BufferCommand::WriteFileForce { path } => {
                 cur_buffer.write_file(path.clone());
                 true
+            }
+
+            BufferCommand::ReloadFile => {
+                if cur_buffer.dirty {
+                    let message =
+                        "Cannot reload file: buffer has unsaved changes. Use reload! to force.";
+                    tracing::error!(message);
+                    log.medium("command::reload_file", message);
+                    return false;
+                }
+
+                let path = cur_buffer.path.clone();
+                if path == "<scratch>" {
+                    let message = "Cannot reload scratch buffer";
+                    tracing::error!(message);
+                    log.medium("command::reload_file", message);
+                    return false;
+                }
+
+                match std::fs::File::open(&path) {
+                    Ok(f) => match ropey::Rope::from_reader(std::io::BufReader::new(f)) {
+                        Ok(rope) => {
+                            cur_buffer.rope = rope;
+                            cur_buffer.dirty = false;
+                            cur_buffer.undo_stack.clear();
+                            cur_buffer.redo_stack.clear();
+                            cur_buffer.save_point = 0;
+
+                            if let Ok(metadata) = std::fs::metadata(&path) {
+                                cur_buffer.changed = metadata.modified().ok();
+                            }
+
+                            true
+                        }
+                        Err(e) => {
+                            let message = format!("Failed to read file {}: {}", path, e);
+                            tracing::error!(message);
+                            log.high("command::reload_file", message);
+                            false
+                        }
+                    },
+                    Err(e) => {
+                        let message = format!("Failed to open file {}: {}", path, e);
+                        tracing::error!(message);
+                        log.high("command::reload_file", message);
+                        false
+                    }
+                }
+            }
+
+            BufferCommand::ReloadFileForce => {
+                let path = cur_buffer.path.clone();
+                if path == "<scratch>" {
+                    let message = "Cannot reload scratch buffer";
+                    tracing::error!(message);
+                    log.medium("command::reload_file", message);
+                    return false;
+                }
+
+                match std::fs::File::open(&path) {
+                    Ok(f) => match ropey::Rope::from_reader(std::io::BufReader::new(f)) {
+                        Ok(rope) => {
+                            cur_buffer.rope = rope;
+                            cur_buffer.dirty = false;
+                            cur_buffer.undo_stack.clear();
+                            cur_buffer.redo_stack.clear();
+                            cur_buffer.save_point = 0;
+
+                            if let Ok(metadata) = std::fs::metadata(&path) {
+                                cur_buffer.changed = metadata.modified().ok();
+                            }
+
+                            true
+                        }
+                        Err(e) => {
+                            let message = format!("Failed to read file {}: {}", path, e);
+                            tracing::error!(message);
+                            log.high("command::reload_file", message);
+                            false
+                        }
+                    },
+                    Err(e) => {
+                        let message = format!("Failed to open file {}: {}", path, e);
+                        tracing::error!(message);
+                        log.high("command::reload_file", message);
+                        false
+                    }
+                }
             }
 
             BufferCommand::StartChange => {

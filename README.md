@@ -1,10 +1,11 @@
 # Kerbin
 
-Kerbin is a powerful, extensible editor inspired by
-[Helix](https://helix-editor.com/) and [Neovim](https://neovim.io/).
-Built for ease of use, while keeping powerusers
-in good hands with plugins and configurations
-that could rival those of neovim.
+**Command and Control • Ready for Take-Off.**
+
+The ultimate editor for **ambitious** projects
+Engineered for **everyone** : Get it working out of the box
+Built for the **Mission Director** : Make it your own kind of **powerful**
+Kerbin is the stable launch pad your unstable ideas
 
 ---
 
@@ -76,10 +77,13 @@ when the editor is more fleshed out (around mid October).
     - [x] Dirty Flag on Text Buffers
     - [x] QuitForce, CloseBufferForce, etc
 - [x] Prevent overriding newer changes on file without w!
-- [ ] Implement Reload File Command which will reload the file from disk
+- [x] Implement Reload File Command which will reload the file from disk
     - Prevent reloading without forcing if dirty flag is set
 - [ ] Implement sending messages to the process using interprocess
-  file communication systems
+file communication systems
+    - This will be handled by the core editor CLI
+    - The reason for this is so that using things like zellij with file managers
+    like `fzf` or `yazi` within `zellij` or `tmux` will work to send items over the cli
 - [ ] Write out CLI systems for handling command-line arguments
   within plugins and handling custom systems
 - [ ] Lsp Support using plugin system
@@ -99,7 +103,8 @@ when the editor is more fleshed out (around mid October).
 
 ## Stability
 - [x] Cursors don't render on newline chars
-- [ ] Cursor doesnt render on last character of file
+- [x] Cursor doesnt render on last character of file
+- [x] Cursor action to delete at end of line causes crash
 - [ ] Outside of Zellij, a large number of characters
 are rendered next to the location of the systems until they are replaced
 probably an issue from how we setup the first buffers

@@ -11,6 +11,8 @@ use ascii_forge::{
 use kerbin_config::Config;
 use kerbin_core::*;
 
+use kerbin_cli::*;
+
 use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -125,8 +127,43 @@ async fn update(state: &mut State) {
 async fn main() {
     init_log();
 
-    handle_panics();
+    // Build help information
+    let help = Help::new()
+        .description("Kerbin: Command and control. Ready for take-off.")
+        .flag_full("Help", 'h', "help", "Show help info for the command")
+        .flag_full(
+            "Config Path",
+            'c',
+            "config",
+            "Specify a path to the config other than the default",
+        );
+
+    let parsed = match CliResult::from_args_with_help(help) {
+        Ok(p) => p,
+        Err(_) => {
+            std::process::exit(1);
+        }
+    };
+
+    // Check for help flag
+    if parsed.get_bool("h") || parsed.get_bool("help") {
+        parsed.print_help();
+        return;
+    }
+
+    if parsed.get_bool("v") {
+        println!("Verbose mode enabled");
+    }
+
+    if let Some(config) = parsed.get_value("config") {
+        println!("Config file: {}", config);
+    }
+
+    let mut config_path = dirs::config_dir().unwrap();
+    config_path.push("kerbin/");
+
     let window = Window::init().unwrap();
+    handle_panics();
 
     let (command_sender, mut command_reciever) = unbounded_channel();
 
@@ -235,7 +272,7 @@ async fn main() {
         .restore()
         .expect("Window should restore fine");
 
-    // State **MUST** Be dropped before the plugin,
+    // State **MUST** be dropped before the plugin,
     // as state may store references to memory in state
     drop(state);
     drop(plugin);

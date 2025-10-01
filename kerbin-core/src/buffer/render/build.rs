@@ -1,6 +1,62 @@
 use crate::*;
-use ascii_forge::prelude::*;
+use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
 use unicode_width::UnicodeWidthStr;
+
+/// Process extmark decorations for a given byte position
+fn process_extmarks(
+    exts: &[&Extmark],
+    absolute_byte_idx: usize,
+    default_style: ContentStyle,
+    cursor: &mut Option<(usize, SetCursorStyle)>,
+) -> (ContentStyle, Vec<RenderLineElement>, Vec<RenderLine>) {
+    let mut style = default_style;
+    let mut after_elems = vec![];
+    let mut post_line_elems = vec![];
+
+    for ext in exts {
+        for deco in &ext.decorations {
+            match deco {
+                ExtmarkDecoration::Cursor {
+                    style: cursor_style,
+                } => {
+                    if ext.byte_range.start == absolute_byte_idx {
+                        *cursor = Some((absolute_byte_idx, *cursor_style));
+                    }
+                }
+                ExtmarkDecoration::Highlight { hl } => {
+                    if ext.byte_range.contains(&absolute_byte_idx) {
+                        style = style.combined_with(hl);
+                    }
+                }
+                ExtmarkDecoration::VirtText { text, hl } => {
+                    if ext.byte_range.start == absolute_byte_idx {
+                        after_elems.push(RenderLineElement::Text(
+                            text.clone(),
+                            hl.unwrap_or(ContentStyle::new().dark_grey()),
+                        ));
+                    }
+                }
+                ExtmarkDecoration::FullElement { height, func } => {
+                    if ext.byte_range.start == absolute_byte_idx {
+                        post_line_elems.push(
+                            RenderLine::default()
+                                .with_element(RenderLineElement::Element(func.clone()))
+                                .with_element(RenderLineElement::ReservedSpace(1)),
+                        );
+                        for _ in 1..*height {
+                            post_line_elems.push(
+                                RenderLine::default()
+                                    .with_element(RenderLineElement::ReservedSpace(1)),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    (style, after_elems, post_line_elems)
+}
 
 /// Builds out the rendered lines for the current buffer, only building the required sizes
 pub async fn build_buffer_lines(chunk: Chunk<BufferChunk>, bufs: Res<Buffers>, theme: Res<Theme>) {
@@ -27,8 +83,9 @@ pub async fn build_buffer_lines(chunk: Chunk<BufferChunk>, bufs: Res<Buffers>, t
 
     let mut cursor = None;
 
+    let total_lines = buf.rope.len_lines(LineType::LF_CR);
+
     for line in buf.rope.lines_at(buf.renderer.byte_scroll, LineType::LF_CR) {
-        // Once enough lines were rendered, exit out
         if lines.len() >= height as usize {
             break;
         }
@@ -49,62 +106,30 @@ pub async fn build_buffer_lines(chunk: Chunk<BufferChunk>, bufs: Res<Buffers>, t
             line_chars.pop();
         }
 
+        let is_last_line = line_idx == total_lines.saturating_sub(1);
+
         if line_chars.is_empty() {
             line_chars.push((0, ' '));
+        } else if is_last_line {
+            // For the last line, add space at the actual end (EOF position)
+            line_chars.push((line.len(), ' '));
         } else {
             line_chars.push((line.len().saturating_sub(1).max(1), ' '));
         }
 
-        let exts = buf.renderer.query_extmarks(line_start_byte..line_end_byte);
+        let exts = buf
+            .renderer
+            .query_extmarks(line_start_byte..line_end_byte + 1);
 
         let mut post_line_elems = vec![];
 
         for (byte, ch) in line_chars.into_iter() {
             let absolute_byte_idx = byte_offset + byte;
 
-            let mut style = default_style;
+            let (style, after_elems, mut post_elems) =
+                process_extmarks(&exts, absolute_byte_idx, default_style, &mut cursor);
 
-            let mut after_elems = vec![];
-
-            for ext in &exts {
-                for deco in &ext.decorations {
-                    match deco {
-                        ExtmarkDecoration::Cursor { style } => {
-                            if ext.byte_range.start == absolute_byte_idx {
-                                cursor = Some((absolute_byte_idx, *style));
-                            }
-                        }
-                        ExtmarkDecoration::Highlight { hl } => {
-                            if ext.byte_range.contains(&absolute_byte_idx) {
-                                style = style.combined_with(hl);
-                            }
-                        }
-                        ExtmarkDecoration::VirtText { text, hl } => {
-                            if ext.byte_range.start == absolute_byte_idx {
-                                after_elems.push(RenderLineElement::Text(
-                                    text.clone(),
-                                    hl.unwrap_or(ContentStyle::new().dark_grey()),
-                                ));
-                            }
-                        }
-                        ExtmarkDecoration::FullElement { height, func } => {
-                            if ext.byte_range.start == absolute_byte_idx {
-                                post_line_elems.push(
-                                    RenderLine::default()
-                                        .with_element(RenderLineElement::Element(func.clone()))
-                                        .with_element(RenderLineElement::ReservedSpace(1)),
-                                );
-                                for _ in 1..*height {
-                                    post_line_elems.push(
-                                        RenderLine::default()
-                                            .with_element(RenderLineElement::ReservedSpace(1)),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            post_line_elems.append(&mut post_elems);
 
             // Add the resulting character to the buffer
             render.element(RenderLineElement::RopeChar(ch, absolute_byte_idx, style));

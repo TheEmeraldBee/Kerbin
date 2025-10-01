@@ -44,7 +44,7 @@ pub struct TextBuffer {
 
     /// An optional index into `undo_stack` that marks the point
     /// where the content matches the last file save on disk.
-    pub save_point: Option<usize>,
+    pub save_point: usize,
 
     /// The last stored time that the file was changed. None if the file didn't exist, or if
     /// reading it failed. Used for commands that write to file, to check if external changes exist
@@ -82,12 +82,12 @@ pub struct TextBuffer {
 
     /// An optional `ChangeGroup` currently being built.
     /// Actions are added to this group until `commit_change_group` is called.
-    current_change: Option<ChangeGroup>,
+    pub current_change: Option<ChangeGroup>,
 
     /// A stack of `ChangeGroup`s representing past changes that can be undone.
-    undo_stack: Vec<ChangeGroup>,
+    pub undo_stack: Vec<ChangeGroup>,
     /// A stack of `ChangeGroup`s representing undone changes that can be redone.
-    redo_stack: Vec<ChangeGroup>,
+    pub redo_stack: Vec<ChangeGroup>,
 
     /// Stores the current render state of the buffer
     /// used for handling the rendering of the buffer
@@ -102,7 +102,7 @@ impl Default for TextBuffer {
     fn default() -> Self {
         Self {
             dirty: false,
-            save_point: None,
+            save_point: 0,
             changed: None,
 
             rope: Rope::new(),
@@ -177,7 +177,7 @@ impl TextBuffer {
         }
 
         Self {
-            save_point: Some(0),
+            save_point: 0,
 
             changed,
 
@@ -248,12 +248,11 @@ impl TextBuffer {
             self.start_change_group();
         }
 
-        // Any action marks the buffer as dirty (bytes changed)
-        self.dirty = true;
-
         let res = action.apply(self);
 
         if res.success {
+            self.dirty = true;
+
             if let Some(group) = self.current_change.as_mut() {
                 group.1.push(res.action)
             }
@@ -354,7 +353,7 @@ impl TextBuffer {
 
             self.cursors = group.0;
 
-            if self.save_point.is_some() && self.undo_stack.len() == self.save_point.unwrap() {
+            if self.undo_stack.len() == self.save_point {
                 // We have undone back to the save point. The buffer is now clean.
                 self.dirty = false;
             } else {
@@ -386,14 +385,14 @@ impl TextBuffer {
 
             self.cursors = group.0;
 
-            if self.save_point.is_some() && self.undo_stack.len() + 1 > self.save_point.unwrap() {
+            if self.undo_stack.len() + 1 > self.save_point {
                 // We have redone past the save point. The buffer is now dirty.
                 self.dirty = true;
             } else {
                 // Push the redone group to the undo stack *before* checking the save point logic
                 self.undo_stack.push(ChangeGroup(undo_cursor, undo_group));
 
-                if self.save_point.is_some() && self.undo_stack.len() == self.save_point.unwrap() {
+                if self.undo_stack.len() == self.save_point {
                     // The current state is the save point. It is clean.
                     self.dirty = false;
                 } else {
@@ -496,7 +495,7 @@ impl TextBuffer {
 
         self.dirty = false;
 
-        self.save_point = Some(self.undo_stack.len());
+        self.save_point = self.undo_stack.len();
 
         match std::fs::metadata(&self.path) {
             Ok(metadata) => {
