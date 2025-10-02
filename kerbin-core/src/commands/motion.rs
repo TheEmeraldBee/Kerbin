@@ -99,11 +99,16 @@ impl Command for MotionCommand {
                 let old_sel = cur_buffer.primary_cursor().sel().clone();
                 let old_at_start = cur_buffer.primary_cursor().at_start();
 
+                // Get the line containing the cursor
                 let line_idx = cur_buffer
                     .rope
-                    .byte_to_line_idx(current_caret_byte + 1, LineType::LF_CR);
+                    .byte_to_line_idx(current_caret_byte, LineType::LF_CR);
 
-                let new_caret_byte = if line_idx + 1 >= rope_len_lines {
+                // Get start of the line
+                let line_start = cur_buffer.rope.line_to_byte_idx(line_idx, LineType::LF_CR);
+
+                // Get end of the line (start of next line - 1, or end of buffer)
+                let line_end = if line_idx + 1 >= rope_len_lines {
                     rope_len_bytes
                 } else {
                     cur_buffer
@@ -112,18 +117,29 @@ impl Command for MotionCommand {
                         - 1
                 };
 
-                let anchor_byte = if *extend == old_at_start {
-                    *old_sel.end()
-                } else {
-                    *old_sel.start()
-                };
+                if *extend {
+                    // When extending, keep the existing selection and extend to include this line
+                    let anchor_byte = if old_at_start {
+                        *old_sel.end()
+                    } else {
+                        *old_sel.start()
+                    };
 
-                let start = anchor_byte.min(new_caret_byte);
-                let end = anchor_byte.max(new_caret_byte);
-                cur_buffer.primary_cursor_mut().set_sel(start..=end);
-                cur_buffer
-                    .primary_cursor_mut()
-                    .set_at_start(new_caret_byte < anchor_byte);
+                    // Extend selection to include the entire current line
+                    let start = anchor_byte.min(line_start);
+                    let end = anchor_byte.max(line_end);
+
+                    cur_buffer.primary_cursor_mut().set_sel(start..=end);
+                    cur_buffer
+                        .primary_cursor_mut()
+                        .set_at_start(line_start < anchor_byte);
+                } else {
+                    // Not extending, select only the current line
+                    cur_buffer
+                        .primary_cursor_mut()
+                        .set_sel(line_start..=line_end);
+                    cur_buffer.primary_cursor_mut().set_at_start(false);
+                }
 
                 *cur_buffer.primary_cursor().sel() != old_sel
                     || cur_buffer.primary_cursor().at_start() != old_at_start

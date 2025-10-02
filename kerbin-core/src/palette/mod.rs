@@ -30,32 +30,17 @@ pub struct CommandPaletteState {
 }
 
 /// System used to update the command palette's suggestions and input validation status.
-///
-/// This system runs when the editor is in command palette mode ('c'). It compares
-/// the current input to the old input to determine if suggestions need to be re-calculated
-/// and if the input's validity needs to be re-evaluated.
-///
-/// # Arguments
-///
-/// * `modes`: `Res<ModeStack>` to check if the editor is in command palette mode.
-/// * `palette`: `ResMut<CommandPaletteState>` for mutable access to the palette's state.
-/// * `prefix_registry`: `Res<CommandPrefixRegistry>` for validating commands with prefixes.
-/// * `commands`: `Res<CommandRegistry>` for generating command suggestions and validating commands.
-/// * `theme`: `Res<Theme>` for styling command suggestions.
 pub async fn update_palette_suggestions(
     modes: Res<ModeStack>,
     palette: ResMut<CommandPaletteState>,
     prefix_registry: Res<CommandPrefixRegistry>,
     commands: Res<CommandRegistry>,
-
     theme: Res<Theme>,
 ) {
     let modes = modes.get();
     let mut palette = palette.get();
     let commands = commands.get();
-
     let prefix_registry = prefix_registry.get();
-
     let theme = theme.get();
 
     if modes.get_mode() != 'c' {
@@ -72,27 +57,12 @@ pub async fn update_palette_suggestions(
 }
 
 /// Handles keyboard input specific to the command palette ('c' mode).
-///
-/// This system processes key events (characters, backspace, enter, escape, tab)
-/// when the command palette is active, updating the palette's input string
-/// and dispatching commands when `Enter` is pressed.
-///
-/// # Arguments
-///
-/// * `window`: `Res<WindowState>` to read key events.
-/// * `palette`: `ResMut<CommandPaletteState>` for mutable access to the palette's input.
-/// * `modes`: `ResMut<ModeStack>` for popping the command palette mode when finished.
-/// * `command_registry`: `Res<CommandRegistry>` for parsing the entered command.
-/// * `prefix_registry`: `Res<CommandPrefixRegistry>` for applying command prefixes during parsing.
-/// * `command_sender`: `ResMut<CommandSender>` for dispatching the parsed command.
 pub async fn handle_command_palette_input(
     window: Res<WindowState>,
     palette: ResMut<CommandPaletteState>,
     modes: ResMut<ModeStack>,
-
     command_registry: Res<CommandRegistry>,
     prefix_registry: Res<CommandPrefixRegistry>,
-
     command_sender: ResMut<CommandSender>,
 ) {
     let window = window.get();
@@ -143,90 +113,76 @@ pub async fn handle_command_palette_input(
 }
 
 /// Registers the command palette's required chunks for rendering.
-///
-/// This system dynamically creates or updates drawing chunks for the command line input,
-/// suggestions, and command description, adjusting their sizes based on content.
-/// It only runs when the editor is in command palette mode.
-///
-/// # Arguments
-///
-/// * `chunks`: `ResMut<Chunks>` for registering drawing chunks.
-/// * `window`: `Res<WindowState>` to get the total window size for layout calculation.
-/// * `modes`: `Res<ModeStack>` to check if command palette mode is active.
-/// * `palette`: `Res<CommandPaletteState>` to get current palette state (e.g., number of suggestions, description height).
+/// Creates a centered floating layout similar to noice.nvim
 pub async fn register_command_palette_chunks(
     chunks: ResMut<Chunks>,
     window: Res<WindowState>,
     modes: Res<ModeStack>,
-
     palette: Res<CommandPaletteState>,
 ) {
     let modes = modes.get();
-
     if !modes.mode_on_stack('c') {
         return;
     }
 
-    let palette = palette.get();
+    get!(palette, mut chunks, window);
 
-    let mut chunks = chunks.get();
-    let window = window.get();
+    let window_size = window.size();
 
-    let mut desc_height = 0;
-    if let Some(h) = palette.desc.as_ref().map(|x| x.size().y) {
-        desc_height += h + 1
-    }
+    // Calculate content heights
+    let desc_height = palette
+        .desc
+        .as_ref()
+        .map(|x| x.size().y + 3) // +3 for borders and padding
+        .unwrap_or(0);
 
-    let mut sug_height = 0;
-    if !palette.suggestions.is_empty() {
-        sug_height = palette.suggestions.len().min(5) as u16
-    }
+    let sug_height = if !palette.suggestions.is_empty() {
+        (palette.suggestions.len().min(5) as u16) + 2 // +2 for borders
+    } else {
+        0
+    };
 
+    let input_height = 3; // Input with borders
+
+    // Create centered layout using flexible for padding and percent for width
     let layout = Layout::new()
-        // Take up the whole top
+        // Top padding (flexible to center vertically)
         .row(flexible(), vec![flexible()])
-        .row(fixed(desc_height), vec![flexible()])
-        .row(fixed(sug_height), vec![flexible()])
-        // Take up a row for a gap
-        .row(fixed(1), vec![flexible()])
-        .row(fixed(1), vec![flexible()])
-        .calculate(window.size())
+        // Content area with horizontal centering
+        .row(
+            fixed(desc_height),
+            vec![percent(20.0), percent(60.0), percent(20.0)],
+        )
+        .row(
+            fixed(sug_height),
+            vec![percent(20.0), percent(60.0), percent(20.0)],
+        )
+        .row(
+            fixed(input_height),
+            vec![percent(20.0), percent(60.0), percent(20.0)],
+        )
+        // Bottom padding (flexible to center vertically)
+        .row(percent(40.0), vec![flexible()])
+        .calculate(window_size)
         .unwrap();
 
+    // Register chunks in the centered column
     if desc_height != 0 {
-        chunks.register_chunk::<CommandDescChunk>(2, layout[1][0]);
+        chunks.register_chunk::<CommandDescChunk>(2, layout[1][1]);
     }
-
     if sug_height != 0 {
-        chunks.register_chunk::<CommandSuggestionsChunk>(2, layout[2][0]);
+        chunks.register_chunk::<CommandSuggestionsChunk>(2, layout[2][1]);
     }
-
-    chunks.register_chunk::<CommandlineChunk>(2, layout[4][0]);
+    chunks.register_chunk::<CommandlineChunk>(2, layout[3][1]);
 }
 
-/// Renders the command palette to the window, including input, suggestions, and description.
-///
-/// This system draws the current command line input, applies styling based on its
-/// validity, renders command suggestions, and displays the description of the top suggestion.
-/// It also places the cursor within the command input line.
-///
-/// # Arguments
-///
-/// * `line_chunk`: `Chunk<CommandlineChunk>` for the command line input area.
-/// * `suggestions_chunk`: `Chunk<CommandSuggestionsChunk>` for the suggestions area.
-/// * `desc_chunk`: `Chunk<CommandDescChunk>` for the command description area.
-/// * `palette`: `Res<CommandPaletteState>` for the current state of the palette.
-/// * `modes`: `Res<ModeStack>` to check if the editor is in command palette mode.
-/// * `theme`: `Res<Theme>` for retrieving styling information.
+/// Renders the command palette with noice.nvim-inspired styling.
 pub async fn render_command_palette(
     line_chunk: Chunk<CommandlineChunk>,
-
     suggestions_chunk: Chunk<CommandSuggestionsChunk>,
     desc_chunk: Chunk<CommandDescChunk>,
-
     palette: Res<CommandPaletteState>,
     modes: Res<ModeStack>,
-
     theme: Res<Theme>,
 ) {
     let palette = palette.get();
@@ -239,37 +195,177 @@ pub async fn render_command_palette(
 
     let mut line_chunk = line_chunk.get().unwrap();
 
+    // Theme styles
+    let border_style = theme.get_fallback_default(["ui.commandline.border", "ui.text"]);
+
+    let title_style = theme.get_fallback_default(["ui.commandline.title", "ui.text"]);
+
+    let icon_style = theme.get_fallback_default(["ui.commandline.icon", "ui.text"]);
+
+    // Draw top border with title
+    let title = " Command ";
+    let width = line_chunk.size().x as usize;
+    let border_len = width.saturating_sub(title.len() + 3);
+
+    render!(&mut line_chunk, (0, 0) => [
+        StyledContent::new(border_style, "╭"),
+        StyledContent::new(border_style, "─"),
+        StyledContent::new(title_style, title),
+        StyledContent::new(border_style, "─".repeat(border_len)),
+        StyledContent::new(border_style, "╮")
+    ]);
+
+    // Determine icon and style based on validity
+    let (icon, style) = if palette.input.is_empty() {
+        (
+            "●",
+            theme.get_fallback_default(["ui.commandline.prompt", "ui.text"]),
+        )
+    } else if palette.input_valid {
+        (
+            "✓",
+            theme
+                .get("ui.commandline.valid")
+                .unwrap_or(ContentStyle::default().green()),
+        )
+    } else {
+        (
+            "✗",
+            theme
+                .get("ui.commandline.invalid")
+                .unwrap_or(ContentStyle::default().red()),
+        )
+    };
+
+    // Render input line with icon and prompt
+    let padding = " ".repeat(width.saturating_sub(palette.input.len() + 7));
+    render!(&mut line_chunk, (0, 1) => [
+        StyledContent::new(border_style, "│ "),
+        StyledContent::new(icon_style, icon),
+        " : ",
+        StyledContent::new(style, &palette.input),
+        padding,
+        StyledContent::new(border_style, "│")
+    ]);
+
+    // Set cursor position (accounting for border, icon, and prompt: "│ ● : ")
     line_chunk.set_cursor(
         1,
-        vec2(palette.input.len() as u16 + 1, 0),
+        vec2(palette.input.len() as u16 + 6, 1),
         SetCursorStyle::SteadyBar,
     );
 
-    let style = if palette.input_valid {
-        theme
-            .get("ui.commandline.valid")
-            .unwrap_or(ContentStyle::default().green())
-    } else {
-        theme
-            .get("ui.commandline.invalid")
-            .unwrap_or(ContentStyle::default().red())
-    };
-    render!(&mut line_chunk, (0, 0) => [":", StyledContent::new(style, palette.input.as_str())]);
+    // Draw bottom border for input
+    render!(&mut line_chunk, (0, 2) => [
+        StyledContent::new(border_style, "╰"),
+        StyledContent::new(border_style, "─".repeat(width.saturating_sub(2))),
+        StyledContent::new(border_style, "╯")
+    ]);
 
+    // Render suggestions with enhanced styling
     let suggestion_count = palette.suggestions.len();
     if let Some(mut suggestions_chunk) = suggestions_chunk.get()
         && suggestion_count > 0
     {
-        for i in 0..suggestion_count.min(suggestions_chunk.size().y as usize + 1) {
-            render!(&mut suggestions_chunk, (0, i as u16) => [palette.suggestions[i]]);
+        let width = suggestions_chunk.size().x as usize;
+
+        // Top border for suggestions
+        render!(&mut suggestions_chunk, (0, 0) => [
+            StyledContent::new(border_style, "╭"),
+            StyledContent::new(border_style, "─".repeat(width.saturating_sub(2))),
+            StyledContent::new(border_style, "╮")
+        ]);
+
+        let max_display =
+            suggestion_count.min((suggestions_chunk.size().y.saturating_sub(2)) as usize);
+
+        for i in 0..max_display {
+            let row = i as u16 + 1;
+
+            // Highlight first suggestion (selected)
+            if i == 0 {
+                let content_width = palette.suggestions[i].size().x;
+                let padding = " ".repeat(width.saturating_sub(content_width as usize + 5));
+
+                render!(&mut suggestions_chunk, (0, row) => [
+                    StyledContent::new(border_style, "│"), " ",
+                    StyledContent::new(icon_style, "▶"), " "
+                ]);
+
+                // Render the suggestion with cursor highlight
+                let sug_x = 4;
+                render!(&mut suggestions_chunk, (sug_x, row) => [palette.suggestions[i]]);
+                render!(&mut suggestions_chunk, (sug_x + content_width, row) => [
+                    padding,
+                    StyledContent::new(border_style, "│")
+                ]);
+            } else {
+                let content_width = palette.suggestions[i].size().x;
+                let padding = " ".repeat(width.saturating_sub(content_width as usize + 5));
+
+                render!(&mut suggestions_chunk, (0, row) => [
+                    StyledContent::new(border_style, "│   ")
+                ]);
+
+                let sug_x = 4;
+                render!(&mut suggestions_chunk, (sug_x, row) => [palette.suggestions[i]]);
+                render!(&mut suggestions_chunk, (sug_x + content_width, row) => [
+                    padding,
+                    StyledContent::new(border_style, "│")
+                ]);
+            }
+        }
+
+        // Bottom border
+        let bottom_row = max_display as u16 + 1;
+        if bottom_row < suggestions_chunk.size().y {
+            render!(&mut suggestions_chunk, (0, bottom_row) => [
+                StyledContent::new(border_style, "╰"),
+                StyledContent::new(border_style, "─".repeat(width.saturating_sub(2))),
+                StyledContent::new(border_style, "╯")
+            ]);
         }
     }
 
+    // Render description with border and title
     if let Some(mut desc_chunk) = desc_chunk.get()
         && let Some(desc_buffer) = &palette.desc
     {
-        render!(&mut desc_chunk, (0, desc_chunk.size().y - 1) => ["─".repeat(desc_chunk.size().x as usize)]);
+        let width = desc_chunk.size().x as usize;
 
-        render!(&mut desc_chunk, (0, 0) => [desc_buffer]);
+        // Top border with "Description" title
+        let desc_title = " Description ";
+        let desc_border_len = width.saturating_sub(desc_title.len() + 3);
+
+        render!(&mut desc_chunk, (0, 0) => [
+            StyledContent::new(border_style, "╭"),
+            StyledContent::new(border_style, "─"),
+            StyledContent::new(title_style, desc_title),
+            StyledContent::new(border_style, "─".repeat(desc_border_len)),
+            StyledContent::new(border_style, "╮")
+        ]);
+
+        // Content with left border
+        let desc_height = desc_buffer.size().y;
+        for i in 0..desc_height.min(desc_chunk.size().y.saturating_sub(2)) {
+            render!(&mut desc_chunk, (0, i + 1) => [
+                StyledContent::new(border_style, "│ ")
+            ]);
+            render!(&mut desc_chunk, vec2(width.saturating_sub(1) as u16, i + 1) => [
+                StyledContent::new(border_style, "│")
+            ]);
+        }
+
+        render!(&mut desc_chunk, (2, 1) => [desc_buffer]);
+
+        // Bottom border
+        let bottom_row = desc_height.min(desc_chunk.size().y.saturating_sub(2)) + 1;
+        if bottom_row < desc_chunk.size().y {
+            render!(&mut desc_chunk, (0, bottom_row) => [
+                StyledContent::new(border_style, "╰"),
+                StyledContent::new(border_style, "─".repeat(width.saturating_sub(2))),
+                StyledContent::new(border_style, "╯")
+            ]);
+        }
     }
 }

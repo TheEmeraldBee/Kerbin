@@ -347,12 +347,22 @@ impl Command for BufferCommand {
 
             BufferCommand::Delete => {
                 let range = cur_buffer.primary_cursor().sel().clone();
+                cur_buffer.primary_cursor_mut().set_at_start(true);
                 cur_buffer.primary_cursor_mut().collapse_sel();
 
                 let start = *range.start();
-                let len = range.count();
-                if len > 0 {
-                    cur_buffer.action(Delete { byte: start, len })
+                let end = *range.end();
+
+                let char_idx_start = cur_buffer.rope.byte_to_char_idx(start);
+                let char_idx_end = cur_buffer.rope.byte_to_char_idx(end);
+
+                let chars_count = char_idx_end + 1 - char_idx_start;
+
+                if chars_count > 0 {
+                    cur_buffer.action(Delete {
+                        byte: start,
+                        len: chars_count,
+                    })
                 } else {
                     true
                 }

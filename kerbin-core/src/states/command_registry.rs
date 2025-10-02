@@ -136,9 +136,9 @@ impl CommandRegistry {
                 .enumerate()
                 .map(|(i, x)| {
                     if i == 0 && completion.is_some() {
-                        x.1.as_suggestion(true, theme)
+                        x.1.as_suggestion_with_search(true, input, theme)
                     } else {
-                        x.1.as_suggestion(false, theme)
+                        x.1.as_suggestion_with_search(false, input, theme)
                     }
                 })
                 .collect(),

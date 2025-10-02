@@ -7,7 +7,6 @@ edition.workspace = true
 kerbin-config = { path = "../kerbin-config" }
 kerbin-core = { path = "../kerbin-core" }
 kerbin-plugin = { path = "../kerbin-plugin" }
-kerbin-cli = { path = "../kerbin-cli" }
 
 kerbin-state-machine = { path = "../kerbin-state-machine" }
 

@@ -33,7 +33,9 @@ pub async fn register_log_chunk(
     if log.entries().is_empty() {
         return;
     }
+
     get!(mut chunks, window);
+
     let layout = Layout::new()
         .row(flexible(), vec![flexible()])
         .row(percent(50.0), vec![flexible(), percent(30.0)])

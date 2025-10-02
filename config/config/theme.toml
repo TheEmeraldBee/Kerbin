@@ -70,8 +70,8 @@
 
 "ui.linenum" = { fg = "#555555" }
 
-"ui.commandline.valid" = "teal"
-"ui.commandline.invalid" = "maroon"
+"ui.commandline.valid" = { fg = "teal", attrs = ["bold"] }
+"ui.commandline.invalid" = { fg = "maroon", attrs = ["bold"] }
 
 "ui.commandline.auto_name" = { fg = "sky", attrs = ["bold", "italic"] }
 "ui.commandline.primary_name" = { fg = "peach", attrs = ["bold"] }
@@ -81,6 +81,14 @@
 "ui.commandline.arg_type" = { fg = "teal", attrs = ["italic"] }
 
 "ui.commandline.desc" = { fg = "rosewater" }
+
+"ui.commandline.border" = "blue"
+"ui.commandline.title" = { fg = "mauve", attrs = ["bold"] }
+"ui.commandline.prompt" = "sky"
+
+"ui.commandline.match_highlight" = { fg = "yellow", attrs = ["bold"] }
+
+"ui.commandline.icon" = "sky"
 
 "ui.bufferline.selected" = { fg = "text", attrs = ["bold", "italic"] }
 "ui.bufferline" = "text"

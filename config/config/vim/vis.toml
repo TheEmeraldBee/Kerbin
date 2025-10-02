@@ -92,7 +92,7 @@ desc = "Select WORD Back"
 [[keybind]]
 modes = ["v"]
 keys = ["v"]
-commands = ["sl true", "gse"]
+commands = ["sl true", "gse", "mc 1 true"]
 desc = "Select Line"
 
 [[keybind]]

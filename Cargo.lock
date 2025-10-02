@@ -526,7 +526,6 @@ version = "0.1.0"
 dependencies = [
  "ascii-forge",
  "dirs",
- "kerbin-cli",
  "kerbin-config",
  "kerbin-core",
  "kerbin-macros",
@@ -537,10 +536,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
 ]
-
-[[package]]
-name = "kerbin-cli"
-version = "0.1.0"
 
 [[package]]
 name = "kerbin-config"

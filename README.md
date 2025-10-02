@@ -84,11 +84,13 @@ file communication systems
     - This will be handled by the core editor CLI
     - The reason for this is so that using things like zellij with file managers
     like `fzf` or `yazi` within `zellij` or `tmux` will work to send items over the cli
-- [ ] Write out CLI systems for handling command-line arguments
-  within plugins and handling custom systems
+- [ ] Implement core CLI that can send commands over the file communication
+    - This also needs a way of running the editor, passing commands, then wrapping the system back
+    Basically this should allow for sending commands to an existing editor, or start an editor with the commands
+    - Also have a flag, `-q` that will run the commands, but append a ForceQuit command to the end
 - [ ] Lsp Support using plugin system
 - [ ] Mouse Scrolling Support
-    - Allow Mapping Scroll Wheel to a command (scroll up = "ml -1") or something
+    - Allow Mapping Scroll Wheel to a command (scroll_up = "ml -1") or something
     This would allow for the most flexible system, and make mouse pretty strong
 - [ ] Mouse Click & Drag Support (Commands to map actions onto bytes?)
     - This ones a doozey, as file rendering isn't static
@@ -108,5 +110,7 @@ file communication systems
 - [ ] Outside of Zellij, a large number of characters
 are rendered next to the location of the systems until they are replaced
 probably an issue from how we setup the first buffers
-- [ ] Tree-Sitter Auto Indent isn't quite right in implementation
+- [ ] Scrolling inside of buffers with inline widgets is very broken.
+We need to apply visual elements to the widgets to handle this system.
+- [ ] Tree-Sitter Auto Indent isn't quite right in implementation.
 (See multiline list items in markdown)
