@@ -1,6 +1,6 @@
-# Kerbin
+# Kerbin: The Space-Age Text Editor
 
-**Command and Control • Ready for Take-Off.**
+**Command and Control • Ready for Take-Off**  
 
 The ultimate editor for **ambitious** projects  
 Engineered for **everyone** : Get it working out of the box  
