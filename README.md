@@ -2,10 +2,10 @@
 
 **Command and Control • Ready for Take-Off.**
 
-The ultimate editor for **ambitious** projects
-Engineered for **everyone** : Get it working out of the box
-Built for the **Mission Director** : Make it your own kind of **powerful**
-Kerbin is the stable launch pad your unstable ideas
+The ultimate editor for **ambitious** projects  
+Engineered for **everyone** : Get it working out of the box  
+Built for the **Mission Director** : Make it your own kind of **powerful**  
+Kerbin is the stable launch pad for your unstable ideas  
 
 ---
 
