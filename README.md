@@ -1,6 +1,6 @@
 # Kerbin: The Space-Age Text Editor
 
-![Screenshot](./assets/screenshot.png)
+![Screenshot](./assets/screenshot0.png)
 
 **Command and Control • Ready for Take-Off**  
 
@@ -109,10 +109,10 @@ file communication systems
 - [x] Cursors don't render on newline chars
 - [x] Cursor doesnt render on last character of file
 - [x] Cursor action to delete at end of line causes crash
-- [ ] Outside of Zellij, a large number of characters
+- [x] Outside of Zellij, a large number of characters
 are rendered next to the location of the systems until they are replaced
 probably an issue from how we setup the first buffers
 - [ ] Scrolling inside of buffers with inline widgets is very broken.
 We need to apply visual elements to the widgets to handle this system.
-- [ ] Tree-Sitter Auto Indent isn't quite right in implementation.
+- [x] Tree-Sitter Auto Indent isn't quite right in implementation.
 (See multiline list items in markdown)

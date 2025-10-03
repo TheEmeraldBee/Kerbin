@@ -399,9 +399,10 @@ impl Config {
                 }
                 _ => {
                     // Ignore unknown top-level keys
-                    eprintln!(
+                    tracing::error!(
                         "Warning: Unknown top-level key '{}' found in {:?}",
-                        key, path
+                        key,
+                        path
                     );
                 }
             }
@@ -456,7 +457,7 @@ impl Config {
         let palette = match self.resolve_palette() {
             Ok(p) => p,
             Err(e) => {
-                eprintln!("Error resolving color palette: {}", e);
+                tracing::error!("Error resolving color palette: {}", e);
                 return;
             }
         };
@@ -476,7 +477,7 @@ impl Config {
         for (name, unresolved_style) in self.theme.into_iter() {
             match unresolved_style.resolve(&palette) {
                 Ok(style) => theme.register(name, style),
-                Err(e) => eprintln!("Error resolving theme item '{}': {}", name, e),
+                Err(e) => tracing::error!("Error resolving theme item '{}': {}", name, e),
             }
         }
 

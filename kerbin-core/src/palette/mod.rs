@@ -289,7 +289,7 @@ pub async fn render_command_palette(
 
                 render!(&mut suggestions_chunk, (0, row) => [
                     StyledContent::new(border_style, "│"), " ",
-                    StyledContent::new(icon_style, "▶"), " "
+                    StyledContent::new(icon_style, "▶"),
                 ]);
 
                 // Render the suggestion with cursor highlight
@@ -304,7 +304,7 @@ pub async fn render_command_palette(
                 let padding = " ".repeat(width.saturating_sub(content_width as usize + 5));
 
                 render!(&mut suggestions_chunk, (0, row) => [
-                    StyledContent::new(border_style, "│   ")
+                    StyledContent::new(border_style, "│")
                 ]);
 
                 let sug_x = 4;
@@ -349,7 +349,7 @@ pub async fn render_command_palette(
         let desc_height = desc_buffer.size().y;
         for i in 0..desc_height.min(desc_chunk.size().y.saturating_sub(2)) {
             render!(&mut desc_chunk, (0, i + 1) => [
-                StyledContent::new(border_style, "│ ")
+                StyledContent::new(border_style, "│")
             ]);
             render!(&mut desc_chunk, vec2(width.saturating_sub(1) as u16, i + 1) => [
                 StyledContent::new(border_style, "│")

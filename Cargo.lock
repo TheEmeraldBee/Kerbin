@@ -725,6 +725,7 @@ dependencies = [
  "serde",
  "serde-value",
  "toml",
+ "tracing",
 ]
 
 [[package]]
@@ -1427,8 +1428,6 @@ version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75129e1dc5000bfbaa9fee9d1b21f974f9fbad9daec557a521ee6e080825f6e8"
 dependencies = [
- "anstream",
- "anstyle",
  "foldhash",
  "indexmap",
  "serde",
@@ -1454,8 +1453,6 @@ version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b551886f449aa90d4fe2bdaa9f4a2577ad2dde302c61ecf262d80b116db95c10"
 dependencies = [
- "anstream",
- "anstyle",
  "winnow",
 ]
 

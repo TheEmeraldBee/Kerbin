@@ -20,9 +20,12 @@ use uuid::Uuid;
 
 #[derive(Parser, Clone)]
 pub struct KerbinCommand {
+    /// A list of commands you would like to run
     #[clap(short, long)]
     cmd: Vec<String>,
 
+    /// The session to pass these commands to,
+    /// Not putting one will create a new session and run the commands.
     #[clap(short, long)]
     session: Option<String>,
 }
@@ -31,8 +34,11 @@ pub struct KerbinCommand {
 pub enum KerbinSubcommand {
     /// Run a command either in a new session, or in the defined session
     Command(KerbinCommand),
+
     /// Run a command, then quit the editor
     /// This can be done in a new window, or in a session by using the `-s` flag
+    ///
+    /// Should mostly be used to run one off commands like install commands.
     CommandQuit(KerbinCommand),
 }
 
@@ -214,9 +220,15 @@ async fn main() {
 
     let mut state = init_state(window, command_sender, config_path.clone(), command_session);
 
-    let config = Config::load(format!("{config_path}/config/config.toml")).unwrap();
-
-    config.apply(&mut state);
+    match Config::load(format!("{config_path}/config/config.toml")) {
+        Ok(t) => {
+            t.apply(&mut state);
+        }
+        Err(e) => state
+            .lock_state::<LogSender>()
+            .unwrap()
+            .critical("core::config_load", e),
+    }
 
     let plugin = Plugin::load(&format!("{config_path}/config.so"));
 

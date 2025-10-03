@@ -8,6 +8,8 @@ kerbin-core.workspace = true
 kerbin-state-machine = { path = "../kerbin-state-machine" }
 serde.workspace = true
 
+tracing.workspace = true
+
 ascii-forge.workspace = true
 
 toml = { version = "0.9.5", features = ["preserve_order"] }
