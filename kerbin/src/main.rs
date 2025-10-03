@@ -1,4 +1,4 @@
-use std::{panic, time::Duration};
+use std::{iter::once, panic, str::FromStr, time::Duration};
 
 use ascii_forge::{
     prelude::*,
@@ -8,11 +8,43 @@ use ascii_forge::{
     },
 };
 
+use ipmpsc::SharedRingBuffer;
 use kerbin_config::Config;
 use kerbin_core::*;
 
 use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
 use tokio::sync::mpsc::unbounded_channel;
+
+use clap::*;
+use uuid::Uuid;
+
+#[derive(Parser, Clone)]
+pub struct KerbinCommand {
+    #[clap(short, long)]
+    cmd: Vec<String>,
+
+    #[clap(short, long)]
+    session: Option<String>,
+}
+
+#[derive(Subcommand, Clone)]
+pub enum KerbinSubcommand {
+    /// Run a command either in a new session, or in the defined session
+    Command(KerbinCommand),
+    /// Run a command, then quit the editor
+    /// This can be done in a new window, or in a session by using the `-s` flag
+    CommandQuit(KerbinCommand),
+}
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+/// Kerbin: The Space-Age Text Editor
+pub struct KerbinArgs {
+    #[clap(short, long)]
+    config: Option<String>,
+    #[clap(subcommand)]
+    subcommand: Option<KerbinSubcommand>,
+}
 
 pub async fn register_default_chunks(chunks: ResMut<Chunks>, window: Res<WindowState>) {
     get!(mut chunks, window);
@@ -125,21 +157,68 @@ async fn update(state: &mut State) {
 async fn main() {
     init_log();
 
-    let mut config_path = dirs::config_dir().unwrap();
-    config_path.push("kerbin/");
+    let mut new_session = true;
+    let mut command_session = Uuid::new_v4();
+    let mut command_strings = vec![];
+
+    let args = KerbinArgs::parse();
+
+    match args.subcommand {
+        Some(KerbinSubcommand::Command(t)) => {
+            command_strings.extend(t.cmd);
+            if let Some(s) = t.session {
+                command_session = Uuid::from_str(&s).unwrap();
+                new_session = false;
+            }
+        }
+        Some(KerbinSubcommand::CommandQuit(t)) => {
+            command_strings.extend(t.cmd.into_iter().chain(once("q!".to_string())));
+            if let Some(s) = t.session {
+                command_session = Uuid::from_str(&s).unwrap();
+                new_session = false;
+            }
+        }
+        _ => {}
+    }
+
+    let config_path = match args.config {
+        Some(t) => t,
+        None => {
+            let mut res = dirs::config_dir().unwrap();
+            res.push("kerbin/");
+            res.to_string_lossy().to_string()
+        }
+    };
+
+    let temp_dir = dirs::data_dir().unwrap();
+    let queue_dir = format!("{}/kerbin/sessions", temp_dir.to_string_lossy());
+    let queue_file = format!("{}/{}", queue_dir, command_session);
+
+    if !new_session {
+        let queue = ipmpsc::Sender::new(SharedRingBuffer::open(&queue_file).unwrap());
+        for cmd in command_strings {
+            queue.send(&cmd).unwrap();
+        }
+
+        return;
+    }
+
+    std::fs::create_dir_all(queue_dir).unwrap();
+
+    let queue = ipmpsc::Receiver::new(SharedRingBuffer::create(&queue_file, 16000).unwrap());
 
     let window = Window::init().unwrap();
     handle_panics();
 
     let (command_sender, mut command_reciever) = unbounded_channel();
 
-    let mut state = init_state(window, command_sender);
+    let mut state = init_state(window, command_sender, config_path.clone(), command_session);
 
-    let config = Config::load("./config/config/config.toml").unwrap();
+    let config = Config::load(format!("{config_path}/config/config.toml")).unwrap();
 
     config.apply(&mut state);
 
-    let plugin = Plugin::load("./target/release/libconfig.so");
+    let plugin = Plugin::load(&format!("{config_path}/config.so"));
 
     // Run the plugin's init
     let _: () = plugin.call_func(b"init", &mut state);
@@ -161,6 +240,21 @@ async fn main() {
         commands.register::<MotionCommand>();
 
         commands.register::<ShellCommand>();
+    }
+
+    {
+        let commands = state.lock_state::<CommandRegistry>().unwrap();
+        let command_sender = state.lock_state::<CommandSender>().unwrap();
+        let prefix_registry = state.lock_state::<CommandPrefixRegistry>().unwrap();
+        let modes = state.lock_state::<ModeStack>().unwrap();
+
+        for string in command_strings {
+            let words = CommandRegistry::split_command(&string);
+            if let Some(cmd) = commands.parse_command(words, true, false, &prefix_registry, &modes)
+            {
+                command_sender.send(cmd).unwrap();
+            }
+        }
     }
 
     state
@@ -202,6 +296,22 @@ async fn main() {
     loop {
         let frame_start = tokio::time::Instant::now();
 
+        {
+            let commands = state.lock_state::<CommandRegistry>().unwrap();
+            let command_sender = state.lock_state::<CommandSender>().unwrap();
+            let prefix_registry = state.lock_state::<CommandPrefixRegistry>().unwrap();
+            let modes = state.lock_state::<ModeStack>().unwrap();
+
+            while let Some(item) = queue.try_recv::<String>().unwrap() {
+                let words = CommandRegistry::split_command(&item);
+                if let Some(cmd) =
+                    commands.parse_command(words, true, false, &prefix_registry, &modes)
+                {
+                    command_sender.send(cmd).unwrap();
+                }
+            }
+        }
+
         // Process all available commands with blocking
         while let Ok(cmd) = command_reciever.try_recv() {
             cmd.apply(&mut state);
@@ -220,7 +330,6 @@ async fn main() {
 
         while tokio::time::Instant::now() < deadline {
             let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-
             tokio::select! {
                 Some(cmd) = command_reciever.recv() => {
                     cmd.apply(&mut state);
@@ -237,6 +346,8 @@ async fn main() {
         .unwrap()
         .restore()
         .expect("Window should restore fine");
+
+    let _ = std::fs::remove_file(&queue_file);
 
     // State **MUST** be dropped before the plugin,
     // as state may store references to memory in state

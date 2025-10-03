@@ -7,7 +7,8 @@ edition.workspace = true
 kerbin-plugin = { path = "../kerbin-plugin" }
 kerbin-state-machine = { path = "../kerbin-state-machine" }
 
-async-ffi.workspace = true
+uuid.workspace = true
+
 kerbin-macros.workspace = true
 ascii-forge.workspace = true
 

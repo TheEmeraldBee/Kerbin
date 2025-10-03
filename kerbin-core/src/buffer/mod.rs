@@ -1,5 +1,5 @@
 use std::{
-    io::{BufReader, BufWriter, ErrorKind, Write},
+    io::{self, BufReader, BufWriter, ErrorKind, Write},
     path::{Path, PathBuf},
     time::SystemTime,
 };
@@ -152,7 +152,7 @@ impl TextBuffer {
     /// # Returns
     ///
     /// A new `TextBuffer` instance with the file's content and metadata.
-    pub fn open(path_str: String) -> Self {
+    pub fn open(path_str: String) -> io::Result<Self> {
         let mut found_ext = "".to_string();
 
         let path = get_canonical_path_with_non_existent(&path_str);
@@ -161,8 +161,8 @@ impl TextBuffer {
 
         let rope = match std::fs::File::open(&path) {
             Ok(f) => {
-                changed = f.metadata().unwrap().modified().ok();
-                Rope::from_reader(BufReader::new(f)).expect("Rope should be able to read file")
+                changed = f.metadata()?.modified().ok();
+                Rope::from_reader(BufReader::new(f))?
             }
             Err(e) => {
                 if e.kind() != ErrorKind::NotFound {
@@ -176,7 +176,7 @@ impl TextBuffer {
             found_ext = ext.to_string();
         }
 
-        Self {
+        Ok(Self {
             save_point: 0,
 
             changed,
@@ -186,7 +186,7 @@ impl TextBuffer {
             ext: found_ext,
 
             ..Default::default()
-        }
+        })
     }
 
     /// Given a byte offset, returns a tuple containing the `((line_idx, col_idx), byte_idx)`.

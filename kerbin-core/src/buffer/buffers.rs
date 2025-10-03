@@ -96,7 +96,7 @@ impl Buffers {
     /// # Returns
     ///
     /// The index of the newly opened or selected buffer.
-    pub fn open(&mut self, path: String) -> usize {
+    pub fn open(&mut self, path: String) -> std::io::Result<usize> {
         let check_path = get_canonical_path_with_non_existent(&path)
             .to_str()
             .unwrap()
@@ -111,11 +111,11 @@ impl Buffers {
             self.set_selected_buffer(buffer_id);
         } else {
             self.buffers
-                .push(Arc::new(RwLock::new(TextBuffer::open(path))));
+                .push(Arc::new(RwLock::new(TextBuffer::open(path)?)));
             self.set_selected_buffer(self.buffers.len() - 1);
         }
 
-        self.buffers.len() - 1
+        Ok(self.buffers.len() - 1)
     }
 
     /// Renders the bufferline (tab bar) into the provided `Buffer`.

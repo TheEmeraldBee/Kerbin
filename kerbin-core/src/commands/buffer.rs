@@ -1,3 +1,5 @@
+use std::io::ErrorKind;
+
 use kerbin_macros::Command;
 use kerbin_state_machine::State;
 
@@ -186,20 +188,18 @@ impl Command for BufferCommand {
                             let disk_modified = metadata.modified().ok();
                             let buffer_changed = cur_buffer.changed;
 
-                            if let Some(disk_time) = disk_modified {
-                                if let Some(buffer_time) = buffer_changed {
-                                    // Comparing SystemTime requires an exact match for a simple check.
-                                    if disk_time != buffer_time {
-                                        let message = format!(
-                                            "File has been modified externally since last read/save: {}. Disk time: {:?}, Buffer time: {:?}",
-                                            current_path, disk_time, buffer_time
-                                        );
+                            if let Some(disk_time) = disk_modified
+                                && let Some(buffer_time) = buffer_changed
+                                && disk_time != buffer_time
+                            {
+                                let message = format!(
+                                    "File has been modified externally since last read/save: {}. Disk time: {:?}, Buffer time: {:?}",
+                                    current_path, disk_time, buffer_time
+                                );
 
-                                        tracing::error!(message);
-                                        log.medium("command::write_file", message);
-                                        return false;
-                                    }
-                                }
+                                tracing::error!(message);
+                                log.medium("command::write_file", message);
+                                return false;
                             }
                         }
                         Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
@@ -398,7 +398,31 @@ impl Command for BuffersCommand {
 
         match self {
             Self::OpenFile(path) => {
-                let buffer_id = buffers.open(path.clone());
+                let buffer_id = match buffers.open(path.clone()) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        match e.kind() {
+                            ErrorKind::NotFound => {
+                                log.critical(
+                                    "command::open_file",
+                                    format!("File '{}' was not found, does it exist?", path),
+                                );
+                            }
+                            ErrorKind::IsADirectory => log.critical(
+                                "command::open_file",
+                                format!("Expected a file, but '{}' is a directory", path),
+                            ),
+                            ErrorKind::PermissionDenied => log.critical(
+                                "command::open_file",
+                                format!("Permission to open file '{}' was denied", path),
+                            ),
+                            _ => {
+                                log.critical("command::open_file", e);
+                            }
+                        }
+                        return false;
+                    }
+                };
                 buffers.set_selected_buffer(buffer_id);
                 true
             }

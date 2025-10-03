@@ -38,7 +38,7 @@ pub async fn register_log_chunk(
 
     let layout = Layout::new()
         .row(flexible(), vec![flexible()])
-        .row(percent(50.0), vec![flexible(), percent(30.0)])
+        .row(percent(50.0), vec![flexible(), percent(100.0)])
         .calculate(window.size())
         .unwrap();
     chunks.register_chunk::<LogChunk>(2, layout[1][1]);
@@ -109,31 +109,43 @@ impl Message {
 }
 
 pub fn low(origin: impl ToString, message: impl ToString) -> Message {
+    let message = message.to_string();
+    tracing::info!(message);
+
     Message {
         level: Level::Low,
         origin: origin.to_string(),
-        message: message.to_string(),
+        message,
     }
 }
 pub fn medium(origin: impl ToString, message: impl ToString) -> Message {
+    let message = message.to_string();
+    tracing::warn!(message);
+
     Message {
         level: Level::Medium,
         origin: origin.to_string(),
-        message: message.to_string(),
+        message,
     }
 }
 pub fn high(origin: impl ToString, message: impl ToString) -> Message {
+    let message = message.to_string();
+    tracing::error!(message);
+
     Message {
         level: Level::High,
         origin: origin.to_string(),
-        message: message.to_string(),
+        message,
     }
 }
 pub fn critical(origin: impl ToString, message: impl ToString) -> Message {
+    let message = message.to_string();
+    tracing::error!(message);
+
     Message {
         level: Level::Critical,
         origin: origin.to_string(),
-        message: message.to_string(),
+        message,
     }
 }
 

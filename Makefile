@@ -1,8 +1,8 @@
 build:
-	cargo build
+	cargo build --release
 
 run: build build-config
-	cargo run
+	cargo run -- -c ./config
 
 build-config:
 	cd config && make build

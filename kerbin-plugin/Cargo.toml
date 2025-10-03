@@ -4,5 +4,4 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-async-ffi.workspace = true
 libloading.workspace = true

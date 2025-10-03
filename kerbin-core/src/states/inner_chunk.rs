@@ -7,13 +7,15 @@ use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
 
 use crate::*;
 
+pub type RenderFunc = Arc<Box<dyn Fn(&mut Window, Vec2) + Send + Sync>>;
+
 /// An internal chunk representing a buffer and an optional cursor.
 ///
 /// This struct is used by the `Chunks` state to manage individual drawing areas
 /// within the editor, each potentially having its own cursor.
 pub struct InnerChunk {
     buffer: Buffer,
-    pub render_items: Vec<(Vec2, Arc<Box<dyn Fn(&mut Window, Vec2) + Send + Sync>>)>,
+    pub render_items: Vec<(Vec2, RenderFunc)>,
     cursor: Option<(usize, Vec2, SetCursorStyle)>,
 }
 
@@ -50,11 +52,7 @@ impl InnerChunk {
     ///
     /// * `pos`: The offset within the chunk of the render call
     /// * `func`: The function that will render to the window (terminal)
-    pub fn register_item(
-        &mut self,
-        pos: impl Into<Vec2>,
-        func: Arc<Box<dyn Fn(&mut Window, Vec2) + Send + Sync>>,
-    ) {
+    pub fn register_item(&mut self, pos: impl Into<Vec2>, func: RenderFunc) {
         self.render_items.push((pos.into(), func));
     }
 

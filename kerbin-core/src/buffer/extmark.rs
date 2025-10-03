@@ -1,9 +1,8 @@
-use std::{ops::Range, sync::Arc};
+use std::ops::Range;
 
-use ascii_forge::{
-    math::Vec2,
-    window::{ContentStyle, Window, crossterm::cursor::SetCursorStyle},
-};
+use ascii_forge::window::{ContentStyle, crossterm::cursor::SetCursorStyle};
+
+use crate::RenderFunc;
 
 /// Types of decorations that can be attached to an [`Extmark`].
 ///
@@ -32,10 +31,7 @@ pub enum ExtmarkDecoration {
 
     /// Reserve the given lines after the buf
     /// Used for rendering complex states
-    FullElement {
-        height: u16,
-        func: Arc<Box<dyn Fn(&mut Window, Vec2) + Send + Sync>>,
-    },
+    FullElement { height: u16, func: RenderFunc },
 }
 
 /// An anchored “mark” in a buffer, augmented with one or more decorations.

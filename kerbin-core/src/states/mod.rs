@@ -6,6 +6,7 @@ use std::{
 
 use ascii_forge::window::Window;
 use tokio::sync::mpsc::UnboundedSender;
+use uuid::Uuid;
 pub use wrappers::*;
 
 pub mod command_registry;
@@ -38,12 +39,19 @@ pub use chunks::*;
 /// # Returns
 ///
 /// An initialized `State` object, ready to be used by the editor's main loop.
-pub fn init_state(window: Window, cmd_sender: UnboundedSender<Box<dyn Command>>) -> State {
+pub fn init_state(
+    window: Window,
+    cmd_sender: UnboundedSender<Box<dyn Command>>,
+    config_path: String,
+    uuid: Uuid,
+) -> State {
     let mut state = State::default();
 
     let (log_state, log_sender) = LogState::new_with_channel();
 
     state
+        .state(ConfigFolder(config_path))
+        .state(SessionUuid(uuid))
         // Editor's running status
         .state(Running(true))
         .state(log_state)

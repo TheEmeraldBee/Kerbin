@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::*;
 use ascii_forge::prelude::*;
 use unicode_width::*;
@@ -46,8 +44,7 @@ impl RenderLine {
         render!(chunk, loc => [ &self.gutter ]);
     }
 
-    /// Renders the Line to the passed buffer
-    /// Will only render a max of 1 y location, and the buffer's width
+    /// Renders the Line to the passed buffer Will only render a max of 1 y location, and the buffer's width
     /// This will automatically apply scrolling algorithms to the system,
     /// Making rendering the line very easy
     ///
@@ -175,7 +172,7 @@ pub enum RenderLineElement {
     /// An element that's rendering is called straight by window
     /// Should be paired with ReservedSpace to correctly reserve space
     /// for the widget contained
-    Element(Arc<Box<dyn Fn(&mut Window, Vec2) + Send + Sync>>),
+    Element(RenderFunc),
 
     /// A reserved width in columns for inline element rendering (height of 1 only)
     ReservedSpace(usize),

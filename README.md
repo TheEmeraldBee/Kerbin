@@ -1,5 +1,7 @@
 # Kerbin: The Space-Age Text Editor
 
+![Screenshot](./assets/screenshot.png)
+
 **Command and Control • Ready for Take-Off**  
 
 The ultimate editor for **ambitious** projects  
@@ -79,12 +81,12 @@ when the editor is more fleshed out (around mid October).
 - [x] Prevent overriding newer changes on file without w!
 - [x] Implement Reload File Command which will reload the file from disk
     - Prevent reloading without forcing if dirty flag is set
-- [ ] Implement sending messages to the process using interprocess
+- [x] Implement sending messages to the process using interprocess
 file communication systems
     - This will be handled by the core editor CLI
     - The reason for this is so that using things like zellij with file managers
     like `fzf` or `yazi` within `zellij` or `tmux` will work to send items over the cli
-- [ ] Implement core CLI that can send commands over the file communication
+- [x] Implement core CLI that can send commands over the file communication
     - This also needs a way of running the editor, passing commands, then wrapping the system back
     Basically this should allow for sending commands to an existing editor, or start an editor with the commands
     - Also have a flag, `-q` that will run the commands, but append a ForceQuit command to the end

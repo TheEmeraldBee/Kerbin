@@ -6,8 +6,17 @@ use std::{
 use ascii_forge::window::Window;
 use tokio::sync::mpsc::UnboundedSender;
 use toml::Value;
+use uuid::Uuid;
 
 pub use crate::*;
+
+/// This state stores the String path of the configuration folder
+#[derive(State)]
+pub struct ConfigFolder(pub String);
+
+/// This state stores the Uuid of the current editor process
+#[derive(State)]
+pub struct SessionUuid(pub Uuid);
 
 /// Primary state marking whether the core editor is running at this moment.
 ///

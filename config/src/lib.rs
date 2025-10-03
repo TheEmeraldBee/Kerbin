@@ -3,12 +3,9 @@
 use std::{fmt::Display, iter::empty, sync::Arc};
 
 use kerbin_core::{
-    ascii_forge::{
-        math::Vec2,
-        window::{
-            Print, Window,
-            crossterm::{cursor::MoveTo, execute},
-        },
+    ascii_forge::window::{
+        Print,
+        crossterm::{cursor::MoveTo, execute},
     },
     *,
 };
@@ -16,7 +13,7 @@ use kerbin_core::{
 pub fn large_text_render_method(
     text: impl Display + Send + Sync + 'static,
     size: u16,
-) -> Arc<Box<dyn Fn(&mut Window, Vec2) + Send + Sync>> {
+) -> RenderFunc {
     Arc::new(Box::new(move |w, p| {
         let io = w.io();
 
