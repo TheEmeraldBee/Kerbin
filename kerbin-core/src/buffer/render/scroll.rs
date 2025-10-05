@@ -4,14 +4,15 @@ use crate::*;
 ///
 /// `h_scroll` determines how many columns to skip when rendering each line.
 /// This ensures the primary cursor remains visible with padding from left/right edges.
-pub async fn update_buffer_horizontal_scroll(chunk: Chunk<BufferChunk>, buffers: Res<Buffers>) {
-    let Some(chunk) = chunk.get() else { return };
+pub async fn update_buffer_horizontal_scroll(chunk: Chunk<BufferChunk>, buffers: ResMut<Buffers>) {
+    let Some(chunk) = chunk.get().await else {
+        return;
+    };
     let viewport_width = chunk.size().x as usize;
 
-    get!(buffers);
+    get!(mut buffers);
 
-    let buf_arc = buffers.cur_buffer();
-    let mut buf = buf_arc.write().unwrap();
+    let mut buf = buffers.cur_buffer_mut().await;
 
     // Get the primary cursor's byte position
     let cursor_byte = buf.primary_cursor().get_cursor_byte();
@@ -62,14 +63,15 @@ pub async fn update_buffer_horizontal_scroll(chunk: Chunk<BufferChunk>, buffers:
 /// `visual_scroll` is how many of those built lines we skip when displaying.
 ///
 /// This ensures the primary cursor remains visible with a 3-line padding from edges.
-pub async fn update_buffer_vertical_scroll(chunk: Chunk<BufferChunk>, buffers: Res<Buffers>) {
-    let Some(chunk) = chunk.get() else { return };
+pub async fn update_buffer_vertical_scroll(chunk: Chunk<BufferChunk>, buffers: ResMut<Buffers>) {
+    let Some(chunk) = chunk.get().await else {
+        return;
+    };
     let viewport_height = chunk.size().y as usize;
 
-    get!(buffers);
+    get!(mut buffers);
 
-    let buf_arc = buffers.cur_buffer();
-    let mut buf = buf_arc.write().unwrap();
+    let mut buf = buffers.cur_buffer_mut().await;
 
     // Get the primary cursor's byte position
     let cursor_byte = buf.primary_cursor().get_cursor_byte();

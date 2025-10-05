@@ -63,8 +63,9 @@ pub struct CommandPrefix {
 }
 
 /// An applyable command that will change the whole state in some way
+#[async_trait::async_trait]
 pub trait Command: Send + Sync {
-    fn apply(&self, state: &mut State) -> bool;
+    async fn apply(&self, state: &mut State) -> bool;
 }
 
 /// The text info of what a command expects and uses

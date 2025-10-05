@@ -184,17 +184,17 @@ pub enum TSCommand {
     Newline(#[command(type_name = "?bool", name = "extend")] Option<bool>),
 }
 
+#[async_trait::async_trait]
 impl Command for TSCommand {
-    fn apply(&self, state: &mut State) -> bool {
+    async fn apply(&self, state: &mut State) -> bool {
         match self {
             Self::Newline(extend) => {
-                let buffers = state.lock_state::<Buffers>().unwrap();
-                let ts_states = state.lock_state::<TreeSitterStates>().unwrap();
-                let mut grammars = state.lock_state::<GrammarManager>().unwrap();
-                let plugin_config = state.lock_state::<PluginConfig>().unwrap();
+                let buffers = state.lock_state::<Buffers>().await.unwrap();
+                let ts_states = state.lock_state::<TreeSitterStates>().await.unwrap();
+                let mut grammars = state.lock_state::<GrammarManager>().await.unwrap();
+                let plugin_config = state.lock_state::<PluginConfig>().await.unwrap();
 
-                let buffer_handle = buffers.cur_buffer();
-                let buffer = buffer_handle.read().unwrap();
+                let buffer = buffers.cur_buffer().await;
 
                 let cursor_byte = buffer.primary_cursor().get_cursor_byte();
                 let buffer_ext = buffer.ext.clone();
@@ -246,6 +246,7 @@ impl Command for TSCommand {
 
                 state
                     .lock_state::<CommandSender>()
+                    .await
                     .unwrap()
                     .send(Box::new(BufferCommand::Append(
                         format!("\n{}", new_indent_str),

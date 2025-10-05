@@ -10,5 +10,8 @@ name = "config"
 [dependencies]
 kerbin-core = { path = "../kerbin-core" }
 
+async-ffi = {version = "0.5.0", features = ["macros"]}
+
 # Plugins
 kerbin-tree-sitter = { path = "../plugins/kerbin-tree-sitter" }
+kerbin-lsp = { path = "../plugins/kerbin-lsp" }

@@ -25,7 +25,7 @@ pub async fn register_log_chunk(
     window: Res<WindowState>,
     log: ResMut<LogState>,
 ) {
-    let mut log = log.get();
+    get!(mut log);
 
     // Update internal state from receiver
     log.poll_messages();
@@ -45,7 +45,7 @@ pub async fn register_log_chunk(
 }
 
 pub async fn render_log(log_chunk: Chunk<LogChunk>, log: ResMut<LogState>, theme: Res<Theme>) {
-    let Some(mut chunk) = log_chunk.get() else {
+    let Some(mut chunk) = log_chunk.get().await else {
         return;
     };
     get!(mut log, theme);

@@ -68,11 +68,11 @@ pub enum MotionCommand {
     SelectFirstNonWhitespace { extend: bool },
 }
 
+#[async_trait::async_trait]
 impl Command for MotionCommand {
-    fn apply(&self, state: &mut State) -> bool {
-        let buffers = state.lock_state::<Buffers>().unwrap();
-        let cur_buffer = buffers.cur_buffer();
-        let mut cur_buffer = cur_buffer.write().unwrap();
+    async fn apply(&self, state: &mut State) -> bool {
+        let mut buffers = state.lock_state::<Buffers>().await.unwrap();
+        let mut cur_buffer = buffers.cur_buffer_mut().await;
 
         let rope_len_bytes = cur_buffer.rope.len();
         let rope_len_lines = cur_buffer.rope.len_lines(LineType::LF_CR);
@@ -287,6 +287,11 @@ impl Command for MotionCommand {
                     .primary_cursor()
                     .get_cursor_byte()
                     .saturating_add_signed(offset.unwrap_or(0));
+
+                if cursor >= cur_buffer.rope.len() {
+                    return false;
+                }
+
                 let searcher =
                     regex_cursor::Input::new(RopeyCursor::new(cur_buffer.rope.slice(cursor..)));
                 let x = regex.search(searcher);
@@ -321,7 +326,8 @@ impl Command for MotionCommand {
                 let cursor = cur_buffer
                     .primary_cursor()
                     .get_cursor_byte()
-                    .saturating_add_signed(offset.unwrap_or(0));
+                    .saturating_add_signed(offset.unwrap_or(0))
+                    .min(cur_buffer.rope.len());
 
                 let searcher =
                     regex_cursor::Input::new(RopeyCursor::new(cur_buffer.rope.slice(..cursor)));

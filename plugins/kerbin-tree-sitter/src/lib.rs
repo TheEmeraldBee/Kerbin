@@ -20,7 +20,7 @@ pub struct TreeSitterStates {
     pub bufs: BTreeMap<String, Option<TSState>>,
 }
 
-pub fn register_lang(
+pub async fn register_lang(
     state: &mut State,
     name: impl ToString,
     exts: impl IntoIterator<Item = impl ToString>,
@@ -34,6 +34,7 @@ pub fn register_lang(
 
         state
             .lock_state::<GrammarManager>()
+            .await
             .unwrap()
             .register_extension(ext, &name);
     }
@@ -42,12 +43,11 @@ pub fn register_lang(
 pub async fn sync_buffer_changes_to_ts(
     states: ResMut<TreeSitterStates>,
     grammars: ResMut<GrammarManager>,
-    buffers: Res<Buffers>,
+    buffers: ResMut<Buffers>,
 ) {
-    get!(mut states, mut grammars, buffers);
+    get!(mut states, mut grammars, mut buffers);
 
-    let buf = buffers.cur_buffer();
-    let mut buf = buf.write().unwrap();
+    let mut buf = buffers.cur_buffer_mut().await;
 
     if !states.bufs.contains_key(&buf.path) {
         let ts_state = TSState::init(&buf.ext, &mut grammars);
@@ -77,8 +77,7 @@ pub async fn parse_dirty_trees(
     grammars: ResMut<GrammarManager>,
 ) {
     get!(mut states, buffers, mut grammars);
-    let buf = buffers.cur_buffer();
-    let buf = buf.read().unwrap();
+    let buf = buffers.cur_buffer().await;
 
     if let Some(Some(ts_state)) = states.bufs.get_mut(&buf.path) {
         if !ts_state.tree_sitter_dirty {
@@ -188,8 +187,7 @@ pub async fn calculate_highlights(
 ) {
     get!(ts_states, mut grammars, buffers, theme, mut highlights);
 
-    let buf = buffers.cur_buffer();
-    let buf = buf.read().unwrap();
+    let buf = buffers.cur_buffer().await;
 
     if let Some(Some(ts_state)) = ts_states.bufs.get(&buf.path) {
         let mut final_highlights = BTreeMap::new();
@@ -211,7 +209,7 @@ pub async fn calculate_highlights(
     }
 }
 
-pub fn init(state: &mut State) {
+pub async fn init(state: &mut State) {
     state
         .state(TreeSitterStates::default())
         .state(GrammarManager::default())
@@ -224,7 +222,7 @@ pub fn init(state: &mut State) {
         .system(calculate_highlights);
 
     {
-        let mut commands = state.lock_state::<CommandRegistry>().unwrap();
+        let mut commands = state.lock_state::<CommandRegistry>().await.unwrap();
         commands.register::<TSCommand>();
     }
 }

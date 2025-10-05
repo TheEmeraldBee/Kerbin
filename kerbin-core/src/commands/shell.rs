@@ -67,12 +67,22 @@ pub enum ShellCommand {
     Spawn(#[command(name = "cmd", type_name = "rest")] Vec<String>),
 }
 
+#[async_trait::async_trait]
 impl Command for ShellCommand {
-    fn apply(&self, state: &mut State) -> bool {
-        let uuid = state.lock_state::<SessionUuid>().unwrap().0.to_string();
-        let config_folder = state.lock_state::<ConfigFolder>().unwrap().0.clone();
-        let cur_buf = state.lock_state::<Buffers>().unwrap().cur_buffer();
-        let cur_buf = cur_buf.read().unwrap();
+    async fn apply(&self, state: &mut State) -> bool {
+        let uuid = state
+            .lock_state::<SessionUuid>()
+            .await
+            .unwrap()
+            .0
+            .to_string();
+        let config_folder = state.lock_state::<ConfigFolder>().await.unwrap().0.clone();
+        let cur_buf = state
+            .lock_state::<Buffers>()
+            .await
+            .unwrap()
+            .cur_buffer()
+            .await;
 
         let mut replacements = HashMap::new();
         replacements.insert("session".to_string(), uuid);

@@ -23,33 +23,36 @@ pub enum CommitCommand {
     Commit(#[command(name = "cmd", type_name = "command")] Option<Vec<String>>),
 }
 
+#[async_trait::async_trait]
 impl Command for CommitCommand {
-    fn apply(&self, state: &mut State) -> bool {
+    async fn apply(&self, state: &mut State) -> bool {
         match self {
             CommitCommand::Commit(after) => {
                 // Begin the change
                 state
                     .lock_state::<Buffers>()
+                    .await
                     .unwrap()
-                    .cur_buffer()
-                    .write()
-                    .unwrap()
+                    .cur_buffer_mut()
+                    .await
                     .start_change_group();
 
                 if let Some(after) = after {
                     let command = state
                         .lock_state::<CommandRegistry>()
+                        .await
                         .unwrap()
                         .parse_command(
                             after.clone(),
                             true,
                             false,
-                            &state.lock_state::<CommandPrefixRegistry>().unwrap(),
-                            &state.lock_state::<ModeStack>().unwrap(),
+                            &state.lock_state::<CommandPrefixRegistry>().await.unwrap(),
+                            &state.lock_state::<ModeStack>().await.unwrap(),
                         );
                     if let Some(command) = command {
                         state
                             .lock_state::<CommandSender>()
+                            .await
                             .unwrap()
                             .send(command)
                             .unwrap();
@@ -59,10 +62,10 @@ impl Command for CommitCommand {
                 // End the change
                 state
                     .lock_state::<Buffers>()
+                    .await
                     .unwrap()
-                    .cur_buffer()
-                    .write()
-                    .unwrap()
+                    .cur_buffer_mut()
+                    .await
                     .commit_change_group();
 
                 true
@@ -153,14 +156,14 @@ pub enum BufferCommand {
     Redo,
 }
 
+#[async_trait::async_trait]
 impl Command for BufferCommand {
-    fn apply(&self, state: &mut State) -> bool {
-        let buffers = state.lock_state::<Buffers>().unwrap();
+    async fn apply(&self, state: &mut State) -> bool {
+        let mut buffers = state.lock_state::<Buffers>().await.unwrap();
 
-        let log = state.lock_state::<LogSender>().unwrap();
+        let log = state.lock_state::<LogSender>().await.unwrap();
 
-        let cur_buffer = buffers.cur_buffer();
-        let mut cur_buffer = cur_buffer.write().unwrap();
+        let mut cur_buffer = buffers.cur_buffer_mut().await;
 
         let byte = cur_buffer.primary_cursor().get_cursor_byte();
 
@@ -391,14 +394,15 @@ pub enum BuffersCommand {
     CloseBufferOffsetForce(Option<isize>),
 }
 
+#[async_trait::async_trait]
 impl Command for BuffersCommand {
-    fn apply(&self, state: &mut State) -> bool {
-        let mut buffers = state.lock_state::<Buffers>().unwrap();
-        let log = state.lock_state::<LogSender>().unwrap();
+    async fn apply(&self, state: &mut State) -> bool {
+        let mut buffers = state.lock_state::<Buffers>().await.unwrap();
+        let log = state.lock_state::<LogSender>().await.unwrap();
 
         match self {
             Self::OpenFile(path) => {
-                let buffer_id = match buffers.open(path.clone()) {
+                let buffer_id = match buffers.open(path.clone()).await {
                     Ok(t) => t,
                     Err(e) => {
                         match e.kind() {
@@ -440,7 +444,7 @@ impl Command for BuffersCommand {
                     return false;
                 }
 
-                let dirty = buffers.buffers[buf_idx as usize].read().unwrap().dirty;
+                let dirty = buffers.buffers[buf_idx as usize].read().await.dirty;
 
                 if dirty {
                     log.medium(

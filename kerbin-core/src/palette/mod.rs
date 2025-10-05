@@ -37,11 +37,7 @@ pub async fn update_palette_suggestions(
     commands: Res<CommandRegistry>,
     theme: Res<Theme>,
 ) {
-    let modes = modes.get();
-    let mut palette = palette.get();
-    let commands = commands.get();
-    let prefix_registry = prefix_registry.get();
-    let theme = theme.get();
+    get!(modes, mut palette, prefix_registry, commands, theme);
 
     if modes.get_mode() != 'c' {
         return;
@@ -65,9 +61,7 @@ pub async fn handle_command_palette_input(
     prefix_registry: Res<CommandPrefixRegistry>,
     command_sender: ResMut<CommandSender>,
 ) {
-    let window = window.get();
-    let mut palette = palette.get();
-    let mut modes = modes.get();
+    get!(window, mut palette, mut modes);
 
     let mode = modes.get_mode();
     if mode != 'c' {
@@ -84,15 +78,16 @@ pub async fn handle_command_palette_input(
                 KeyCode::Enter => {
                     modes.pop_mode();
 
-                    let command = command_registry.get().parse_command(
+                    let registry = prefix_registry.get().await;
+                    let command = command_registry.get().await.parse_command(
                         CommandRegistry::split_command(&palette.input),
                         true,
                         true,
-                        &prefix_registry.get(),
+                        &registry,
                         &modes,
                     );
                     if let Some(command) = command {
-                        command_sender.get().send(command).unwrap();
+                        command_sender.get().await.send(command).unwrap();
                     }
 
                     palette.input.clear();
@@ -120,7 +115,7 @@ pub async fn register_command_palette_chunks(
     modes: Res<ModeStack>,
     palette: Res<CommandPaletteState>,
 ) {
-    let modes = modes.get();
+    get!(modes);
     if !modes.mode_on_stack('c') {
         return;
     }
@@ -185,15 +180,13 @@ pub async fn render_command_palette(
     modes: Res<ModeStack>,
     theme: Res<Theme>,
 ) {
-    let palette = palette.get();
-    let modes = modes.get();
-    let theme = theme.get();
+    get!(palette, modes, theme);
 
     if modes.get_mode() != 'c' {
         return;
     }
 
-    let mut line_chunk = line_chunk.get().unwrap();
+    let mut line_chunk = line_chunk.get().await.unwrap();
 
     // Theme styles
     let border_style = theme.get_fallback_default(["ui.commandline.border", "ui.text"]);
@@ -264,7 +257,7 @@ pub async fn render_command_palette(
 
     // Render suggestions with enhanced styling
     let suggestion_count = palette.suggestions.len();
-    if let Some(mut suggestions_chunk) = suggestions_chunk.get()
+    if let Some(mut suggestions_chunk) = suggestions_chunk.get().await
         && suggestion_count > 0
     {
         let width = suggestions_chunk.size().x as usize;
@@ -328,7 +321,7 @@ pub async fn render_command_palette(
     }
 
     // Render description with border and title
-    if let Some(mut desc_chunk) = desc_chunk.get()
+    if let Some(mut desc_chunk) = desc_chunk.get().await
         && let Some(desc_buffer) = &palette.desc
     {
         let width = desc_chunk.size().x as usize;

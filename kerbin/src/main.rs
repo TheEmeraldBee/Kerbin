@@ -76,7 +76,7 @@ pub async fn render_chunks(chunks: Res<Chunks>, window: ResMut<WindowState>) {
 
     for layer in &chunks.buffers {
         for buffer in layer {
-            let buf = buffer.1.read().unwrap();
+            let buf = buffer.1.read().await;
             if let Some(cur) = buf.get_full_cursor() {
                 let replace = match best_cursor {
                     Some((i, _, _)) => cur.0 > i,
@@ -118,15 +118,15 @@ async fn update(state: &mut State) {
     state.hook(hooks::UpdateCleanup).call().await;
 
     // Clear the chunks for the next frame (allows for conditional chunks)
-    state.lock_state::<Chunks>().unwrap().clear();
+    state.lock_state::<Chunks>().await.unwrap().clear();
 
     // Register all chunks for rendering
     state.hook(hooks::ChunkRegister).call().await;
 
     // Call the file renderer
     let filetype = {
-        let bufs = state.lock_state::<Buffers>().unwrap();
-        bufs.cur_buffer().read().unwrap().ext.clone()
+        let bufs = state.lock_state::<Buffers>().await.unwrap();
+        bufs.cur_buffer().await.ext.clone()
     };
 
     state
@@ -149,6 +149,7 @@ async fn update(state: &mut State) {
 
     match state
         .lock_state::<WindowState>()
+        .await
         .unwrap()
         .update(Duration::from_millis(0))
     {
@@ -222,10 +223,11 @@ async fn main() {
 
     match Config::load(format!("{config_path}/config/config.toml")) {
         Ok(t) => {
-            t.apply(&mut state);
+            t.apply(&mut state).await;
         }
         Err(e) => state
             .lock_state::<LogSender>()
+            .await
             .unwrap()
             .critical("core::config_load", e),
     }
@@ -233,11 +235,11 @@ async fn main() {
     let plugin = Plugin::load(&format!("{config_path}/config.so"));
 
     // Run the plugin's init
-    let _: () = plugin.call_func(b"init", &mut state);
+    let _: () = plugin.call_func(b"init", &mut state).await;
 
     // Register command types
     {
-        let mut commands = state.lock_state::<CommandRegistry>().unwrap();
+        let mut commands = state.lock_state::<CommandRegistry>().await.unwrap();
 
         commands.register::<BufferCommand>();
         commands.register::<CommitCommand>();
@@ -255,10 +257,10 @@ async fn main() {
     }
 
     {
-        let commands = state.lock_state::<CommandRegistry>().unwrap();
-        let command_sender = state.lock_state::<CommandSender>().unwrap();
-        let prefix_registry = state.lock_state::<CommandPrefixRegistry>().unwrap();
-        let modes = state.lock_state::<ModeStack>().unwrap();
+        let commands = state.lock_state::<CommandRegistry>().await.unwrap();
+        let command_sender = state.lock_state::<CommandSender>().await.unwrap();
+        let prefix_registry = state.lock_state::<CommandPrefixRegistry>().await.unwrap();
+        let modes = state.lock_state::<ModeStack>().await.unwrap();
 
         for string in command_strings {
             let words = CommandRegistry::split_command(&string);
@@ -309,10 +311,10 @@ async fn main() {
         let frame_start = tokio::time::Instant::now();
 
         {
-            let commands = state.lock_state::<CommandRegistry>().unwrap();
-            let command_sender = state.lock_state::<CommandSender>().unwrap();
-            let prefix_registry = state.lock_state::<CommandPrefixRegistry>().unwrap();
-            let modes = state.lock_state::<ModeStack>().unwrap();
+            let commands = state.lock_state::<CommandRegistry>().await.unwrap();
+            let command_sender = state.lock_state::<CommandSender>().await.unwrap();
+            let prefix_registry = state.lock_state::<CommandPrefixRegistry>().await.unwrap();
+            let modes = state.lock_state::<ModeStack>().await.unwrap();
 
             while let Some(item) = queue.try_recv::<String>().unwrap() {
                 let words = CommandRegistry::split_command(&item);
@@ -326,13 +328,13 @@ async fn main() {
 
         // Process all available commands with blocking
         while let Ok(cmd) = command_reciever.try_recv() {
-            cmd.apply(&mut state);
+            cmd.apply(&mut state).await;
         }
 
         // Run the update cycle
         update(&mut state).await;
 
-        if !state.lock_state::<Running>().unwrap().0 {
+        if !state.lock_state::<Running>().await.unwrap().0 {
             break;
         }
 
@@ -344,7 +346,7 @@ async fn main() {
             let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
             tokio::select! {
                 Some(cmd) = command_reciever.recv() => {
-                    cmd.apply(&mut state);
+                    cmd.apply(&mut state).await;
                 }
                 _ = tokio::time::sleep(remaining) => {
                     break;
@@ -355,6 +357,7 @@ async fn main() {
 
     state
         .lock_state::<WindowState>()
+        .await
         .unwrap()
         .restore()
         .expect("Window should restore fine");

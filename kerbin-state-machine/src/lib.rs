@@ -1,7 +1,6 @@
-use std::{
-    collections::HashSet,
-    sync::{Arc, RwLock, RwLockWriteGuard},
-};
+use std::{collections::HashSet, sync::Arc};
+
+use tokio::sync::{RwLock, RwLockWriteGuard};
 
 use crate::system::{System, into_system::IntoSystem};
 
@@ -114,7 +113,7 @@ macro_rules! get {
 #[derive(Default)]
 pub struct State {
     pub storage: StateStorage,
-    hooks: Vec<(HookInfo, Vec<Box<dyn System>>)>,
+    hooks: Vec<(HookInfo, Vec<Box<dyn System + Send + Sync>>)>,
 }
 
 impl State {
@@ -132,18 +131,20 @@ impl State {
         self
     }
 
-    pub fn lock_state<'a, S: StateName + StaticState>(&'a self) -> Option<RwLockWriteGuard<'a, S>> {
+    pub async fn lock_state<'a, S: StateName + StaticState>(
+        &'a self,
+    ) -> Option<RwLockWriteGuard<'a, S>> {
         Some(
             self.storage
                 .states
                 .get(&S::static_name())?
                 .downcast::<S>()?
                 .write()
-                .unwrap(),
+                .await,
         )
     }
 
-    pub fn set_hook<H: Hook, I, D, S: System + 'static>(
+    pub fn set_hook<H: Hook, I, D, S: System + Send + Sync + 'static>(
         &mut self,
         hook: H,
         sys: impl IntoSystem<I, D, System = S>,
@@ -242,7 +243,7 @@ pub struct HookBuilder<'a, H: Hook> {
 }
 
 impl<'a, H: Hook> HookBuilder<'a, H> {
-    pub fn system<I, D, S: System + 'static>(
+    pub fn system<I, D, S: System + Send + Sync + 'static>(
         &mut self,
         sys: impl IntoSystem<I, D, System = S>,
     ) -> &mut Self {
@@ -265,7 +266,7 @@ impl<'a, H: Hook> HookBuilder<'a, H> {
     }
 }
 
-fn group_concurrent_system_indices(systems: &[Box<dyn System>]) -> Vec<Vec<usize>> {
+fn group_concurrent_system_indices(systems: &[Box<dyn System + Send + Sync>]) -> Vec<Vec<usize>> {
     let mut remaining_indices: Vec<usize> = (0..systems.len()).collect();
     let mut groups: Vec<Vec<usize>> = Vec::new();
 
@@ -429,10 +430,12 @@ mod tests {
         }
     }
 
-    fn create_systems(system_configs: Vec<Vec<(&str, bool, bool)>>) -> Vec<Box<dyn System>> {
+    fn create_systems(
+        system_configs: Vec<Vec<(&str, bool, bool)>>,
+    ) -> Vec<Box<dyn System + Sync + 'static>> {
         system_configs
             .into_iter()
-            .map(|config| Box::new(MockSystem::new(config)) as Box<dyn System>)
+            .map(|config| Box::new(MockSystem::new(config)) as Box<dyn System + Sync + 'static>)
             .collect()
     }
 
@@ -444,7 +447,7 @@ mod tests {
             vec![("TypeC", true, false)],
         ]);
 
-        let groups = group_concurrent_system_indices(&systems);
+        let groups = group_concurrent_system_indices(systems.as_slice());
 
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0], vec![0, 1, 2]);

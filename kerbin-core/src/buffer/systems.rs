@@ -9,14 +9,13 @@ use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
 /// the current cursor state, allowing `render_buffer_default` to render them
 /// as part of the extmark pipeline.
 pub async fn render_cursors_and_selections(
-    bufs: Res<Buffers>,
+    bufs: ResMut<Buffers>,
     modes: Res<ModeStack>,
     theme: Res<Theme>,
 ) {
-    get!(bufs, modes, theme);
+    get!(mut bufs, modes, theme);
 
-    let buf_arc = bufs.cur_buffer();
-    let mut buf = buf_arc.write().unwrap();
+    let mut buf = bufs.cur_buffer_mut().await;
 
     buf.renderer.clear_extmark_ns("inner::cursor");
     buf.renderer.clear_extmark_ns("inner::selection");
@@ -99,11 +98,10 @@ pub async fn render_bufferline(
     buffers: Res<Buffers>,
     theme: Res<Theme>,
 ) {
-    let chunk = &mut chunk.get().unwrap();
-    let buffers = buffers.get();
-    let theme = theme.get();
+    let chunk = &mut chunk.get().await.unwrap();
+    get!(buffers, theme);
 
-    buffers.render_bufferline(chunk, &theme);
+    buffers.render_bufferline(chunk, &theme).await;
 }
 
 /// System that updates the horizontal scroll position of the bufferline.
@@ -111,8 +109,7 @@ pub async fn render_bufferline(
 /// This system ensures that the currently selected buffer's tab is always
 /// visible within the bufferline display area, adjusting `tab_scroll` as needed.
 pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<WindowState>) {
-    let mut buffers = buffers.get();
-    let window = window.get();
+    get!(mut buffers, window);
 
     if buffers.buffers.is_empty() {
         buffers.tab_scroll = 0;
@@ -171,12 +168,9 @@ pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<Wind
 pub async fn update_buffer(buffers: ResMut<Buffers>) {
     get!(mut buffers);
 
-    // Re-calculate unique paths for all buffers
-    buffers.update_paths();
+    buffers.update_paths().await;
 
-    let buffer = buffers.cur_buffer();
-    let mut buffer = buffer.write().unwrap(); // Acquire write lock for the current buffer
+    let mut buffer = buffers.cur_buffer_mut().await;
 
-    // Update the buffer's internal state (e.g., syntax highlighting edits)
     buffer.update();
 }

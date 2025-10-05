@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::*;
 use ascii_forge::prelude::*;
 use unicode_width::*;
@@ -172,7 +174,7 @@ pub enum RenderLineElement {
     /// An element that's rendering is called straight by window
     /// Should be paired with ReservedSpace to correctly reserve space
     /// for the widget contained
-    Element(RenderFunc),
+    Element(Arc<Buffer>),
 
     /// A reserved width in columns for inline element rendering (height of 1 only)
     ReservedSpace(usize),
@@ -194,7 +196,7 @@ impl RenderLineElement {
             Self::RopeChar(ch, _, _) => ch.width().unwrap_or(1),
             Self::Text(t, _) => t.width(),
             Self::ReservedSpace(w) => *w,
-            Self::Element(_) => 1,
+            Self::Element(w) => w.size().x as usize,
         }
     }
 
@@ -256,20 +258,10 @@ impl RenderLineElement {
                     render!(chunk, pos => [ st.apply(&visible_chars) ]);
                 }
             }
-            Self::Element(func) => {
-                chunk.register_item(pos, func.clone());
+            Self::Element(buf) => {
+                render!(chunk, pos => [buf]);
             }
-            Self::ReservedSpace(w) => {
-                let visible_width = if skip >= *w {
-                    0
-                } else {
-                    (*w - skip).min(max_width)
-                };
-
-                if visible_width > 0 {
-                    render!(chunk, pos => [" ".repeat(visible_width)]);
-                }
-            }
+            Self::ReservedSpace(_) => {}
         }
     }
 }

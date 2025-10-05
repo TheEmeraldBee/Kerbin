@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use crate::{Theme, get_canonical_path_with_non_existent};
 
@@ -6,6 +6,7 @@ use super::TextBuffer;
 use ascii_forge::prelude::*;
 use kerbin_macros::State;
 use kerbin_state_machine::storage::*;
+use tokio::sync::{OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
 
 /// Stores all text buffers managed by the editor, along with their unique paths and selection state.
 #[derive(Default, State)]
@@ -26,16 +27,20 @@ pub struct Buffers {
 }
 
 impl Buffers {
-    /// Returns an `Arc<RwLock<TextBuffer>>` to the currently selected buffer.
-    ///
-    /// This allows external systems to acquire a read or write lock on the
-    /// active buffer for modifications or inspections.
-    ///
-    /// # Returns
-    ///
-    /// An `Arc<RwLock<TextBuffer>>` pointing to the selected buffer.
-    pub fn cur_buffer(&self) -> Arc<RwLock<TextBuffer>> {
-        self.buffers[self.selected_buffer].clone()
+    /// Returns a read lock to the currently selected buffer.
+    pub async fn cur_buffer(&self) -> OwnedRwLockReadGuard<TextBuffer> {
+        self.buffers[self.selected_buffer]
+            .clone()
+            .read_owned()
+            .await
+    }
+
+    /// Returns a read lock to the currently selected buffer.
+    pub async fn cur_buffer_mut(&mut self) -> OwnedRwLockWriteGuard<TextBuffer> {
+        self.buffers[self.selected_buffer]
+            .clone()
+            .write_owned()
+            .await
     }
 
     /// Changes the selected buffer by a given signed distance.
@@ -96,26 +101,34 @@ impl Buffers {
     /// # Returns
     ///
     /// The index of the newly opened or selected buffer.
-    pub fn open(&mut self, path: String) -> std::io::Result<usize> {
+    pub async fn open(&mut self, path: String) -> std::io::Result<usize> {
         let check_path = get_canonical_path_with_non_existent(&path)
             .to_str()
             .unwrap()
             .to_string();
-        if let Some(buffer_id) = self.buffers.iter().enumerate().find_map(|(i, x)| {
-            if x.read().unwrap().path == check_path {
-                Some(i)
-            } else {
-                None
+
+        let mut found_buffer_id: Option<usize> = None;
+
+        for (i, buffer_arc) in self.buffers.iter().enumerate() {
+            let buffer_read = buffer_arc.read().await;
+
+            if buffer_read.path == check_path {
+                found_buffer_id = Some(i);
+                break;
             }
-        }) {
-            self.set_selected_buffer(buffer_id);
-        } else {
-            self.buffers
-                .push(Arc::new(RwLock::new(TextBuffer::open(path)?)));
-            self.set_selected_buffer(self.buffers.len() - 1);
         }
 
-        Ok(self.buffers.len() - 1)
+        if let Some(buffer_id) = found_buffer_id {
+            self.set_selected_buffer(buffer_id);
+            Ok(buffer_id)
+        } else {
+            let new_buffer = Arc::new(RwLock::new(TextBuffer::open(path)?));
+            self.buffers.push(new_buffer);
+            let new_buffer_id = self.buffers.len() - 1;
+            self.set_selected_buffer(new_buffer_id);
+
+            Ok(new_buffer_id)
+        }
     }
 
     /// Renders the bufferline (tab bar) into the provided `Buffer`.
@@ -127,7 +140,7 @@ impl Buffers {
     ///
     /// * `buffer`: A mutable reference to the `Buffer` where the bufferline should be drawn.
     /// * `theme`: A reference to the `Theme` for styling the bufferline elements.
-    pub fn render_bufferline(&self, buffer: &mut Buffer, theme: &Theme) {
+    pub async fn render_bufferline(&self, buffer: &mut Buffer, theme: &Theme) {
         let mut current_char_offset = 0;
 
         for (i, short_path) in self.buffer_paths.iter().enumerate() {
@@ -135,7 +148,7 @@ impl Buffers {
             let title = format!(
                 "   {} {} ",
                 short_path,
-                match self.buffers[i].read().unwrap().dirty {
+                match self.buffers[i].read().await.dirty {
                     true => "*",
                     false => " ",
                 }
@@ -179,10 +192,17 @@ impl Buffers {
     ///
     /// This function re-calculates the `buffer_paths` vector based on the
     /// full paths of the `TextBuffer`s, ensuring they are unique and readable.
-    pub fn update_paths(&mut self) {
-        let paths = self.buffers.iter().map(|b| b.read().unwrap().path.clone());
-        let unique_paths = get_unique_paths(paths, self.buffers.len());
-        self.buffer_paths = unique_paths
+    pub async fn update_paths(&mut self) {
+        let mut paths: Vec<String> = Vec::with_capacity(self.buffers.len());
+
+        for buffer_arc in self.buffers.iter() {
+            let buffer_read = buffer_arc.read().await;
+
+            paths.push(buffer_read.path.clone());
+        }
+
+        let unique_paths = get_unique_paths(paths.into_iter(), self.buffers.len());
+        self.buffer_paths = unique_paths;
     }
 
     /// Returns the unique (shortened) path of the buffer at the given index.

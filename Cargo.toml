@@ -13,6 +13,7 @@ kerbin-core = { path = "./kerbin-core" }
 libloading = "0.8.8"
 
 tokio = { version = "1.47.1", features = [ "full" ] }
+async-trait = "0.1.89"
 
 ascii-forge = { version = "1.5.0", features = [ "serde" ] }
 
@@ -21,3 +22,4 @@ serde = { version = "1.0.219", features = [ "derive" ] }
 tracing = "0.1.41"
 
 uuid = { version = "1.18.1", features = ["v4"] }
+

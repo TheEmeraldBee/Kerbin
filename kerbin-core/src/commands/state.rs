@@ -20,14 +20,15 @@ pub enum StateCommand {
     LogSessionId,
 }
 
+#[async_trait::async_trait]
 impl Command for StateCommand {
-    fn apply(&self, state: &mut State) -> bool {
+    async fn apply(&self, state: &mut State) -> bool {
         match *self {
             Self::Quit => {
-                let bufs = state.lock_state::<Buffers>().unwrap();
-                let log = state.lock_state::<LogSender>().unwrap();
+                let bufs = state.lock_state::<Buffers>().await.unwrap();
+                let log = state.lock_state::<LogSender>().await.unwrap();
                 for buf in &bufs.buffers {
-                    if buf.read().unwrap().dirty {
+                    if buf.read().await.dirty {
                         log.medium(
                             "command::quit",
                             "Unable to quit, can't close unsaved buffers",
@@ -37,16 +38,17 @@ impl Command for StateCommand {
                         return false;
                     }
                 }
-                state.lock_state::<Running>().unwrap().0 = false;
+                state.lock_state::<Running>().await.unwrap().0 = false;
             }
             Self::QuitForce => {
-                state.lock_state::<Running>().unwrap().0 = false;
+                state.lock_state::<Running>().await.unwrap().0 = false;
             }
 
             Self::LogSessionId => {
-                let session_uuid = state.lock_state::<SessionUuid>().unwrap().0;
+                let session_uuid = state.lock_state::<SessionUuid>().await.unwrap().0;
                 state
                     .lock_state::<LogSender>()
+                    .await
                     .unwrap()
                     .high("command::log_session", session_uuid);
             }

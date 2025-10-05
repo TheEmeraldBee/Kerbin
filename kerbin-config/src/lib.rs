@@ -453,7 +453,7 @@ impl Config {
         Ok(resolved)
     }
 
-    pub fn apply(self, state: &mut State) {
+    pub async fn apply(self, state: &mut State) {
         let palette = match self.resolve_palette() {
             Ok(p) => p,
             Err(e) => {
@@ -462,7 +462,7 @@ impl Config {
             }
         };
 
-        let mut inputs = state.lock_state::<InputConfig>().unwrap();
+        let mut inputs = state.lock_state::<InputConfig>().await.unwrap();
         for input in self.keybindings {
             inputs.register_input(kerbin_core::Input {
                 valid_modes: input.modes,
@@ -473,7 +473,7 @@ impl Config {
             });
         }
 
-        let mut theme = state.lock_state::<Theme>().unwrap();
+        let mut theme = state.lock_state::<Theme>().await.unwrap();
         for (name, unresolved_style) in self.theme.into_iter() {
             match unresolved_style.resolve(&palette) {
                 Ok(style) => theme.register(name, style),
@@ -481,7 +481,7 @@ impl Config {
             }
         }
 
-        let mut prefixes = state.lock_state::<CommandPrefixRegistry>().unwrap();
+        let mut prefixes = state.lock_state::<CommandPrefixRegistry>().await.unwrap();
 
         for prefix in self.prefixes.into_iter() {
             prefixes.register(CommandPrefix {
@@ -495,6 +495,7 @@ impl Config {
 
         state
             .lock_state::<PluginConfig>()
+            .await
             .unwrap()
             .0
             .extend(self.plugin_config);

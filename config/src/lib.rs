@@ -1,36 +1,14 @@
 #![allow(improper_ctypes_definitions)]
 
-use std::{fmt::Display, iter::empty, sync::Arc};
+use std::{iter::empty, pin::Pin, sync::Arc};
 
-use kerbin_core::{
-    ascii_forge::window::{
-        Print,
-        crossterm::{cursor::MoveTo, execute},
-    },
-    *,
-};
+use kerbin_core::{ascii_forge::prelude::*, *};
 
-pub fn large_text_render_method(
-    text: impl Display + Send + Sync + 'static,
-    size: u16,
-) -> RenderFunc {
-    Arc::new(Box::new(move |w, p| {
-        let io = w.io();
+pub async fn hi_renderer(bufs: ResMut<Buffers>) {
+    get!(mut bufs);
 
-        execute!(
-            io,
-            MoveTo(p.x, p.y),
-            Print(format!("\x1b]66;s={};{}\x07", size, text))
-        )
-        .unwrap()
-    }))
-}
-
-pub async fn hi_renderer(bufs: Res<Buffers>) {
-    get!(bufs);
-
-    let buf = bufs.cur_buffer();
-    let rndr = &mut buf.write().unwrap().renderer;
+    let mut buf = bufs.cur_buffer_mut().await;
+    let rndr = &mut buf.renderer;
 
     rndr.clear_extmark_ns("custom::hi");
 
@@ -44,30 +22,40 @@ pub async fn hi_renderer(bufs: Res<Buffers>) {
         }],
     );
 
-    // Test Rendering a Kitty Large Text Element
+    let mut elem_buffer = Buffer::new((50, 5));
+    render!(elem_buffer, (0, 0) => ["Buffer Text".on(Color::Red)]);
+
     rndr.add_extmark(
         "custom::hi",
         0,
         0,
         vec![ExtmarkDecoration::FullElement {
-            height: 2,
-            func: large_text_render_method("Hello, World", 2),
+            elem: Arc::new(elem_buffer),
         }],
     );
 }
 
 #[unsafe(no_mangle)]
-pub fn init(state: &mut State) {
-    init_conf();
+pub fn init(state: &mut State) -> Pin<Box<dyn Future<Output = ()> + '_>> {
+    Box::pin(async {
+        init_conf();
 
-    kerbin_tree_sitter::init(state);
-    kerbin_tree_sitter::register_lang(state, "rust", ["rs"]);
-    kerbin_tree_sitter::register_lang(state, "toml", ["toml"]);
+        kerbin_tree_sitter::init(state).await;
+        kerbin_tree_sitter::register_lang(state, "rust", ["rs"]).await;
+        kerbin_tree_sitter::register_lang(state, "toml", ["toml"]).await;
 
-    kerbin_tree_sitter::register_lang(state, "markdown", ["md"]);
-    kerbin_tree_sitter::register_lang(state, "markdown-inline", empty::<String>());
+        kerbin_tree_sitter::register_lang(state, "markdown", ["md"]).await;
+        kerbin_tree_sitter::register_lang(state, "markdown-inline", empty::<String>()).await;
 
-    state
-        .on_hook(hooks::UpdateFiletype::new("hi"))
-        .system(hi_renderer);
+        kerbin_lsp::init(state).await;
+
+        {
+            let mut manager = state.lock_state::<kerbin_lsp::LspManager>().await.unwrap();
+            manager.register_server("rust", ["rs"], "rust-analyzer", []);
+        }
+
+        state
+            .on_hook(hooks::UpdateFiletype::new("hi"))
+            .system(hi_renderer);
+    })
 }

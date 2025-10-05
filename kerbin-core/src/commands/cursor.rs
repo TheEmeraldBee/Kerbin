@@ -42,10 +42,15 @@ fn parse_apply_all(val: &[String]) -> Result<Box<dyn Command>, String> {
     Ok(Box::new(CursorCommand::ApplyAll(val[1..].to_vec())))
 }
 
+#[async_trait::async_trait]
 impl Command for CursorCommand {
-    fn apply(&self, state: &mut State) -> bool {
-        let cur_buf = state.lock_state::<Buffers>().unwrap().cur_buffer();
-        let mut cur_buf = cur_buf.write().unwrap();
+    async fn apply(&self, state: &mut State) -> bool {
+        let mut cur_buf = state
+            .lock_state::<Buffers>()
+            .await
+            .unwrap()
+            .cur_buffer_mut()
+            .await;
 
         match self {
             Self::CreateCursor => {
@@ -74,13 +79,14 @@ impl Command for CursorCommand {
 
                 let command = state
                     .lock_state::<CommandRegistry>()
+                    .await
                     .unwrap()
                     .parse_command(
                         cmd.clone(),
                         true,
                         true,
-                        &state.lock_state::<CommandPrefixRegistry>().unwrap(),
-                        &state.lock_state::<ModeStack>().unwrap(),
+                        &state.lock_state::<CommandPrefixRegistry>().await.unwrap(),
+                        &state.lock_state::<ModeStack>().await.unwrap(),
                     );
 
                 let Some(command) = command else {
@@ -93,20 +99,20 @@ impl Command for CursorCommand {
                 for i in 0..cursor_count {
                     state
                         .lock_state::<Buffers>()
+                        .await
                         .unwrap()
-                        .cur_buffer()
-                        .write()
-                        .unwrap()
+                        .cur_buffer_mut()
+                        .await
                         .primary_cursor = i;
 
-                    command.apply(state);
+                    command.apply(state).await;
 
                     if state
                         .lock_state::<Buffers>()
+                        .await
                         .unwrap()
-                        .cur_buffer()
-                        .write()
-                        .unwrap()
+                        .cur_buffer_mut()
+                        .await
                         .cursors
                         .len()
                         != cursor_count
@@ -121,10 +127,10 @@ impl Command for CursorCommand {
 
                 state
                     .lock_state::<Buffers>()
+                    .await
                     .unwrap()
-                    .cur_buffer()
-                    .write()
-                    .unwrap()
+                    .cur_buffer_mut()
+                    .await
                     .primary_cursor = primary_cursor;
 
                 false

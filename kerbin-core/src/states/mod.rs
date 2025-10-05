@@ -1,11 +1,8 @@
 pub mod wrappers;
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use ascii_forge::window::Window;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::{RwLock, mpsc::UnboundedSender};
 use uuid::Uuid;
 pub use wrappers::*;
 

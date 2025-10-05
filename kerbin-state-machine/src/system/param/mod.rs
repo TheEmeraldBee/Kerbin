@@ -3,6 +3,7 @@ use crate::storage::{StateName, StateStorage, StaticState};
 pub mod res;
 pub mod res_mut;
 
+#[async_trait::async_trait]
 pub trait SystemParam {
     type Item<'new>: Send + Sync;
     fn retrieve(resources: &StateStorage) -> Self::Item<'_>;
@@ -10,7 +11,7 @@ pub trait SystemParam {
     type Inner<'a>
     where
         Self: 'a;
-    fn get(&self) -> Self::Inner<'_>;
+    async fn get(&self) -> Self::Inner<'_>;
 
     fn desc() -> SystemParamDesc;
 }

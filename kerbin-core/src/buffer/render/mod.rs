@@ -32,12 +32,13 @@ pub async fn render_buffer_default(
     chunk: Chunk<BufferChunk>,
     buffers: Res<Buffers>,
 ) {
-    let Some(mut chunk) = chunk.get() else { return };
-    let mut gutter = gutter_chunk.get();
+    let Some(mut chunk) = chunk.get().await else {
+        return;
+    };
+    let mut gutter = gutter_chunk.get().await;
     get!(buffers);
 
-    let buf = buffers.cur_buffer();
-    let buf = buf.read().unwrap();
+    let buf = buffers.cur_buffer().await;
 
     let mut pos = vec2(0, 0);
 

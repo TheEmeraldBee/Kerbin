@@ -1,9 +1,7 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use ascii_forge::prelude::*;
+use tokio::sync::RwLock;
 
 use crate::*;
 

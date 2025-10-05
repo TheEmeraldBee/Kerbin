@@ -1,7 +1,9 @@
 use std::any::type_name;
 
 use std::any::TypeId;
-use std::sync::{Arc, RwLock, RwLockReadGuard};
+use std::sync::Arc;
+
+use tokio::sync::{RwLock, RwLockReadGuard};
 
 use crate::storage::StateName;
 use crate::storage::StateStorage;
@@ -10,10 +12,11 @@ use crate::system::param::SystemParamDesc;
 
 use super::SystemParam;
 
-pub struct Res<T: StateName + StaticState + 'static> {
+pub struct Res<T: StateName + StaticState + Send + Sync + 'static> {
     value: Arc<RwLock<T>>,
 }
 
+#[async_trait::async_trait]
 impl<T: StateName + StaticState> SystemParam for Res<T> {
     type Item<'new> = Res<T>;
     fn retrieve(resources: &StateStorage) -> Self::Item<'_> {
@@ -41,8 +44,8 @@ impl<T: StateName + StaticState> SystemParam for Res<T> {
     }
 
     type Inner<'a> = RwLockReadGuard<'a, T>;
-    fn get(&self) -> Self::Inner<'_> {
-        self.value.read().unwrap()
+    async fn get(&self) -> Self::Inner<'_> {
+        self.value.read().await
     }
 
     fn desc() -> SystemParamDesc {

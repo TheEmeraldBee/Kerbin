@@ -63,15 +63,15 @@ pub async fn render_statusline(
     // Deserialize statusline-specific configuration from the plugin config
     let plugin_config = plugin_config
         .get()
+        .await
         .0
         .get("statusline")
         .map(|x| StatuslineConfig::deserialize(x.clone()).unwrap())
         .unwrap_or_default();
 
-    let theme = theme.get();
-    let mode_stack = mode_stack.get();
+    get!(theme, mode_stack);
 
-    let mut chunk = chunk.get().unwrap();
+    let mut chunk = chunk.get().await.unwrap();
 
     let mut parts = vec![];
 
@@ -128,8 +128,7 @@ pub async fn render_statusline(
     }
 
     // Get information about the current buffer for cursor display
-    let cur_buf = buffers.get().cur_buffer();
-    let cur_buf = cur_buf.read().unwrap();
+    let cur_buf = buffers.get().await.cur_buffer().await;
 
     let mut loc = chunk.size() - vec2(1, 0); // Start rendering from the right edge
 

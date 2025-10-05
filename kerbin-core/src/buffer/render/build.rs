@@ -36,18 +36,16 @@ fn process_extmarks(
                         ));
                     }
                 }
-                ExtmarkDecoration::FullElement { height, func } => {
+                ExtmarkDecoration::FullElement { elem } => {
                     if ext.byte_range.start == absolute_byte_idx {
                         post_line_elems.push(
                             RenderLine::default()
-                                .with_element(RenderLineElement::Element(func.clone()))
-                                .with_element(RenderLineElement::ReservedSpace(1)),
+                                .with_element(RenderLineElement::Element(elem.clone())),
                         );
-                        for _ in 1..*height {
-                            post_line_elems.push(
-                                RenderLine::default()
-                                    .with_element(RenderLineElement::ReservedSpace(1)),
-                            )
+                        for _ in 1..elem.size().y {
+                            post_line_elems.push(RenderLine::default().with_element(
+                                RenderLineElement::ReservedSpace(elem.size().x as usize),
+                            ))
                         }
                     }
                 }
@@ -59,13 +57,18 @@ fn process_extmarks(
 }
 
 /// Builds out the rendered lines for the current buffer, only building the required sizes
-pub async fn build_buffer_lines(chunk: Chunk<BufferChunk>, bufs: Res<Buffers>, theme: Res<Theme>) {
-    let Some(chunk) = chunk.get() else { return };
+pub async fn build_buffer_lines(
+    chunk: Chunk<BufferChunk>,
+    bufs: ResMut<Buffers>,
+    theme: Res<Theme>,
+) {
+    let Some(chunk) = chunk.get().await else {
+        return;
+    };
     let height = chunk.size().y;
 
-    get!(bufs, theme);
-    let buf = bufs.cur_buffer();
-    let mut buf = buf.write().unwrap();
+    get!(mut bufs, theme);
+    let mut buf = bufs.cur_buffer_mut().await;
 
     let default_style = theme
         .get("ui.text")

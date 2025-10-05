@@ -14,7 +14,7 @@ macro_rules! impl_for_func {
     ($($item:ident)*) => {
         impl<Fut, Func, $($item),*> System for FunctionSystem<($($item,)*), Func>
         where
-            Fut: Future<Output = ()> + Send + Sync + 'static,
+            Fut: Future<Output = ()> + Send + 'static,
                 for<'a, 'b> &'a Func:
                     Fn( $($item),* ) -> Fut +
                     Fn( $(<$item as SystemParam>::Item<'b>),* ) -> Fut,
@@ -24,7 +24,7 @@ macro_rules! impl_for_func {
             #[allow(non_snake_case, unused_variables)]
             fn call<'a>(&'a self, storage: &crate::storage::StateStorage) -> futures::future::BoxFuture<'a, ()> {
                 #[allow(clippy::too_many_arguments)]
-                fn call_inner<'a, Fut: Future<Output = ()> + Send + Sync + 'static, $($item),*>(
+                fn call_inner<'a, Fut: Future<Output = ()> + Send + 'static, $($item),*>(
                     f: impl Fn($($item),*) -> Fut,
                     $($item: $item,)*
                 ) -> futures::future::BoxFuture<'a, ()> {
@@ -50,7 +50,7 @@ macro_rules! impl_for_func {
 
         impl<Fut, Func, $($item),*> IntoSystem<($($item,)*), ()> for Func
         where
-            Fut: Future<Output = ()> + Send + Sync + 'static,
+            Fut: Future<Output = ()> + Send + 'static,
                 for<'a, 'b> &'a Func:
                     Fn( $($item),* ) -> Fut +
                     Fn( $(<$item as SystemParam>::Item<'b>),* ) -> Fut,

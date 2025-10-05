@@ -180,13 +180,12 @@ pub async fn register_help_menu_chunk(
     chunks: ResMut<Chunks>,
     input: Res<InputState>,
 ) {
-    let input = input.get();
+    get!(input);
     if input.active_inputs.is_empty() {
         return;
     }
 
-    let mut chunks = chunks.get();
-    let window = window.get();
+    get!(mut chunks, window);
 
     // Place a layout in the bottom right corner
     let rect = Layout::new()
@@ -219,13 +218,13 @@ pub async fn render_help_menu(
     input: Res<InputState>,
     input_config: Res<InputConfig>,
 ) {
-    let input = input.get();
+    get!(input);
     if input.active_inputs.is_empty() {
         return;
     }
 
-    let mut chunk = &mut chunk.get().unwrap();
-    let input_config = input_config.get();
+    let mut chunk = &mut chunk.get().await.unwrap();
+    let input_config = input_config.get().await;
 
     let border = Border::square(chunk.size().x, chunk.size().y);
 
@@ -267,10 +266,7 @@ pub async fn handle_inputs(
     prefix_registry: Res<CommandPrefixRegistry>,
     command_sender: ResMut<CommandSender>,
 ) {
-    let window = window.get();
-    let mut input = input.get();
-    let input_config = input_config.get();
-    let modes = modes.get();
+    get!(window, mut input, input_config, modes);
 
     let mode = modes.get_mode();
     if mode == 'c' {
@@ -288,15 +284,17 @@ pub async fn handle_inputs(
                 continue;
             };
 
-            let command = command_registry.get().parse_command(
+            let registry = prefix_registry.get().await;
+
+            let command = command_registry.get().await.parse_command(
                 CommandRegistry::split_command(&format!("a \'{chr}\' false")),
                 true,
                 false,
-                &prefix_registry.get(),
+                &registry,
                 &modes,
             );
             if let Some(command) = command {
-                command_sender.get().send(command).unwrap();
+                command_sender.get().await.send(command).unwrap();
             }
 
             consumed = true;
@@ -339,6 +337,7 @@ pub async fn handle_inputs(
     let mut completed_input = false;
 
     let repeat_count = input.repeat_count.clone().parse().unwrap_or(1);
+    get!(command_registry, prefix_registry, command_sender);
     input.active_inputs.retain_mut(|(idx, step)| {
         if completed_input {
             return false;
@@ -356,15 +355,15 @@ pub async fn handle_inputs(
                     InputEvent::Commands(c) => {
                         for _ in 0..repeat_count {
                             for command in c {
-                                let command = command_registry.get().parse_command(
+                                let command = command_registry.parse_command(
                                     CommandRegistry::split_command(command),
                                     true,
                                     false,
-                                    &prefix_registry.get(),
+                                    &prefix_registry,
                                     &modes,
                                 );
                                 if let Some(command) = command {
-                                    command_sender.get().send(command).unwrap();
+                                    command_sender.send(command).unwrap();
                                 } else {
                                     return false;
                                 }
@@ -396,21 +395,18 @@ pub async fn handle_inputs(
             InputResult::Step => input.active_inputs.push((idx, 1)),
             InputResult::Complete => {
                 match &input_config.inputs[idx].event {
-                    //InputEvent::Func(f) => {
-                    //f(state.clone(), repeat_count);
-                    //}
                     InputEvent::Commands(c) => {
                         'repeat: for _ in 0..repeat_count {
                             for command in c {
-                                let command = command_registry.get().parse_command(
+                                let command = command_registry.parse_command(
                                     CommandRegistry::split_command(command),
                                     true,
                                     false,
-                                    &prefix_registry.get(),
+                                    &prefix_registry,
                                     &modes,
                                 );
                                 if let Some(command) = command {
-                                    command_sender.get().send(command).unwrap();
+                                    command_sender.send(command).unwrap();
                                 } else {
                                     break 'repeat;
                                 }

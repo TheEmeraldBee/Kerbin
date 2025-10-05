@@ -2,6 +2,8 @@
 
 use tracing::Level;
 
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[macro_export]
 /// Automatically calls the `.get()` method on all systems provided as arguments.
 ///
@@ -41,11 +43,11 @@ use tracing::Level;
 /// ```
 macro_rules! get {
     (@inner $name:ident $(, $($t:tt)+)?) => {
-        let $name = $name.get();
+        let $name = $name.get().await;
         get!(@inner $($($t)+)?)
     };
     (@inner mut $name:ident $(, $($t:tt)+)?) => {
-        let mut $name = $name.get(); // Using get_mut() for mutable access
+        let mut $name = $name.get().await;
         get!(@inner $($($t)*)?)
     };
     (@inner $($t:tt)+) => {
@@ -108,6 +110,8 @@ pub fn init_conf() {
 // Export useful types and modules from Kerbin's ecosystem.
 #[macro_use]
 pub extern crate kerbin_macros;
+
+pub extern crate async_trait;
 
 use std::{fs::File, sync::Mutex};
 

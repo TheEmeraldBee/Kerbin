@@ -1,5 +1,7 @@
 #![allow(improper_ctypes_definitions)]
 
+use std::pin::Pin;
+
 use ::libloading::Library;
 
 pub struct Plugin {
@@ -15,10 +17,13 @@ impl Plugin {
         }
     }
 
-    pub fn call_func<I, R>(&self, symbol: &[u8], input: I) -> R {
+    pub async fn call_func<I, R>(&self, symbol: &[u8], input: I) -> R {
         unsafe {
-            let func = self.lib.get::<extern "C" fn(I) -> R>(symbol).unwrap();
-            func(input)
+            let func = self
+                .lib
+                .get::<extern "C" fn(I) -> Pin<Box<dyn Future<Output = R>>>>(symbol)
+                .unwrap();
+            func(input).await
         }
     }
 }

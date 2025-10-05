@@ -208,11 +208,10 @@ pub fn highlight(
     final_map
 }
 
-pub async fn render_tree_sitter_extmarks(bufs: Res<Buffers>, highlights: Res<HighlightMap>) {
-    get!(bufs, highlights);
+pub async fn render_tree_sitter_extmarks(bufs: ResMut<Buffers>, highlights: Res<HighlightMap>) {
+    get!(mut bufs, highlights);
 
-    let buf_arc = bufs.cur_buffer();
-    let mut buf = buf_arc.write().unwrap();
+    let mut buf = bufs.cur_buffer_mut().await;
 
     buf.renderer.clear_extmark_ns("tree-sitter::highlight");
 
