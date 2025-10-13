@@ -8,7 +8,11 @@ pub mod into_system;
 pub mod param;
 
 pub trait System {
-    fn call<'a>(&'a self, storage: &StateStorage) -> BoxFuture<'a, ()>;
+    fn call<'a>(
+        &'a self,
+        handle: tokio::runtime::Handle,
+        storage: &'a StateStorage,
+    ) -> BoxFuture<'a, ()>;
 
     fn params(&self) -> Vec<SystemParamDesc>;
 }

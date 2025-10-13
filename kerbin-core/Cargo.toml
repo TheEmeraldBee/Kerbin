@@ -4,7 +4,6 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-kerbin-plugin = { path = "../kerbin-plugin" }
 kerbin-state-machine = { path = "../kerbin-state-machine" }
 
 async-trait.workspace = true
@@ -13,8 +12,6 @@ uuid.workspace = true
 
 kerbin-macros.workspace = true
 ascii-forge.workspace = true
-
-libloading.workspace = true
 
 tokio.workspace = true
 

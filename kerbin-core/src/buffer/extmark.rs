@@ -1,6 +1,11 @@
 use std::{ops::Range, sync::Arc};
 
-use ascii_forge::window::{Buffer, ContentStyle, crossterm::cursor::SetCursorStyle};
+use ascii_forge::{
+    math::Vec2,
+    window::{Buffer, ContentStyle, crossterm::cursor::SetCursorStyle},
+};
+
+use crate::OverlayPositioning;
 
 /// Types of decorations that can be attached to an [`Extmark`].
 ///
@@ -11,10 +16,21 @@ pub enum ExtmarkDecoration {
     /// Takes an array and treats items as a fallback list
     Highlight { hl: ContentStyle },
 
-    /// Insert “virtual” text inline before buffer position.
+    /// Insert “virtual” text inline after buffer byte position.
     VirtText {
         text: String,
         hl: Option<ContentStyle>,
+    },
+
+    /// Given the byte position of the decoration, render this element with an offset
+    /// from the byte's render position
+    /// Enhanced overlay element with full control
+    OverlayElement {
+        offset: Vec2,
+        elem: Arc<Buffer>,
+        z_index: i32,
+        clip_to_viewport: bool,
+        positioning: OverlayPositioning,
     },
 
     /// Display a cursor (block/bar/underline), only one of these can exist on the state at a time,

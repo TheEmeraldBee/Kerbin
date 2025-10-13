@@ -1,12 +1,6 @@
 use std::{iter::once, panic, str::FromStr, time::Duration};
 
-use ascii_forge::{
-    prelude::*,
-    window::crossterm::{
-        cursor::{Hide, MoveTo, Show},
-        execute,
-    },
-};
+use ascii_forge::prelude::*;
 
 use ipmpsc::SharedRingBuffer;
 use kerbin_config::Config;
@@ -101,11 +95,11 @@ pub async fn render_chunks(chunks: Res<Chunks>, window: ResMut<WindowState>) {
     }
 
     if let Some((_, pos, sty)) = best_cursor {
-        if window.mouse_pos() != pos {
-            execute!(window.io(), Show, MoveTo(pos.x, pos.y), sty).unwrap();
-        }
+        window.set_cursor_visible(true);
+        window.set_cursor(pos);
+        window.set_cursor_style(sty);
     } else {
-        execute!(window.io(), Hide, MoveTo(0, 0)).unwrap();
+        window.set_cursor_visible(false);
     }
 }
 
@@ -232,10 +226,7 @@ async fn main() {
             .critical("core::config_load", e),
     }
 
-    let plugin = Plugin::load(&format!("{config_path}/config.so"));
-
-    // Run the plugin's init
-    let _: () = plugin.call_func(b"init", &mut state).await;
+    config::init(&mut state).await;
 
     // Register command types
     {
@@ -363,9 +354,4 @@ async fn main() {
         .expect("Window should restore fine");
 
     let _ = std::fs::remove_file(&queue_file);
-
-    // State **MUST** be dropped before the plugin,
-    // as state may store references to memory in state
-    drop(state);
-    drop(plugin);
 }

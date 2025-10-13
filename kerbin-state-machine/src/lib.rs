@@ -169,9 +169,10 @@ impl State {
     }
 
     pub async fn call<I, D>(&self, sys: impl IntoSystem<I, D>) {
+        let handle = tokio::runtime::Handle::current();
         let system = sys.into_system();
 
-        system.call(&self.storage).await;
+        system.call(handle, &self.storage).await;
     }
 
     pub fn hook(&self, hook: impl Hook + 'static) -> HookCallBuilder<'_> {
@@ -218,10 +219,12 @@ impl<'a> HookCallBuilder<'a> {
 
             let indices = group_concurrent_system_indices(hooks);
 
+            let handle = tokio::runtime::Handle::current();
+
             for group in indices {
                 let (_, res) = async_scoped::TokioScope::scope_and_block(|s| {
                     for indice in group {
-                        let system_future = hooks[indice].call(&self.state.storage);
+                        let system_future = hooks[indice].call(handle.clone(), &self.state.storage);
 
                         s.spawn(system_future);
                     }
@@ -432,10 +435,12 @@ mod tests {
 
     fn create_systems(
         system_configs: Vec<Vec<(&str, bool, bool)>>,
-    ) -> Vec<Box<dyn System + Sync + 'static>> {
+    ) -> Vec<Box<dyn System + Send + Sync + 'static>> {
         system_configs
             .into_iter()
-            .map(|config| Box::new(MockSystem::new(config)) as Box<dyn System + Sync + 'static>)
+            .map(|config| {
+                Box::new(MockSystem::new(config)) as Box<dyn System + Send + Sync + 'static>
+            })
             .collect()
     }
 
@@ -597,7 +602,7 @@ mod tests {
 
     #[test]
     fn test_empty_systems() {
-        let systems: Vec<Box<dyn System>> = vec![];
+        let systems: Vec<Box<dyn System + Send + Sync>> = vec![];
         let groups = group_concurrent_system_indices(&systems);
         assert_eq!(groups.len(), 0);
     }

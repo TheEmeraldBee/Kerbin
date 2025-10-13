@@ -86,27 +86,6 @@ pub fn init_log() {
         .init();
 }
 
-/// Should **always** be called at the beginning of your editor's configuration.
-///
-/// This function performs essential initialization steps:
-/// 1. Calls `init_log()` to set up file logging.
-/// 2. Sets a global panic hook. This hook ensures that any panics occurring
-///    within the editor (including those from plugins) are logged to the
-///    configured log file (`kerbin.log`) before the original panic hook is called.
-///    This is crucial for debugging crashes in a headless or GUI environment.
-pub fn init_conf() {
-    init_log();
-
-    let original_hook = std::panic::take_hook();
-
-    // Since we can't handle plugin panics in the editor,
-    // just log them. This will allow for quickly looking over crashes
-    std::panic::set_hook(Box::new(move |e| {
-        tracing::error!("{e}");
-        original_hook(e);
-    }));
-}
-
 // Export useful types and modules from Kerbin's ecosystem.
 #[macro_use]
 pub extern crate kerbin_macros;
@@ -115,7 +94,6 @@ pub extern crate async_trait;
 
 use std::{fs::File, sync::Mutex};
 
-pub use kerbin_plugin::Plugin;
 pub use kerbin_state_machine::*;
 
 pub use ascii_forge;

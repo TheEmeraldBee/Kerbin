@@ -36,6 +36,24 @@ fn process_extmarks(
                         ));
                     }
                 }
+                ExtmarkDecoration::OverlayElement {
+                    offset,
+                    elem,
+                    z_index,
+                    clip_to_viewport,
+                    positioning,
+                } => {
+                    if ext.byte_range.start == absolute_byte_idx {
+                        after_elems.push(RenderLineElement::OverlayElement {
+                            anchor_byte: absolute_byte_idx,
+                            offset: *offset,
+                            elem: elem.clone(),
+                            z_index: *z_index,
+                            clip_to_viewport: *clip_to_viewport,
+                            positioning: *positioning,
+                        });
+                    }
+                }
                 ExtmarkDecoration::FullElement { elem } => {
                     if ext.byte_range.start == absolute_byte_idx {
                         post_line_elems.push(

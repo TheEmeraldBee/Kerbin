@@ -4,9 +4,10 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+config = { path = "../config" }
+
 kerbin-config = { path = "../kerbin-config" }
 kerbin-core = { path = "../kerbin-core" }
-kerbin-plugin = { path = "../kerbin-plugin" }
 
 kerbin-state-machine = { path = "../kerbin-state-machine" }
 

@@ -22,20 +22,22 @@ macro_rules! impl_for_func {
         {
             #[inline]
             #[allow(non_snake_case, unused_variables)]
-            fn call<'a>(&'a self, storage: &crate::storage::StateStorage) -> futures::future::BoxFuture<'a, ()> {
+            fn call<'a>(&'a self, handle: tokio::runtime::Handle, storage: &crate::storage::StateStorage) -> futures::future::BoxFuture<'a, ()> {
                 #[allow(clippy::too_many_arguments)]
-                fn call_inner<'a, Fut: Future<Output = ()> + Send + 'static, $($item),*>(
+                fn call_inner<Fut: Future<Output = ()> + Send + 'static, $($item),*>(
                     f: impl Fn($($item),*) -> Fut,
                     $($item: $item,)*
-                ) -> futures::future::BoxFuture<'a, ()> {
-                    Box::pin(f($($item),*))
+                ) -> Fut {
+                    f($($item),*)
                 }
 
                 $(
                     let $item = $item::retrieve(storage);
                 )*
 
-                call_inner(&self.f, $($item),*)
+                let call = call_inner(&self.f, $($item),*);
+
+                Box::pin(call)
             }
 
             #[inline]

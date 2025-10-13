@@ -47,6 +47,7 @@ pub fn init_state(
     let (log_state, log_sender) = LogState::new_with_channel();
 
     state
+        .state(RuntimeHandle(tokio::runtime::Handle::current()))
         .state(ConfigFolder(config_path))
         .state(SessionUuid(uuid))
         // Editor's running status

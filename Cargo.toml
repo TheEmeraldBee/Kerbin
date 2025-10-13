@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = [ "kerbin", "kerbin-config", "kerbin-core", "kerbin-macros", "kerbin-plugin", "kerbin-state-machine", "config" , "plugins/*"]
+members = [ "kerbin", "kerbin-config", "kerbin-core", "kerbin-macros", "kerbin-state-machine", "config" , "plugins/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -10,12 +10,10 @@ edition = "2024"
 kerbin-macros = { path = "./kerbin-macros" }
 kerbin-core = { path = "./kerbin-core" }
 
-libloading = "0.8.8"
-
 tokio = { version = "1.47.1", features = [ "full" ] }
 async-trait = "0.1.89"
 
-ascii-forge = { version = "1.5.0", features = [ "serde" ] }
+ascii-forge = { version = "1.6.0", features = [ "serde" ] }
 
 serde = { version = "1.0.219", features = [ "derive" ] }
 

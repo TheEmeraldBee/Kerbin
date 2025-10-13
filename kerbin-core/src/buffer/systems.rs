@@ -57,7 +57,7 @@ pub async fn render_cursors_and_selections(
 
         if primary_cursor == i {
             let cursor_style = match modes.get_mode() {
-                'i' => SetCursorStyle::SteadyBar,
+                'i' => SetCursorStyle::BlinkingBar,
                 _ => SetCursorStyle::SteadyBlock,
             };
 

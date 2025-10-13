@@ -1,9 +1,3 @@
-// Ideas
-// - Store Byte based scroll (what line should the renderer calculate from)
-// - Store sub, row based scroll (what offset of that line should be shown)
-// - Update the byte based scroll from the sub scroll each time the sub scroll is moved
-// - Each line will need to be rendered fully, but this should be fine
-
 pub mod renderer;
 pub use renderer::*;
 
@@ -35,6 +29,7 @@ pub async fn render_buffer_default(
     let Some(mut chunk) = chunk.get().await else {
         return;
     };
+
     let mut gutter = gutter_chunk.get().await;
     get!(buffers);
 
@@ -66,4 +61,14 @@ pub async fn render_buffer_default(
 
         pos.y += 1;
     }
+
+    let mut overlay_renderer = OverlayRenderer::default();
+    overlay_renderer.collect_from_lines(&buf.renderer.lines, buf.renderer.byte_scroll);
+    overlay_renderer.render_all(
+        &mut chunk,
+        vec2(0, 0),
+        buf.renderer.byte_scroll,
+        buf.renderer.h_scroll,
+        1,
+    );
 }

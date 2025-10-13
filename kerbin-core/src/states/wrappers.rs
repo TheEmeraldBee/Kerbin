@@ -4,11 +4,14 @@ use std::{
 };
 
 use ascii_forge::window::Window;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::{runtime::Handle, sync::mpsc::UnboundedSender};
 use toml::Value;
 use uuid::Uuid;
 
 pub use crate::*;
+
+#[derive(State)]
+pub struct RuntimeHandle(pub Handle);
 
 /// This state stores the String path of the configuration folder
 #[derive(State)]
