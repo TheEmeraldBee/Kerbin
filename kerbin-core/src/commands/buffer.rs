@@ -201,7 +201,7 @@ impl Command for BufferCommand {
                                 );
 
                                 tracing::error!(message);
-                                log.medium("command::write_file", message);
+                                log.high("command::write_file", message);
                                 return false;
                             }
                         }
@@ -281,7 +281,7 @@ impl Command for BufferCommand {
                 if path == "<scratch>" {
                     let message = "Cannot reload scratch buffer";
                     tracing::error!(message);
-                    log.medium("command::reload_file", message);
+                    log.high("command::reload_file", message);
                     return false;
                 }
 

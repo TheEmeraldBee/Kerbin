@@ -28,6 +28,12 @@ desc = "Run Yazi file picker"
 
 [[keybind]]
 modes = ["n"]
+keys = [";", "s"]
+commands = ['shsp zellij run -f --width 60%% --height 60%% --y 20%% --x 20%% -c -- nu -c "KERBIN_SESSION=%session nu"']
+desc = "Run Yazi file picker"
+
+[[keybind]]
+modes = ["n"]
 keys = [";", "shift-q"]
 commands = ["quit"]
 desc = "Quit"

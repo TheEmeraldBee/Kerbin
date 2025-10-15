@@ -112,6 +112,9 @@ file communication systems
 - [x] Outside of Zellij, a large number of characters
 are rendered next to the location of the systems until they are replaced
 probably an issue from how we setup the first buffers
+- [x] Log Rendering and other types of rendering incorrectly block when they are empty
+    - Requres update to ascii-forge 2.0.0
+    - Update boxes from rendering to correctly fill states
 - [ ] Scrolling inside of buffers with inline widgets is very broken.
 We need to apply visual elements to the widgets to handle this system.
 - [x] Tree-Sitter Auto Indent isn't quite right in implementation.

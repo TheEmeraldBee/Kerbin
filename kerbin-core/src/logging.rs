@@ -247,7 +247,7 @@ impl LogSender {
         let id = self.next_id();
         let _ = self.sender.send(LogCommand::Add(
             id,
-            Duration::from_millis(5000),
+            Duration::from_millis(4000),
             medium(origin, message),
         ));
         id
@@ -257,7 +257,7 @@ impl LogSender {
         let id = self.next_id();
         let _ = self.sender.send(LogCommand::Add(
             id,
-            Duration::from_millis(8000),
+            Duration::from_millis(5000),
             high(origin, message),
         ));
         id
@@ -267,7 +267,7 @@ impl LogSender {
         let id = self.next_id();
         let _ = self.sender.send(LogCommand::Add(
             id,
-            Duration::from_millis(10000),
+            Duration::from_millis(8000),
             critical(origin, message),
         ));
         id

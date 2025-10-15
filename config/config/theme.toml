@@ -95,6 +95,11 @@
 
 "ui.cursor" = { bg = "overlay0" }
 
+"ui.log.critical" = "mauve"
+"ui.log.high" = "flamingo"
+"ui.log.medium" = "teal"
+"ui.log.low" = "green"
+
 # In the editor, rendering multicursor style is done with ui.cursor.mode0.mode1.etc
 # IE: if the mode stack is nxi (default multicursor insert) you could do ui.cursor.n.x.i, 
 #     or ui.cursor.x.i, or ui.cursor.i, and it would match one all three, n.x.i first.

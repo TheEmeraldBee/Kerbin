@@ -1,6 +1,6 @@
-use crate::jsonrpc::*;
+use crate::{HandlerEntry, LspHandlerManager, jsonrpc::*};
 
-use kerbin_core::{HookInfo, HookPathComponent};
+use kerbin_core::{HookPathComponent, State};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -10,20 +10,15 @@ use tokio::process::{ChildStdin, Command};
 use tokio::sync::Mutex;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
-pub type EventHandler<State> = Box<dyn FnMut(&mut State, &JsonRpcMessage) + Send>;
-
 pub struct RequestInfo {
     pub id: i32,
     pub method: String,
     pub params: Value,
 }
 
-struct HandlerEntry<State> {
-    hook_info: HookInfo,
-    handler: EventHandler<State>,
-}
+pub struct LspClient<W: AsyncWrite + Unpin + Send + 'static> {
+    lang_id: String,
 
-pub struct LspClient<W: AsyncWrite + Unpin + Send + 'static, State> {
     writer: Arc<Mutex<W>>,
     request_id: Arc<Mutex<i32>>,
 
@@ -37,15 +32,14 @@ pub struct LspClient<W: AsyncWrite + Unpin + Send + 'static, State> {
     ignore_ids: Vec<i32>,
 
     message_rx: UnboundedReceiver<JsonRpcMessage>,
-
-    /// Event handlers for different message types
-    response_handlers: Vec<HandlerEntry<State>>,
-    notification_handlers: Vec<HandlerEntry<State>>,
-    server_request_handlers: Vec<HandlerEntry<State>>,
 }
 
-impl<State> LspClient<ChildStdin, State> {
-    pub async fn spawned(server_cmd: &str, args: Vec<&str>) -> std::io::Result<Self> {
+impl LspClient<ChildStdin> {
+    pub async fn spawned(
+        lang: impl ToString,
+        server_cmd: &str,
+        args: Vec<String>,
+    ) -> std::io::Result<Self> {
         let mut process = Command::new(server_cmd)
             .args(args)
             .stdin(std::process::Stdio::piped())
@@ -56,12 +50,13 @@ impl<State> LspClient<ChildStdin, State> {
         let stdin = Arc::new(Mutex::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
 
-        Self::new(stdin, stdout)
+        Self::new(lang.to_string(), stdin, stdout)
     }
 }
 
-impl<W: AsyncWrite + Unpin + Send + 'static, State> LspClient<W, State> {
+impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
     pub fn new(
+        lang: String,
         input: Arc<Mutex<W>>,
         output: impl AsyncRead + Unpin + Send + 'static,
     ) -> std::io::Result<Self> {
@@ -74,6 +69,7 @@ impl<W: AsyncWrite + Unpin + Send + 'static, State> LspClient<W, State> {
         });
 
         Ok(LspClient {
+            lang_id: lang,
             writer: input,
             request_id: Arc::new(Mutex::new(0)),
             unproccessed_responses: vec![],
@@ -81,9 +77,6 @@ impl<W: AsyncWrite + Unpin + Send + 'static, State> LspClient<W, State> {
             request_info: std::collections::HashMap::new(),
             ignore_ids: vec![],
             message_rx,
-            response_handlers: vec![],
-            notification_handlers: vec![],
-            server_request_handlers: vec![],
         })
     }
 
@@ -228,6 +221,34 @@ impl<W: AsyncWrite + Unpin + Send + 'static, State> LspClient<W, State> {
         Ok(id)
     }
 
+    fn call_matching_handlers<'a>(
+        handlers: impl Iterator<Item = &'a HandlerEntry> + 'a,
+        method: &str,
+        state: &mut State,
+        msg: &JsonRpcMessage,
+    ) {
+        // Parse the method path
+        let method_path = HookPathComponent::parse_custom_split(method, "/");
+
+        // Collect handlers with their ranks
+        let mut matches: Vec<(&'a HandlerEntry, i8)> = handlers
+            .filter_map(|entry| {
+                entry
+                    .hook_info
+                    .matches(&method_path)
+                    .map(|rank| (entry, rank))
+            })
+            .collect();
+
+        // Sort by rank (highest first)
+        matches.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // Call handlers in order of rank
+        for (entry, _) in matches {
+            (entry.handler)(state, msg);
+        }
+    }
+
     pub async fn notification<T: Serialize>(
         &self,
         method: impl ToString,
@@ -246,79 +267,8 @@ impl<W: AsyncWrite + Unpin + Send + 'static, State> LspClient<W, State> {
         Ok(())
     }
 
-    /// Add a handler for responses matching a specific pattern
-    /// Patterns use :: as separator and support:
-    /// - Exact match: "textDocument/didOpen"
-    /// - Wildcard: "*" or "textDocument::*"
-    /// - OneOf: "textDocument|workspace::didOpen"
-    pub fn on_response<F>(&mut self, pattern: &str, handler: F)
-    where
-        F: FnMut(&mut State, &JsonRpcMessage) + Send + 'static,
-    {
-        self.response_handlers.push(HandlerEntry {
-            hook_info: HookInfo::new_custom_split(pattern, "/"),
-            handler: Box::new(handler),
-        });
-    }
-
-    /// Add a handler for notifications matching a specific pattern
-    /// Patterns use :: as separator and support:
-    /// - Exact match: "$/progress"
-    /// - Wildcard: "*" matches everything
-    /// - Multiple methods: "$/progress/begin|report|end"
-    pub fn on_notification<F>(&mut self, pattern: &str, handler: F)
-    where
-        F: FnMut(&mut State, &JsonRpcMessage) + Send + 'static,
-    {
-        self.notification_handlers.push(HandlerEntry {
-            hook_info: HookInfo::new_custom_split(pattern, "/"),
-            handler: Box::new(handler),
-        });
-    }
-
-    /// Add a handler for server requests matching a specific pattern
-    pub fn on_server_request<F>(&mut self, pattern: &str, handler: F)
-    where
-        F: FnMut(&mut State, &JsonRpcMessage) + Send + 'static,
-    {
-        self.server_request_handlers.push(HandlerEntry {
-            hook_info: HookInfo::new_custom_split(pattern, "/"),
-            handler: Box::new(handler),
-        });
-    }
-
-    fn call_matching_handlers(
-        handlers: &mut [HandlerEntry<State>],
-        method: &str,
-        state: &mut State,
-        msg: &JsonRpcMessage,
-    ) {
-        // Parse the method path
-        let method_path = HookPathComponent::parse_custom_split(method, "/");
-
-        // Find all matching handlers with their ranks
-        let mut matches: Vec<(usize, i8)> = handlers
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, entry)| {
-                entry
-                    .hook_info
-                    .matches(&method_path)
-                    .map(|rank| (idx, rank))
-            })
-            .collect();
-
-        // Sort by rank (highest first)
-        matches.sort_by(|a, b| b.1.cmp(&a.1));
-
-        // Call handlers in order of rank
-        for (idx, _) in matches {
-            (handlers[idx].handler)(state, msg);
-        }
-    }
-
     /// Process events with the given state, calling all registered handlers
-    pub fn process_events(&mut self, state: &mut State) {
+    pub fn process_events(&mut self, handler_manager: &LspHandlerManager, state: &mut State) {
         while let Ok(msg) = self.message_rx.try_recv() {
             match &msg {
                 JsonRpcMessage::Response(val) => {
@@ -329,33 +279,21 @@ impl<W: AsyncWrite + Unpin + Send + 'static, State> LspClient<W, State> {
 
                     // Get the method from request info for pattern matching
                     if let Some(req_info) = self.request_info.get(&val.id) {
-                        Self::call_matching_handlers(
-                            &mut self.response_handlers,
-                            &req_info.method,
-                            state,
-                            &msg,
-                        );
+                        let handlers = handler_manager.iter_response_handlers(&self.lang_id);
+                        Self::call_matching_handlers(handlers, &req_info.method, state, &msg);
                     }
 
                     self.unproccessed_responses.push(val.clone());
                 }
                 JsonRpcMessage::Notification(notif) => {
-                    Self::call_matching_handlers(
-                        &mut self.notification_handlers,
-                        &notif.method,
-                        state,
-                        &msg,
-                    );
+                    let handlers = handler_manager.iter_notification_handlers(&self.lang_id);
+                    Self::call_matching_handlers(handlers, &notif.method, state, &msg);
 
                     self.unprocessed_notifications.push(notif.clone());
                 }
                 JsonRpcMessage::ServerRequest(req) => {
-                    Self::call_matching_handlers(
-                        &mut self.server_request_handlers,
-                        &req.method,
-                        state,
-                        &msg,
-                    );
+                    let handlers = handler_manager.iter_server_request_handlers(&self.lang_id);
+                    Self::call_matching_handlers(handlers, &req.method, state, &msg);
                 }
             }
         }

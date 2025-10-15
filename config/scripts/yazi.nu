@@ -11,6 +11,6 @@ def main [session: string, current_buffer] {
   $lines | each {
     |line|
     print $line
-    cargo run -- command -s $session -c $"o ($line)"
+    cargo run -p kerbin -- command -s $session -c $"o ($line)"
   }
 }
