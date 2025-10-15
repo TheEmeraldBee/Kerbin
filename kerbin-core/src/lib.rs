@@ -153,5 +153,9 @@ pub use rope_exts::*;
 pub mod style_exts;
 pub use style_exts::*;
 
+/// Module used to extend the functionality of ascii_forge's buffers
+pub mod buffer_exts;
+pub use buffer_exts::*;
+
 pub mod logging;
 pub use logging::*;

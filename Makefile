@@ -1,2 +1,2 @@
 run:
-	cargo run -- -c ./config
+	cargo run -p kerbin -- -c ./config

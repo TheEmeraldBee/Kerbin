@@ -84,7 +84,8 @@ pub async fn render_chunks(chunks: Res<Chunks>, window: ResMut<WindowState>) {
                     best_cursor = Some((cur.0, vec2(x, y), cur.2));
                 }
             }
-            render!(window, buffer.0 => [ &buf ]);
+
+            buf.render_non_empty(buffer.0, window.buffer_mut());
 
             for (offset, item) in &buf.render_items {
                 let absolute_pos = buffer.0 + *offset;
@@ -219,11 +220,13 @@ async fn main() {
         Ok(t) => {
             t.apply(&mut state).await;
         }
-        Err(e) => state
-            .lock_state::<LogSender>()
-            .await
-            .unwrap()
-            .critical("core::config_load", e),
+        Err(e) => {
+            state
+                .lock_state::<LogSender>()
+                .await
+                .unwrap()
+                .critical("core::config_load", e);
+        }
     }
 
     config::init(&mut state).await;

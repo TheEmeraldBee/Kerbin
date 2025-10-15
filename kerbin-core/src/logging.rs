@@ -4,22 +4,6 @@ use crate::*;
 use ascii_forge::{prelude::*, window::Render};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
-fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
-    text.split_whitespace()
-        .fold(vec![String::new()], |mut lines, word| {
-            let current_line = lines.last_mut().unwrap();
-            if current_line.len() + word.len() + 1 > max_width {
-                lines.push(word.to_string());
-            } else {
-                if !current_line.is_empty() {
-                    current_line.push(' ');
-                }
-                current_line.push_str(word);
-            }
-            lines
-        })
-}
-
 pub async fn register_log_chunk(
     chunks: ResMut<Chunks>,
     window: Res<WindowState>,
@@ -36,12 +20,25 @@ pub async fn register_log_chunk(
 
     get!(mut chunks, window);
 
-    let layout = Layout::new()
-        .row(flexible(), vec![flexible()])
-        .row(percent(50.0), vec![flexible(), percent(100.0)])
-        .calculate(window.size())
-        .unwrap();
-    chunks.register_chunk::<LogChunk>(2, layout[1][1]);
+    // Calculate total height needed for all notifications
+    let max_width = window.size().x as usize;
+    let notification_width = (max_width.saturating_sub(4)).min(60);
+    let text_width = notification_width.saturating_sub(4);
+
+    let mut total_height = 0u16;
+    for msg in log.entries().iter() {
+        let wrapped_lines = wrap_text(&msg.message.message, text_width);
+        let notification_height = 2 + wrapped_lines.len() as u16 + 1;
+        total_height += notification_height + 1; // +1 for spacing
+    }
+
+    // Remove trailing spacing
+    total_height = total_height.saturating_sub(1);
+
+    // Create chunk in top-right corner with exact size needed
+    let chunk_rect = Rect::new(0, 0, window.size().x, total_height.min(window.size().y));
+
+    chunks.register_chunk::<LogChunk>(1, chunk_rect);
 }
 
 pub async fn render_log(log_chunk: Chunk<LogChunk>, log: ResMut<LogState>, theme: Res<Theme>) {
@@ -54,33 +51,100 @@ pub async fn render_log(log_chunk: Chunk<LogChunk>, log: ResMut<LogState>, theme
 
     let size = chunk.size();
     let max_width = size.x as usize;
-    let max_height = size.y;
 
-    // Collect wrapped lines
-    let mut all_lines = Vec::new();
+    // Render notifications from top down, starting from top right
+    let mut y_offset = 0;
 
-    for msg in log.entries() {
-        let wrapped_lines = wrap_text(&msg.message.message, max_width);
+    for msg in log.entries().iter() {
+        let notification_height = render_notification(&mut chunk, msg, &theme, max_width, y_offset);
 
-        for line in wrapped_lines {
-            all_lines.push((msg, line));
+        y_offset += notification_height + 1; // +1 for spacing
+
+        if y_offset >= size.y {
+            break; // No more room
         }
     }
-
-    // Only render last N lines that fit
-    let total_lines = all_lines.len().min(max_height as usize);
-    let start_y = max_height - total_lines as u16;
-
-    for (i, (msg, line)) in all_lines.iter().rev().take(total_lines).rev().enumerate() {
-        let style = msg.message.style(&theme);
-
-        // Align to right: calculate x offset
-        let x = size.x.saturating_sub(line.len() as u16);
-        let y = start_y + i as u16;
-
-        render!(chunk, vec2(x, y) => [style.apply(line)]);
-    }
 }
+
+fn render_notification(
+    chunk: &mut Buffer,
+    msg: &TimedMessage,
+    theme: &Theme,
+    max_width: usize,
+    top_y: u16,
+) -> u16 {
+    let style = msg.message.style(theme);
+    let border_style = style;
+
+    // Calculate notification width (leave some margin from edges)
+    let margin = 2;
+    let notification_width = (max_width.saturating_sub(margin * 2)).min(60);
+
+    // Wrap the message text
+    let text_width = notification_width.saturating_sub(4); // Account for borders and padding
+    let wrapped_lines = wrap_text(&msg.message.message, text_width);
+
+    // Calculate height: top border + namespace + wrapped lines + bottom border
+    let notification_height = 2 + wrapped_lines.len() as u16 + 1;
+
+    // Calculate x position (right-aligned with margin)
+    let start_x = chunk
+        .size()
+        .x
+        .saturating_sub(notification_width as u16 + margin as u16);
+
+    // Render top border with rounded corners
+    let top_border = format!("╭{}╮", "─".repeat(notification_width.saturating_sub(2)));
+    render!(chunk, vec2(start_x, top_y) => [border_style.apply(&top_border)]);
+
+    // Render namespace line
+    let namespace_text = format!(" [{}] ", msg.message.origin);
+    let namespace_line = format!(
+        "│{}{}│",
+        namespace_text,
+        " ".repeat(
+            notification_width
+                .saturating_sub(2)
+                .saturating_sub(namespace_text.len())
+        )
+    );
+    render!(chunk, vec2(start_x, top_y + 1) => [border_style.apply(&namespace_line)]);
+
+    // Render wrapped message lines
+    for (i, line) in wrapped_lines.iter().enumerate() {
+        let padded_line = format!(
+            "│ {}{} │",
+            line,
+            " ".repeat(text_width.saturating_sub(line.len()))
+        );
+        render!(chunk, vec2(start_x, top_y + 2 + i as u16) => [style.apply(&padded_line)]);
+    }
+
+    // Render bottom border with rounded corners
+    let bottom_border = format!("╰{}╯", "─".repeat(notification_width.saturating_sub(2)));
+    render!(chunk, vec2(start_x, top_y + notification_height - 1) => [border_style.apply(&bottom_border)]);
+
+    notification_height
+}
+
+fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
+    text.split_whitespace()
+        .fold(vec![String::new()], |mut lines, word| {
+            let current_line = lines.last_mut().unwrap();
+            if current_line.len() + word.len() + 1 > max_width {
+                lines.push(word.to_string());
+            } else {
+                if !current_line.is_empty() {
+                    current_line.push(' ');
+                }
+                current_line.push_str(word);
+            }
+            lines
+        })
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct MessageId(u64);
 
 #[derive(Copy, Clone, Debug)]
 pub enum Level {
@@ -149,38 +213,79 @@ pub fn critical(origin: impl ToString, message: impl ToString) -> Message {
     }
 }
 
+enum LogCommand {
+    Add(MessageId, Duration, Message),
+    Modify(MessageId, String),
+    Remove(MessageId),
+}
+
 #[derive(State)]
 pub struct LogSender {
-    pub(crate) sender: UnboundedSender<(Duration, Message)>,
+    sender: UnboundedSender<LogCommand>,
+    next_id: std::sync::Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl LogSender {
-    pub fn low(&self, origin: impl ToString, message: impl ToString) {
-        let _ = self
-            .sender
-            .send((Duration::from_millis(3000), low(origin, message)));
+    fn next_id(&self) -> MessageId {
+        MessageId(
+            self.next_id
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+        )
     }
 
-    pub fn medium(&self, origin: impl ToString, message: impl ToString) {
-        let _ = self
-            .sender
-            .send((Duration::from_millis(5000), medium(origin, message)));
+    pub fn low(&self, origin: impl ToString, message: impl ToString) -> MessageId {
+        let id = self.next_id();
+        let _ = self.sender.send(LogCommand::Add(
+            id,
+            Duration::from_millis(3000),
+            low(origin, message),
+        ));
+        id
     }
 
-    pub fn high(&self, origin: impl ToString, message: impl ToString) {
-        let _ = self
-            .sender
-            .send((Duration::from_millis(8000), high(origin, message)));
+    pub fn medium(&self, origin: impl ToString, message: impl ToString) -> MessageId {
+        let id = self.next_id();
+        let _ = self.sender.send(LogCommand::Add(
+            id,
+            Duration::from_millis(5000),
+            medium(origin, message),
+        ));
+        id
     }
 
-    pub fn critical(&self, origin: impl ToString, message: impl ToString) {
+    pub fn high(&self, origin: impl ToString, message: impl ToString) -> MessageId {
+        let id = self.next_id();
+        let _ = self.sender.send(LogCommand::Add(
+            id,
+            Duration::from_millis(8000),
+            high(origin, message),
+        ));
+        id
+    }
+
+    pub fn critical(&self, origin: impl ToString, message: impl ToString) -> MessageId {
+        let id = self.next_id();
+        let _ = self.sender.send(LogCommand::Add(
+            id,
+            Duration::from_millis(10000),
+            critical(origin, message),
+        ));
+        id
+    }
+
+    pub fn modify(&self, id: MessageId, new_message: impl ToString) {
         let _ = self
             .sender
-            .send((Duration::from_millis(10000), critical(origin, message)));
+            .send(LogCommand::Modify(id, new_message.to_string()));
+    }
+
+    pub fn remove(&self, id: MessageId) {
+        let _ = self.sender.send(LogCommand::Remove(id));
     }
 }
 
 pub struct TimedMessage {
+    pub id: MessageId,
     pub inserted: SystemTime,
     pub duration: Duration,
     pub message: Message,
@@ -189,7 +294,7 @@ pub struct TimedMessage {
 #[derive(State, Default)]
 pub struct LogState {
     messages: Vec<TimedMessage>,
-    receiver: Option<UnboundedReceiver<(Duration, Message)>>,
+    receiver: Option<UnboundedReceiver<LogCommand>>,
 }
 
 impl LogState {
@@ -200,7 +305,10 @@ impl LogState {
                 messages: Vec::new(),
                 receiver: Some(rx),
             },
-            LogSender { sender: tx },
+            LogSender {
+                sender: tx,
+                next_id: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            },
         )
     }
 
@@ -208,12 +316,27 @@ impl LogState {
         let now = SystemTime::now();
 
         if let Some(receiver) = &mut self.receiver {
-            while let Ok((duration, message)) = receiver.try_recv() {
-                self.messages.push(TimedMessage {
-                    inserted: now,
-                    duration,
-                    message,
-                });
+            while let Ok(command) = receiver.try_recv() {
+                match command {
+                    LogCommand::Add(id, duration, message) => {
+                        self.messages.push(TimedMessage {
+                            id,
+                            inserted: now,
+                            duration,
+                            message,
+                        });
+                    }
+                    LogCommand::Modify(id, new_message) => {
+                        if let Some(msg) = self.messages.iter_mut().find(|m| m.id == id) {
+                            msg.message.message = new_message;
+                            // Reset the timer when modified
+                            msg.inserted = now;
+                        }
+                    }
+                    LogCommand::Remove(id) => {
+                        self.messages.retain(|m| m.id != id);
+                    }
+                }
             }
         }
 

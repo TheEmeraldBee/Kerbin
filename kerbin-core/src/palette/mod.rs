@@ -190,14 +190,21 @@ pub async fn render_command_palette(
 
     // Theme styles
     let border_style = theme.get_fallback_default(["ui.commandline.border", "ui.text"]);
-
     let title_style = theme.get_fallback_default(["ui.commandline.title", "ui.text"]);
-
     let icon_style = theme.get_fallback_default(["ui.commandline.icon", "ui.text"]);
+
+    let width = line_chunk.size().x as usize;
+    let height = line_chunk.size().y;
+
+    // Fill interior with spaces
+    for y in 1..(height - 1) {
+        for x in 1..(width - 1) {
+            line_chunk.set(vec2(x as u16, y), " ");
+        }
+    }
 
     // Draw top border with title
     let title = " Command ";
-    let width = line_chunk.size().x as usize;
     let border_len = width.saturating_sub(title.len() + 3);
 
     render!(&mut line_chunk, (0, 0) => [
@@ -261,6 +268,14 @@ pub async fn render_command_palette(
         && suggestion_count > 0
     {
         let width = suggestions_chunk.size().x as usize;
+        let height = suggestions_chunk.size().y;
+
+        // Fill interior with spaces
+        for y in 1..(height - 1) {
+            for x in 1..(width - 1) {
+                suggestions_chunk.set(vec2(x as u16, y), " ");
+            }
+        }
 
         // Top border for suggestions
         render!(&mut suggestions_chunk, (0, 0) => [
@@ -325,6 +340,14 @@ pub async fn render_command_palette(
         && let Some(desc_buffer) = &palette.desc
     {
         let width = desc_chunk.size().x as usize;
+        let height = desc_chunk.size().y;
+
+        // Fill interior with spaces
+        for y in 1..(height - 1) {
+            for x in 1..(width - 1) {
+                desc_chunk.set(vec2(x as u16, y), " ");
+            }
+        }
 
         // Top border with "Description" title
         let desc_title = " Description ";

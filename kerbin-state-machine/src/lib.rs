@@ -23,8 +23,12 @@ pub enum HookPathComponent {
 
 impl HookPathComponent {
     pub fn parse(input: &str) -> Vec<HookPathComponent> {
+        Self::parse_custom_split(input, "::")
+    }
+
+    pub fn parse_custom_split(input: &str, split: &str) -> Vec<HookPathComponent> {
         let mut res = vec![];
-        let parts = input.split("::");
+        let parts = input.split(split);
 
         for part in parts {
             res.push(if part == "*" {
@@ -63,6 +67,14 @@ pub struct HookInfo {
 impl HookInfo {
     pub fn new(path: &str) -> Self {
         let path = HookPathComponent::parse(path);
+        Self {
+            rank: HookPathComponent::default_rank(&path),
+            path,
+        }
+    }
+
+    pub fn new_custom_split(path: &str, split: &str) -> Self {
+        let path = HookPathComponent::parse_custom_split(path, split);
         Self {
             rank: HookPathComponent::default_rank(&path),
             path,

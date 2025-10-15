@@ -412,14 +412,18 @@ impl Command for BuffersCommand {
                                     format!("File '{}' was not found, does it exist?", path),
                                 );
                             }
-                            ErrorKind::IsADirectory => log.critical(
-                                "command::open_file",
-                                format!("Expected a file, but '{}' is a directory", path),
-                            ),
-                            ErrorKind::PermissionDenied => log.critical(
-                                "command::open_file",
-                                format!("Permission to open file '{}' was denied", path),
-                            ),
+                            ErrorKind::IsADirectory => {
+                                log.critical(
+                                    "command::open_file",
+                                    format!("Expected a file, but '{}' is a directory", path),
+                                );
+                            }
+                            ErrorKind::PermissionDenied => {
+                                log.critical(
+                                    "command::open_file",
+                                    format!("Permission to open file '{}' was denied", path),
+                                );
+                            }
                             _ => {
                                 log.critical("command::open_file", e);
                             }

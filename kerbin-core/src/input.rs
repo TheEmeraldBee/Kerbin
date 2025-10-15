@@ -228,14 +228,14 @@ pub async fn render_help_menu(
 
     let border = Border::square(chunk.size().x, chunk.size().y);
 
+    render!(&mut chunk, (0, 0) => [border]);
+
     // Render up to the chunk's height (-2 on size for border)
     for i in 0..input.active_inputs.len().min(chunk.size().y as usize - 2) {
         let active = input.active_inputs[i];
         let binding = &input_config.inputs[active.0];
         render!(&mut chunk, vec2(1, 1 + i as u16) => [ binding.sequence_str(active.1), " - ", binding.desc ]);
     }
-
-    render!(&mut chunk, (0, 0) => [border]);
 }
 
 /// Handles incoming key events, processes input sequences, and dispatches commands.

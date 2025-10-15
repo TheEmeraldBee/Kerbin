@@ -58,18 +58,18 @@ impl Chunks {
             .entry(C::static_name())
             .or_insert((z_index, self.buffers[z_index].len()));
 
+        // Create buffer filled with '\0' characters
+        let mut buffer = Buffer::new(size);
+        buffer.fill('\0');
+
         if self.buffers[z_index].len() == coords.1 {
             // Add new chunk if not already present at this exact inner index
-            self.buffers[z_index].push((
-                pos.into(),
-                Arc::new(RwLock::new(InnerChunk::new(Buffer::new(size)))),
-            ));
+            self.buffers[z_index]
+                .push((pos.into(), Arc::new(RwLock::new(InnerChunk::new(buffer)))));
         } else {
             // Otherwise, update existing chunk (e.g., if its dimensions changed)
-            self.buffers[z_index][coords.1] = (
-                pos.into(),
-                Arc::new(RwLock::new(InnerChunk::new(Buffer::new(size)))),
-            );
+            self.buffers[z_index][coords.1] =
+                (pos.into(), Arc::new(RwLock::new(InnerChunk::new(buffer))));
         }
     }
 
