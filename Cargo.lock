@@ -87,9 +87,9 @@ dependencies = [
 
 [[package]]
 name = "ascii-forge"
-version = "2.0.0"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6a55122c9384e87c08deb8486598439608ff94591aafba80b4a45a38a204567"
+checksum = "ceba9d4f13a704476cf7e0fe913c53c8b7a593d094f530f870501bd97950d9a7"
 dependencies = [
  "compact_str",
  "crossterm",
@@ -307,6 +307,7 @@ version = "0.0.0"
 dependencies = [
  "async-ffi",
  "kerbin-core",
+ "kerbin-lsp",
  "kerbin-tree-sitter",
 ]
 

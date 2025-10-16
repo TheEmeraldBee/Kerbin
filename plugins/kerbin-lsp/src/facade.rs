@@ -25,37 +25,14 @@ impl<W: AsyncWrite + Unpin + Send + 'static> ClientFacade for LspClient<W> {
                     work_done_progress: Some(true),
                     ..Default::default()
                 }),
-                workspace: Some(WorkspaceClientCapabilities {
-                    apply_edit: Some(true),
-                    ..Default::default()
-                }),
                 text_document: Some(TextDocumentClientCapabilities {
-                    code_lens: Some(CodeLensClientCapabilities {
-                        dynamic_registration: Some(true),
+                    diagnostic: Some(DiagnosticClientCapabilities {
+                        dynamic_registration: None,
+                        related_document_support: None,
                     }),
                     hover: Some(HoverClientCapabilities {
                         dynamic_registration: Some(true),
-                        content_format: Some(vec![MarkupKind::Markdown, MarkupKind::PlainText]),
-                    }),
-                    completion: Some(CompletionClientCapabilities {
-                        dynamic_registration: Some(true),
-                        completion_item: Some(CompletionItemCapability {
-                            snippet_support: Some(true),
-                            ..Default::default()
-                        }),
-                        ..Default::default()
-                    }),
-                    definition: Some(GotoCapability {
-                        dynamic_registration: Some(true),
-                        link_support: Some(true),
-                    }),
-                    references: Some(ReferenceClientCapabilities {
-                        dynamic_registration: Some(true),
-                    }),
-                    document_symbol: Some(DocumentSymbolClientCapabilities {
-                        dynamic_registration: Some(true),
-                        hierarchical_document_symbol_support: Some(true),
-                        ..Default::default()
+                        content_format: None,
                     }),
                     ..Default::default()
                 }),

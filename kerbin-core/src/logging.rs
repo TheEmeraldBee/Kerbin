@@ -1,7 +1,7 @@
 use std::time::{Duration, SystemTime};
 
 use crate::*;
-use ascii_forge::{prelude::*, window::Render};
+use ascii_forge::{prelude::*, widgets::Border, window::Render};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 pub async fn register_log_chunk(
@@ -84,45 +84,29 @@ fn render_notification(
     let text_width = notification_width.saturating_sub(4); // Account for borders and padding
     let wrapped_lines = wrap_text(&msg.message.message, text_width);
 
-    // Calculate height: top border + namespace + wrapped lines + bottom border
-    let notification_height = 2 + wrapped_lines.len() as u16 + 1;
+    // Calculate height: border + wrapped lines
+    let notification_height = 2 + wrapped_lines.len() as u16;
 
-    // Calculate x position (right-aligned with margin)
     let start_x = chunk
         .size()
         .x
         .saturating_sub(notification_width as u16 + margin as u16);
 
-    // Render top border with rounded corners
-    let top_border = format!("╭{}╮", "─".repeat(notification_width.saturating_sub(2)));
-    render!(chunk, vec2(start_x, top_y) => [border_style.apply(&top_border)]);
+    let mut border = Border::rounded(notification_width as u16, notification_height)
+        .with_title(style.apply(format!(" [{}] ", msg.message.origin)));
+    border.style = border_style;
 
-    // Render namespace line
-    let namespace_text = format!(" [{}] ", msg.message.origin);
-    let namespace_line = format!(
-        "│{}{}│",
-        namespace_text,
-        " ".repeat(
-            notification_width
-                .saturating_sub(2)
-                .saturating_sub(namespace_text.len())
-        )
-    );
-    render!(chunk, vec2(start_x, top_y + 1) => [border_style.apply(&namespace_line)]);
+    render!(chunk, vec2(start_x, top_y + 1) => [border]);
 
     // Render wrapped message lines
     for (i, line) in wrapped_lines.iter().enumerate() {
         let padded_line = format!(
-            "│ {}{} │",
+            "{}{}",
             line,
             " ".repeat(text_width.saturating_sub(line.len()))
         );
-        render!(chunk, vec2(start_x, top_y + 2 + i as u16) => [style.apply(&padded_line)]);
+        render!(chunk, vec2(start_x + 2, top_y + 2 + i as u16) => [style.apply(&padded_line)]);
     }
-
-    // Render bottom border with rounded corners
-    let bottom_border = format!("╰{}╯", "─".repeat(notification_width.saturating_sub(2)));
-    render!(chunk, vec2(start_x, top_y + notification_height - 1) => [border_style.apply(&bottom_border)]);
 
     notification_height
 }

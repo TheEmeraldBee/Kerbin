@@ -133,10 +133,6 @@ pub use statusline::*;
 /// Module for editor hooks and event handling.
 pub mod hooks;
 
-/// Module for defining and managing editor layouts.
-pub mod layout;
-pub use layout::*;
-
 /// Module for individual rendering chunks.
 pub mod chunk;
 pub use chunk::*;

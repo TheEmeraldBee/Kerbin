@@ -3,6 +3,7 @@
 use std::{iter::empty, sync::Arc};
 
 use kerbin_core::{ascii_forge::prelude::*, *};
+use kerbin_lsp::LanguageInfo;
 
 pub async fn hi_renderer(bufs: ResMut<Buffers>) {
     get!(mut bufs);
@@ -42,6 +43,17 @@ pub async fn init(state: &mut State) {
 
     kerbin_tree_sitter::register_lang(state, "markdown", ["md"]).await;
     kerbin_tree_sitter::register_lang(state, "markdown-inline", empty::<String>()).await;
+
+    kerbin_lsp::init(state).await;
+    kerbin_lsp::register_lang(
+        state,
+        "rust",
+        ["rs"],
+        LanguageInfo::new("rust-analyzer")
+            .with_root("Cargo.toml")
+            .with_root("Cargo.lock"),
+    )
+    .await;
 
     state
         .on_hook(hooks::UpdateFiletype::new("hi"))

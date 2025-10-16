@@ -45,11 +45,11 @@ impl LanguageInfo {
 
 #[derive(Default, State)]
 pub struct LspManager {
-    client_map: HashMap<String, LspClient<ChildStdin>>,
+    pub client_map: HashMap<String, LspClient<ChildStdin>>,
 
-    lang_info_map: HashMap<String, LanguageInfo>,
+    pub lang_info_map: HashMap<String, LanguageInfo>,
 
-    ext_map: HashMap<String, String>,
+    pub ext_map: HashMap<String, String>,
 }
 
 impl LspManager {

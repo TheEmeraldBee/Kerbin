@@ -110,8 +110,6 @@ async fn update(state: &mut State) {
 
     state.hook(hooks::PostUpdate).call().await;
 
-    state.hook(hooks::UpdateCleanup).call().await;
-
     // Clear the chunks for the next frame (allows for conditional chunks)
     state.lock_state::<Chunks>().await.unwrap().clear();
 
@@ -128,6 +126,8 @@ async fn update(state: &mut State) {
         .hook(hooks::UpdateFiletype::new(filetype))
         .call()
         .await;
+
+    state.hook(hooks::UpdateCleanup).call().await;
 
     state.hook(hooks::PreLines).call().await;
 

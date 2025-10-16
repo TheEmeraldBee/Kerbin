@@ -2,7 +2,6 @@ use crate::{HandlerEntry, LspHandlerManager, jsonrpc::*};
 
 use kerbin_core::{HookPathComponent, State};
 use serde::Serialize;
-use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
@@ -21,9 +20,6 @@ pub struct LspClient<W: AsyncWrite + Unpin + Send + 'static> {
 
     writer: Arc<Mutex<W>>,
     request_id: Arc<Mutex<i32>>,
-
-    unproccessed_responses: Vec<JsonRpcResponse>,
-    unprocessed_notifications: Vec<JsonRpcNotification>,
 
     /// Map of request IDs to their original request info
     request_info: std::collections::HashMap<i32, RequestInfo>,
@@ -72,8 +68,6 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
             lang_id: lang,
             writer: input,
             request_id: Arc::new(Mutex::new(0)),
-            unproccessed_responses: vec![],
-            unprocessed_notifications: vec![],
             request_info: std::collections::HashMap::new(),
             ignore_ids: vec![],
             message_rx,
@@ -221,10 +215,10 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
         Ok(id)
     }
 
-    fn call_matching_handlers<'a>(
+    async fn call_matching_handlers<'a>(
         handlers: impl Iterator<Item = &'a HandlerEntry> + 'a,
         method: &str,
-        state: &mut State,
+        state: &State,
         msg: &JsonRpcMessage,
     ) {
         // Parse the method path
@@ -245,7 +239,7 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
 
         // Call handlers in order of rank
         for (entry, _) in matches {
-            (entry.handler)(state, msg);
+            (entry.handler)(state, msg).await;
         }
     }
 
@@ -268,7 +262,7 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
     }
 
     /// Process events with the given state, calling all registered handlers
-    pub fn process_events(&mut self, handler_manager: &LspHandlerManager, state: &mut State) {
+    pub async fn process_events(&mut self, handler_manager: &LspHandlerManager, state: &State) {
         while let Ok(msg) = self.message_rx.try_recv() {
             match &msg {
                 JsonRpcMessage::Response(val) => {
@@ -280,42 +274,16 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
                     // Get the method from request info for pattern matching
                     if let Some(req_info) = self.request_info.get(&val.id) {
                         let handlers = handler_manager.iter_response_handlers(&self.lang_id);
-                        Self::call_matching_handlers(handlers, &req_info.method, state, &msg);
+                        Self::call_matching_handlers(handlers, &req_info.method, state, &msg).await;
                     }
-
-                    self.unproccessed_responses.push(val.clone());
                 }
                 JsonRpcMessage::Notification(notif) => {
                     let handlers = handler_manager.iter_notification_handlers(&self.lang_id);
-                    Self::call_matching_handlers(handlers, &notif.method, state, &msg);
-
-                    self.unprocessed_notifications.push(notif.clone());
+                    Self::call_matching_handlers(handlers, &notif.method, state, &msg).await;
                 }
                 JsonRpcMessage::ServerRequest(req) => {
                     let handlers = handler_manager.iter_server_request_handlers(&self.lang_id);
-                    Self::call_matching_handlers(handlers, &req.method, state, &msg);
-                }
-            }
-        }
-    }
-
-    /// Propogates results of code into the state, handling the ids for later
-    /// (Kept for backwards compatibility, but process_events is preferred)
-    pub fn update_responses(&mut self) {
-        while let Ok(msg) = self.message_rx.try_recv() {
-            match msg {
-                JsonRpcMessage::Response(val) => {
-                    if self.ignore_ids.contains(&val.id) {
-                        self.ignore_ids.retain(|x| *x != val.id);
-                        continue;
-                    }
-                    self.unproccessed_responses.push(val);
-                }
-                JsonRpcMessage::Notification(notif) => {
-                    self.unprocessed_notifications.push(notif);
-                }
-                JsonRpcMessage::ServerRequest(_) => {
-                    // Already handled in read_messages
+                    Self::call_matching_handlers(handlers, &req.method, state, &msg).await;
                 }
             }
         }
@@ -326,83 +294,8 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
         self.request_info.get(&id)
     }
 
-    /// Retrieves a response from the server by a given id
-    pub fn response<T: DeserializeOwned>(&mut self, id: i32) -> Option<Result<T, Value>> {
-        let idx = self
-            .unproccessed_responses
-            .iter()
-            .enumerate()
-            .find(|(_, x)| x.id == id)?
-            .0;
-
-        let res = self.unproccessed_responses.remove(idx);
-
-        return match (res.result, res.error) {
-            (_, Some(x)) => Some(Err(x)),
-            (Some(x), None) => Some(Ok(serde_json::from_value(x).unwrap())),
-            (None, None) => None,
-        };
-    }
-
-    /// Get a notification by method name
-    pub fn notification_by_method(&mut self, method: &str) -> Option<JsonRpcNotification> {
-        let idx = self
-            .unprocessed_notifications
-            .iter()
-            .enumerate()
-            .find(|(_, x)| x.method == method)?
-            .0;
-
-        Some(self.unprocessed_notifications.remove(idx))
-    }
-
-    /// Get any notification
-    pub fn any_notification(&mut self) -> Option<JsonRpcNotification> {
-        if self.unprocessed_notifications.is_empty() {
-            None
-        } else {
-            Some(self.unprocessed_notifications.remove(0))
-        }
-    }
-
-    /// Returns the number of unprocessed responses there are
-    pub fn unprocessed_count(&self) -> usize {
-        self.unproccessed_responses.len()
-    }
-
-    /// Clears the remaining unprocessed responses, returning them.
-    pub fn clear_unprocessed(&mut self) -> Vec<JsonRpcResponse> {
-        let mut res = vec![];
-        std::mem::swap(&mut res, &mut self.unproccessed_responses);
-        res
-    }
-
     /// Tell the system to ignore a response id. Should be used if the result can be ignored
     pub fn ignore_id(&mut self, id: i32) {
         self.ignore_ids.push(id);
-    }
-
-    /// Retrieves a response from the server, blocking until one is available if none are available.
-    /// This will cause response(id) to never succeed if an id is set, so be careful
-    pub async fn response_any(&mut self) -> Option<JsonRpcResponse> {
-        if let Some(val) = self.unproccessed_responses.pop() {
-            return Some(val);
-        }
-
-        loop {
-            if let Some(msg) = self.message_rx.recv().await {
-                match msg {
-                    JsonRpcMessage::Response(resp) => return Some(resp),
-                    JsonRpcMessage::Notification(notif) => {
-                        self.unprocessed_notifications.push(notif);
-                    }
-                    JsonRpcMessage::ServerRequest(_) => {
-                        // Already handled
-                    }
-                }
-            } else {
-                return None;
-            }
-        }
     }
 }
