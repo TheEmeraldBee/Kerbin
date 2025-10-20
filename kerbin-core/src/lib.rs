@@ -26,7 +26,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// # #[derive(State, Default)] pub struct C(pub u8);
 /// # #[derive(State, Default)] pub struct D(pub u8);
 /// # #[derive(State, Default)] pub struct E(pub u8);
-/// fn my_system(a: Res<A>, b: ResMut<B>, c: Res<C>, d: Res<D>, e: ResMut<E>) {
+/// async fn my_system(a: Res<A>, b: ResMut<B>, c: Res<C>, d: Res<D>, e: ResMut<E>) {
 ///     // Instead of writing:
 ///     // let a = a.get();
 ///     // let mut b = b.get_mut(); // Or b.get() if it implements DerefMut

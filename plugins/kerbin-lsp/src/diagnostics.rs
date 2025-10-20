@@ -55,7 +55,7 @@ pub async fn render_diagnostic_highlights(
                     Some(DiagnosticSeverity::INFORMATION) => {
                         ContentStyle::new().underline_blue().underlined()
                     }
-                    Some(DiagnosticSeverity::HINT) => ContentStyle::new().grey().underlined(),
+                    Some(DiagnosticSeverity::HINT) => ContentStyle::new().grey(),
                     _ => ContentStyle::new().underline_red().underlined(),
                 };
 

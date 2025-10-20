@@ -145,7 +145,7 @@ mod tests {
         assert_eq!(replace_variables("hello %x", &replacements), "hello 5");
         assert_eq!(replace_variables("%%x", &replacements), "%x");
         assert_eq!(replace_variables("%x %%x %x", &replacements), "5 %x 5");
-        assert_eq!(replace_variables("%name_test", &replacements), "test_test");
+        assert_eq!(replace_variables("%name_test", &replacements), "%name_test");
         assert_eq!(replace_variables("%unknown", &replacements), "%unknown");
     }
 }

@@ -181,10 +181,9 @@ impl State {
     }
 
     pub async fn call<I, D>(&self, sys: impl IntoSystem<I, D>) {
-        let handle = tokio::runtime::Handle::current();
         let system = sys.into_system();
 
-        system.call(handle, &self.storage).await;
+        system.call(&self.storage).await;
     }
 
     pub fn hook(&self, hook: impl Hook + 'static) -> HookCallBuilder<'_> {
@@ -231,12 +230,10 @@ impl<'a> HookCallBuilder<'a> {
 
             let indices = group_concurrent_system_indices(hooks);
 
-            let handle = tokio::runtime::Handle::current();
-
             for group in indices {
                 let (_, res) = async_scoped::TokioScope::scope_and_block(|s| {
                     for indice in group {
-                        let system_future = hooks[indice].call(handle.clone(), &self.state.storage);
+                        let system_future = hooks[indice].call(&self.state.storage);
 
                         s.spawn(system_future);
                     }

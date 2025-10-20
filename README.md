@@ -19,6 +19,260 @@ when the editor is more fleshed out (around mid October).
 
 ---
 
+# 🚀 Installation 🚀
+
+## Quick Install (Shell)
+
+Install Kerbin with a single command:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/TheEmeraldBee/Kerbin/main/install.sh | bash
+```
+
+Or download and run the installer manually:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/TheEmeraldBee/Kerbin/main/install.sh -o install.sh
+chmod +x install.sh
+./install.sh
+```
+
+### Prerequisites
+- **Rust** and **Cargo** (install from [rustup.rs](https://rustup.rs))
+- **Git**
+
+### Rebuild After Updates
+
+Once installed, you can quickly rebuild with cached builds:
+
+```bash
+# Interactive rebuild (with confirmation)
+kerbin-install --rebuild
+
+# Fast rebuild (no prompts)
+kerbin-install --rebuild --yes
+
+# Clean rebuild (removes build cache)
+kerbin-install --rebuild --clean
+```
+
+The installer uses a persistent build directory at `~/.kerbin_build` to cache compilation artifacts, making rebuilds significantly faster.
+
+---
+
+## Nix Installation
+
+### Understanding Nix Installation Options
+
+Nix offers several ways to use Kerbin, each with different trade-offs. Here's what each approach looks like:
+
+#### 1. Quick Run (No Installation)
+```bash
+nix run github:TheEmeraldBee/Kerbin
+```
+**What happens:**
+- Nix downloads and builds Kerbin
+- Runs it immediately
+- Everything is stored in `/nix/store/` (immutable)
+- Nothing persists in your home directory except config
+- Next time you run this, Nix reuses the cached build
+
+**Use case:** Try Kerbin without committing to installation
+
+---
+
+#### 2. Profile Installation (Persistent)
+```bash
+nix profile install github:TheEmeraldBee/Kerbin
+```
+**What happens:**
+- Kerbin is built and added to your user profile
+- Binary becomes available in your PATH automatically
+- Installed to `/nix/store/` but linked via profile
+- Survives reboots and shell sessions
+- You can run `kerbin` from anywhere
+
+**File structure:**
+```
+/nix/store/xxxxx-kerbin-0.1.0/
+├── bin/
+│   └── kerbin
+
+~/.nix-profile/bin/kerbin → /nix/store/xxxxx-kerbin-0.1.0/bin/kerbin
+~/.config/kerbin/          # Your config (you manage this)
+```
+
+**Updating:**
+```bash
+nix profile upgrade '.*kerbin.*'
+```
+
+**Use case:** Daily use, want Kerbin always available
+
+---
+
+#### 3. Using Nix Flakes
+
+#### 3. NixOS System Configuration
+
+Add Kerbin to your system packages in `/etc/nixos/configuration.nix`:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    kerbin.url = "github:TheEmeraldBee/Kerbin";
+  };
+
+  outputs = { self, nixpkgs, kerbin, ... }: {
+    nixosConfigurations.yourSystem = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        {
+          environment.systemPackages = [
+            kerbin.packages.x86_64-linux.default
+          ];
+        }
+      ];
+    };
+  };
+}
+```
+
+Then rebuild:
+```bash
+sudo nixos-rebuild switch
+```
+
+**What happens:**
+- Kerbin installed system-wide for all users
+- Available after rebuilding your system
+- Managed declaratively with your system config
+- Atomic updates (old version kept until garbage collected)
+
+**Use case:** NixOS users who want Kerbin as part of their system
+
+---
+
+#### 4. Home Manager Integration
+
+Add to your Home Manager configuration (`~/.config/home-manager/home.nix`):
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    kerbin.url = "github:TheEmeraldBee/Kerbin";
+    home-manager.url = "github:nix-community/home-manager";
+  };
+
+  outputs = { self, nixpkgs, kerbin, home-manager, ... }: {
+    homeConfigurations.yourUser = home-manager.lib.homeManagerConfiguration {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      modules = [
+        {
+          home.packages = [
+            kerbin.packages.x86_64-linux.default
+          ];
+        }
+      ];
+    };
+  };
+}
+```
+
+Then switch:
+```bash
+home-manager switch
+```
+
+**What happens:**
+- Kerbin installed per-user via Home Manager
+- Part of your declarative home configuration
+- Automatically available in PATH
+- Can track specific versions or commits
+
+**Use case:** Managing your entire user environment declaratively
+
+---
+
+#### 5. Development Shell
+
+Enter a development environment with all dependencies:
+
+```bash
+nix develop github:TheEmeraldBee/Kerbin
+```
+
+**What happens:**
+- Drops you into a shell with cargo, rustc, git, etc.
+- You can build Kerbin from source
+- Great for contributing or hacking on Kerbin
+- Nothing installed when you exit
+
+**Inside the shell:**
+```bash
+cargo build --release
+./target/release/kerbin
+```
+
+**Use case:** Development, testing, or building from source
+
+---
+
+### Nix vs Shell Installer Comparison
+
+| Aspect | Shell Installer | Nix |
+|--------|----------------|-----|
+| **Location** | `~/.kerbin/` | `/nix/store/` |
+| **Requires sudo** | No | No |
+| **Build cache** | `~/.kerbin/build/` | `/nix/store/` (shared) |
+| **Updates** | `kerbin-install -r -u` | `nix profile upgrade` |
+| **Rollback** | Manual | `nix profile rollback` |
+| **Disk space** | One cache per user | Shared across system |
+| **Config location** | You choose | `~/.config/kerbin/` (XDG) |
+| **Reproducible** | No (depends on system) | Yes (fully reproducible) |
+
+---
+
+### Hybrid Approach: Best of Both Worlds
+
+You can use **Nix for the toolchain** but **shell installer for flexibility**:
+
+```bash
+# Use Nix-provided tools to run the shell installer
+nix run github:TheEmeraldBee/Kerbin#install
+
+# This gives you:
+# - Nix's reproducible cargo/rustc/git
+# - Shell installer's flexibility and caching at ~/.kerbin/
+# - Fast rebuilds with kerbin-install --rebuild
+```
+
+After this initial setup:
+```bash
+# Fast rebuild (uses ~/.kerbin/build/ cache)
+~/.kerbin/bin/kerbin-install --rebuild
+
+# Update and rebuild
+~/.kerbin/bin/kerbin-install --rebuild --update
+
+# Add to PATH for convenience
+echo 'export PATH="$HOME/.kerbin/bin:$PATH"' >> ~/.bashrc
+```
+
+---
+
+### Which Installation Method Should I Use?
+
+- **Just trying it?** → `nix run github:TheEmeraldBee/Kerbin`
+- **Daily use, want it always available?** → `nix profile install`
+- **NixOS user?** → Add to `configuration.nix` or `home.nix`
+- **Need fast rebuilds for config changes?** → Shell installer
+- **Want both reproducibility AND flexibility?** → Hybrid approach (Nix + shell installer)
+
+---
+
 # 💡 Concepts 💡
 
 ## Core Concepts
