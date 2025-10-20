@@ -1,5 +1,5 @@
 use crate::*;
-use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
+use ascii_forge::{prelude::*, widgets::Border, window::crossterm::cursor::SetCursorStyle};
 use kerbin_macros::State;
 
 pub mod ranking;
@@ -145,15 +145,15 @@ pub async fn register_command_palette_chunks(
         .row(flexible(), vec![flexible()])
         // Content area with horizontal centering
         .row(
-            fixed(desc_height),
+            max(desc_height),
             vec![percent(20.0), percent(60.0), percent(20.0)],
         )
         .row(
-            fixed(sug_height),
+            max(sug_height),
             vec![percent(20.0), percent(60.0), percent(20.0)],
         )
         .row(
-            fixed(input_height),
+            max(input_height),
             vec![percent(20.0), percent(60.0), percent(20.0)],
         )
         // Bottom padding (flexible to center vertically)
@@ -203,17 +203,11 @@ pub async fn render_command_palette(
         }
     }
 
-    // Draw top border with title
-    let title = " Command ";
-    let border_len = width.saturating_sub(title.len() + 3);
+    let mut border =
+        Border::rounded(width as u16, height).with_title(title_style.apply(" Command "));
+    border.style = border_style;
 
-    render!(&mut line_chunk, (0, 0) => [
-        StyledContent::new(border_style, "╭"),
-        StyledContent::new(border_style, "─"),
-        StyledContent::new(title_style, title),
-        StyledContent::new(border_style, "─".repeat(border_len)),
-        StyledContent::new(border_style, "╮")
-    ]);
+    render!(line_chunk, (0, 0) => [ border ]);
 
     // Determine icon and style based on validity
     let (icon, style) = if palette.input.is_empty() {
@@ -237,37 +231,25 @@ pub async fn render_command_palette(
         )
     };
 
-    // Render input line with icon and prompt
-    let padding = " ".repeat(width.saturating_sub(palette.input.len() + 7));
-    render!(&mut line_chunk, (0, 1) => [
-        StyledContent::new(border_style, "│ "),
+    render!(&mut line_chunk, (1, 1) => [
+        " ",
         StyledContent::new(icon_style, icon),
         " : ",
         StyledContent::new(style, &palette.input),
-        padding,
-        StyledContent::new(border_style, "│")
     ]);
 
-    // Set cursor position (accounting for border, icon, and prompt: "│ ● : ")
     line_chunk.set_cursor(
         1,
         vec2(palette.input.len() as u16 + 6, 1),
         SetCursorStyle::SteadyBar,
     );
 
-    // Draw bottom border for input
-    render!(&mut line_chunk, (0, 2) => [
-        StyledContent::new(border_style, "╰"),
-        StyledContent::new(border_style, "─".repeat(width.saturating_sub(2))),
-        StyledContent::new(border_style, "╯")
-    ]);
-
     // Render suggestions with enhanced styling
     let suggestion_count = palette.suggestions.len();
     if let Some(mut suggestions_chunk) = suggestions_chunk.get().await
         && suggestion_count > 0
     {
-        let width = suggestions_chunk.size().x as usize;
+        let width = suggestions_chunk.size().x;
         let height = suggestions_chunk.size().y;
 
         // Fill interior with spaces
@@ -277,11 +259,12 @@ pub async fn render_command_palette(
             }
         }
 
+        let mut border = Border::rounded(width, height);
+        border.style = border_style;
+
         // Top border for suggestions
         render!(&mut suggestions_chunk, (0, 0) => [
-            StyledContent::new(border_style, "╭"),
-            StyledContent::new(border_style, "─".repeat(width.saturating_sub(2))),
-            StyledContent::new(border_style, "╮")
+            border
         ]);
 
         let max_display =
@@ -292,46 +275,16 @@ pub async fn render_command_palette(
 
             // Highlight first suggestion (selected)
             if i == 0 {
-                let content_width = palette.suggestions[i].size().x;
-                let padding = " ".repeat(width.saturating_sub(content_width as usize + 5));
-
-                render!(&mut suggestions_chunk, (0, row) => [
-                    StyledContent::new(border_style, "│"), " ",
+                render!(&mut suggestions_chunk, (1, row) => [
                     StyledContent::new(icon_style, "▶"),
                 ]);
 
-                // Render the suggestion with cursor highlight
                 let sug_x = 4;
                 render!(&mut suggestions_chunk, (sug_x, row) => [palette.suggestions[i]]);
-                render!(&mut suggestions_chunk, (sug_x + content_width, row) => [
-                    padding,
-                    StyledContent::new(border_style, "│")
-                ]);
             } else {
-                let content_width = palette.suggestions[i].size().x;
-                let padding = " ".repeat(width.saturating_sub(content_width as usize + 5));
-
-                render!(&mut suggestions_chunk, (0, row) => [
-                    StyledContent::new(border_style, "│")
-                ]);
-
                 let sug_x = 4;
                 render!(&mut suggestions_chunk, (sug_x, row) => [palette.suggestions[i]]);
-                render!(&mut suggestions_chunk, (sug_x + content_width, row) => [
-                    padding,
-                    StyledContent::new(border_style, "│")
-                ]);
             }
-        }
-
-        // Bottom border
-        let bottom_row = max_display as u16 + 1;
-        if bottom_row < suggestions_chunk.size().y {
-            render!(&mut suggestions_chunk, (0, bottom_row) => [
-                StyledContent::new(border_style, "╰"),
-                StyledContent::new(border_style, "─".repeat(width.saturating_sub(2))),
-                StyledContent::new(border_style, "╯")
-            ]);
         }
     }
 
@@ -339,7 +292,7 @@ pub async fn render_command_palette(
     if let Some(mut desc_chunk) = desc_chunk.get().await
         && let Some(desc_buffer) = &palette.desc
     {
-        let width = desc_chunk.size().x as usize;
+        let width = desc_chunk.size().x;
         let height = desc_chunk.size().y;
 
         // Fill interior with spaces
@@ -349,39 +302,14 @@ pub async fn render_command_palette(
             }
         }
 
-        // Top border with "Description" title
-        let desc_title = " Description ";
-        let desc_border_len = width.saturating_sub(desc_title.len() + 3);
+        let mut border =
+            Border::rounded(width, height).with_title(title_style.apply(" Description "));
+        border.style = border_style;
 
         render!(&mut desc_chunk, (0, 0) => [
-            StyledContent::new(border_style, "╭"),
-            StyledContent::new(border_style, "─"),
-            StyledContent::new(title_style, desc_title),
-            StyledContent::new(border_style, "─".repeat(desc_border_len)),
-            StyledContent::new(border_style, "╮")
+            border
         ]);
 
-        // Content with left border
-        let desc_height = desc_buffer.size().y;
-        for i in 0..desc_height.min(desc_chunk.size().y.saturating_sub(2)) {
-            render!(&mut desc_chunk, (0, i + 1) => [
-                StyledContent::new(border_style, "│")
-            ]);
-            render!(&mut desc_chunk, vec2(width.saturating_sub(1) as u16, i + 1) => [
-                StyledContent::new(border_style, "│")
-            ]);
-        }
-
         render!(&mut desc_chunk, (2, 1) => [desc_buffer]);
-
-        // Bottom border
-        let bottom_row = desc_height.min(desc_chunk.size().y.saturating_sub(2)) + 1;
-        if bottom_row < desc_chunk.size().y {
-            render!(&mut desc_chunk, (0, bottom_row) => [
-                StyledContent::new(border_style, "╰"),
-                StyledContent::new(border_style, "─".repeat(width.saturating_sub(2))),
-                StyledContent::new(border_style, "╯")
-            ]);
-        }
     }
 }
