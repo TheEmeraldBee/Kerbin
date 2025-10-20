@@ -26,15 +26,7 @@ when the editor is more fleshed out (around mid October).
 Install Kerbin with a single command:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/TheEmeraldBee/Kerbin/main/install.sh | bash
-```
-
-Or download and run the installer manually:
-
-```bash
-curl -sSL https://raw.githubusercontent.com/TheEmeraldBee/Kerbin/main/install.sh -o install.sh
-chmod +x install.sh
-./install.sh
+curl -sSL https://raw.githubusercontent.com/TheEmeraldBee/Kerbin/master/install.sh | bash
 ```
 
 ### Prerequisites
@@ -81,39 +73,7 @@ nix run github:TheEmeraldBee/Kerbin
 
 ---
 
-#### 2. Profile Installation (Persistent)
-```bash
-nix profile install github:TheEmeraldBee/Kerbin
-```
-**What happens:**
-- Kerbin is built and added to your user profile
-- Binary becomes available in your PATH automatically
-- Installed to `/nix/store/` but linked via profile
-- Survives reboots and shell sessions
-- You can run `kerbin` from anywhere
-
-**File structure:**
-```
-/nix/store/xxxxx-kerbin-0.1.0/
-├── bin/
-│   └── kerbin
-
-~/.nix-profile/bin/kerbin → /nix/store/xxxxx-kerbin-0.1.0/bin/kerbin
-~/.config/kerbin/          # Your config (you manage this)
-```
-
-**Updating:**
-```bash
-nix profile upgrade '.*kerbin.*'
-```
-
-**Use case:** Daily use, want Kerbin always available
-
----
-
-#### 3. Using Nix Flakes
-
-#### 3. NixOS System Configuration
+#### 2. NixOS System Configuration
 
 Add Kerbin to your system packages in `/etc/nixos/configuration.nix`:
 
@@ -154,7 +114,7 @@ sudo nixos-rebuild switch
 
 ---
 
-#### 4. Home Manager Integration
+#### 3. Home Manager Integration
 
 Add to your Home Manager configuration (`~/.config/home-manager/home.nix`):
 
@@ -193,32 +153,6 @@ home-manager switch
 - Can track specific versions or commits
 
 **Use case:** Managing your entire user environment declaratively
-
----
-
-#### 5. Development Shell
-
-Enter a development environment with all dependencies:
-
-```bash
-nix develop github:TheEmeraldBee/Kerbin
-```
-
-**What happens:**
-- Drops you into a shell with cargo, rustc, git, etc.
-- You can build Kerbin from source
-- Great for contributing or hacking on Kerbin
-- Nothing installed when you exit
-
-**Inside the shell:**
-```bash
-cargo build --release
-./target/release/kerbin
-```
-
-**Use case:** Development, testing, or building from source
-
----
 
 ### Nix vs Shell Installer Comparison
 
@@ -357,6 +291,7 @@ file communication systems
 - [x] Document core systems and sub modules
 - [x] Go through systems and refactor code (More of this will need to be done)
     - Make everything more readable, and stop being afraid of adding more files :)
+- [x] Write out Nix & Linux/Mac install scripts for making installation and updating easy
 - [ ] Write out main wiki for writing configuration and plugins
 
 ## Stability

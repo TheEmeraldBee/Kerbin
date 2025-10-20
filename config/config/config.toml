@@ -1,11 +1,3 @@
-# ---- Imports ---- #
-# This is where all major imports occur
-# This entry is double bracketed, as it can
-# be used anywhere. They are imported at location
-# meaning if you want a file to override another
-# Just place it either later in the paths list here
-# Or later in the file in another import entry
-
 [[import]]
 # Just import theme here for organization
 paths = ["./theme.toml"]
@@ -17,32 +9,26 @@ paths = ["./vim/init.toml"]
 [[keybind]]
 modes = ["n"]
 keys = ["space", "f", "f"]
-commands = ["shsp zellij run -f -c -- nu %cfg_folder/scripts/fzf.nu %session"]
+commands = ["ship sh %cfg_folder/scripts/fzf.sh %session"]
 desc = "Run FZF file picker at location editor was run"
 
 [[keybind]]
 modes = ["n"]
 keys = ["space", "f", "t"]
-commands = ["shsp zellij run -f --width 60%% --height 60%% --y 20%% --x 20%% -c -- nu %cfg_folder/scripts/yazi.nu %session %cur_buf"]
+commands = ["ship sh %cfg_folder/scripts/yazi.sh %session %cur_buf"]
 desc = "Run Yazi file picker"
 
 [[keybind]]
 modes = ["n"]
 keys = [";", "s"]
-commands = ['shsp zellij run -f --width 60%% --height 60%% --y 20%% --x 20%% -c -- nu -c "KERBIN_SESSION=%session nu"']
-desc = "Run Yazi file picker"
+commands = ['ship sh -c "sh"']
+desc = "Run sh shell session"
 
 [[keybind]]
 modes = ["n"]
 keys = [";", "shift-q"]
 commands = ["quit"]
 desc = "Quit"
-
-[[keybind]]
-modes = []
-keys = ["shift-j"]
-commands = ["commit join_line 0"]
-desc = "Join Line"
 
 [[keybind]]
 modes = ["i"]
