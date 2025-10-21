@@ -25,8 +25,14 @@ check back later for new demonstrations that are much better!
 
 Install with:
 
-```bash
+#### Nushell
+```nu
 bash -c (curl -sL https://raw.githubusercontent.com/TheEmeraldBee/Kerbin/master/install.sh)
+```
+
+#### Bash
+```bash
+bash -c "$(curl -sL https://raw.githubusercontent.com/TheEmeraldBee/Kerbin/master/install.sh)"
 ```
 
 ### Prerequisites
