@@ -13,9 +13,11 @@ Kerbin is the stable launch pad for your unstable ideas
 
 # ✨ Showcase ✨
 
-*There's nothing here yet!* 
-Check back in a bit for full demonstrations
-when the editor is more fleshed out (around mid October).
+Here is a very crude basic demonstration of the editor as of Oct 20th of 2025.
+This is a early build of the editor, so everything is still in progress, 
+check back later for new demonstrations that are much better!
+
+[![asciicast](https://asciinema.org/a/XkqyndsqkMIaNVDg4oTJX9I82.svg)](https://asciinema.org/a/XkqyndsqkMIaNVDg4oTJX9I82)
 
 ---
 
