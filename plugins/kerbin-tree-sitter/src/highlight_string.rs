@@ -76,6 +76,7 @@ pub fn highlight_string(
 /// Highlight markdown with code block injection support
 pub fn highlight_markdown(
     text: &str,
+    default_lang: &str,
     grammars: &mut GrammarManager,
     theme: &Theme,
 ) -> Vec<StyledLine> {
@@ -113,8 +114,14 @@ pub fn highlight_markdown(
 
     // Find and highlight code blocks with injection
     if let Some(injection_query) = grammars.get_query("markdown", "injections") {
-        let injected_highlights =
-            process_markdown_injections(&rope, &tree, &injection_query, grammars, theme);
+        let injected_highlights = process_markdown_injections(
+            &rope,
+            &tree,
+            default_lang,
+            &injection_query,
+            grammars,
+            theme,
+        );
 
         // Merge injected highlights (they have higher priority)
         all_highlights.extend(injected_highlights);
@@ -128,6 +135,7 @@ pub fn highlight_markdown(
 fn process_markdown_injections(
     rope: &Rope,
     tree: &tree_sitter::Tree,
+    default_lang: &str,
     injection_query: &Query,
     grammars: &mut GrammarManager,
     theme: &Theme,
@@ -140,7 +148,7 @@ fn process_markdown_injections(
 
     while let Some(m) = matches.next() {
         let mut content_node = None;
-        let mut lang_name = None;
+        let mut lang_name = default_lang.to_string();
 
         for cap in m.captures {
             let name = injection_query.capture_names()[cap.index as usize];
@@ -148,16 +156,15 @@ fn process_markdown_injections(
             if name == "injection.content" {
                 content_node = Some(cap.node);
             } else if name == "injection.language" {
-                lang_name = Some(
-                    rope.slice(cap.node.byte_range())
-                        .to_string()
-                        .trim()
-                        .to_string(),
-                );
+                lang_name = rope
+                    .slice(cap.node.byte_range())
+                    .to_string()
+                    .trim()
+                    .to_string();
             }
         }
 
-        if let (Some(content), Some(lang)) = (content_node, lang_name) {
+        if let (Some(content), lang) = (content_node, lang_name) {
             // Get the language parser and query
             if let Some(lang_obj) = grammars.get_language(&lang)
                 && let Some(lang_query) = grammars.get_query(&lang, "highlight")

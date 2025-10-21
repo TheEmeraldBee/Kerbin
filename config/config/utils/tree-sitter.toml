@@ -1,5 +1,0 @@
-[[keybind]]
-modes = ["n"]
-keys = ["space", "k"]
-commands = ['hover']
-desc = "Show hover information"

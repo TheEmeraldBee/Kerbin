@@ -1,0 +1,17 @@
+[[keybind]]
+modes = ["n"]
+keys = ["space", "k"]
+commands = ['hover']
+desc = "Show Hover"
+
+[[keybind]]
+modes = []
+keys = ['ctrl-j']
+commands = ['hsd']
+desc = "Scroll Hover Down"
+
+[[keybind]]
+modes = []
+keys = ['ctrl-k']
+commands = ['hsu']
+desc = "Scroll Hover Up"

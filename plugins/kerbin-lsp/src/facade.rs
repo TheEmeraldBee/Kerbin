@@ -31,8 +31,18 @@ impl<W: AsyncWrite + Unpin + Send + 'static> ClientFacade for LspClient<W> {
                         related_document_support: None,
                     }),
                     hover: Some(HoverClientCapabilities {
-                        dynamic_registration: Some(true),
+                        dynamic_registration: None,
                         content_format: None,
+                    }),
+                    completion: Some(CompletionClientCapabilities {
+                        dynamic_registration: None,
+
+                        completion_item: None,
+                        completion_list: None,
+                        completion_item_kind: None,
+
+                        insert_text_mode: None,
+                        context_support: None,
                     }),
                     ..Default::default()
                 }),

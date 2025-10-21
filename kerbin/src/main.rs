@@ -223,7 +223,7 @@ async fn main() {
     }
 
     let min_ms_per_frame = 1000 / max_framerate;
-    let remaining_ms_per_frame = min_ms_per_frame.saturating_sub(1000 / idle_framerate);
+    let remaining_ms_per_frame = (1000 / idle_framerate).saturating_sub(min_ms_per_frame);
 
     config::init(&mut state).await;
 

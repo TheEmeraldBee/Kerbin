@@ -29,7 +29,7 @@ impl CoreConfig {
     }
 
     pub fn max_framerate(&self) -> u64 {
-        self.max_framerate.unwrap_or(30)
+        self.max_framerate.unwrap_or(60)
     }
 }
 
