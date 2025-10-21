@@ -390,6 +390,7 @@ fi
 print_info "Checking out ${SELECTED_VERSION}..."
 git reset --hard
 git clean -fd
+git pull --force
 if ! git checkout "${SELECTED_VERSION}"; then
     print_error "Failed to checkout version ${SELECTED_VERSION}. The version may be invalid."
     exit 1
