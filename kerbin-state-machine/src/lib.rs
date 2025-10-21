@@ -241,7 +241,7 @@ impl<'a> HookCallBuilder<'a> {
 
                 for res in res {
                     if let Err(e) = res {
-                        tracing::error!("{e}");
+                        panic!("{e}");
                     }
                 }
             }
