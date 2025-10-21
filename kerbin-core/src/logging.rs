@@ -111,7 +111,7 @@ fn render_notification(
     notification_height
 }
 
-fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
+pub fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
     text.split_whitespace()
         .fold(vec![String::new()], |mut lines, word| {
             let current_line = lines.last_mut().unwrap();

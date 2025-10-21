@@ -1,4 +1,4 @@
-use kerbin_core::State;
+use kerbin_core::{CommandRegistry, State};
 
 pub mod jsonrpc;
 pub use jsonrpc::*;
@@ -23,6 +23,9 @@ pub use diagnostics::*;
 
 pub mod event;
 pub use event::*;
+
+pub mod hover;
+pub use hover::*;
 
 // Re-Exports
 pub use lsp_types::*;
@@ -49,6 +52,8 @@ pub async fn register_lang(
             .system(open_files)
             .system(apply_changes)
             .system(process_lsp_events)
+            .system(clear_hover_on_move)
+            .system(render_hover)
             .system(render_diagnostic_highlights);
     }
 }
@@ -58,7 +63,14 @@ pub async fn init(state: &mut State) {
         .state(LspHandlerManager::default())
         .state(LspManager::default())
         .state(OpenedFiles::default())
+        .state(HoverState::default())
         .state(DiagnosticsState::default());
+
+    {
+        let mut command_registry = state.lock_state::<CommandRegistry>().await.unwrap();
+
+        command_registry.register::<HoverCommand>();
+    }
 
     // Setup global state handlers
     {
@@ -71,5 +83,8 @@ pub async fn init(state: &mut State) {
             Box::pin(publish_diagnostics(state, msg))
         });
         handler_manager.on_global_notify("$/progress", |state, msg| Box::pin(log_init(state, msg)));
+        handler_manager.on_global_response("textDocument/hover", |state, msg| {
+            Box::pin(handle_hover(state, msg))
+        });
     }
 }
