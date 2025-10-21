@@ -73,10 +73,13 @@ macro_rules! get {
 ///
 /// Panics if the "kerbin.log" file cannot be opened or created.
 pub fn init_log() {
+    let mut log_file_path = home_dir().expect("Home Directory Should Exist");
+    log_file_path.push(".kerbin/kerbin.log");
+
     let log_file = File::options()
         .create(true)
         .append(true)
-        .open("kerbin.log")
+        .open(log_file_path)
         .expect("file should be able to open");
 
     tracing_subscriber::fmt()
@@ -92,7 +95,7 @@ pub extern crate kerbin_macros;
 
 pub extern crate async_trait;
 
-use std::{fs::File, sync::Mutex};
+use std::{env::home_dir, fs::File, sync::Mutex};
 
 pub use kerbin_state_machine::*;
 
