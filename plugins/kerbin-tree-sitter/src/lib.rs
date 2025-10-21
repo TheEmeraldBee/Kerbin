@@ -15,6 +15,8 @@ pub use state::*;
 pub mod commands;
 pub use commands::*;
 
+pub mod highlight_string;
+
 #[derive(State, Default)]
 pub struct TreeSitterStates {
     pub bufs: BTreeMap<String, Option<TSState>>,

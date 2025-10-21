@@ -141,18 +141,6 @@ async fn update(state: &mut State) {
 
     // Render all chunks to the window
     state.hook(hooks::RenderChunks).call().await;
-
-    match state
-        .lock_state::<WindowState>()
-        .await
-        .unwrap()
-        .update(Duration::from_millis(0))
-    {
-        Ok(_) => {}
-        Err(e) => {
-            tracing::error!("{e}");
-        }
-    }
 }
 
 #[tokio::main]
@@ -345,6 +333,18 @@ async fn main() {
                 _ = tokio::time::sleep(remaining) => {
                     break;
                 }
+            }
+        }
+
+        match state
+            .lock_state::<WindowState>()
+            .await
+            .unwrap()
+            .update(Duration::from_millis(0))
+        {
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("{e}");
             }
         }
     }

@@ -6,18 +6,18 @@ use kerbin_core::{
     *,
 };
 use lsp_types::{
-    Hover, HoverContents, HoverParams, MarkedString, Position, TextDocumentIdentifier,
+    Hover, HoverContents, HoverParams, MarkedString, MarkupKind, Position, TextDocumentIdentifier,
     TextDocumentPositionParams, Uri, WorkDoneProgressParams,
 };
 
 use crate::{JsonRpcMessage, LspManager, OpenedFiles, UriExt};
 
+pub use kerbin_tree_sitter::highlight_string::StyledLine;
+
 #[derive(Default, State)]
 pub struct HoverState {
     pub hover: Option<Hover>,
-
     pub position: Option<usize>,
-
     pub pending_request: Option<i32>,
 }
 
@@ -53,7 +53,6 @@ impl Command for HoverCommand {
         };
 
         let cursor = buf.primary_cursor();
-
         let cursor_byte = cursor.get_cursor_byte();
 
         let line = buf.rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
@@ -82,8 +81,13 @@ impl Command for HoverCommand {
     }
 }
 
-pub async fn render_hover(buffers: ResMut<Buffers>, hover_state: Res<HoverState>) {
-    get!(mut buffers, hover_state);
+pub async fn render_hover(
+    buffers: ResMut<Buffers>,
+    hover_state: Res<HoverState>,
+    theme: Res<Theme>,
+    grammars: ResMut<kerbin_tree_sitter::GrammarManager>,
+) {
+    get!(mut buffers, hover_state, theme, mut grammars);
 
     let mut buf = buffers.cur_buffer_mut().await;
 
@@ -92,32 +96,24 @@ pub async fn render_hover(buffers: ResMut<Buffers>, hover_state: Res<HoverState>
     if let Some(hover) = &hover_state.hover
         && let Some(byte) = hover_state.position
     {
-        // Extract hover content
-        let content = match &hover.contents {
-            HoverContents::Scalar(markup) => format_markup_content(markup),
-            HoverContents::Array(markups) => markups
-                .iter()
-                .map(format_markup_content)
-                .collect::<Vec<_>>()
-                .join("\n"),
-            HoverContents::Markup(markup) => markup.value.clone(),
-        };
+        // Extract hover content and convert to markdown
+        let markdown_content = extract_hover_as_markdown(&hover.contents);
 
-        let content = Buffer::sized_element(content);
+        // Use tree-sitter to highlight the markdown
+        let content_lines = kerbin_tree_sitter::highlight_string::highlight_markdown(
+            &markdown_content,
+            &mut grammars,
+            &theme,
+        );
 
-        let mut elem = Buffer::new(content.size() + vec2(2, 2));
-
-        let border = Border::rounded(elem.size().x, elem.size().y);
-        render!(elem, (0, 0) => [ border ]);
-
-        render!(elem, (1, 1) => [ content ]);
+        let elem = create_hover_buffer(&content_lines, &theme);
 
         buf.renderer.add_extmark(
             "lsp::hover",
             byte,
             5,
             vec![ExtmarkDecoration::OverlayElement {
-                offset: vec2(0, 0),
+                offset: vec2(0, 1),
                 elem: Arc::new(elem),
                 z_index: 1,
                 clip_to_viewport: true,
@@ -125,6 +121,65 @@ pub async fn render_hover(buffers: ResMut<Buffers>, hover_state: Res<HoverState>
             }],
         );
     }
+}
+
+/// Extract hover content and convert to markdown format
+fn extract_hover_as_markdown(contents: &HoverContents) -> String {
+    match contents {
+        HoverContents::Scalar(markup) => format_markup_to_markdown(markup),
+        HoverContents::Array(markups) => {
+            markups
+                .iter()
+                .map(format_markup_to_markdown)
+                .collect::<Vec<_>>()
+                .join("\n\n---\n\n") // Separator between multiple hovers
+        }
+        HoverContents::Markup(markup) => match markup.kind {
+            MarkupKind::Markdown => markup.value.clone(),
+            MarkupKind::PlainText => markup.value.clone(),
+        },
+    }
+}
+
+/// Convert a MarkedString to markdown
+fn format_markup_to_markdown(markup: &MarkedString) -> String {
+    match markup {
+        MarkedString::String(s) => s.clone(),
+        MarkedString::LanguageString(ls) => {
+            format!("```{}\n{}\n```", ls.language, ls.value)
+        }
+    }
+}
+
+/// Create a hover buffer from styled lines
+fn create_hover_buffer(lines: &[StyledLine], theme: &Theme) -> Buffer {
+    if lines.is_empty() {
+        return Buffer::new((10, 3));
+    }
+
+    // Calculate required size
+    let max_width = lines.iter().map(|l| l.width()).max().unwrap_or(10).max(20);
+    let height = lines.len();
+
+    // Add padding for border
+    let mut elem = Buffer::new(((max_width + 4) as u16, (height + 2) as u16));
+
+    let border_style = theme.get_fallback_default(["ui.commandline.border", "ui.text"]);
+    let mut border = Border::rounded(elem.size().x, elem.size().y);
+    border.style = border_style;
+
+    render!(elem, (0, 0) => [border]);
+
+    // Render each line
+    for (y, line) in lines.iter().enumerate() {
+        let mut x = 2u16;
+        for (text, style) in &line.segments {
+            render!(elem, (x, y as u16 + 1) => [style.apply(text)]);
+            x += text.len() as u16;
+        }
+    }
+
+    elem
 }
 
 pub async fn handle_hover(state: &State, msg: &JsonRpcMessage) {
@@ -165,16 +220,6 @@ pub async fn clear_hover_on_move(
         if cursor != pos {
             hover_state.hover = None;
             hover_state.position = None;
-        }
-    }
-}
-
-fn format_markup_content(content: &MarkedString) -> String {
-    match content {
-        MarkedString::String(s) => s.clone(),
-        MarkedString::LanguageString(ls) => {
-            // Format as code block with language
-            format!("```{}\n{}\n```", ls.language, ls.value)
         }
     }
 }

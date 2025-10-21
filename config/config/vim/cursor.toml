@@ -27,8 +27,8 @@ desc = "Delete Primary Cursor"
 [[keybind]]
 modes = []
 keys = [","]
-commands = ["dcs"]
-desc = "Delete Other Cursors"
+commands = ["dcs", "cm n"]
+desc = "Delete Other Cursors, Go To Normal Mode"
 
 [[keybind]]
 modes = []

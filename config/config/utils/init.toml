@@ -1,0 +1,2 @@
+[[import]]
+paths = ["./lsp.toml", "./shell.toml", "./tree-sitter.toml", "./misc.toml"]

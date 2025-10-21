@@ -13,3 +13,5 @@ serde.workspace = true
 tracing.workspace = true
 
 tokio.workspace = true
+
+kerbin-tree-sitter = { path="../kerbin-tree-sitter" }

@@ -796,6 +796,7 @@ name = "kerbin-lsp"
 version = "0.1.0"
 dependencies = [
  "kerbin-core",
+ "kerbin-tree-sitter",
  "lsp-types",
  "serde",
  "serde_json",

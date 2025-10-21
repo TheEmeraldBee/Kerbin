@@ -303,7 +303,7 @@ pub async fn render_command_palette(
         }
 
         let mut border =
-            Border::rounded(width, height).with_title(title_style.apply(" Description "));
+            Border::rounded(width, height - 1).with_title(title_style.apply(" Description "));
         border.style = border_style;
 
         render!(&mut desc_chunk, (0, 0) => [
