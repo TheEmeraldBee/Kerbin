@@ -71,7 +71,7 @@ impl LspManager {
     ///
     /// Will return None if there is no language description and
     /// the client isn't already running
-    pub async fn get_or_create_client<'a>(
+    pub async fn get_or_create_client(
         &mut self,
         lang: impl ToString,
     ) -> Option<&mut LspClient<ChildStdin>> {
@@ -84,9 +84,7 @@ impl LspManager {
             );
         }
 
-        let Some(info) = self.lang_info_map.get(&lang) else {
-            return None;
-        };
+        let info = self.lang_info_map.get(&lang)?;
 
         let client = LspClient::spawned(&lang, &info.command, info.args.clone())
             .await

@@ -122,7 +122,7 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
 
     async fn parse_message(value: Value, writer: &Arc<Mutex<W>>) -> Option<JsonRpcMessage> {
         // Check if it's a response (has id but no method)
-        if let Some(_) = value.get("id") {
+        if value.get("id").is_some() {
             if value.get("method").is_none() {
                 // It's a response
                 if let Ok(response) = serde_json::from_value::<JsonRpcResponse>(value) {

@@ -4,7 +4,7 @@ use ascii_forge::window::crossterm::execute;
 use ascii_forge::window::crossterm::terminal::{
     DisableLineWrap, EnterAlternateScreen, enable_raw_mode,
 };
-use ascii_forge::window::{EnableFocusChange, EnableMouseCapture, Window};
+use ascii_forge::window::{EnableFocusChange, EnableMouseCapture};
 use kerbin_macros::Command;
 use kerbin_state_machine::State;
 use std::collections::HashMap;

@@ -255,7 +255,7 @@ pub async fn render_command_palette(
         // Fill interior with spaces
         for y in 1..(height - 1) {
             for x in 1..(width - 1) {
-                suggestions_chunk.set(vec2(x as u16, y), " ");
+                suggestions_chunk.set(vec2(x, y), " ");
             }
         }
 
@@ -298,7 +298,7 @@ pub async fn render_command_palette(
         // Fill interior with spaces
         for y in 1..(height - 1) {
             for x in 1..(width - 1) {
-                desc_chunk.set(vec2(x as u16, y), " ");
+                desc_chunk.set(vec2(x, y), " ");
             }
         }
 

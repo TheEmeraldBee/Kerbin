@@ -61,7 +61,7 @@ impl LspHandlerManager {
     {
         self.handler_map
             .entry(lang.to_string())
-            .or_insert(HandlerSet::default())
+            .or_default()
             .response_handlers
             .push(HandlerEntry {
                 hook_info: HookInfo::new_custom_split(pattern, "/"),
@@ -99,7 +99,7 @@ impl LspHandlerManager {
     {
         self.handler_map
             .entry(lang.to_string())
-            .or_insert(HandlerSet::default())
+            .or_default()
             .notification_handlers
             .push(HandlerEntry {
                 hook_info: HookInfo::new_custom_split(pattern, "/"),
@@ -137,7 +137,7 @@ impl LspHandlerManager {
     {
         self.handler_map
             .entry(lang.to_string())
-            .or_insert(HandlerSet::default())
+            .or_default()
             .server_request_handlers
             .push(HandlerEntry {
                 hook_info: HookInfo::new_custom_split(pattern, "/"),
