@@ -27,12 +27,12 @@ Install with:
 
 #### Nushell
 ```nu
-bash -c (curl -sL https://raw.githubusercontent.com/TheEmeraldBee/Kerbin/master/install.sh)
+bash -c (curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/TheEmeraldBee/Kerbin/master/install.sh)
 ```
 
-#### Bash
+#### Zsh/Bash/Sh
 ```bash
-bash -c "$(curl -sL https://raw.githubusercontent.com/TheEmeraldBee/Kerbin/master/install.sh)"
+bash -c "$(curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/TheEmeraldBee/Kerbin/master/install.sh)"
 ```
 
 ### Prerequisites
