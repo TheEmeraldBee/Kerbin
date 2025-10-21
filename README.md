@@ -130,6 +130,10 @@ file communication systems
     Basically this should allow for sending commands to an existing editor, or start an editor with the commands
     - Also have a flag, `-q` that will run the commands, but append a ForceQuit command to the end
 - [ ] Lsp Support using plugin system
+    - Diagnostics
+    - Hover
+    - Autocompletions
+- [ ] Editor Support for wrapped text
 - [ ] Mouse Scrolling Support
     - Allow Mapping Scroll Wheel to a command (scroll_up = "ml -1") or something
     This would allow for the most flexible system, and make mouse pretty strong

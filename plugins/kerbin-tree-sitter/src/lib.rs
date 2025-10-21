@@ -174,9 +174,6 @@ pub async fn parse_dirty_trees(
             }
             ts_state.injected_parsers = new_parsers;
         }
-
-        ts_state.changes.clear();
-        ts_state.tree_sitter_dirty = false;
     }
 }
 
@@ -191,7 +188,9 @@ pub async fn calculate_highlights(
 
     let buf = buffers.cur_buffer().await;
 
-    if let Some(Some(ts_state)) = ts_states.bufs.get(&buf.path) {
+    if let Some(Some(ts_state)) = ts_states.bufs.get(&buf.path)
+        && ts_state.tree_sitter_dirty
+    {
         let mut final_highlights = BTreeMap::new();
 
         if let Some(tree) = ts_state.primary_tree.as_ref()
@@ -211,6 +210,17 @@ pub async fn calculate_highlights(
     }
 }
 
+pub async fn cleanup_dirty(ts_states: ResMut<TreeSitterStates>, buffers: Res<Buffers>) {
+    get!(mut ts_states, buffers);
+
+    let buf = buffers.cur_buffer().await;
+
+    if let Some(Some(ts_state)) = ts_states.bufs.get_mut(&buf.path) {
+        ts_state.changes.clear();
+        ts_state.tree_sitter_dirty = false;
+    }
+}
+
 pub async fn init(state: &mut State) {
     state
         .state(TreeSitterStates::default())
@@ -222,6 +232,8 @@ pub async fn init(state: &mut State) {
         .system(sync_buffer_changes_to_ts)
         .system(parse_dirty_trees)
         .system(calculate_highlights);
+
+    state.on_hook(hooks::UpdateCleanup).system(cleanup_dirty);
 
     {
         let mut commands = state.lock_state::<CommandRegistry>().await.unwrap();

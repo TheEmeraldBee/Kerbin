@@ -204,8 +204,13 @@ async fn main() {
 
     let mut state = init_state(window, command_sender, config_path.clone(), command_session);
 
+    let mut idle_framerate = 30;
+    let mut max_framerate = 60;
+
     match Config::load(format!("{config_path}/config/config.toml")) {
         Ok(t) => {
+            idle_framerate = t.core.idle_framerate();
+            max_framerate = t.core.max_framerate();
             t.apply(&mut state).await;
         }
         Err(e) => {
@@ -216,6 +221,9 @@ async fn main() {
                 .critical("core::config_load", e);
         }
     }
+
+    let min_ms_per_frame = 1000 / max_framerate;
+    let remaining_ms_per_frame = min_ms_per_frame.saturating_sub(1000 / idle_framerate);
 
     config::init(&mut state).await;
 
@@ -321,7 +329,7 @@ async fn main() {
         }
 
         // Sleep for remaining time while handling commands
-        let target_frame_time = Duration::from_millis(12);
+        let target_frame_time = Duration::from_millis(min_ms_per_frame);
         let deadline = frame_start + target_frame_time;
 
         while tokio::time::Instant::now() < deadline {
@@ -340,7 +348,7 @@ async fn main() {
             .lock_state::<WindowState>()
             .await
             .unwrap()
-            .update(Duration::from_millis(0))
+            .update(Duration::from_millis(remaining_ms_per_frame))
         {
             Ok(_) => {}
             Err(e) => {

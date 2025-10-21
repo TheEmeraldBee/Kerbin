@@ -11,6 +11,28 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use toml::{Table, Value};
 
+#[derive(Debug, Deserialize, Default)]
+#[serde(default)]
+pub struct CoreConfig {
+    pub idle_framerate: Option<u64>,
+    pub max_framerate: Option<u64>,
+}
+
+impl CoreConfig {
+    pub fn merge(&mut self, other: CoreConfig) {
+        self.idle_framerate = other.idle_framerate.or(self.idle_framerate);
+        self.max_framerate = other.max_framerate.or(self.max_framerate);
+    }
+
+    pub fn idle_framerate(&self) -> u64 {
+        self.idle_framerate.unwrap_or(30)
+    }
+
+    pub fn max_framerate(&self) -> u64 {
+        self.max_framerate.unwrap_or(30)
+    }
+}
+
 #[derive(Debug)]
 pub enum ThemeError {
     InvalidColor(String),
@@ -284,6 +306,8 @@ pub struct ImportEntry {
 
 #[derive(Debug, Default)]
 pub struct Config {
+    pub core: CoreConfig,
+
     keybindings: Vec<Input>,
     prefixes: Vec<Prefix>,
 
@@ -308,6 +332,18 @@ impl Config {
         // Iterate through the top-level keys in the order they appear in the file
         for (key, value) in toml_table.into_iter() {
             match key.as_str() {
+                "core" => {
+                    if let Value::Table(t) = value {
+                        let config: CoreConfig = match t.try_into() {
+                            Ok(t) => t,
+                            Err(_) => {
+                                return Err(format!("Invalid core entry in {:?}", path).into());
+                            }
+                        };
+
+                        final_config.core.merge(config);
+                    }
+                }
                 "import" => {
                     if let Value::Array(imports_array) = value {
                         for import_val in imports_array {

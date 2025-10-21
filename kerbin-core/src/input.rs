@@ -189,8 +189,8 @@ pub async fn register_help_menu_chunk(
         .row(flexible(), vec![flexible()])
         .row(
             // Ensure space for all active inputs (+2 for border)
-            fixed(input.active_inputs.len() as u16 + 2),
-            vec![flexible(), percent(20.0), fixed(1)],
+            max(input.active_inputs.len() as u16 + 2),
+            vec![flexible(), percent(50.0), fixed(1)],
         )
         .row(fixed(1), vec![flexible()])
         .calculate(window.size())
