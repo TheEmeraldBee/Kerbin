@@ -134,17 +134,20 @@ pub async fn open_files(
         Uri::file_path(&std::env::current_dir().unwrap().to_string_lossy()).unwrap()
     });
 
-    if client.init(root_uri).await.is_ok() {
+    if !client.is_flag_set("init") && client.init(root_uri).await.is_ok() {
         // Send initialized notification
         let _ = client.notification("initialized", json!({})).await;
 
-        // Open the file
-        if client.open(&file_path).await.is_ok() {
-            opened_files.opened.insert(
-                file_path.clone(),
-                OpenedFile::new(lang, Uri::file_path(&file_path).unwrap()),
-            );
-        }
+        // Set that we initialized the editor
+        client.set_flag("init");
+    }
+
+    // Open the file
+    if client.open(&file_path).await.is_ok() {
+        opened_files.opened.insert(
+            file_path.clone(),
+            OpenedFile::new(lang, Uri::file_path(&file_path).unwrap()),
+        );
     }
 }
 

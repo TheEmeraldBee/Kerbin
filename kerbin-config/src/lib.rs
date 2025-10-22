@@ -14,22 +14,16 @@ use toml::{Table, Value};
 #[derive(Debug, Deserialize, Default)]
 #[serde(default)]
 pub struct CoreConfig {
-    pub idle_framerate: Option<u64>,
-    pub max_framerate: Option<u64>,
+    pub framerate: Option<u64>,
 }
 
 impl CoreConfig {
     pub fn merge(&mut self, other: CoreConfig) {
-        self.idle_framerate = other.idle_framerate.or(self.idle_framerate);
-        self.max_framerate = other.max_framerate.or(self.max_framerate);
+        self.framerate = other.framerate.or(self.framerate);
     }
 
-    pub fn idle_framerate(&self) -> u64 {
-        self.idle_framerate.unwrap_or(30)
-    }
-
-    pub fn max_framerate(&self) -> u64 {
-        self.max_framerate.unwrap_or(60)
+    pub fn framerate(&self) -> u64 {
+        self.framerate.unwrap_or(60)
     }
 }
 

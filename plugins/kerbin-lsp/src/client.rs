@@ -3,6 +3,7 @@ use crate::{HandlerEntry, LspHandlerManager, jsonrpc::*};
 use kerbin_core::{HookPathComponent, State};
 use serde::Serialize;
 use serde_json::Value;
+use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::process::{ChildStdin, Command};
@@ -16,6 +17,8 @@ pub struct RequestInfo {
 }
 
 pub struct LspClient<W: AsyncWrite + Unpin + Send + 'static> {
+    flags: HashSet<&'static str>,
+
     lang_id: String,
 
     writer: Arc<Mutex<W>>,
@@ -65,6 +68,8 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
         });
 
         Ok(LspClient {
+            flags: HashSet::default(),
+
             lang_id: lang,
             writer: input,
             request_id: Arc::new(Mutex::new(0)),
@@ -72,6 +77,18 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
             ignore_ids: vec![],
             message_rx,
         })
+    }
+
+    pub fn set_flag(&mut self, flag: &'static str) {
+        self.flags.insert(flag);
+    }
+
+    pub fn unset_flag(&mut self, flag: &'static str) {
+        self.flags.remove(flag);
+    }
+
+    pub fn is_flag_set(&mut self, flag: &'static str) -> bool {
+        self.flags.contains(flag)
     }
 
     async fn read_messages(

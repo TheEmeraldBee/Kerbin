@@ -7,5 +7,4 @@ paths = ["./theme.toml"]
 paths = ["./vim/init.toml", "./utils/init.toml"]
 
 [core]
-max_framerate = 60
-idle_framerate = 30
+framerate = 60
