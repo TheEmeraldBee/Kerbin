@@ -52,9 +52,10 @@ kerbin-install --rebuild --yes
 
 # Clean rebuild (removes build cache)
 kerbin-install --rebuild --clean
-```
 
-The installer uses a persistent build directory at `~/.kerbin_build` to cache compilation artifacts, making rebuilds significantly faster.
+# Change version (fetches from git for updates as well)
+kerbin-install --update
+```
 
 ---
 
@@ -70,7 +71,7 @@ The installer uses a persistent build directory at `~/.kerbin_build` to cache co
     - Toml is an incredible configuration language for most use cases
         - The remaining can be part of a plugin's init function
 - Flexible Bindings
-    - Kerbin's goal is to be usable by anyone, Vim, Kakoune, Emacs, Visual, etc.
+    - Kerbin's goal is to be usable by anyone, Vim, Kakoune, Emacs, etc.
     Allowing anyone to use the plugin ecosystem, no matter they're keybindings!
     - Allows for anyone to use kerbin, without worrying about necissarily relearning how
     they write code
@@ -89,10 +90,6 @@ The installer uses a persistent build directory at `~/.kerbin_build` to cache co
     that finally, within the insert command writes the text to all of the cursors at the same time
     - This allows for drastically simpler bindings for many shared binding types, as well as allowing users to create even more powerful editing systems quickly without
     sacrificing time to write out the same bindings over and over again.
-- Kitty Terminal Support
-    - I personally love what kitty is doing with the terminal, making it more accessible to everyone, and making leaving the terminal less and less necissary.
-    Supporting the rendering protocols is a big part of making the core experience good, as allowing for things like image and markdown rendering is pretty awesome.
-    - This however should never be forced. Although this will be within the core rendering engine, all functionality will only be implemented using plugins.
 
 ---
 
@@ -126,16 +123,17 @@ file communication systems
     - The reason for this is so that using things like zellij with file managers
     like `fzf` or `yazi` within `zellij` or `tmux` will work to send items over the cli
 - [x] Implement core CLI that can send commands over the file communication
-    - This also needs a way of running the editor, passing commands, then wrapping the system back
+    - This also needs a way of running the editor, passing commands, then wrapping the system back.
     Basically this should allow for sending commands to an existing editor, or start an editor with the commands
     - Also have a flag, `-q` that will run the commands, but append a ForceQuit command to the end
 - [ ] Lsp Support using plugin system
     - Diagnostics
     - Hover
     - Autocompletions
+- [ ] Copy/Paste Support (Registers)
 - [ ] Editor Support for wrapped text
 - [ ] Mouse Scrolling Support
-    - Allow Mapping Scroll Wheel to a command (scroll_up = "ml -1") or something
+    - Allow Mapping Scroll Wheel to a command (`scroll_up = "ml -1"`) or something
     This would allow for the most flexible system, and make mouse pretty strong
 - [ ] Mouse Click & Drag Support (Commands to map actions onto bytes?)
     - This ones a doozey, as file rendering isn't static
@@ -147,6 +145,10 @@ file communication systems
 - [x] Go through systems and refactor code (More of this will need to be done)
     - Make everything more readable, and stop being afraid of adding more files :)
 - [x] Write out Nix & Linux/Mac install scripts for making installation and updating easy
+- [ ] Simplify acessing parts of the editor by adding more types that retrieve directly from states (like Chunk)
+    - Add this for accessing the Current Buffer
+    - Look into having this for something like CurrentBufferClient for LSP
+        - Same for Tree-Sitter Grammars
 - [ ] Write out main wiki for writing configuration and plugins
 
 ## Stability
@@ -161,5 +163,10 @@ probably an issue from how we setup the first buffers
     - Update boxes from rendering to correctly fill states
 - [ ] Scrolling inside of buffers with inline widgets is very broken.
 We need to apply visual elements to the widgets to handle this system.
+- [ ] There are a ton of minor performance issues that build up quickly
+    - [ ] Cache more for the plugin's rendering
+        - [ ] LSPs
+        - [x] Tree-Sitter
+    - [ ] Cache and store render-line differences
 - [x] Tree-Sitter Auto Indent isn't quite right in implementation.
 (See multiline list items in markdown)
