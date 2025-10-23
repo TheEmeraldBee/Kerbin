@@ -1,0 +1,19 @@
+# Format: git_url lang_name extension [sub_dir]
+
+# Core Languages
+https://github.com/tree-sitter/tree-sitter-go.git go go
+https://github.com/tree-sitter/tree-sitter-rust.git rust rs
+https://github.com/tree-sitter/tree-sitter-python.git python py
+
+# Config Languages
+https://github.com/ikatyang/tree-sitter-toml.git toml toml
+
+# Tree-sitter Markdown (requires two entries from the same repo)
+
+# Stop concurrent calls as dirs collide
+stop-concurrent
+
+https://github.com/tree-sitter-grammars/tree-sitter-markdown.git markdown_inline md tree-sitter-markdown-inline markdown-inline
+https://github.com/tree-sitter-grammars/tree-sitter-markdown.git markdown md tree-sitter-markdown
+
+start-concurrent

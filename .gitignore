@@ -12,4 +12,4 @@ devenv.local.nix
 # Added by cargo
 
 /target
-config/runtime
+/config/runtime/grammars/

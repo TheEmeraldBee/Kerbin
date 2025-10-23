@@ -832,6 +832,7 @@ dependencies = [
  "kerbin-core",
  "libloading",
  "ropey",
+ "tokio",
  "tracing",
  "tree-sitter",
 ]

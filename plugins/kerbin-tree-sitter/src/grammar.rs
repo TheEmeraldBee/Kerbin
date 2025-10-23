@@ -1,14 +1,27 @@
 use kerbin_core::kerbin_macros::State;
 use kerbin_core::*;
 use libloading::{Library, Symbol};
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    fs, io,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tree_sitter::{Language, Query};
+
+pub struct GrammarInstallConfig {
+    pub base_path: PathBuf,
+    pub git_url: String,
+    pub lang_name: String,
+    pub sub_dir: Option<String>,
+    pub special_rename: Option<String>,
+}
 
 /// Manages loading and caching Tree-sitter grammars from shared libraries.
 #[derive(State)]
 pub struct GrammarManager {
     /// Base path where grammars are stored, e.g., `{config_path}`
-    base_path: PathBuf,
+    pub(crate) base_path: PathBuf,
 
     /// Maps a grammar name to a map of its loaded queries by name (e.g., "highlight").
     loaded_queries: HashMap<String, HashMap<String, Arc<Query>>>,
@@ -28,6 +41,222 @@ impl GrammarManager {
             loaded_queries: HashMap::new(),
             extension_map: HashMap::new(),
         }
+    }
+
+    /// Cleans up the grammar directory after a successful build, keeping only the
+    /// compiled library and query files.
+    fn cleanup_grammar_directory(dir: &Path, lang_name: &str) -> io::Result<()> {
+        let essential_files: Vec<String> = vec![
+            format!("{}.so", lang_name.replace("-", "_")),
+            format!("{}.dll", lang_name.replace("-", "_")),
+            format!("{}.dylib", lang_name.replace("-", "_")),
+        ];
+
+        let query_dir_name = "queries";
+        let query_dir_path = dir.join(query_dir_name);
+
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+
+            if path.is_dir() {
+                if file_name != query_dir_name {
+                    fs::remove_dir_all(path)?;
+                }
+            } else {
+                if !essential_files.contains(&file_name.to_string()) {
+                    fs::remove_file(path)?;
+                }
+            }
+        }
+
+        let src_queries = dir.join("src").join(query_dir_name);
+        if src_queries.exists() && src_queries.is_dir() {
+            if query_dir_path.exists() {
+                fs::remove_dir_all(&query_dir_path).ok();
+            }
+            fs::rename(&src_queries, &query_dir_path)?;
+            fs::remove_dir(dir.join("src")).ok();
+        }
+
+        Ok(())
+    }
+
+    /// Installs a language based on the install config
+    /// Installs to the config's runtime/grammars path
+    pub fn install_language(config: GrammarInstallConfig) -> Result<String, String> {
+        use std::process::Command;
+
+        let is_shared_repo = config.sub_dir.is_some();
+
+        let repo_name = config
+            .git_url
+            .split('/')
+            .last()
+            .unwrap_or(&config.lang_name)
+            .replace(".git", "");
+        let repo_clone_dir = config.base_path.join(&repo_name);
+
+        let build_dir = config
+            .sub_dir
+            .as_ref()
+            .map(|sub| repo_clone_dir.join(sub))
+            .unwrap_or_else(|| repo_clone_dir.clone());
+
+        let final_grammar_dir = config
+            .base_path
+            .join(format!("tree-sitter-{}", config.lang_name));
+
+        if final_grammar_dir.exists() {
+            fs::remove_dir_all(&final_grammar_dir)
+                .map_err(|e| format!("Failed to clean up existing grammar directory: {e}"))?;
+        }
+
+        if !is_shared_repo && repo_clone_dir.exists() {
+            fs::remove_dir_all(&repo_clone_dir)
+                .map_err(|e| format!("Failed to clean up existing grammar directory: {e}"))?;
+        }
+
+        let result = (|| {
+            if !repo_clone_dir.exists() {
+                tracing::info!("Cloning {} into {:?}", config.git_url, repo_clone_dir);
+                let output = Command::new("git")
+                    .arg("clone")
+                    .arg("--depth")
+                    .arg("1")
+                    .arg(&config.git_url)
+                    .arg(&repo_clone_dir)
+                    .output()
+                    .map_err(|e| {
+                        format!("Failed to run git clone. Is 'git' installed? Error: {e}")
+                    })?;
+
+                if !output.status.success() {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    return Err(format!(
+                        "Git clone failed (Status: {}): {}",
+                        output.status, stderr
+                    ));
+                }
+            }
+
+            if !build_dir.exists() {
+                return Err(format!(
+                    "Cloned repository is missing the required build directory: {:?}",
+                    build_dir
+                ));
+            }
+
+            tracing::info!("Running `tree-sitter build` in {:?}", build_dir);
+            let build_output = Command::new("tree-sitter")
+                .arg("build")
+                .current_dir(&build_dir)
+                .output()
+                .map_err(|e| format!("Failed to run `tree-sitter build`. Is the `tree-sitter` CLI and a C compiler installed? Error: {e}"))?;
+
+            if !build_output.status.success() {
+                let stderr = String::from_utf8_lossy(&build_output.stderr);
+                return Err(format!(
+                    "`tree-sitter build` failed (Status: {}). Output: {}",
+                    build_output.status, stderr
+                ));
+            }
+
+            let lang_name = &config.lang_name;
+
+            let initial_filename_so = format!(
+                "{}.so",
+                config
+                    .special_rename
+                    .clone()
+                    .unwrap_or(lang_name.replace("-", "_"))
+            );
+            let initial_filename_dll = format!(
+                "{}.dll",
+                config
+                    .special_rename
+                    .clone()
+                    .unwrap_or(lang_name.replace("-", "_"))
+            );
+            let initial_filename_dylib = format!(
+                "{}.dylib",
+                config
+                    .special_rename
+                    .clone()
+                    .unwrap_or(lang_name.replace("-", "_"))
+            );
+
+            let lib_filename_so = format!("{}.so", lang_name.replace("-", "_"));
+            let lib_filename_dll = format!("{}.dll", lang_name.replace("-", "_"));
+            let lib_filename_dylib = format!("{}.dylib", lang_name.replace("-", "_"));
+
+            let (initial_compiled_lib_name, compiled_lib_name) = [
+                (initial_filename_so.clone(), lib_filename_so.clone()),
+                (initial_filename_dll.clone(), lib_filename_dll.clone()),
+                (initial_filename_dylib.clone(), lib_filename_dylib.clone()),
+            ]
+            .iter()
+            .find(|name| build_dir.join(&name.0).exists())
+            .ok_or_else(|| {
+                format!(
+                    "Build succeeded but shared library was not found ({}|{}|{}).",
+                    lib_filename_so, lib_filename_dll, lib_filename_dylib
+                )
+            })?
+            .clone();
+
+            fs::create_dir_all(&final_grammar_dir)
+                .map_err(|e| format!("Failed to create final grammar directory: {e}"))?;
+
+            fs::rename(
+                build_dir.join(&initial_compiled_lib_name),
+                final_grammar_dir.join(&compiled_lib_name),
+            )
+            .map_err(|e| format!("Failed to move compiled library: {e}"))?;
+
+            let final_query_dir = final_grammar_dir.join("queries");
+            let source_query_dirs = [build_dir.join("queries"), build_dir.join("src/queries")];
+
+            let queries_moved = source_query_dirs.iter().any(|source_dir| {
+                if source_dir.exists() {
+                    if final_query_dir.exists() {
+                        fs::remove_dir_all(&final_query_dir).ok();
+                    }
+                    fs::rename(source_dir, &final_query_dir).is_ok()
+                } else {
+                    false
+                }
+            });
+
+            if !queries_moved {
+                tracing::warn!(
+                    "Could not find queries for {} in {:?} or {:?}. Continuing.",
+                    lang_name,
+                    build_dir.join("queries"),
+                    build_dir.join("src/queries")
+                );
+            }
+
+            Self::cleanup_grammar_directory(&final_grammar_dir, lang_name)
+                .map_err(|e| format!("Failed to cleanup build dir {e}"))?;
+
+            if repo_clone_dir != final_grammar_dir {
+                std::fs::remove_dir_all(&repo_clone_dir).unwrap();
+            }
+
+            Ok(config.lang_name)
+        })();
+
+        if result.is_err() && repo_clone_dir.exists() && !is_shared_repo {
+            tracing::error!(
+                "Installation failed. Cleaning up potentially corrupted directory: {:?}",
+                repo_clone_dir
+            );
+            fs::remove_dir_all(&repo_clone_dir).ok();
+        }
+
+        result
     }
 
     /// Register an extension to a given language.
@@ -70,10 +299,37 @@ impl GrammarManager {
             format!("{}s.scm", query_name.to_lowercase())
         };
 
-        let query_path = self.base_path.join(format!(
-            "tree-sitter-{}/queries/{}",
-            lang_name, query_filename
-        ));
+        // Define all the query path components separately for clarity
+        let query_dir_components: [String; 3] = [
+            "queries".to_string(),
+            lang_name.to_string(),
+            query_filename.clone(),
+        ];
+
+        let path1 = self
+            .base_path
+            .join(format!("tree-sitter-{}", lang_name))
+            .join("queries")
+            .join(query_filename);
+
+        let mut path2 = self.base_path.join(".."); // Go up one directory
+        for component in query_dir_components {
+            // Add "queries", lang_name, query_filename
+            path2.push(component);
+        }
+
+        let paths_to_check = vec![path1, path2];
+
+        let mut found_path: Option<PathBuf> = None;
+
+        for path in paths_to_check {
+            if path.exists() {
+                found_path = Some(path);
+                break; // Stop checking once found
+            }
+        }
+
+        let query_path = found_path?;
 
         if let Ok(query_source) = std::fs::read_to_string(query_path) {
             let query = match Query::new(&language, &query_source) {
@@ -108,24 +364,19 @@ impl GrammarManager {
 
         tracing::info!("Couldn't find `{name}` in loaded tree-sitter grammars, loading...");
 
-        // Construct the path to the shared library.
-        // e.g., runtime/grammars/tree-sitter-rust/
         let lib_path = self.base_path.join(format!("tree-sitter-{name}"));
         let lib_filename = format!("{}.so", name.replace("-", "_"));
 
         let lib_file = lib_path.join(lib_filename);
 
         unsafe {
-            // Load the shared library.
             let library = Library::new(&lib_file).ok()?;
-            // The symbol name is always `language`.
             let lib_symbol = format!("tree_sitter_{}\0", name.replace("-", "_"));
             let language_func: Symbol<unsafe extern "C" fn() -> Language> =
                 library.get(lib_symbol.as_bytes()).ok()?;
 
             let language = language_func();
 
-            // The library must be kept alive, so we leak it.
             std::mem::forget(library);
 
             self.loaded_grammars

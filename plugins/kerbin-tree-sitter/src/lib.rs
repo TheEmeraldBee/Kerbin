@@ -15,6 +15,9 @@ pub use state::*;
 pub mod commands;
 pub use commands::*;
 
+pub mod management_commands;
+pub use management_commands::*;
+
 pub mod highlight_string;
 
 #[derive(State, Default)]
@@ -240,5 +243,6 @@ pub async fn init(state: &mut State) {
     {
         let mut commands = state.lock_state::<CommandRegistry>().await.unwrap();
         commands.register::<TSCommand>();
+        commands.register::<TSManagementCommands>();
     }
 }
