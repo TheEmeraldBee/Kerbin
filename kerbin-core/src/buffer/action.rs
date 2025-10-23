@@ -63,7 +63,7 @@ pub trait BufferAction: Send + Sync {
     /// # Returns
     ///
     /// An `ActionResult` describing the outcome of the application and its inverse.
-    extern "C" fn apply(&self, buf: &mut TextBuffer) -> ActionResult;
+    fn apply(&self, buf: &mut TextBuffer) -> ActionResult;
 }
 
 /// An action that inserts text at a given byte offset in the `TextBuffer`.
@@ -79,7 +79,7 @@ pub struct Insert {
 }
 
 impl BufferAction for Insert {
-    extern "C" fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
+    fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
         if self.byte > buf.rope.len() {
             return ActionResult::none(false);
         }
@@ -133,7 +133,7 @@ pub struct Delete {
 }
 
 impl BufferAction for Delete {
-    extern "C" fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
+    fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
         if self.byte > buf.rope.len() {
             return ActionResult::none(false);
         }
@@ -211,11 +211,11 @@ impl BufferAction for Delete {
 ///
 /// This action does nothing and always succeeds. It is useful for scenarios
 /// where an action cannot or should not be undone (e.g., when an action
-/// fundamentally changes state in a non-reversible way that the action system can't track).
+/// changes state in a non-reversible way that the action system can't track).
 pub struct NoOp;
 
 impl BufferAction for NoOp {
-    extern "C" fn apply(&self, _buf: &mut TextBuffer) -> ActionResult {
+    fn apply(&self, _buf: &mut TextBuffer) -> ActionResult {
         ActionResult::none(true)
     }
 }

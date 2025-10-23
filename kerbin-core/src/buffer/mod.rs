@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     io::{self, BufReader, BufWriter, ErrorKind, Write},
     path::{Path, PathBuf},
     time::SystemTime,
@@ -72,6 +73,9 @@ pub struct TextBuffer {
     /// or active, cursor.
     pub primary_cursor: usize,
 
+    /// A set of flags that may be set on a buffer
+    pub flags: HashSet<&'static str>,
+
     /// A list of data that marks byte changes applied to the rope.
     /// Each entry is an array of three `((row, col), byte_idx)` tuples:
     /// `[0]` is the start position of the edit.
@@ -112,6 +116,8 @@ impl Default for TextBuffer {
 
             cursors: vec![Cursor::default()],
             primary_cursor: 0,
+
+            flags: HashSet::default(),
 
             byte_changes: vec![],
 

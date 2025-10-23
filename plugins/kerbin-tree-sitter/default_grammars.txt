@@ -13,7 +13,7 @@ https://github.com/ikatyang/tree-sitter-toml.git toml toml
 # Stop concurrent calls as dirs collide
 stop-concurrent
 
-https://github.com/tree-sitter-grammars/tree-sitter-markdown.git markdown_inline md tree-sitter-markdown-inline markdown-inline
 https://github.com/tree-sitter-grammars/tree-sitter-markdown.git markdown md tree-sitter-markdown
+https://github.com/tree-sitter-grammars/tree-sitter-markdown.git markdown_inline md tree-sitter-markdown-inline markdown-inline
 
 start-concurrent

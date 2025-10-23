@@ -21,6 +21,9 @@ pub use inner_chunk::*;
 pub mod chunks;
 pub use chunks::*;
 
+pub mod registers;
+pub use registers::*;
+
 /// Initializes the editor's core state with essential components.
 ///
 /// This function sets up the initial `State` object by registering various
@@ -47,6 +50,7 @@ pub fn init_state(
     let (log_state, log_sender) = LogState::new_with_channel();
 
     state
+        .state(Registers::default())
         .state(ConfigFolder(config_path))
         .state(SessionUuid(uuid))
         // Editor's running status
