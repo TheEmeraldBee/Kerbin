@@ -265,26 +265,15 @@ pub async fn handle_inputs(
 ) {
     get!(window, mut input, input_config, modes);
 
-    let mode = modes.get_mode();
-    if mode == 'c' {
+    if window.events().is_empty() {
         return;
     }
 
-    let mut consumed = false;
-    if mode == 'i' {
-        for event in window.events() {
-            let Event::Key(KeyEvent {
-                code: KeyCode::Char(chr),
-                ..
-            }) = event
-            else {
-                continue;
-            };
-
+    for event in window.events() {
+        if let Event::Paste(text) = event {
             let registry = prefix_registry.get().await;
-
             let command = command_registry.get().await.parse_command(
-                CommandRegistry::split_command(&format!("a \'{chr}\' false")),
+                CommandRegistry::split_command(&format!("a '{text}' false")),
                 true,
                 false,
                 &registry,
@@ -293,15 +282,44 @@ pub async fn handle_inputs(
             if let Some(command) = command {
                 command_sender.get().await.send(command).unwrap();
             }
-
-            consumed = true;
         }
     }
-    if consumed {
+
+    let mode = modes.get_mode();
+    if mode == 'c' {
         return;
     }
 
-    if window.events().is_empty() {
+    let mut consumed = false;
+    if mode == 'i' {
+        for event in window.events() {
+            match event {
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char(chr),
+                    modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
+                    ..
+                }) => {
+                    consumed = true;
+
+                    // Existing character handling
+                    let registry = prefix_registry.get().await;
+                    let command = command_registry.get().await.parse_command(
+                        CommandRegistry::split_command(&format!("a '{chr}' false")),
+                        true,
+                        false,
+                        &registry,
+                        &modes,
+                    );
+                    if let Some(command) = command {
+                        command_sender.get().await.send(command).unwrap();
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    if consumed {
         return;
     }
 

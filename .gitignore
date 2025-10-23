@@ -11,9 +11,5 @@ devenv.local.nix
 
 # Added by cargo
 
-config/libconfig.so
-config/sessions
 /target
-/runtime
-
-kerbin.log
+config/runtime

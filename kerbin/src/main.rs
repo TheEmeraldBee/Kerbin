@@ -174,8 +174,15 @@ async fn main() {
     let config_path = match args.config {
         Some(t) => t,
         None => {
-            let mut res = dirs::config_dir().unwrap();
-            res.push("kerbin/");
+            // Check XDG_CONFIG_HOME environment variable first (favors ~/.config)
+            let mut res = if let Ok(home) = std::env::var("XDG_CONFIG_HOME") {
+                std::path::PathBuf::from(home)
+            } else {
+                // Fallback to the OS-native directory (via the `dirs` crate)
+                dirs::config_dir().expect("Failed to find user config directory")
+            };
+
+            res.push("kerbin"); // Append application name
             res.to_string_lossy().to_string()
         }
     };

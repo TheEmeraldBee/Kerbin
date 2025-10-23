@@ -222,9 +222,11 @@ pub async fn cleanup_dirty(ts_states: ResMut<TreeSitterStates>, buffers: Res<Buf
 }
 
 pub async fn init(state: &mut State) {
+    let config_path = state.lock_state::<ConfigFolder>().await.unwrap().0.clone();
+
     state
         .state(TreeSitterStates::default())
-        .state(GrammarManager::default())
+        .state(GrammarManager::new(config_path))
         .state(HighlightMap::default());
 
     state

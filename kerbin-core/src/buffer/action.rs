@@ -85,36 +85,31 @@ impl BufferAction for Insert {
         }
 
         let actual_byte = buf.rope.byte_to_char_boundary_byte(self.byte);
-
         let start = buf.get_edit_part(actual_byte);
 
+        // This already handles newlines correctly
         buf.rope.insert(actual_byte, &self.content);
 
         let content_len = self.content.len();
-        // Adjust other cursors to account for the inserted text
+
+        // Adjust all cursors - this needs to properly handle multi-line content
         for (i, cursor) in buf.cursors.iter_mut().enumerate() {
             if i == buf.primary_cursor {
-                continue; // Skip primary cursor, its movement is handled elsewhere
+                continue;
             }
             let start_byte = *cursor.sel.start();
             let end_byte = *cursor.sel.end();
 
-            // If a cursor's selection starts after the insertion point, shift it right
             if start_byte > self.byte {
                 cursor.sel = (start_byte + content_len)..=(end_byte + content_len);
             } else if end_byte >= self.byte {
-                // If a cursor's selection *ends* at or after the insertion point,
-                // and its start is before or at the insertion point, extend its end right
                 cursor.sel = start_byte..=(end_byte + content_len);
             }
         }
 
         let end = buf.get_edit_part(actual_byte + self.content.len());
-
-        // Register the edit for syntax highlighting updates
         buf.register_input_edit(start, start, end);
 
-        // The inverse of Insert is Delete
         let inverse = Box::new(Delete {
             byte: self.byte,
             len: self.content.len(),

@@ -62,7 +62,17 @@ KERBIN_BUILD_DIR="${KERBIN_ROOT}/build"
 
 # --- Variables ---
 SELECTED_VERSION=""
-CONFIG_PATH="" # Initialize CONFIG_PATH here
+CONFIG_PATH="" 
+
+# --- Dynamic Default Config Path (XDG Compliance) ---
+# Prioritize XDG_CONFIG_HOME, then fall back to ~/.config/kerbin/
+if [ -n "${XDG_CONFIG_HOME}" ]; then
+    DEFAULT_CONFIG_PATH="${XDG_CONFIG_HOME}/kerbin/"
+else
+    # This works for Linux (default XDG) and accommodates many macOS setups
+    DEFAULT_CONFIG_PATH="${HOME}/.config/kerbin/"
+fi
+# ---------------------------------------------------
 
 # Function to get user to select a version (tag or branch) using fzf
 select_version() {
@@ -187,11 +197,11 @@ for arg in "$@"; do
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --rebuild, -r           Rebuild using saved configuration"
-            echo "  --yes, -y               Skip confirmation prompts (will prevent default config copy)"
-            echo "  --clean, -c             Clean build directory before building"
-            echo "  --update, -u            Pull latest changes and prompt for new version"
-            echo "  --help, -h              Show this help message"
+            echo "  --rebuild, -r             Rebuild using saved configuration"
+            echo "  --yes, -y                 Skip confirmation prompts (will prevent default config copy)"
+            echo "  --clean, -c               Clean build directory before building"
+            echo "  --update, -u              Pull latest changes and prompt for new version"
+            echo "  --help, -h                Show this help message"
             echo ""
             echo "Examples:"
             echo "  $0                  First time install (interactive)"
@@ -251,7 +261,6 @@ else
     print_step "Install mode: Requesting configuration"
     
     # --- Configuration Path Logic ---
-    DEFAULT_CONFIG_PATH="${HOME}/.config/kerbin/"
     COPY_DEFAULT_CONFIG=false
 
     if [ -f "${KERBIN_INSTALL_CONFIG}" ]; then
@@ -265,6 +274,7 @@ else
         echo ""
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             # Get new configuration path
+            # Uses the dynamic DEFAULT_CONFIG_PATH calculated near the top
             read -p "$(echo -e ${YELLOW}"Enter the path for your config [${NC}${DEFAULT_CONFIG_PATH}${YELLOW}]: "${NC})" NEW_CONFIG_PATH
             CONFIG_PATH=${NEW_CONFIG_PATH:-${DEFAULT_CONFIG_PATH}}
             
@@ -275,6 +285,7 @@ else
         fi
     else
         # NO EXISTING CONFIG: Prompt the user for the config path
+        # Uses the dynamic DEFAULT_CONFIG_PATH calculated near the top
         read -p "$(echo -e ${YELLOW}"Enter the path for your config [${NC}${DEFAULT_CONFIG_PATH}${YELLOW}]: "${NC})" NEW_CONFIG_PATH
         CONFIG_PATH=${NEW_CONFIG_PATH:-${DEFAULT_CONFIG_PATH}}
         
@@ -325,9 +336,6 @@ else
                 print_step "Rewriting relative paths in config manifest (${CONFIG_CARGO_TOML})"
                 
                 # Use a single sed command to replace all instances of `../` with the absolute build path.
-                # The '|' delimiter is used for sed to avoid conflicts with the '/' in the paths.
-                # The 'g' flag ensures all instances on a line are replaced.
-                # We use a leading space in the search pattern " ../" to avoid replacing relative paths that might be part of other URLs or filenames that aren't path dependencies.
                 sed -i.bak "s|path = \"../|path = \"${KERBIN_BUILD_DIR}/|" "${CONFIG_CARGO_TOML}"
                 rm -f "${CONFIG_CARGO_TOML}.bak" 2>/dev/null
                 
@@ -411,12 +419,11 @@ MAIN_CARGO_TOML="${KERBIN_BUILD_DIR}/kerbin/Cargo.toml"
 
 print_step "Setting config path in main Cargo.toml"
 # This is the path the *runtime* will use to find the user config files
+# The path must be relative to the workspace root or absolute
 sed -i.bak "s|config = { path = \"../config\" }|config = { path = \"${CONFIG_PATH}\" }|" "${MAIN_CARGO_TOML}"
 rm -f "${MAIN_CARGO_TOML}.bak" 2>/dev/null
 
 # --- DYNAMIC PATH REWRITING FOR COMPILATION ---
-# All path dependencies for core and plugins have been removed from here, 
-# as per the requirement that they only apply to the copied user config.
 print_step "Checking internal path dependencies for compilation"
 print_info "Only runtime config path updated in main application manifest (kerbin/Cargo.toml)."
 # --- END DYNAMIC PATH REWRITING ---

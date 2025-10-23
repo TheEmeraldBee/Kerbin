@@ -7,7 +7,7 @@ use tree_sitter::{Language, Query};
 /// Manages loading and caching Tree-sitter grammars from shared libraries.
 #[derive(State)]
 pub struct GrammarManager {
-    /// Base path where grammars are stored, e.g., `runtime/grammars`
+    /// Base path where grammars are stored, e.g., `{config_path}`
     base_path: PathBuf,
 
     /// Maps a grammar name to a map of its loaded queries by name (e.g., "highlight").
@@ -20,16 +20,10 @@ pub struct GrammarManager {
     pub extension_map: HashMap<String, String>,
 }
 
-impl Default for GrammarManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl GrammarManager {
-    pub fn new() -> Self {
+    pub fn new(base_path: String) -> Self {
         Self {
-            base_path: ["runtime", "grammars"].iter().collect(),
+            base_path: PathBuf::from(base_path).join("runtime/grammars"),
             loaded_grammars: HashMap::new(),
             loaded_queries: HashMap::new(),
             extension_map: HashMap::new(),

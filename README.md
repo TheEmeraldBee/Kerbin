@@ -131,6 +131,9 @@ file communication systems
     - Hover
     - Autocompletions
 - [ ] Copy/Paste Support (Registers)
+    - [x] Ctrl-Shift-V / Cmd-V Paste Event Support
+    - [ ] Clipboard Copy & Paste Commands
+    - [ ] Registers
 - [ ] Editor Support for wrapped text
 - [ ] Mouse Scrolling Support
     - Allow Mapping Scroll Wheel to a command (`scroll_up = "ml -1"`) or something

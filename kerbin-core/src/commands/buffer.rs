@@ -326,17 +326,21 @@ impl Command for BufferCommand {
                 true
             }
 
-            BufferCommand::Insert(text) => cur_buffer.action(Insert {
-                byte,
-                content: text.clone(),
-            }),
-
-            BufferCommand::Append(text, extend) => {
+            BufferCommand::Insert(text) => {
+                let processed_text = process_escape_sequences(text);
                 cur_buffer.action(Insert {
                     byte,
-                    content: text.clone(),
+                    content: processed_text.clone(),
+                })
+            }
+
+            BufferCommand::Append(text, extend) => {
+                let processed_text = process_escape_sequences(text);
+                cur_buffer.action(Insert {
+                    byte,
+                    content: processed_text.clone(),
                 });
-                cur_buffer.move_chars(text.len() as isize, *extend)
+                cur_buffer.move_chars(processed_text.len() as isize, *extend)
             }
 
             BufferCommand::Undo => {
@@ -476,4 +480,37 @@ impl Command for BuffersCommand {
             }
         }
     }
+}
+
+/// Process escape sequences in a string
+fn process_escape_sequences(s: &str) -> String {
+    let mut result = String::new();
+    let mut chars = s.chars();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            if let Some(next) = chars.next() {
+                match next {
+                    'n' => result.push('\n'),
+                    'r' => result.push('\r'),
+                    't' => result.push('\t'),
+                    '\\' => result.push('\\'),
+                    '\'' => result.push('\''),
+                    '"' => result.push('"'),
+                    '0' => result.push('\0'),
+                    _ => {
+                        // Unknown escape, keep as-is
+                        result.push('\\');
+                        result.push(next);
+                    }
+                }
+            } else {
+                result.push('\\');
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+
+    result
 }
