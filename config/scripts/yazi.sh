@@ -14,6 +14,6 @@ while IFS= read -r LINE; do
     if [[ -n "$LINE" ]]; then
         echo "$LINE"
 
-        cargo run -p kerbin -- command -s "$SESSION" -c "o $LINE"
+        kerbin command -s "$SESSION" -c "o $LINE"
     fi
 done <<< "$PATHS"
