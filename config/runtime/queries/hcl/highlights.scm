@@ -1,4 +1,42 @@
-; highlights.scm
+[ 
+  "if"
+  "else"
+  "endif"
+] @keyword.control.conditional
+
+[
+  "for"
+  "endfor"
+  "in"
+] @keyword.control.repeat
+
+[
+  ":"
+  "="
+] @none
+
+[
+  (ellipsis)
+  "\?"
+  "=>"
+] @punctuation.special
+
+[
+  "."
+  ".*"
+  ","
+  "[*]"
+] @punctuation.delimiter
+
+[
+  "{"
+  "}"
+  "["
+  "]"
+  "("
+  ")"
+] @punctuation.bracket
+
 [
   "!"
   "\*"
@@ -16,55 +54,30 @@
   "||"
 ] @operator
 
-[
-  "{"
-  "}"
-  "["
-  "]"
-  "("
-  ")"
-] @punctuation.bracket
+(identifier) @variable
 
-[
-  "."
-  ".*"
-  ","
-  "[*]"
-] @punctuation.delimiter
+; { key: val }
 
-[
-  (ellipsis)
-  "\?"
-  "=>"
-] @punctuation.special
+(object_elem val: (expression
+  (variable_expr
+      (identifier) @type.builtin (#match? @type.builtin "^(bool|string|number|object|tuple|list|map|set|any)$"))))
 
-[
-  ":"
-  "="
-] @none
+(get_attr (identifier) @variable.builtin (#match? @variable.builtin  "^(root|cwd|module)$"))
+(variable_expr (identifier) @variable.builtin (#match? @variable.builtin "^(var|local|path)$"))
+((identifier) @type.builtin (#match? @type.builtin "^(bool|string|number|object|tuple|list|map|set|any)$"))
+((identifier) @keyword (#match? @keyword "^(module|root|cwd|resource|variable|data|locals|terraform|provider|output)$"))
 
-[
-  "for"
-  "endfor"
-  "in"
-] @keyword.repeat
+; highlight identifier keys as though they were block attributes
+(object_elem key: (expression (variable_expr (identifier) @variable.other.member)))
 
-[
-  "if"
-  "else"
-  "endif"
-] @keyword.conditional
+(attribute (identifier) @variable.other.member)
+(function_call (identifier) @function.method)
+(block (identifier) @type.builtin)
 
-[
-  (quoted_template_start) ; "
-  (quoted_template_end) ; "
-  (template_literal) ; non-interpolation/directive content
-] @string
-
-[
-  (heredoc_identifier) ; END
-  (heredoc_start) ; << or <<-
-] @punctuation.delimiter
+(comment) @comment
+(null_lit) @constant.builtin
+(numeric_lit) @constant.numeric
+(bool_lit) @constant.builtin.boolean
 
 [
   (template_interpolation_start) ; ${
@@ -74,45 +87,13 @@
   (strip_marker) ; ~
 ] @punctuation.special
 
-(numeric_lit) @number
+[
+  (heredoc_identifier) ; <<END
+  (heredoc_start) ; END
+] @punctuation.delimiter
 
-(bool_lit) @boolean
-
-(null_lit) @constant
-
-(comment) @comment @spell
-
-(identifier) @variable
-
-(body
-  (block
-    (identifier) @keyword))
-
-(body
-  (block
-    (body
-      (block
-        (identifier) @type))))
-
-(function_call
-  (identifier) @function)
-
-(attribute
-  (identifier) @variable.member)
-
-; { key: val }
-;
-; highlight identifier keys as though they were block attributes
-(object_elem
-  key: (expression
-    (variable_expr
-      (identifier) @variable.member)))
-
-; var.foo, data.bar
-;
-; first element in get_attr is a variable.builtin or a reference to a variable.builtin
-(expression
-  (variable_expr
-    (identifier) @variable.builtin)
-  (get_attr
-    (identifier) @variable.member))
+[
+  (quoted_template_start) ; "
+  (quoted_template_end); "
+  (template_literal) ; non-interpolation/directive content
+] @string

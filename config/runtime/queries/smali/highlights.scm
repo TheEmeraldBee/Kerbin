@@ -1,117 +1,115 @@
 ; Types
+
 (class_identifier
   (identifier) @type)
 
 (primitive_type) @type.builtin
 
 ((class_identifier
-  .
-  (identifier) @_first @type.builtin
-  (identifier) @type.builtin)
-  (#any-of? @_first "android" "dalvik" "java" "kotlinx"))
+   . (identifier) @_first @type.builtin
+   (identifier) @type.builtin)
+  (#match? @_first "^(android|dalvik|java|kotlinx)$"))
 
 ((class_identifier
-  .
-  (identifier) @_first @type.builtin
-  .
-  (identifier) @_second @type.builtin
-  (identifier) @type.builtin)
+   . (identifier) @_first @type.builtin
+   . (identifier) @_second @type.builtin
+   (identifier) @type.builtin)
   (#eq? @_first "com")
-  (#any-of? @_second "android" "google"))
+  (#match? @_second "^(android|google)$"))
 
 ; Methods
+
 (method_definition
-  (method_signature
-    (method_identifier) @function.method))
+  (method_signature (method_identifier) @function.method))
 
 (expression
   (opcode) @_invoke
-  (body
-    (full_method_signature
-      (method_signature
-        (method_identifier) @function.method.call)))
-  (#lua-match? @_invoke "^invoke"))
+	(body
+	  (full_method_signature
+      (method_signature (method_identifier) @function.method)))
+  (#match? @_invoke "^invoke"))
+
+(expression
+  (opcode) @_field_access
+	(body
+	  (field_identifier) @variable.other.member)
+  (#match? @_field_access "^[is](get|put)-"))
 
 (method_handle
   (full_method_signature
-    (method_signature
-      (method_identifier) @function.method.call)))
+	(method_signature (method_identifier) @function.method)))
 
 (custom_invoke
-  .
-  (identifier) @function.method.call
-  (method_signature
-    (method_identifier) @function.method.call))
+  . (identifier) @function.method
+  (method_signature (method_identifier) @function.method))
 
 (annotation_value
   (body
-    (method_signature
-      (method_identifier) @function.method.call)))
+    (method_signature (method_identifier) @function.method)))
 
 (annotation_value
   (body
     (full_method_signature
-      (method_signature
-        (method_identifier) @function.method.call))))
+      (method_signature (method_identifier) @function.method))))
 
 (field_definition
-  (body
-    (method_signature
-      (method_identifier) @function.method.call)))
+	(body
+		(method_signature (method_identifier) @function.method)))
 
 (field_definition
-  (body
-    (full_method_signature
-      (method_signature
-        (method_identifier) @function.method.call))))
+	(body
+	  (full_method_signature
+		  (method_signature (method_identifier) @function.method))))
 
 ((method_identifier) @constructor
-  (#any-of? @constructor "<init>" "<clinit>"))
+  (#match? @constructor "^(<init>|<clinit>)$"))
 
 "constructor" @constructor
 
 ; Fields
-(field_identifier) @variable.member
 
-(annotation_key) @variable.member
+[
+  (field_identifier)
+  (annotation_key)
+] @variable.other.member
 
 ((field_identifier) @constant
-  (#lua-match? @constant "^[%u_]*$"))
+  (#match? @constant "^[%u_]*$"))
 
 ; Variables
+
 (variable) @variable.builtin
 
 (local_directive
   (identifier) @variable)
 
 ; Parameters
-(parameter) @variable.parameter.builtin
 
+(parameter) @variable.parameter
 (param_identifier) @variable.parameter
 
 ; Labels
+
 [
   (label)
   (jmp_label)
 ] @label
 
 ; Operators
-(opcode) @keyword.operator
 
-((opcode) @keyword.return
-  (#lua-match? @keyword.return "^return"))
+; (opcode) @keyword.operator
 
-((opcode) @keyword.conditional
-  (#lua-match? @keyword.conditional "^if"))
+((opcode) @keyword.control.return
+  (#match? @keyword.control.return "^return"))
 
-((opcode) @keyword.conditional
-  (#lua-match? @keyword.conditional "^cmp"))
+((opcode) @keyword.control.conditional
+  (#match? @keyword.control.conditional "^if"))
 
-((opcode) @keyword.exception
-  (#lua-match? @keyword.exception "^throw"))
+((opcode) @keyword.control.conditional
+  (#match? @keyword.control.conditional "^cmp"))
 
-((opcode) @comment
-  (#eq? @comment "nop")) ; haha, anyone get it? ;)
+((opcode) @keyword.control.exception
+  (#match? @keyword.control.exception "^throw"))
 
 [
   "="
@@ -119,6 +117,7 @@
 ] @operator
 
 ; Keywords
+
 [
   ".class"
   ".super"
@@ -133,8 +132,6 @@
   ".end param"
   ".parameter"
   ".end parameter"
-  ".line"
-  ".locals"
   ".local"
   ".end local"
   ".restart local"
@@ -150,7 +147,9 @@
   (epilogue_directive)
 ] @keyword
 
-".source" @keyword.import
+[
+  ".source"
+] @keyword.directive
 
 [
   ".method"
@@ -160,52 +159,45 @@
 [
   ".catch"
   ".catchall"
-] @keyword.exception
+] @keyword.control.exception
 
 ; Literals
+
 (string) @string
+(source_directive (string "\"" _ @string.special.url "\""))
+(escape_sequence) @constant.character.escape
 
-(source_directive
-  (string
-    "\""
-    _ @string.special.url
-    "\""))
+(character) @constant.character
 
-(escape_sequence) @string.escape
+"L" @punctuation
 
-(character) @character
+(line_directive (number) @comment) @comment
+(".locals" (number) @comment) @comment
 
-"L" @character.special
-
-(number) @number
+(number) @constant.numeric.integer
 
 [
-  (float)
-  (NaN)
-  (Infinity)
-] @number.float
+ (float)
+ (NaN)
+ (Infinity)
+] @constant.numeric.float
 
-(boolean) @boolean
+(boolean) @constant.builtin.boolean
 
 (null) @constant.builtin
 
 ; Misc
-(annotation_visibility) @keyword.modifier
 
-(access_modifier) @keyword.modifier
+(annotation_visibility) @keyword.storage.modifier
+
+(access_modifier) @keyword.storage.type
 
 (array_type
   "[" @punctuation.special)
 
-[
-  "{"
-  "}"
-] @punctuation.bracket
+["{" "}"] @punctuation.bracket
 
-[
-  "("
-  ")"
-] @punctuation.bracket
+["(" ")"] @punctuation.bracket
 
 [
   "->"
@@ -216,11 +208,9 @@
   "/"
 ] @punctuation.delimiter
 
-(line_directive
-  (number) @string.special)
-
 ; Comments
-(comment) @comment @spell
+
+(comment) @comment
 
 (class_definition
-  (comment) @comment.documentation)
+  (comment) @comment.block.documentation)

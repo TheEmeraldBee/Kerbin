@@ -1,133 +1,75 @@
-; Priorities of the highlight queries are raised, so that they overrule the
-; often surrounding and overlapping highlights from the non-gotmpl injections.
-;
 ; Identifiers
-([
+
+[
   (field)
   (field_identifier)
-] @variable.member
-  (#set! priority 110))
+] @variable.other.member
 
-((variable) @variable
-  (#set! priority 110))
+(variable) @variable
 
 ; Function calls
+
 (function_call
-  function: (identifier) @function
-  (#set! priority 110))
+  function: (identifier) @function)
 
 (method_call
   method: (selector_expression
-    field: (field_identifier) @function
-    (#set! priority 110)))
-
-; Builtin functions
-(function_call
-  function: (identifier) @function.builtin
-  (#set! priority 110)
-  (#any-of? @function.builtin
-    "and" "call" "html" "index" "slice" "js" "len" "not" "or" "print" "printf" "println" "urlquery"
-    "eq" "ne" "lt" "ge" "gt" "ge"))
+    field: (field_identifier) @function))
 
 ; Operators
-([
-  "|"
-  "="
-  ":="
-] @operator
-  (#set! priority 110))
+
+"|" @operator
+":=" @operator
+
+; Builtin functions
+
+((identifier) @function.builtin
+ (#match? @function.builtin "^(and|call|html|index|slice|js|len|not|or|print|printf|println|urlquery|eq|ne|lt|ge|gt|ge)$"))
 
 ; Delimiters
-([
-  "."
-  ","
-] @punctuation.delimiter
-  (#set! priority 110))
 
-([
-  "{{"
-  "}}"
-  "{{-"
-  "-}}"
-  ")"
-  "("
-] @punctuation.bracket
-  (#set! priority 110))
+"." @punctuation.delimiter
+"," @punctuation.delimiter
 
-; Actions
-(if_action
-  [
-    "if"
-    "else"
-    "else if"
-    "end"
-  ] @keyword.conditional
-  (#set! priority 110))
+"{{" @punctuation.bracket
+"}}" @punctuation.bracket
+"{{-" @punctuation.bracket
+"-}}" @punctuation.bracket
+")" @punctuation.bracket
+"(" @punctuation.bracket
 
-(range_action
-  [
-    "range"
-    "else"
-    "end"
-  ] @keyword.repeat
-  (#set! priority 110))
+; Keywords
 
-(template_action
-  "template" @function.builtin
-  (#set! priority 110))
-
-(block_action
-  [
-    "block"
-    "end"
-  ] @keyword.directive
-  (#set! priority 110))
-
-(define_action
-  [
-    "define"
-    "end"
-  ] @keyword.directive.define
-  (#set! priority 110))
-
-(with_action
-  [
-    "with"
-    "else"
-    "end"
-  ] @keyword.conditional
-  (#set! priority 110))
+"else" @keyword
+"if" @keyword
+"range" @keyword
+"with" @keyword
+"end" @keyword
+"template" @keyword
+"define" @keyword
+"block" @keyword
 
 ; Literals
-([
+
+[
   (interpreted_string_literal)
   (raw_string_literal)
+  (rune_literal)
 ] @string
-  (#set! priority 110))
 
-((rune_literal) @string.special.symbol
-  (#set! priority 110))
+(escape_sequence) @string.special
 
-((escape_sequence) @string.escape
-  (#set! priority 110))
-
-([
+[
   (int_literal)
+  (float_literal)
   (imaginary_literal)
-] @number
-  (#set! priority 110))
+] @constant.numeric.integer
 
-((float_literal) @number.float
-  (#set! priority 110))
-
-([
+[
   (true)
   (false)
-] @boolean
-  (#set! priority 110))
+] @constant.builtin.boolean
 
-((nil) @constant.builtin
-  (#set! priority 110))
+(nil) @constant.builtin
 
-((comment) @comment @spell
-  (#set! priority 110))
+(comment) @comment

@@ -1,82 +1,58 @@
-; highlights.scm
-; See this for full list: https://github.com/nvim-treesitter/nvim-treesitter/blob/master/CONTRIBUTING.md
-; comments
-(line_comment) @comment @spell
+(line_comment) @comment.line
+(block_comment) @comment.block
 
-(block_comment) @comment @spell
+(argument name: (identifier) @variable.parameter)
 
-; Argument definition
-(argument
-  name: (identifier) @variable.parameter)
-
-; Variables
-(local_var
-  name: (identifier) @variable)
-
-(environment_var
-  name: (identifier) @variable.builtin)
-
+(local_var name: (identifier) @variable)
+(environment_var name:(identifier) @variable.builtin)
 (builtin_var) @constant.builtin
 
-; (variable) @variable
-; Functions
-(function_definition
-  name: (variable) @function)
+(function_definition name: (variable) @function)
 
-; For function calls
-(named_argument
-  name: (identifier) @function.call)
+(named_argument name: (identifier) @variable.other.member)
 
-; Methods
-(method_call
-  name: (method_name) @function.method.call)
+(method_call name: (method_name) @function.method)
 
-; Classes
-(class) @type
+(class) @keyword.storage.type
 
-; Literals
-(number) @number
-
-(float) @number.float
+(number) @constant.numeric
+(float) @constant.numeric.float
 
 (string) @string
-
 (symbol) @string.special.symbol
 
-; Operators
 [
-  "&&"
-  "||"
-  "&"
-  "|"
-  "^"
-  "=="
-  "!="
-  "<"
-  "<="
-  ">"
-  ">="
-  "<<"
-  ">>"
-  "+"
-  "-"
-  "*"
-  "/"
-  "%"
-  "="
+"&&"
+"||"
+"&"
+"|"
+"^"
+"=="
+"!="
+"<"
+"<="
+">"
+">="
+"<<"
+">>"
+"+"
+"-"
+"*"
+"/"
+"%"
+"="
+"|@|"
+"@@"
+"@|@"
 ] @operator
 
-; Keywords
 [
-  "arg"
-  "classvar"
-  "const"
-  ; "super"
-  ; "this"
-  "var"
+"arg"
+"classvar"
+"const"
+"var"
 ] @keyword
 
-; Brackets
 [
   "("
   ")"
@@ -87,17 +63,14 @@
   "|"
 ] @punctuation.bracket
 
-; Delimiters
 [
   ";"
   "."
   ","
 ] @punctuation.delimiter
 
-; control structure
-(control_structure) @keyword.conditional
+(control_structure) @keyword.control.conditional
 
-(escape_sequence) @string.escape
+(escape_sequence) @string.special
 
-; SinOsc.ar()!2
-(duplicated_statement) @keyword.repeat
+(duplicated_statement) @keyword.control.repeat

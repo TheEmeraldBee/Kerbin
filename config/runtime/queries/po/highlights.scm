@@ -1,32 +1,13 @@
-; Keywords
 [
-  "msgctxt"
-  "msgid"
-  "msgid_plural"
-  "msgstr"
-  "msgstr_plural"
-] @keyword
+  (msgctxt)
+  (msgid)
+  (msgid_plural)
+  (msgstr)
+]@keyword
 
-; Punctuation
-[
-  "["
-  "]"
-] @punctuation.bracket
+(comment) @comment
+(comment (comment_reference (text) @string.special.path))
+(comment (comment_flag (text) @label))
 
-; Literals
+(number) @constant.numeric
 (string) @string
-
-(escape_sequence) @string.escape
-
-(number) @number
-
-; Comments
-(comment) @comment @spell
-
-(comment
-  (reference
-    (text) @string.special.path))
-
-(comment
-  (flag
-    (text) @keyword.directive))

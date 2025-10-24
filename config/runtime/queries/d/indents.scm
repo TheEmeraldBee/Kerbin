@@ -7,18 +7,11 @@
   (scope_statement)
   (block_statement)
   (case_statement)
-] @indent.begin
-
-(comment) @indent.auto
+] @indent
 
 [
   (case)
   (default)
   "}"
   "]"
-] @indent.branch
-
-[
-  (directive)
-  (shebang)
-] @indent.zero
+] @outdent

@@ -1,286 +1,169 @@
-; highlight queries.
-; See the syntax at https://tree-sitter.github.io/tree-sitter/using-parsers#pattern-matching-with-queries
-; See also https://github.com/nvim-treesitter/nvim-treesitter/blob/master/CONTRIBUTING.md#parser-configurations
-; for a list of recommended @ tags, though not all of them have matching
-; highlights in neovim.
 [
-  "abort"
-  "abs"
-  "abstract"
-  "accept"
-  "access"
-  "all"
-  "array"
-  "at"
-  "begin"
-  "body"
-  "declare"
-  "delay"
-  "delta"
-  "digits"
-  "do"
-  "end"
-  "entry"
-  "exit"
-  "generic"
-  "interface"
-  "is"
-  "limited"
-  "mod"
-  "new"
-  "null"
-  "of"
-  "others"
-  "out"
-  "overriding"
-  "package"
-  "pragma"
-  "private"
-  "protected"
-  "range"
-  "separate"
-  "subtype"
-  "synchronized"
-  "tagged"
-  "task"
-  "terminate"
-  "type"
-  "until"
-  "when"
+   "abort"
+   "abs"
+   "abstract"
+   "accept"
+   "access"
+   "all"
+   "array"
+   "at"
+   "begin"
+   "declare"
+   "delay"
+   "delta"
+   "digits"
+   "do"
+   "end"
+   "entry"
+   "exit"
+   "generic"
+   "interface"
+   "is"
+   "limited"
+   "of"
+   "others"
+   "out"
+   "pragma"
+   "private"
+   "range"
+   "synchronized"
+   "tagged"
+   "task"
+   "terminate"
+   "until"
+   "when"
 ] @keyword
-
-"record" @keyword.type
-
 [
-  "aliased"
-  "constant"
-  "renames"
-] @keyword.modifier
-
+   "null"
+] @constant.builtin
 [
-  "with"
-  "use"
-] @keyword.import
-
+   "aliased"
+   "constant"
+   "renames"
+] @keyword.storage
 [
-  "function"
-  "procedure"
+   "mod"
+   "new"
+   "protected"
+   "record"
+   "subtype"
+   "type"
+] @type.builtin
+[
+   "with"
+   "use"
+] @keyword.control.import
+[
+   "body"
+   "function"
+   "overriding"
+   "procedure"
+   "package"
+   "separate"
 ] @keyword.function
-
 [
-  "and"
-  "in"
-  "not"
-  "or"
-  "xor"
-] @keyword.operator
-
+   "and"
+   "in"
+   "not"
+   "or"
+   "xor"
+] @operator
 [
-  "while"
-  "loop"
-  "for"
-  "parallel"
-  "reverse"
-  "some"
-] @keyword.repeat
-
-"return" @keyword.return
-
+   "while"
+   "loop"
+   "for"
+   "parallel"
+   "reverse"
+   "some"
+] @keyword.control.repeat
 [
-  "case"
-  "if"
-  "else"
-  "then"
-  "elsif"
-  "select"
-] @keyword.conditional
-
+   "return"
+] @keyword.control.return
 [
-  "exception"
-  "raise"
-] @keyword.exception
-
-(comment) @comment @spell
-
-(string_literal) @string
-
+   "case"
+   "if"
+   "else"
+   "then"
+   "elsif"
+   "select"
+] @keyword.control.conditional
+[
+   "exception"
+   "raise"
+] @keyword.control.exception
+(comment)         @comment
+(string_literal)  @string
 (character_literal) @string
+(numeric_literal) @constant.numeric
 
-(numeric_literal) @number
+;; Highlight the name of subprograms
+(procedure_specification name: (_) @function.builtin)
+(function_specification name: (_) @function.builtin)
+(package_declaration name: (_) @function.builtin)
+(package_body name: (_) @function.builtin)
+(generic_instantiation name: (_) @function.builtin)
+(entry_declaration . (identifier) @function.builtin)
 
-; Highlight the name of subprograms
-(procedure_specification
-  name: (_) @function)
+;; Some keywords should take different categories depending on the context
+(use_clause "use"  @keyword.control.import "type" @keyword.control.import)
+(with_clause "private" @keyword.control.import)
+(with_clause "limited" @keyword.control.import)
+(use_clause (_) @namespace)
+(with_clause (_) @namespace)
 
-(function_specification
-  name: (_) @function)
+(loop_statement "end" @keyword.control.repeat)
+(if_statement "end" @keyword.control.conditional)
+(loop_parameter_specification "in" @keyword.control.repeat)
+(iterator_specification ["in" "of"] @keyword.control.repeat)
+(range_attribute_designator "range" @keyword.control.repeat)
 
-(package_declaration
-  name: (_) @function)
+(raise_statement "with" @keyword.control.exception)
 
-(package_body
-  name: (_) @function)
+(gnatprep_declarative_if_statement)  @keyword.directive
+(gnatprep_if_statement)              @keyword.directive
+(gnatprep_identifier)                @keyword.directive
 
-(generic_instantiation
-  name: (_) @function)
+(subprogram_declaration "is" @keyword.function "abstract"  @keyword.function)
+(aspect_specification "with" @keyword.function)
 
-(entry_declaration
-  .
-  (identifier) @function)
+(full_type_declaration "is" @type.builtin)
+(subtype_declaration "is" @type.builtin)
+(record_definition "end" @type.builtin)
+(full_type_declaration (_ "access" @type.builtin))
+(array_type_definition "array" @type.builtin "of" @type.builtin)
+(access_to_object_definition "access" @type.builtin)
+(access_to_object_definition "access" @type.builtin
+   [
+      (general_access_modifier "constant" @type.builtin)
+      (general_access_modifier "all" @type.builtin)
+   ]
+)
+(range_constraint "range" @type.builtin)
+(signed_integer_type_definition "range" @type.builtin)
+(index_subtype_definition "range" @type.builtin)
+(record_type_definition "abstract" @type.builtin)
+(record_type_definition "tagged" @type.builtin)
+(record_type_definition "limited" @type.builtin)
+(record_type_definition (record_definition "null" @type.builtin))
+(private_type_declaration "is" @type.builtin "private" @type.builtin)
+(private_type_declaration "tagged" @type.builtin)
+(private_type_declaration "limited" @type.builtin)
+(task_type_declaration "task" @type.builtin "is" @type.builtin)
 
-; Some keywords should take different categories depending on the context
-(use_clause
-  "use" @keyword.import
-  "type" @keyword.import)
-
-(with_clause
-  "private" @keyword.import)
-
-(with_clause
-  "limited" @keyword.import)
-
-(use_clause
-  (_) @module)
-
-(with_clause
-  (_) @module)
-
-(loop_statement
-  "end" @keyword.repeat)
-
-(if_statement
-  "end" @keyword.conditional)
-
-(loop_parameter_specification
-  "in" @keyword.repeat)
-
-(loop_parameter_specification
-  "in" @keyword.repeat)
-
-(iterator_specification
-  [
-    "in"
-    "of"
-  ] @keyword.repeat)
-
-(range_attribute_designator
-  "range" @keyword.repeat)
-
-(raise_statement
-  "with" @keyword.exception)
-
-(gnatprep_declarative_if_statement) @keyword.directive
-
-(gnatprep_if_statement) @keyword.directive
-
-(gnatprep_identifier) @keyword.directive
-
-(subprogram_declaration
-  "is" @keyword.function
-  "abstract" @keyword.function)
-
-(aspect_specification
-  "with" @keyword.function)
-
-(full_type_declaration
-  "is" @keyword.type)
-
-(subtype_declaration
-  "is" @keyword.type)
-
-(record_definition
-  "end" @keyword.type)
-
-(full_type_declaration
-  (_
-    "access" @keyword.type))
-
-(array_type_definition
-  "array" @keyword.type
-  "of" @keyword.type)
-
-(access_to_object_definition
-  "access" @keyword.type)
-
-(access_to_object_definition
-  "access" @keyword.type
-  [
-    (general_access_modifier
-      "constant" @keyword.type)
-    (general_access_modifier
-      "all" @keyword.type)
-  ])
-
-(range_constraint
-  "range" @keyword.type)
-
-(signed_integer_type_definition
-  "range" @keyword.type)
-
-(index_subtype_definition
-  "range" @keyword.type)
-
-(record_type_definition
-  "abstract" @keyword.type)
-
-(record_type_definition
-  "tagged" @keyword.type)
-
-(record_type_definition
-  "limited" @keyword.type)
-
-(record_type_definition
-  (record_definition
-    "null" @keyword.type))
-
-(private_type_declaration
-  "is" @keyword.type
-  "private" @keyword.type)
-
-(private_type_declaration
-  "tagged" @keyword.type)
-
-(private_type_declaration
-  "limited" @keyword.type)
-
-(task_type_declaration
-  "task" @keyword.type
-  "is" @keyword.type)
-
-; Gray the body of expression functions
+;; Gray the body of expression functions
 (expression_function_declaration
-  (function_specification)
-  "is"
-  (_) @attribute)
+   (function_specification)
+   "is"
+   (_) @attribute
+)
+(subprogram_declaration (aspect_specification) @attribute)
 
-(subprogram_declaration
-  (aspect_specification) @attribute)
+;; Highlight full subprogram specifications
+; (subprogram_body
+;     [
+;        (procedure_specification)
+;        (function_specification)
+;     ] @function.builtin.spec
+; )
 
-; Highlight full subprogram specifications
-;(subprogram_body
-;    [
-;       (procedure_specification)
-;       (function_specification)
-;    ] @function.spec
-;)
-((comment) @comment.documentation
-  .
-  [
-    (entry_declaration)
-    (subprogram_declaration)
-    (parameter_specification)
-  ])
 
-(compilation_unit
-  .
-  (comment) @comment.documentation)
-
-(component_list
-  (component_declaration)
-  .
-  (comment) @comment.documentation)
-
-(enumeration_type_definition
-  (identifier)
-  .
-  (comment) @comment.documentation)

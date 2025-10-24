@@ -1,48 +1,40 @@
 [
   (import_declaration)
   (const_declaration)
-  (var_declaration)
   (type_declaration)
+  (type_spec)
   (func_literal)
   (literal_value)
+  (literal_element)
+  (keyed_element)
   (expression_case)
-  (communication_case)
-  (type_case)
   (default_case)
-  (block)
-  (call_expression)
-  (parameter_list)
+  (type_case)
+  (communication_case)
+  (argument_list)
   (field_declaration_list)
-  (interface_type)
-] @indent.begin
-
-(literal_value
-  "}" @indent.branch)
-
-(block
-  "}" @indent.branch)
-
-(field_declaration_list
-  "}" @indent.branch)
-
-(interface_type
-  "}" @indent.branch)
-
-(const_declaration
-  ")" @indent.branch)
-
-(import_spec_list
-  ")" @indent.branch)
-
-(var_spec_list
-  ")" @indent.branch)
+  (block)
+  (var_declaration)
+] @indent
 
 [
-  "}"
+  "]"
   ")"
-] @indent.end
+] @outdent
 
-(parameter_list
-  ")" @indent.branch)
+; Switches and selects aren't indented, only their case bodies are.
+; Outdent all closing braces except those closing switches or selects.
+(
+    (_ "}" @outdent) @outer
+    (#not-kind-eq? @outer "select_statement")
+    (#not-kind-eq? @outer "type_switch_statement")
+    (#not-kind-eq? @outer "expression_switch_statement")
+)
 
-(comment) @indent.ignore
+; Starting a line after a new case should indent.
+[
+  (communication_case)
+  (expression_case)
+  (default_case)
+  (type_case)
+] @extend

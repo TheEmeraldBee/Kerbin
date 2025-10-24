@@ -1,26 +1,11 @@
 [
-  (arguments)
+  (anon_struct_block)
+  (assignment_block)
   (block)
   (enum_block)
   (global_block)
   (imperative_block)
   (struct_block)
-  (typed_identifier)
-] @indent.begin
+] @indent
 
-([
-  (block)
-  (enum_block)
-  (global_block)
-  (imperative_block)
-  (struct_block)
-]
-  "}" @indent.end)
-
-([
-  (arguments)
-  (typed_identifier)
-]
-  ")" @indent.end)
-
-(string_value) @indent.auto
+"}" @outdent

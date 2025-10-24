@@ -1,121 +1,111 @@
-; Keywords
 [
+  (module)
   (as)
-  (port)
   (exposing)
-  (alias)
-  (infix)
+  (backslash)
 ] @keyword
 
-; Keywords - Conditionals
+(import) @keyword.control.import
+
 [
   "if"
   "then"
   "else"
-  "let"
-  "in"
   (when)
   (is)
-] @keyword.conditional
+] @keyword.control.conditional
 
-; Keywords - Imports
 [
-  (import)
-  (module)
-] @keyword.import
+  (type)
+  (alias)
+  (infix)
+  (port)
+  "let"
+  "in"
+] @keyword.storage.type
 
-; Operators
+(dot) @operator
+
 [
-  (arrow)
-  (backslash)
   (colon)
-  (operator_identifier)
+  (arrow)
   (eq)
-] @operator
+  (operator_identifier)
+  "|"
+] @keyword.operator
 
-; Punctuation
 [
   "("
   ")"
-  "{"
-  "}"
   "["
   "]"
+  "{"
+  "}"
 ] @punctuation.bracket
 
-[
-  ","
-  "|"
-  (dot)
-] @punctuation.delimiter
+"," @punctuation.delimiter
 
-; Comments
-[
-  (block_comment)
-  (line_comment)
-] @comment
+; modules
 
-; Strings
-[
-  (close_quote)
-  (open_quote)
-  (regular_string_part)
-] @string
+(module_declaration(upper_case_qid) @namespace)
+(import_clause(upper_case_qid) @namespace)
+(import_clause(as_clause(upper_case_identifier) @namespace))
+(exposing_list(exposed_type(upper_case_identifier) @type))
+(exposing_list(exposed_value) @variable)
 
-; Strings - Escape
-(string_escape) @string.escape
+; functions
 
-; Characters
-[
-  (open_char)
-  (close_char)
-] @character
+(type_annotation(lower_case_identifier) @function)
+(port_annotation(lower_case_identifier) @function)
+(file (value_declaration (function_declaration_left(lower_case_identifier) @function)))
 
-(type_annotation
-  (lower_case_identifier) @function)
+; types
 
-(port_annotation
-  (lower_case_identifier) @function)
+(field name: (lower_case_identifier) @variable.other.member)
+(field_type name: (lower_case_identifier) @variable.other.member)
+(field_access_expr(lower_case_identifier) @variable)
 
-(function_declaration_left
-  (lower_case_identifier) @function)
+(type_declaration(upper_case_identifier) @type)
+(type_declaration typeName: (lower_type_name) @type.parameter)
 
-(function_call_expr
-  target: (value_expr) @function)
+(type_alias_declaration name: (upper_case_identifier) @type)
+(type_alias_declaration typeVariable: (lower_type_name) @type.parameter)
 
-(field_access_expr
-  (value_expr
-    (value_qid) @variable.member))
+(type_ref(upper_case_qid) @type)
+(type_ref(upper_case_qid(upper_case_identifier) @namespace (dot) (upper_case_identifier) @type))
 
-(lower_pattern) @variable.parameter
+(type_variable(lower_case_identifier) @type.parameter)
 
-(record_base_identifier) @variable
+; variables
 
-(number_constant_expr) @number
+(union_pattern constructor: (upper_case_qid (upper_case_identifier) @namespace (dot) (upper_case_identifier) @constructor)) 
+(union_pattern constructor: (upper_case_qid (upper_case_identifier) @constructor)) 
 
-(type) @keyword.type
+(union_variant(upper_case_identifier) @constructor)
 
-(type_declaration
-  (upper_case_identifier) @type)
+(value_expr name: (value_qid (upper_case_identifier) @namespace))
+(value_expr(upper_case_qid(upper_case_identifier) @namespace (dot) (upper_case_identifier) @constructor))
+(value_expr(upper_case_qid(upper_case_identifier)) @constructor)
 
-(type_ref) @type
+(value_expr(value_qid(upper_case_identifier) @namespace (dot) (lower_case_identifier) @variable))
+(value_expr(value_qid(lower_case_identifier) @variable))
 
-(type_alias_declaration
-  name: (upper_case_identifier) @type)
+(let_in_expr(value_declaration(function_declaration_left(lower_case_identifier) @variable)))
 
-(union_variant
-  (upper_case_identifier) @type)
+(function_declaration_left(lower_pattern(lower_case_identifier) @variable.parameter))
 
-(union_pattern
-  constructor: (upper_case_qid
-    (upper_case_identifier) @label
-    (dot)
-    (upper_case_identifier) @type))
+; comments
 
-(union_pattern
-  constructor: (upper_case_qid
-    (upper_case_identifier) @type))
+(line_comment) @comment
+(block_comment) @comment
 
-(value_expr
-  (upper_case_qid
-    (upper_case_identifier)) @type)
+; numbers
+
+(number_constant_expr) @constant.numeric
+
+; strings
+
+(string_escape) @constant.character.escape
+
+(string_constant_expr) @string
+(char_constant_expr) @constant.character

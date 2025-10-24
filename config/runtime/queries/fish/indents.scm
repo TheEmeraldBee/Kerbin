@@ -5,14 +5,8 @@
   (if_statement)
   (begin_statement)
   (switch_statement)
-] @indent.begin
+] @indent
 
 [
-  "else" ; else and else if must both start the line with "else", so tag the string directly
-  "case"
   "end"
-] @indent.branch
-
-"end" @indent.end
-
-(comment) @indent.ignore
+] @outdent

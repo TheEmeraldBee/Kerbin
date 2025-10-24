@@ -1,7 +1,7 @@
 (identifier) @variable
 
 ((identifier) @constant
-  (#lua-match? @constant "^[A-Z][A-Z_0-9]*$"))
+  (#match? @constant "^[A-Z][A-Z_0-9]*$"))
 
 ; Keywords
 [
@@ -9,7 +9,7 @@
   "else"
   "elseif"
   "endif"
-] @keyword.conditional
+] @keyword.control.conditional
 
 [
   "try"
@@ -17,7 +17,7 @@
   "finally"
   "endtry"
   "throw"
-] @keyword.exception
+] @keyword.control.except
 
 [
   "for"
@@ -27,7 +27,7 @@
   "endwhile"
   "break"
   "continue"
-] @keyword.repeat
+] @keyword.control.repeat
 
 [
   "function"
@@ -39,11 +39,12 @@
   name: (_) @function)
 
 (call_expression
-  function: (identifier) @function.call)
+  function: (identifier) @function)
 
 (call_expression
-  function: (scoped_identifier
-    (identifier) @function.call))
+  function:
+    (scoped_identifier
+      (identifier) @function))
 
 (parameters
   (identifier) @variable.parameter)
@@ -67,7 +68,7 @@
   (scope)
   "a:"
   "$"
-] @module
+] @namespace
 
 ; Commands and user defined commands
 [
@@ -126,13 +127,12 @@
   "view"
   "eval"
   "sign"
-  "abort"
 ] @keyword
 
 (map_statement
   cmd: _ @keyword)
 
-(keycode) @character.special
+(keycode) @constant.character.escape
 
 (command_name) @function.macro
 
@@ -180,7 +180,7 @@
   "<unique>"
 ] @constant.builtin
 
-(augroup_name) @module
+(augroup_name) @namespace
 
 (au_event) @constant
 
@@ -189,7 +189,7 @@
 
 ; Highlight command
 (hl_attribute
-  key: _ @property
+  key: _ @variable.parameter
   val: _ @constant)
 
 (hl_group) @type
@@ -205,17 +205,18 @@
 (command) @string
 
 (command_attribute
-  name: _ @property
+  name: _ @variable.parameter)
+
+(command_attribute
   val: (behavior
-    name: _ @constant
-    val: (identifier)? @function)?)
+         _ @constant))
 
 ; Edit command
 (plus_plus_opt
-  val: _? @constant) @property
+  val: _? @constant) @variable.parameter
 
 (plus_cmd
-  "+" @property) @property
+  "+" @variable.parameter) @variable.parameter
 
 ; Runtime command
 (runtime_statement
@@ -232,13 +233,13 @@
 ; Literals
 (string_literal) @string
 
-(integer_literal) @number
+(integer_literal) @constant.numeric.integer
 
-(float_literal) @number.float
+(float_literal) @constant.numeric.float
 
-(comment) @comment @spell
+(comment) @comment
 
-(line_continuation_comment) @comment @spell
+(line_continuation_comment) @comment
 
 (pattern) @string.special
 
@@ -258,14 +259,14 @@
 ] @label
 
 (literal_dictionary
-  (literal_key) @property)
+  (literal_key) @variable.parameter)
 
 ((scoped_identifier
   (scope) @_scope
   .
-  (identifier) @boolean)
+  (identifier) @constant.builtin.boolean)
   (#eq? @_scope "v:")
-  (#any-of? @boolean "true" "false"))
+  (#any-of? @constant.builtin.boolean "true" "false"))
 
 ; Operators
 [
@@ -278,6 +279,8 @@
   "/"
   "%"
   ".."
+  "is"
+  "isnot"
   "=="
   "!="
   ">"
@@ -287,7 +290,6 @@
   "=~"
   "!~"
   "="
-  "^="
   "+="
   "-="
   "*="
@@ -297,14 +299,8 @@
   "..="
   "<<"
   "=<<"
-  "->"
   (match_case)
 ] @operator
-
-[
-  "is"
-  "isnot"
-] @keyword.operator
 
 ; Some characters have different meanings based on the context
 (unary_operation
@@ -336,11 +332,11 @@
   [
     "?"
     ":"
-  ] @keyword.conditional.ternary)
+  ] @keyword.operator)
 
 ; Options
-((set_value) @number
-  (#lua-match? @number "^[%d]+(%.[%d]+)?$"))
+((set_value) @constant.numeric
+  (#match? @constant.numeric "^[0-9]+([.][0-9]+)?$"))
 
 (inv_option
   "!" @operator)

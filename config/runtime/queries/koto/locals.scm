@@ -1,28 +1,24 @@
 ; Scopes
+(module (_) @local.scope)
+
 (function
   body: (_) @local.scope)
 
 ; Definitions
 (arg
-  (variable) @local.definition.parameter)
+  (identifier) @local.definition.variable.parameter)
 
-(assign
-  (identifier) @local.definition.var)
-
-(for_args
-  (variable) @local.definition.var)
-
-(match_patterns
-  (variable) @local.definition.var)
+(arg
+  (variable (identifier)) @local.definition.parameter)
 
 (import_item
-  (identifier) @local.definition.import)
+  (identifier) @local.definition.namespace)
 
 (entry_block
-  (identifier) @local.definition.field)
+  (identifier) @local.definition.variable.other.member)
 
 (entry_inline
-  (identifier) @local.definition.field)
+  (identifier) @local.definition.variable.other.member)
 
 ; References
 (identifier) @local.reference

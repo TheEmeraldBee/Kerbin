@@ -1,25 +1,17 @@
+; Indentation queries for helix
 [
-  (list)
-  (dictionaries)
-  (normal_command)
-  (if_condition)
-  (foreach_command)
-  (ternaryoperator)
-  (ERROR
-    "?") ; support partial ternary
-] @indent.begin
+  (function_expression)
+  (array_literal)
+  (dictionary_literal)
+  (selection_statement)
+  (iteration_statement)
+] @indent
 
+; question - what about else, elif
 [
   ")"
   "]"
   "}"
-  (elseif_command)
-  (else_command)
-  "endif"
-  "endforeach"
-] @indent.branch @indent.end
-
-(expression_statement
-  object: (_)) @indent.begin
-
-(comment) @indent.auto
+  (endif)
+  (endforeach)
+] @outdent

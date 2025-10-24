@@ -1,8 +1,7 @@
-; adapted from https://github.com/interdependence/tree-sitter-htmldjango
 [
   (unpaired_comment)
   (paired_comment)
-] @comment @spell
+] @comment
 
 [
   "{{"
@@ -10,64 +9,18 @@
   "{%"
   "%}"
   (end_paired_statement)
-] @punctuation.special
+] @punctuation.bracket
 
-(tag_name) @function
-
-((tag_name) @keyword.conditional
-  (#any-of? @keyword.conditional "if" "elif" "else" "endif"))
-
-((tag_name) @keyword.repeat
-  (#any-of? @keyword.repeat "for" "endfor"))
+[
+ (tag_name) 
+] @function
 
 (variable_name) @variable
-
-(unpaired_statement
-  (tag_name)
-  (variable
-    (variable_name) @variable.parameter)
-  .
-  "="
-  .
-  (_))
-
-(filter_name) @function.method
-
+(filter_name) @function
 (filter_argument) @variable.parameter
-
 (keyword) @keyword
-
-[
-  "|"
-  "="
-  (operator)
-] @operator
-
+(operator) @operator
 (keyword_operator) @keyword.operator
-
+(number) @constant.numeric
+(boolean) @constant.builtin.boolean
 (string) @string
-
-(filter
-  [
-    "'"
-    "\""
-  ]
-  .
-  (filter_argument) @string)
-
-(number) @number
-
-((filter
-  (filter_argument) @number)
-  (#lua-match? @number "^%d+$"))
-
-(boolean) @boolean
-
-((filter
-  (filter_argument) @boolean)
-  (#any-of? @boolean "True" "False"))
-
-[
-  ":"
-  ","
-] @punctuation.delimiter

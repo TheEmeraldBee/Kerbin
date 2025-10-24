@@ -1,268 +1,177 @@
 ; inherits: c
 
-((identifier) @variable.member
-  (#lua-match? @variable.member "^m_.*$"))
+; Constants
+
+(this) @variable.builtin
+(null) @constant.builtin
+
+; Types
+
+(using_declaration ("using" "namespace" (identifier) @namespace))
+(using_declaration ("using" "namespace" (qualified_identifier name: (identifier) @namespace)))
+(namespace_definition name: (namespace_identifier) @namespace)
+(namespace_identifier) @namespace
+
+(auto) @type
+"decltype" @type
+
+(ref_qualifier ["&" "&&"] @type.builtin)
+(reference_declarator ["&" "&&"] @type.builtin)
+(abstract_reference_declarator ["&" "&&"] @type.builtin)
+
+; -------
+; Functions
+; -------
+; Support up to 4 levels of nesting of qualifiers
+; i.e. a::b::c::d::func();
+(call_expression
+  function: (qualified_identifier
+    name: (identifier) @function))
+(call_expression
+  function: (qualified_identifier
+    name: (qualified_identifier
+      name: (identifier) @function)))
+(call_expression
+  function: (qualified_identifier
+    name: (qualified_identifier
+      name: (qualified_identifier
+        name: (identifier) @function))))
+(call_expression
+  function: (qualified_identifier
+    name: (qualified_identifier
+      name: (qualified_identifier
+        name: (qualified_identifier
+          name: (identifier) @function)))))
+
+(template_function
+  name: (identifier) @function)
+
+(template_method
+  name: (field_identifier) @function)
+
+; Support up to 4 levels of nesting of qualifiers
+; i.e. a::b::c::d::func();
+(function_declarator
+  declarator: (qualified_identifier
+    name: (identifier) @function))
+(function_declarator
+  declarator: (qualified_identifier
+    name: (qualified_identifier
+      name: (identifier) @function)))
+(function_declarator
+  declarator: (qualified_identifier
+    name: (qualified_identifier
+      name: (qualified_identifier
+        name: (identifier) @function))))
+(function_declarator
+  declarator: (qualified_identifier
+    name: (qualified_identifier
+      name: (qualified_identifier
+        name: (qualified_identifier
+          name: (identifier) @function)))))
+
+(function_declarator
+  declarator: (field_identifier) @function)
+
+; Constructors
+
+(class_specifier
+  (type_identifier) @type
+  (field_declaration_list
+    (function_definition
+      (function_declarator
+        (identifier) @constructor)))
+        (#eq? @type @constructor)) 
+(destructor_name "~" @constructor
+  (identifier) @constructor)
+
+; Parameters
 
 (parameter_declaration
-  declarator: (reference_declarator) @variable.parameter)
-
-; function(Foo ...foo)
-(variadic_parameter_declaration
-  declarator: (variadic_declarator
-    (_) @variable.parameter))
-
-; int foo = 0
+  declarator: (reference_declarator (identifier) @variable.parameter))
 (optional_parameter_declaration
-  declarator: (_) @variable.parameter)
-
-;(field_expression) @variable.parameter ;; How to highlight this?
-((field_expression
-  (field_identifier) @function.method) @_parent
-  (#has-parent? @_parent template_method function_declarator))
-
-(field_declaration
-  (field_identifier) @variable.member)
-
-(field_initializer
-  (field_identifier) @property)
-
-(function_declarator
-  declarator: (field_identifier) @function.method)
-
-(concept_definition
-  name: (identifier) @type.definition)
-
-(alias_declaration
-  name: (type_identifier) @type.definition)
-
-(auto) @type.builtin
-
-(namespace_identifier) @module
-
-((namespace_identifier) @type
-  (#lua-match? @type "^[%u]"))
-
-(case_statement
-  value: (qualified_identifier
-    (identifier) @constant))
-
-(using_declaration
-  .
-  "using"
-  .
-  "namespace"
-  .
-  [
-    (qualified_identifier)
-    (identifier)
-  ] @module)
-
-(destructor_name
-  (identifier) @function.method)
-
-; functions
-(function_declarator
-  (qualified_identifier
-    (identifier) @function))
-
-(function_declarator
-  (qualified_identifier
-    (qualified_identifier
-      (identifier) @function)))
-
-(function_declarator
-  (qualified_identifier
-    (qualified_identifier
-      (qualified_identifier
-        (identifier) @function))))
-
-((qualified_identifier
-  (qualified_identifier
-    (qualified_identifier
-      (qualified_identifier
-        (identifier) @function)))) @_parent
-  (#has-ancestor? @_parent function_declarator))
-
-(function_declarator
-  (template_function
-    (identifier) @function))
-
-(operator_name) @function
-
-"operator" @function
-
-"static_assert" @function.builtin
-
-(call_expression
-  (qualified_identifier
-    (identifier) @function.call))
-
-(call_expression
-  (qualified_identifier
-    (qualified_identifier
-      (identifier) @function.call)))
-
-(call_expression
-  (qualified_identifier
-    (qualified_identifier
-      (qualified_identifier
-        (identifier) @function.call))))
-
-((qualified_identifier
-  (qualified_identifier
-    (qualified_identifier
-      (qualified_identifier
-        (identifier) @function.call)))) @_parent
-  (#has-ancestor? @_parent call_expression))
-
-(call_expression
-  (template_function
-    (identifier) @function.call))
-
-(call_expression
-  (qualified_identifier
-    (template_function
-      (identifier) @function.call)))
-
-(call_expression
-  (qualified_identifier
-    (qualified_identifier
-      (template_function
-        (identifier) @function.call))))
-
-(call_expression
-  (qualified_identifier
-    (qualified_identifier
-      (qualified_identifier
-        (template_function
-          (identifier) @function.call)))))
-
-((qualified_identifier
-  (qualified_identifier
-    (qualified_identifier
-      (qualified_identifier
-        (template_function
-          (identifier) @function.call))))) @_parent
-  (#has-ancestor? @_parent call_expression))
-
-; methods
-(function_declarator
-  (template_method
-    (field_identifier) @function.method))
-
-(call_expression
-  (field_expression
-    (field_identifier) @function.method.call))
-
-; constructors
-((function_declarator
-  (qualified_identifier
-    (identifier) @constructor))
-  (#lua-match? @constructor "^%u"))
-
-((call_expression
-  function: (identifier) @constructor)
-  (#lua-match? @constructor "^%u"))
-
-((call_expression
-  function: (qualified_identifier
-    name: (identifier) @constructor))
-  (#lua-match? @constructor "^%u"))
-
-((call_expression
-  function: (field_expression
-    field: (field_identifier) @constructor))
-  (#lua-match? @constructor "^%u"))
-
-; constructing a type in an initializer list: Constructor ():  **SuperType (1)**
-((field_initializer
-  (field_identifier) @constructor
-  (argument_list))
-  (#lua-match? @constructor "^%u"))
-
-; Constants
-(this) @variable.builtin
-
-(null
-  "nullptr" @constant.builtin)
-
-(true) @boolean
-
-(false) @boolean
-
-; Literals
-(raw_string_literal) @string
+  declarator: (identifier) @variable.parameter)
 
 ; Keywords
-[
-  "try"
-  "catch"
-  "noexcept"
-  "throw"
-] @keyword.exception
+
+(template_argument_list (["<" ">"] @punctuation.bracket))
+(template_parameter_list (["<" ">"] @punctuation.bracket))
+(default_method_clause "default" @keyword)
+
+"static_assert" @function.special
 
 [
-  "decltype"
-  "explicit"
-  "friend"
-  "override"
-  "using"
-  "requires"
-  "constexpr"
-] @keyword
+  "<=>"
+  "[]"
+  "()"
+] @operator
 
-[
-  "class"
-  "namespace"
-  "template"
-  "typename"
-  "concept"
-] @keyword.type
+
+; These casts are parsed as function calls, but are not.
+((identifier) @keyword (#eq? @keyword "static_cast"))
+((identifier) @keyword (#eq? @keyword "dynamic_cast"))
+((identifier) @keyword (#eq? @keyword "reinterpret_cast"))
+((identifier) @keyword (#eq? @keyword "const_cast"))
 
 [
   "co_await"
-  "co_yield"
   "co_return"
-] @keyword.coroutine
-
-[
-  "public"
-  "private"
-  "protected"
-  "final"
-  "virtual"
-] @keyword.modifier
-
-[
-  "new"
+  "co_yield"
+  "concept"
   "delete"
-  "xor"
-  "bitand"
-  "bitor"
-  "compl"
-  "not"
-  "xor_eq"
-  "and_eq"
-  "or_eq"
-  "not_eq"
+  "new"
+  "operator"
+  "requires"
+  "using"
+] @keyword
+
+[
+  "catch"
+  "noexcept"
+  "throw"
+  "try"
+] @keyword.control.exception
+
+
+[
   "and"
+  "and_eq"
+  "bitor"
+  "bitand"
+  "not"
+  "not_eq"
   "or"
+  "or_eq"
+  "xor"
+  "xor_eq"
 ] @keyword.operator
 
-"<=>" @operator
+[
+  "class"  
+  "namespace"
+  "typename"
+  "template"
+] @keyword.storage.type
 
-"::" @punctuation.delimiter
+[
+  "constexpr"
+  "constinit"
+  "consteval"
+  "mutable"
+] @keyword.storage.modifier
 
-(template_argument_list
-  [
-    "<"
-    ">"
-  ] @punctuation.bracket)
+; Modifiers that aren't plausibly type/storage related.
+[
+  "explicit"
+  "friend"
+  "virtual"
+  (virtual_specifier) ; override/final
+  "private"
+  "protected"
+  "public"
+  "inline" ; C++ meaning differs from C!
+] @keyword
 
-(template_parameter_list
-  [
-    "<"
-    ">"
-  ] @punctuation.bracket)
+; Strings
 
-(literal_suffix) @operator
+(raw_string_literal) @string

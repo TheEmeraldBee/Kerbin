@@ -1,59 +1,59 @@
-; Comments
+; Elixir Code Comments
 ((comment) @injection.content
-  (#set! injection.language "comment"))
+ (#set! injection.language "comment"))
 
-; Documentation
+; Elixir Regular Expressions
+((sigil
+  (sigil_name) @_sigil_name
+  (quoted_content) @injection.content)
+ (#match? @_sigil_name "^(R|r)$")
+ (#set! injection.language "regex")
+ (#set! injection.combined))
+
+; Elixir Markdown Documentation
 (unary_operator
   operator: "@"
   operand: (call
-    target: ((identifier) @_identifier
-      (#any-of? @_identifier "moduledoc" "typedoc" "shortdoc" "doc"))
-    (arguments
+  target: ((identifier) @_identifier (#match? @_identifier "^(module|type|short)?doc$"))
+    (arguments [
+      (string (quoted_content) @injection.content)
+      (sigil (quoted_content) @injection.content)
+  ])) (#set! injection.language "markdown"))
+
+; Zigler Sigils
+((sigil
+  (sigil_name) @_sigil_name
+  (quoted_content) @injection.content)
+ (#match? @_sigil_name "^(Z|z)$")
+ (#set! injection.language "zig")
+ (#set! injection.combined))
+
+; Jason Sigils
+((sigil
+  (sigil_name) @_sigil_name
+  (quoted_content) @injection.content)
+ (#match? @_sigil_name "^(J|j)$")
+ (#set! injection.language "json")
+ (#set! injection.combined))
+
+; Phoenix Live View HEEx Sigils
+((sigil
+  (sigil_name) @_sigil_name
+  (quoted_content) @injection.content)
+ (#eq? @_sigil_name "H")
+ (#set! injection.language "heex")
+ (#set! injection.combined))
+
+; Phoenix Live View Component Macros
+(call 
+  (identifier) @_identifier
+  (arguments
+    (atom)+
+    (keywords (pair 
+      ((keyword) @_keyword (#eq? @_keyword "doc: "))
       [
-        (string
-          (quoted_content) @injection.content)
-        (sigil
-          (quoted_content) @injection.content)
-      ])
-    (#set! injection.language "markdown")))
-
-; HEEx
-(sigil
-  (sigil_name) @_sigil_name
-  (quoted_content) @injection.content
-  (#any-of? @_sigil_name "H" "LVN")
-  (#set! injection.language "heex"))
-
-; Surface
-(sigil
-  (sigil_name) @_sigil_name
-  (quoted_content) @injection.content
-  (#eq? @_sigil_name "F")
-  (#set! injection.language "surface"))
-
-; Zigler
-(sigil
-  (sigil_name) @_sigil_name
-  (quoted_content) @injection.content
-  (#any-of? @_sigil_name "E" "L")
-  (#set! injection.language "eex"))
-
-(sigil
-  (sigil_name) @_sigil_name
-  (quoted_content) @injection.content
-  (#any-of? @_sigil_name "z" "Z")
-  (#set! injection.language "zig"))
-
-; Regex
-(sigil
-  (sigil_name) @_sigil_name
-  (quoted_content) @injection.content
-  (#any-of? @_sigil_name "r" "R")
-  (#set! injection.language "regex"))
-
-; Json
-(sigil
-  (sigil_name) @_sigil_name
-  (quoted_content) @injection.content
-  (#any-of? @_sigil_name "j" "J")
-  (#set! injection.language "json"))
+        (string (quoted_content) @injection.content)
+        (sigil (quoted_content) @injection.content)
+      ]))
+  (#match? @_identifier "^(attr|slot)$")
+  (#set! injection.language "markdown")))

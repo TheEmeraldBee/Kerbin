@@ -5,11 +5,11 @@
   "with"
   "as"
   "from"
-] @keyword.import
+] @keyword.control.import
 
 ; Namespaces
 (module_declaration
-  (identifier) @module)
+  (identifier) @namespace)
 
 ; Builtins
 (primitive_type) @type.builtin
@@ -20,23 +20,23 @@
 
 ; Functions
 (call_expression
-  function: (identifier) @function.call)
+  function: (identifier) @function)
 
 (user_defined_function
   name: (identifier) @function)
 
 ; Properties
 (object_property
-  (identifier) @property
+  (identifier) @function.method
   ":" @punctuation.delimiter
   (_))
 
 (object_property
-  (compatible_identifier) @property
+  (compatible_identifier) @function.method
   ":" @punctuation.delimiter
   (_))
 
-(property_identifier) @property
+(property_identifier) @function.method
 
 ; Attributes
 (decorator
@@ -118,12 +118,12 @@
 "if" @keyword.conditional
 
 (ternary_expression
-  "?" @keyword.conditional.ternary
-  ":" @keyword.conditional.ternary)
+  "?" @keyword.control.conditional
+  ":" @keyword.control.conditional)
 
 ; Loops
 (for_statement
-  "for" @keyword.repeat
+  "for" @keyword.control.repeat
   "in"
   ":" @punctuation.delimiter)
 
@@ -144,7 +144,7 @@
 
 "func" @keyword.function
 
-"assert" @keyword.exception
+"assert" @keyword.control.exception
 
 ; Operators
 [
@@ -181,11 +181,11 @@
 ; Literals
 (string) @string
 
-(escape_sequence) @string.escape
+(escape_sequence) @constant.character
 
-(number) @number
+(number) @constant.number
 
-(boolean) @boolean
+(boolean) @constant.builtin.boolean
 
 (null) @constant.builtin
 
@@ -218,8 +218,6 @@
 ] @punctuation.delimiter
 
 ; Interpolation
-(interpolation) @none
-
 (interpolation
   "${" @punctuation.special
   "}" @punctuation.special)
@@ -231,4 +229,4 @@
 [
   (comment)
   (diagnostic_comment)
-] @comment @spell
+] @comment

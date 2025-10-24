@@ -1,169 +1,87 @@
-; Includes
-((command_name) @keyword.import
-  (#eq? @keyword.import "import"))
-
-; Keywords
-[
-  "arguments"
-  "end"
-  "events"
-  "global"
-  "methods"
-  "persistent"
-  "properties"
-] @keyword
-
-"enumeration" @keyword.type
-
-(class_definition
-  [
-    "classdef"
-    "end"
-  ] @keyword.type)
-
-; Conditionals
-(if_statement
-  [
-    "if"
-    "end"
-  ] @keyword.conditional)
-
-(elseif_clause
-  "elseif" @keyword.conditional)
-
-(else_clause
-  "else" @keyword.conditional)
-
-(switch_statement
-  [
-    "switch"
-    "end"
-  ] @keyword.conditional)
-
-(case_clause
-  "case" @keyword.conditional)
-
-(otherwise_clause
-  "otherwise" @keyword.conditional)
-
-(break_statement) @keyword.conditional
-
-; Repeats
-(for_statement
-  [
-    "for"
-    "parfor"
-    "end"
-  ] @keyword.repeat)
-
-(while_statement
-  [
-    "while"
-    "end"
-  ] @keyword.repeat)
-
-(continue_statement) @keyword.repeat
-
-; Exceptions
-(try_statement
-  [
-    "try"
-    "end"
-  ] @keyword.exception)
-
-(catch_clause
-  "catch" @keyword.exception)
-
-; Variables
-(identifier) @variable
-
 ; Constants
-(events
-  (identifier) @constant)
 
-(attribute
-  (identifier) @constant)
+(events (identifier) @constant)
+(attribute (identifier) @constant)
 
 "~" @constant.builtin
 
 ; Fields/Properties
-(field_expression
-  field: (identifier) @variable.member)
 
-(superclass
-  "."
-  (identifier) @variable.member)
-
-(property_name
-  "."
-  (identifier) @variable.member)
-
-(property
-  name: (identifier) @variable.member)
+(superclass "." (identifier) @variable.other.member)
+(property_name "." (identifier) @variable.other.member)
+(property name: (identifier) @variable.other.member)
 
 ; Types
-(class_definition
-  name: (identifier) @type)
 
-(attributes
-  (identifier) @constant)
-
-(enum
-  .
-  (identifier) @type)
-
-((identifier) @type
-  (#lua-match? @type "^_*[A-Z][a-zA-Z0-9_]+$"))
+(class_definition name: (identifier) @keyword.storage.type)
+(attributes (identifier) @constant)
+(enum . (identifier) @type.enum.variant)
 
 ; Functions
+
 (function_definition
   "function" @keyword.function
   name: (identifier) @function
-  [
-    "end"
-    "endfunction"
-  ]? @keyword.function)
+  [ "end" "endfunction" ]? @keyword.function)
 
-(function_signature
-  name: (identifier) @function)
+(function_signature name: (identifier) @function)
+(function_call name: (identifier) @function)
+(handle_operator (identifier) @function)
+(validation_functions (identifier) @function)
+(command (command_name) @function.macro)
+(command_argument) @string
+(return_statement) @keyword.control.return
 
-(function_call
-  name: (identifier) @function.call)
+; Assignments
 
-(handle_operator
-  (identifier) @function)
-
-(validation_functions
-  (identifier) @function)
-
-(command
-  (command_name) @function.call)
-
-(command_argument) @variable.parameter
-
-(return_statement) @keyword.return
+(assignment left: (_) @variable)
+(multioutput_variable (_) @variable)
 
 ; Parameters
-(function_arguments
-  (identifier) @variable.parameter)
+
+(function_arguments (identifier) @variable.parameter)
+
+; Conditionals
+
+(if_statement [ "if" "end" ] @keyword.control.conditional)
+(elseif_clause "elseif" @keyword.control.conditional)
+(else_clause "else" @keyword.control.conditional)
+(switch_statement [ "switch" "end" ] @keyword.control.conditional)
+(case_clause "case" @keyword.control.conditional)
+(otherwise_clause "otherwise" @keyword.control.conditional)
+(break_statement) @keyword.control.conditional
+
+; Repeats
+
+(for_statement [ "for" "parfor" "end" ] @keyword.control.repeat)
+(while_statement [ "while" "end" ] @keyword.control.repeat)
+(continue_statement) @keyword.control.repeat
+
+; Exceptions
+
+(try_statement [ "try" "end" ] @keyword.control.exception)
+(catch_clause "catch" @keyword.control.exception)
 
 ; Punctuation
-[
-  ";"
-  ","
-  "."
-] @punctuation.delimiter
 
-[
-  "("
-  ")"
-  "["
-  "]"
-  "{"
-  "}"
-] @punctuation.bracket
+[ ";" "," "." ] @punctuation.delimiter
+[ "(" ")" "[" "]" "{" "}" ] @punctuation.bracket
+
+; Literals
+
+(escape_sequence) @constant.character.escape
+(formatting_sequence) @constant.character.escape
+(string) @string
+(number) @constant.numeric.float
+(unary_operator ["+" "-"] @constant.numeric.float)
+(boolean) @constant.builtin.boolean
+
+; Comments
+
+[ (comment) (line_continuation) ] @comment.line
 
 ; Operators
+
 [
   "+"
   ".+"
@@ -195,22 +113,16 @@
   ":"
 ] @operator
 
-; Literals
-(string) @string
+; Keywords
 
-(escape_sequence) @string.escape
-
-(formatting_sequence) @string.special
-
-(number) @number
-
-(boolean) @boolean
-
-; Comments
+"classdef" @keyword.storage.type
 [
-  (comment)
-  (line_continuation)
-] @comment @spell
-
-((comment) @keyword.directive
-  (#lua-match? @keyword.directive "^%%%% "))
+  "arguments"
+  "end"
+  "enumeration"
+  "events"
+  "global"
+  "methods"
+  "persistent"
+  "properties"
+] @keyword

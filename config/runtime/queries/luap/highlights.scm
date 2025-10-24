@@ -32,7 +32,7 @@
 (negated_set
   (character) @constant)
 
-(class) @string.escape
+(class) @constant.character.escape
 
 (class
   "%" @string.regexp

@@ -1,26 +1,21 @@
-(comment) @comment @spell
+(line_comment) @comment
 
-(definition) @keyword
+(identifier) @function
 
-(identifier) @variable
+(labeled_rule
+  (identifier) @type)
 
-(label_name) @label
+(node_rule
+  (identifier) @variable.parameter)
 
 (token) @string
 
 [
   "="
   "|"
-] @operator
-
-[
-  "*"
-  "?"
-] @keyword.repeat
-
-":" @punctuation.delimiter
-
-[
+  ":"
   "("
   ")"
-] @punctuation.bracket
+  "?"
+  "*"
+] @operator

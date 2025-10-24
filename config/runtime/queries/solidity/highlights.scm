@@ -1,264 +1,195 @@
+; identifiers
+; -----------
+(identifier) @variable
+((identifier) @variable.builtin (#any-of? @variable.builtin "this" "msg" "block" "tx"))
+(yul_identifier) @variable
+
 ; Pragma
-[
-  "pragma"
-  "solidity"
-] @keyword.directive
-
-(solidity_pragma_token
-  "||" @string.special.symbol)
-
-(solidity_pragma_token
-  "-" @string.special.symbol)
-
-(solidity_version_comparison_operator) @operator
-
-(solidity_version) @string.special
+(pragma_directive) @keyword.directive
+(solidity_version_comparison_operator _ @keyword.directive)
 
 ; Literals
+; --------
 [
-  (string)
-  (yul_string_literal)
+ (string)
+ (hex_string_literal)
+ (unicode_string_literal)
+ (yul_string_literal)
 ] @string
-
-(hex_string_literal
-  "hex" @string.special.symbol
-  (_) @string)
-
-(unicode_string_literal
-  "unicode" @string.special.symbol
-  (_) @string)
-
+(hex_string_literal "hex" @string.special.symbol)
+(unicode_string_literal "unicode" @string.special.symbol)
 [
-  (number_literal)
-  (yul_decimal_number)
-  (yul_hex_number)
-] @number
-
-(yul_boolean) @boolean
-
-; Variables
+ (number_literal)
+ (yul_decimal_number)
+ (yul_hex_number)
+] @constant.numeric
 [
-  (identifier)
-  (yul_identifier)
-] @variable
+ (true)
+ (false)
+ (yul_boolean)
+] @constant.builtin.boolean
 
-; Types
-(type_name
-  (identifier) @type)
+(comment) @comment
 
-(type_name
-  (user_defined_type
-    (identifier) @type))
-
-(type_name
-  "mapping" @function.builtin)
+; Definitions and references
+; -----------
+(type_name) @type
 
 [
   (primitive_type)
   (number_unit)
 ] @type.builtin
 
-(contract_declaration
-  name: (identifier) @type)
+(user_defined_type (_) @type)
+(user_defined_type_definition name: (identifier) @type)
+(type_alias (identifier) @type)
 
-(struct_declaration
-  name: (identifier) @type)
+; Color payable in payable address conversion as type and not as keyword
+(payable_conversion_expression "payable" @type)
+; Ensures that delimiters in mapping( ... => .. ) are not colored like types
+(type_name "(" @punctuation.bracket "=>" @punctuation.delimiter ")" @punctuation.bracket)
 
-(struct_member
-  name: (identifier) @variable.member)
-
-(enum_declaration
-  name: (identifier) @type)
-
-(emit_statement
-  .
-  (expression
-    (identifier)) @type)
-
-; Handles ContractA, ContractB in function foo() override(ContractA, contractB) {}
-(override_specifier
-  (user_defined_type) @type)
-
-; Functions and parameters
-(function_definition
-  name: (identifier) @function)
-
-(modifier_definition
-  name: (identifier) @function)
-
+; Definitions
+(struct_declaration name: (identifier) @type)
+(enum_declaration name: (identifier) @type)
+(contract_declaration name: (identifier) @type)
+(library_declaration name: (identifier) @type)
+(interface_declaration name: (identifier) @type)
+(event_definition name: (identifier) @type)
+(error_declaration name: (identifier) @type)
+(function_definition name: (identifier) @function)
+(modifier_definition name: (identifier) @function)
 (yul_evm_builtin) @function.builtin
 
 ; Use constructor coloring for special functions
-(constructor_definition
-  "constructor" @constructor)
+(constructor_definition "constructor" @constructor)
+(error_declaration "error" @constructor)
+(fallback_receive_definition "receive" @constructor)
+(fallback_receive_definition "fallback" @constructor)
 
-(modifier_invocation
-  (identifier) @function)
+(struct_member name: (identifier) @variable.other.member)
+(enum_value) @constant
+; SCREAMING_SNAKE_CASE identifier are constants
+((identifier) @constant (#match? @constant "^[A-Z][A-Z_]+$"))
 
-; Handles expressions like structVariable.g();
-(call_expression
-  .
-  (expression
-    (member_expression
-      (identifier) @function.method.call)))
+; Invocations
+(emit_statement name: (expression (identifier) @type))
+(revert_statement error: (expression (identifier) @type))
+(modifier_invocation . (_) @function)
 
-; Handles expressions like g();
-(call_expression
-  .
-  (expression
-    (identifier) @function.call))
+(call_expression . (_(member_expression property: (_) @function.method)))
+(call_expression . (expression (identifier) @function))
 
 ; Function parameters
-(event_parameter
-  name: (_) @variable.parameter)
-
-(parameter
-  name: (_) @variable.parameter)
+(call_struct_argument name: (identifier) @field)
+(event_parameter name: (identifier) @variable.parameter)
+(parameter name: (identifier) @variable.parameter)
 
 ; Yul functions
-(yul_function_call
-  function: (yul_identifier) @function.call)
-
-; Yul function parameters
+(yul_function_call function: (_) @function)
 (yul_function_definition
-  .
-  (yul_identifier) @function
-  (yul_identifier) @variable.parameter)
+  ("function" (yul_identifier) @function "(" (
+      (yul_identifier) @variable.parameter ("," (yul_identifier) @variable.parameter)*
+    )
+  )
+)
 
-(meta_type_expression
-  "type" @keyword)
+; Structs and members
+(member_expression property: (identifier) @variable.other.member)
+(struct_expression type: ((expression (identifier)) @type .))
+(struct_field_assignment name: (identifier) @variable.other.member)
 
-(member_expression
-  property: (_) @variable.member)
 
-(call_struct_argument
-  name: (_) @variable.member)
-
-(struct_field_assignment
-  name: (identifier) @variable.member)
-
-(enum_value) @constant
+; Tokens
+; -------
 
 ; Keywords
+(meta_type_expression "type" @keyword)
 [
-  "abstract"
-  "library"
-  "is"
-  "event"
-  "assembly"
-  "emit"
-  "override"
-  "modifier"
-  "var"
-  "let"
-  "emit"
-  "error"
-  "fallback"
-  "receive"
-  (virtual)
+ "abstract"
+ "contract"
+ "interface"
+ "library"
+ "is"
+ "struct"
+ "enum"
+ "event"
+ "type"
+ "assembly"
+ "emit"
+ "public"
+ "internal"
+ "private"
+ "external"
+ "pure"
+ "view"
+ "payable"
+ "modifier"
+ "var"
+ "let"
+ (virtual)
+ (override_specifier)
+ (yul_leave)
 ] @keyword
 
 [
-  "enum"
-  "struct"
-  "contract"
-  "interface"
-] @keyword.type
-
-; FIXME: update grammar
-; (block_statement "unchecked" @keyword)
-(event_parameter
-  "indexed" @keyword)
+ "memory"
+ "storage"
+ "calldata"
+ "constant"
+ "transient"
+ (immutable)
+] @keyword.storage.modifier
 
 [
-  "public"
-  "internal"
-  "private"
-  "external"
-  "pure"
-  "view"
-  "payable"
-  (immutable)
-] @keyword.modifier
+ "for"
+ "while"
+ "do"
+] @keyword.control.repeat
 
 [
-  "memory"
-  "storage"
-  "calldata"
-  "constant"
-] @keyword.modifier
+ "break"
+ "continue"
+ "if"
+ "else"
+ "switch"
+ "case"
+ "default"
+] @keyword.control.conditional
 
 [
-  "for"
-  "while"
-  "do"
-  "break"
-  "continue"
-] @keyword.repeat
+ "try"
+ "catch"
+ "revert"
+] @keyword.control.exception
 
 [
-  "if"
-  "else"
-  "switch"
-  "case"
-  "default"
-] @keyword.conditional
-
-(ternary_expression
-  "?" @keyword.conditional.ternary
-  ":" @keyword.conditional.ternary)
-
-[
-  "try"
-  "catch"
-  "revert"
-] @keyword.exception
-
-[
-  "return"
-  "returns"
-  (yul_leave)
-] @keyword.return
+ "return"
+ "returns"
+] @keyword.control.return
 
 "function" @keyword.function
 
-[
-  "import"
-  "using"
-] @keyword.import
-
-(import_directive
-  "as" @keyword.import)
-
-(import_directive
-  "from" @keyword.import)
-
-((import_directive
-  source: (string) @string.special.path)
-  (#offset! @string.special.path 0 1 0 -1))
+"import" @keyword.control.import
+"using" @keyword.control.import
+(import_directive "as" @keyword.control.import)
+(import_directive "from" @keyword.control.import)
+(event_parameter "indexed" @keyword)
 
 ; Punctuation
 [
-  "{"
-  "}"
-] @punctuation.bracket
-
-[
-  "["
-  "]"
-] @punctuation.bracket
-
-[
   "("
   ")"
+  "["
+  "]"
+  "{"
+  "}"
 ] @punctuation.bracket
 
 [
   "."
   ","
   ":"
-  ; FIXME: update grammar
-  ; (semicolon)
   "->"
   "=>"
 ] @punctuation.delimiter
@@ -278,7 +209,6 @@
   "/"
   "%"
   "**"
-  "="
   "<"
   "<="
   "=="
@@ -291,25 +221,19 @@
   "+"
   "++"
   "--"
-  ":="
+  "+="
+  "-="
+  "*="
+  "/="
+  "%="
+  "^="
+  "&="
+  "|="
+  "<<="
+  ">>="
 ] @operator
 
 [
   "delete"
   "new"
 ] @keyword.operator
-
-(import_directive
-  "*" @character.special)
-
-; Comments
-(comment) @comment @spell
-
-((comment) @comment.documentation
-  (#lua-match? @comment.documentation "^///[^/]"))
-
-((comment) @comment.documentation
-  (#lua-match? @comment.documentation "^///$"))
-
-((comment) @comment.documentation
-  (#lua-match? @comment.documentation "^/[*][*][^*].*[*]/$"))

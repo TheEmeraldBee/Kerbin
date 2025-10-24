@@ -1,36 +1,32 @@
-(comment) @comment @spell
+(comment) @comment
 
 [
   "source"
   "exec"
   "exec-once"
-] @keyword
+] @function.builtin
 
 (keyword
   (name) @keyword)
 
 (assignment
-  (name) @property)
+  (name) @variable.other.member)
 
 (section
-  (name) @module)
+  (name) @namespace)
 
 (section
-  device: (device_name) @string.special)
+  device: (device_name) @type)
 
 (variable) @variable
 
 "$" @punctuation.special
 
-(boolean) @boolean
+(boolean) @constant.builtin.boolean
 
-[
-  "deg"
-  (string)
-  (string_literal)
-] @string
+(string) @string
 
-(mod) @constant.builtin
+(mod) @constant
 
 [
   "rgb"
@@ -42,14 +38,11 @@
   (legacy_hex)
   (angle)
   (hex)
-] @number
+] @constant.numeric
 
-[
-  ","
-  ":"
-  "x"
-  "@"
-] @punctuation.delimiter
+"deg" @type
+
+"," @punctuation.delimiter
 
 [
   "("

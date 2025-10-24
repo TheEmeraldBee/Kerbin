@@ -1,15 +1,16 @@
-([
-  (directive)
-  (directive_start)
-  (directive_end)
-] @tag
-  (#set! priority 101))
+; inherits: html
 
-([
-  (bracket_start)
-  (bracket_end)
-] @tag.delimiter
-  (#set! priority 101))
+(directive) @keyword.directive
+(directive_start) @keyword.directive
+(directive_end) @keyword.directive
+(comment) @comment
 
-((comment) @comment @spell
-  (#set! priority 101))
+; merged with blade punctuation
+[
+  "{{"
+  "}}"
+  "{!!"
+  "!!}"
+  "("
+  ")"
+] @punctuation.bracket

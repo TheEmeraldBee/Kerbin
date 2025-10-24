@@ -1,13 +1,17 @@
 [
-  (atom
-    (uni_record)) ; for {...}
-  (atom
-    terms: (term)) ; for [...]
-] @indent.begin
+  (fun_expr)
+  (let_expr)
+  (match_expr)
+  (ite_expr)
+
+  (uni_record)
+  (str_chunks_multi)
+  "["
+  "[|"
+] @indent
 
 [
-  "]"
   "}"
-] @indent.end @indent.branch
-
-(comment) @indent.auto
+  "]"
+  "|]"
+] @outdent

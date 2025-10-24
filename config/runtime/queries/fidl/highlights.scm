@@ -6,6 +6,7 @@
   "closed"
   "compose"
   "const"
+  "enum"
   "error"
   "flexible"
   "library"
@@ -14,19 +15,15 @@
   "overlay"
   "protocol"
   "reserved"
-  "strict"
-  "using"
-] @keyword
-
-[
-  "enum"
-  "struct"
-  "table"
-  "union"
   "resource"
   "service"
+  "strict"
+  "struct"
+  "table"
   "type"
-] @keyword.type
+  "union"
+  "using"
+] @keyword
 
 (primitives_type) @type.builtin
 
@@ -48,12 +45,12 @@
 
 (string_literal) @string
 
-(numeric_literal) @number
+(numeric_literal) @constant.numeric
 
 [
   (true)
   (false)
-] @boolean
+] @constant.builtin.boolean
 
 (comment) @comment
 

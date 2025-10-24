@@ -1,94 +1,20 @@
-; From tree-sitter-python licensed under MIT License
-; Copyright (c) 2016 Max Brunsfeld
-; Variables
-(identifier) @variable
+; -------
+; Punctuation
+; -------
 
-; Reset highlighting in f-string interpolations
-(interpolation) @none
+["," "." ":" ";" (ellipsis)] @punctuation.delimiter
+["(" ")" "[" "]" "{" "}"] @punctuation.bracket
+(interpolation
+  "{" @punctuation.special
+  "}" @punctuation.special)
 
-; Identifier naming conventions
-((identifier) @type
-  (#lua-match? @type "^[A-Z].*[a-z]"))
+; -------
+; Operators
+; -------
 
-((identifier) @constant
-  (#lua-match? @constant "^[A-Z][A-Z_0-9]*$"))
-
-((identifier) @constant.builtin
-  (#lua-match? @constant.builtin "^__[a-zA-Z0-9_]*__$"))
-
-((identifier) @constant.builtin
-  (#any-of? @constant.builtin
-    ; https://docs.python.org/3/library/constants.html
-    "NotImplemented" "Ellipsis" "quit" "exit" "copyright" "credits" "license"))
-
-"_" @character.special ; match wildcard
-
-((assignment
-  left: (identifier) @type.definition
-  (type
-    (identifier) @_annotation))
-  (#eq? @_annotation "TypeAlias"))
-
-((assignment
-  left: (identifier) @type.definition
-  right: (call
-    function: (identifier) @_func))
-  (#any-of? @_func "TypeVar" "NewType"))
-
-; Function definitions
-(function_definition
-  name: (identifier) @function)
-
-(type
-  (identifier) @type)
-
-(type
-  (subscript
-    (identifier) @type)) ; type subscript: Tuple[int]
-
-((call
-  function: (identifier) @_isinstance
-  arguments: (argument_list
-    (_)
-    (identifier) @type))
-  (#eq? @_isinstance "isinstance"))
-
-; Literals
-(none) @constant.builtin
-
-[
-  (true)
-  (false)
-] @boolean
-
-(integer) @number
-
-(float) @number.float
-
-(comment) @comment @spell
-
-((module
-  .
-  (comment) @keyword.directive @nospell)
-  (#lua-match? @keyword.directive "^#!/"))
-
-(string) @string
-
-[
-  (escape_sequence)
-  (escape_interpolation)
-] @string.escape
-
-; doc-strings
-(expression_statement
-  (string
-    (string_content) @spell) @string.documentation)
-
-; Tokens
 [
   "-"
   "-="
-  ":="
   "!="
   "*"
   "**"
@@ -105,6 +31,7 @@
   "^"
   "^="
   "+"
+  "->"
   "+="
   "<"
   "<<"
@@ -112,332 +39,270 @@
   "<="
   "<>"
   "="
+  ":="
   "=="
   ">"
   ">="
   ">>"
   ">>="
-  "@"
-  "@="
   "|"
   "|="
   "~"
-  "->"
+  "@="
 ] @operator
 
+; -------
+; Variables
+; -------
+
+(identifier) @variable
+
+; - Member
+(attribute attribute: (identifier) @variable.other.member)
+
+; - Parameter
+(parameters (identifier) @variable.parameter)
+(parameters (typed_parameter (identifier) @variable.parameter))
+(parameters (default_parameter name: (identifier) @variable.parameter))
+(parameters (typed_default_parameter name: (identifier) @variable.parameter))
+(parameters
+  (list_splat_pattern ; *args
+    (identifier) @variable.parameter))
+(parameters
+  (dictionary_splat_pattern ; **kwargs
+    (identifier) @variable.parameter))
+
+(lambda_parameters
+  (identifier) @variable.parameter)
+
+(keyword_argument
+  name: (identifier) @variable.parameter)
+
+; - Builtin
+((identifier) @variable.builtin
+ (#any-of? @variable.builtin "self" "cls"))
+
+; -------
 ; Keywords
-[
-  "and"
-  "in"
-  "is"
-  "not"
-  "or"
-  "is not"
-  "not in"
-  "del"
-] @keyword.operator
-
-[
-  "def"
-  "lambda"
-] @keyword.function
-
-[
-  "assert"
-  "exec"
-  "global"
-  "nonlocal"
-  "pass"
-  "print"
-  "with"
-  "as"
-] @keyword
-
-[
-  "type"
-  "class"
-] @keyword.type
+; -------
 
 [
   "async"
-  "await"
-] @keyword.coroutine
+  "class"
+  "exec"
+  "global"
+  "nonlocal"
+  "print"
+  "type"
+] @keyword
 
+; Operators
 [
-  "return"
-  "yield"
-] @keyword.return
+  "and"
+  "or"
+  "not in"
+  "in" ; Has to be before loop keywords because "in" is overloaded
+  "not"
+  "del"
+  "is not"
+  "is"
+] @keyword.operator
 
-(yield
-  "from" @keyword.return)
+; Control
+[
+  "as"
+  "assert"
+  "await"
+  "from"
+  "pass"
 
-(future_import_statement
-  "from" @keyword.import
-  "__future__" @module.builtin)
+  "with"
+] @keyword.control
 
-(import_from_statement
-  "from" @keyword.import)
-
-"import" @keyword.import
-
-(aliased_import
-  "as" @keyword.import)
-
-(wildcard_import
-  "*" @character.special)
-
-(import_statement
-  name: (dotted_name
-    (identifier) @module))
-
-(import_statement
-  name: (aliased_import
-    name: (dotted_name
-      (identifier) @module)
-    alias: (identifier) @module))
-
-(import_from_statement
-  module_name: (dotted_name
-    (identifier) @module))
-
-(import_from_statement
-  module_name: (relative_import
-    (dotted_name
-      (identifier) @module)))
-
+; Conditionals
 [
   "if"
   "elif"
   "else"
   "match"
   "case"
-] @keyword.conditional
+] @keyword.control.conditional
 
+; Exceptions
 [
-  "for"
-  "while"
-  "break"
-  "continue"
-] @keyword.repeat
-
-[
+  "raise"
   "try"
   "except"
-  "except*"
-  "raise"
   "finally"
-] @keyword.exception
+] @keyword.control.exception
+(raise_statement "from" @keyword.control.exception)
 
-(raise_statement
-  "from" @keyword.exception)
-
-(try_statement
-  (else_clause
-    "else" @keyword.exception))
-
+; Functions
 [
-  "("
-  ")"
-  "["
-  "]"
-  "{"
-  "}"
-] @punctuation.bracket
+  "def"
+  "lambda"
+] @keyword.function
 
-(interpolation
-  "{" @punctuation.special
-  "}" @punctuation.special)
+; Import
+"import" @keyword.control.import
 
-(type_conversion) @function.macro
-
+; Loops
 [
-  ","
-  "."
-  ":"
-  ";"
-  (ellipsis)
-] @punctuation.delimiter
+  "while"
+  "for"
+  "break"
+  "continue"
+] @keyword.control.repeat
 
-((identifier) @type.builtin
-  (#any-of? @type.builtin
-    ; https://docs.python.org/3/library/exceptions.html
-    "BaseException" "Exception" "ArithmeticError" "BufferError" "LookupError" "AssertionError"
-    "AttributeError" "EOFError" "FloatingPointError" "GeneratorExit" "ImportError"
-    "ModuleNotFoundError" "IndexError" "KeyError" "KeyboardInterrupt" "MemoryError" "NameError"
-    "NotImplementedError" "OSError" "OverflowError" "RecursionError" "ReferenceError" "RuntimeError"
-    "StopIteration" "StopAsyncIteration" "SyntaxError" "IndentationError" "TabError" "SystemError"
-    "SystemExit" "TypeError" "UnboundLocalError" "UnicodeError" "UnicodeEncodeError"
-    "UnicodeDecodeError" "UnicodeTranslateError" "ValueError" "ZeroDivisionError" "EnvironmentError"
-    "IOError" "WindowsError" "BlockingIOError" "ChildProcessError" "ConnectionError"
-    "BrokenPipeError" "ConnectionAbortedError" "ConnectionRefusedError" "ConnectionResetError"
-    "FileExistsError" "FileNotFoundError" "InterruptedError" "IsADirectoryError"
-    "NotADirectoryError" "PermissionError" "ProcessLookupError" "TimeoutError" "Warning"
-    "UserWarning" "DeprecationWarning" "PendingDeprecationWarning" "SyntaxWarning" "RuntimeWarning"
-    "FutureWarning" "ImportWarning" "UnicodeWarning" "BytesWarning" "ResourceWarning"
-    ; https://docs.python.org/3/library/stdtypes.html
-    "bool" "int" "float" "complex" "list" "tuple" "range" "str" "bytes" "bytearray" "memoryview"
-    "set" "frozenset" "dict" "type" "object"))
+(for_statement "in" @keyword.control.repeat)
+(for_in_clause "in" @keyword.control.repeat)
 
-; Normal parameters
-(parameters
-  (identifier) @variable.parameter)
+; Return
+[
+  "return"
+  "yield"
+] @keyword.control.return
+(yield "from" @keyword.control.return)
 
-; Lambda parameters
-(lambda_parameters
-  (identifier) @variable.parameter)
+; -------
+; Imports
+; -------
+ 
+(dotted_name
+  (identifier)* @namespace)
 
-(lambda_parameters
-  (tuple_pattern
-    (identifier) @variable.parameter))
+(aliased_import
+  alias: (identifier) @namespace)
 
-; Default parameters
-(keyword_argument
-  name: (identifier) @variable.parameter)
+; - Builtins
+(none) @constant.builtin ; Has to be before types
 
-; Naming parameters on call-site
-(default_parameter
-  name: (identifier) @variable.parameter)
+; -------
+; Types
+; -------
+ 
+((identifier) @type 
+ (#match? @type "^[A-Z]")) ; Has to be before constructor due to this being a more general match 
 
-(typed_parameter
-  (identifier) @variable.parameter)
+; In type hints make everything types to catch non-conforming identifiers
+; (e.g., datetime.datetime) and None
+(type [(identifier) (none)] @type)
+; Handle [] . and | nesting 4 levels deep
+(type
+  (_ [(identifier) (none)]? @type
+    (_ [(identifier) (none)]? @type
+      (_ [(identifier) (none)]? @type
+        (_ [(identifier) (none)]? @type)))))
 
-(typed_default_parameter
-  name: (identifier) @variable.parameter)
+; Classes
+(class_definition name: (identifier) @type)
+(class_definition superclasses: (argument_list (identifier) @type))
 
-; Variadic parameters *args, **kwargs
-(parameters
-  (list_splat_pattern ; *args
-    (identifier) @variable.parameter))
+; -------
+; Functions
+; -------
 
-(parameters
-  (dictionary_splat_pattern ; **kwargs
-    (identifier) @variable.parameter))
-
-; Typed variadic parameters
-(parameters
-  (typed_parameter
-    (list_splat_pattern ; *args: type
-      (identifier) @variable.parameter)))
-
-(parameters
-  (typed_parameter
-    (dictionary_splat_pattern ; *kwargs: type
-      (identifier) @variable.parameter)))
-
-; Lambda parameters
-(lambda_parameters
-  (list_splat_pattern
-    (identifier) @variable.parameter))
-
-(lambda_parameters
-  (dictionary_splat_pattern
-    (identifier) @variable.parameter))
-
-((identifier) @variable.builtin
-  (#eq? @variable.builtin "self"))
-
-((identifier) @variable.builtin
-  (#eq? @variable.builtin "cls"))
-
-; After @type.builtin bacause builtins (such as `type`) are valid as attribute name
-((attribute
-  attribute: (identifier) @variable.member)
-  (#lua-match? @variable.member "^[%l_].*$"))
-
-; Class definitions
-(class_definition
-  name: (identifier) @type)
-
-(class_definition
-  body: (block
-    (function_definition
-      name: (identifier) @function.method)))
-
-(class_definition
-  superclasses: (argument_list
-    (identifier) @type))
-
-((class_definition
-  body: (block
-    (expression_statement
-      (assignment
-        left: (identifier) @variable.member))))
-  (#lua-match? @variable.member "^[%l_].*$"))
-
-((class_definition
-  body: (block
-    (expression_statement
-      (assignment
-        left: (_
-          (identifier) @variable.member)))))
-  (#lua-match? @variable.member "^[%l_].*$"))
-
-((class_definition
-  (block
-    (function_definition
-      name: (identifier) @constructor)))
-  (#any-of? @constructor "__new__" "__init__"))
-
-; Function calls
-(call
-  function: (identifier) @function.call)
+(function_definition
+  name: (identifier) @function)
 
 (call
-  function: (attribute
-    attribute: (identifier) @function.method.call))
+  function: (identifier) @function)
 
-((call
-  function: (identifier) @constructor)
-  (#lua-match? @constructor "^%u"))
+; Decorators
+(decorator) @function
+(decorator (identifier) @function)
+(decorator (attribute attribute: (identifier) @function))
+(decorator (call
+  function: (attribute attribute: (identifier) @function)))
 
-((call
-  function: (attribute
-    attribute: (identifier) @constructor))
-  (#lua-match? @constructor "^%u"))
+; Methods
+(call
+  function: (attribute attribute: (identifier) @function.method))
 
 ; Builtin functions
 ((call
   function: (identifier) @function.builtin)
-  (#any-of? @function.builtin
-    "abs" "all" "any" "ascii" "bin" "bool" "breakpoint" "bytearray" "bytes" "callable" "chr"
-    "classmethod" "compile" "complex" "delattr" "dict" "dir" "divmod" "enumerate" "eval" "exec"
-    "filter" "float" "format" "frozenset" "getattr" "globals" "hasattr" "hash" "help" "hex" "id"
-    "input" "int" "isinstance" "issubclass" "iter" "len" "list" "locals" "map" "max" "memoryview"
-    "min" "next" "object" "oct" "open" "ord" "pow" "print" "property" "range" "repr" "reversed"
-    "round" "set" "setattr" "slice" "sorted" "staticmethod" "str" "sum" "super" "tuple" "type"
-    "vars" "zip" "__import__"))
+ (#any-of?
+   @function.builtin
+   "abs" "all" "any" "ascii" "bin" "breakpoint" "bytearray" "callable" "chr"
+   "classmethod" "compile" "complex" "delattr" "dir" "divmod" "enumerate"
+   "eval" "exec" "filter" "format" "getattr" "globals" "hasattr" "hash" "help"
+   "hex" "id" "input" "isinstance" "issubclass" "iter" "len" "locals" "map"
+   "max" "memoryview" "min" "next" "object" "oct" "open" "ord" "pow" "print"
+   "property" "range" "repr" "reversed" "round" "setattr" "slice" "sorted"
+   "staticmethod" "sum" "super" "type" "vars" "zip" "__import__"))
 
-; Regex from the `re` module
+; Constructors
 (call
-  function: (attribute
-    object: (identifier) @_re)
-  arguments: (argument_list
-    .
-    (string
-      (string_content) @string.regexp))
-  (#eq? @_re "re"))
+  function: (attribute attribute: (identifier) @constructor)
+  (#any-of?
+    @constructor
+    "__new__" "__init__"))
 
-; Decorators
-((decorator
-  "@" @attribute)
-  (#set! priority 101))
+((call
+  function: (identifier) @constructor)
+ (#any-of?
+   @constructor
+   "__new__" "__init__"))
 
-(decorator
-  (identifier) @attribute)
+(function_definition
+  name: (identifier) @constructor
+ (#any-of? @constructor "__new__" "__init__"))
 
-(decorator
-  (attribute
-    attribute: (identifier) @attribute))
+(call
+  function: (attribute attribute: (identifier) @constructor)
+ (#match? @constructor "^[A-Z]"))
+(call
+  function: (identifier) @constructor
+ (#match? @constructor "^[A-Z]"))
 
-(decorator
-  (call
-    (identifier) @attribute))
+; Builtin types
+((identifier) @type.builtin ; Has to be after functions due to broad matching
+ (#any-of?
+   @type.builtin
+   "bool" "bytes" "dict" "float" "frozenset" "int" "list" "set" "str" "tuple"))
 
-(decorator
-  (call
-    (attribute
-      attribute: (identifier) @attribute)))
+; Builtin error types
+((identifier) @type.builtin ; Has to be after constructors due to broad matching of constructor
+  (#any-of? @type.builtin
+    "BaseException" "Exception" "ArithmeticError" "BufferError" "LookupError"
+    "AssertionError" "AttributeError" "EOFError" "FloatingPointError" "GeneratorExit"
+    "ImportError" "ModuleNotFoundError" "IndexError" "KeyError" "KeyboardInterrupt"
+    "MemoryError" "NameError" "NotImplementedError" "OSError" "OverflowError"
+    "RecursionError" "ReferenceError" "RuntimeError" "StopIteration" "StopAsyncIteration"
+    "SyntaxError" "IndentationError" "TabError" "SystemError" "SystemExit" "TypeError"
+    "UnboundLocalError" "UnicodeError" "UnicodeEncodeError" "UnicodeDecodeError"
+    "UnicodeTranslateError" "ValueError" "ZeroDivisionError" "EnvironmentError"
+    "IOError" "WindowsError" "BlockingIOError" "ChildProcessError" "ConnectionError"
+    "BrokenPipeError" "ConnectionAbortedError" "ConnectionRefusedError"
+    "ConnectionResetError" "FileExistsError" "FileNotFoundError" "InterruptedError"
+    "IsADirectoryError" "NotADirectoryError" "PermissionError" "ProcessLookupError"
+    "TimeoutError" "Warning" "UserWarning" "DeprecationWarning" "PendingDeprecationWarning"
+    "SyntaxWarning" "RuntimeWarning" "FutureWarning" "ImportWarning" "UnicodeWarning"
+    "BytesWarning" "ResourceWarning"))
 
-((decorator
-  (identifier) @attribute.builtin)
-  (#any-of? @attribute.builtin "classmethod" "property" "staticmethod"))
+; -------
+; Constants
+; -------
+
+((identifier) @constant
+ (#match? @constant "^_*[A-Z][A-Z\\d_]*$"))
+
+(escape_sequence) @constant.character.escape
+
+[
+  (true)
+  (false)
+] @constant.builtin.boolean
+
+
+; - Numbers
+(integer) @constant.numeric.integer
+(float) @constant.numeric.float
+
+; -------
+; Other literals
+; -------
+ 
+(comment) @comment
+(string) @string

@@ -1,5 +1,6 @@
 ; Types
 ;------
+
 (scalar_type_definition
   (name) @type)
 
@@ -17,6 +18,12 @@
 
 (input_object_type_definition
   (name) @type)
+
+(directive_definition
+  (name) @type)
+
+(directive_definition
+  "@" @type)
 
 (scalar_type_extension
   (name) @type)
@@ -39,35 +46,31 @@
 (named_type
   (name) @type)
 
-; Directives
-;-----------
-(directive_definition
-  "@" @attribute
-  (name) @attribute)
-
-(directive) @attribute
+(directive) @type
 
 ; Properties
 ;-----------
+
 (field
-  (name) @property)
+  (name) @variable.other.member)
 
 (field
   (alias
-    (name) @property))
+    (name) @variable.other.member))
 
 (field_definition
-  (name) @property)
+  (name) @variable.other.member)
 
 (object_value
   (object_field
-    (name) @property))
+    (name) @variable.other.member))
 
 (enum_value
-  (name) @property)
+  (name) @variable.other.member)
 
-; Variable Definitions and Arguments
+; Variable Definitions and Arguments 
 ;-----------------------------------
+
 (operation_definition
   (name) @variable)
 
@@ -94,20 +97,21 @@
 
 ; Constants
 ;----------
+
 (string_value) @string
 
-(int_value) @number
+(int_value) @constants.numeric.integer
 
-(float_value) @number.float
+(float_value) @constants.numeric.float
 
-(boolean_value) @boolean
+(boolean_value) @constants.builtin.boolean
 
 ; Literals
 ;---------
-(description
-  (string_value) @string.documentation @spell)
 
-(comment) @comment @spell
+(description) @comment
+
+(comment) @comment
 
 (directive_location
   (executable_directive_location) @type.builtin)
@@ -117,12 +121,17 @@
 
 ; Keywords
 ;----------
+
 [
   "query"
   "mutation"
   "subscription"
   "fragment"
   "scalar"
+  "type"
+  "interface"
+  "union"
+  "enum"
   "input"
   "extend"
   "directive"
@@ -132,32 +141,23 @@
   "implements"
 ] @keyword
 
-[
-  "enum"
-  "union"
-  "type"
-  "interface"
-] @keyword.type
-
 ; Punctuation
 ;------------
+
 [
-  "("
-  ")"
-  "["
-  "]"
-  "{"
-  "}"
+ "("
+ ")"
+ "["
+ "]"
+ "{"
+ "}"
 ] @punctuation.bracket
 
 "=" @operator
 
 "|" @punctuation.delimiter
-
 "&" @punctuation.delimiter
-
 ":" @punctuation.delimiter
 
 "..." @punctuation.special
-
 "!" @punctuation.special

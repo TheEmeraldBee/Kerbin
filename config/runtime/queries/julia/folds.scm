@@ -10,5 +10,5 @@
   (let_statement)
   (quote_statement)
   (do_clause)
-  (compound_statement)
+  (compound_statement) ; begin block
 ] @fold

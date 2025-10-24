@@ -1,57 +1,48 @@
+; Queries are taken from: https://github.com/indoorvivants/tree-sitter-smithy/blob/main/queries/highlights.scm
 ; Preproc
 (control_key) @keyword.directive
 
 ; Namespace
-(namespace) @module
+(namespace) @namespace
 
 ; Includes
-"use" @keyword.import
+[
+  "use"
+] @keyword.control.import
 
 ; Builtins
 (primitive) @type.builtin
-
 [
   "enum"
   "intEnum"
   "list"
   "map"
   "set"
-  "structure"
-  "union"
-  "namespace"
-  "service"
-  "operation"
-  "resource"
-] @keyword.type
+] @type.builtin
 
 ; Fields (Members)
-; (field) @variable.member
-(key_identifier) @variable.member
+; (field) @variable.other.member
 
+(key_identifier) @variable.other.member
 (shape_member
-  (field) @variable.member)
-
-(operation_field) @variable.member
-
-(operation_error_field) @variable.member
+  (field) @variable.other.member)
+(operation_field) @variable.other.member
+(operation_error_field) @variable.other.member
 
 ; Constants
 (enum_member
-  (enum_field) @constant)
+  (enum_field) @type.enum)
 
 ; Types
 (identifier) @type
-
 (structure_resource
   (shape_id) @type)
 
 ; Attributes
 (mixins
   (shape_id) @attribute)
-
 (trait_statement
-  (shape_id
-    (#set! priority 105)) @attribute)
+  (shape_id) @attribute)
 
 ; Operators
 [
@@ -63,6 +54,12 @@
 
 ; Keywords
 [
+  "namespace"
+  "service"
+  "structure"
+  "operation"
+  "union"
+  "resource"
   "metadata"
   "apply"
   "for"
@@ -71,14 +68,13 @@
 
 ; Literals
 (string) @string
+(escape_sequence) @constant.character.escape
 
-(escape_sequence) @string.escape
+(number) @constant.numeric
 
-(number) @number
+(float) @constant.numeric.float
 
-(float) @number.float
-
-(boolean) @boolean
+(boolean) @constant.builtin.boolean
 
 (null) @constant.builtin
 
@@ -88,20 +84,11 @@
   "#"
 ] @punctuation.special
 
-[
-  "{"
-  "}"
-] @punctuation.bracket
+["{" "}"] @punctuation.bracket
 
-[
-  "("
-  ")"
-] @punctuation.bracket
+["(" ")"] @punctuation.bracket
 
-[
-  "["
-  "]"
-] @punctuation.bracket
+["[" "]"] @punctuation.bracket
 
 [
   ":"
@@ -109,6 +96,7 @@
 ] @punctuation.delimiter
 
 ; Comments
-(comment) @comment @spell
-
-(documentation_comment) @comment.documentation @spell
+[
+  (comment)
+  (documentation_comment)
+] @comment

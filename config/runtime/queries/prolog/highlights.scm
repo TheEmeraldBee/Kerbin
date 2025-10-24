@@ -1,16 +1,16 @@
-(comment) @comment @spell
+(comment) @comment
 
 (atom) @constant
 
-((atom) @boolean
-  (#any-of? @boolean "true" "false"))
+((atom) @constant.builtin.boolean
+  (#any-of? @constant.builtin.boolean "true" "false"))
 
 (functional_notation
-  function: (atom) @function.call)
+  function: (atom) @function)
 
-(integer) @number
+(integer) @constant.numeric.integer
 
-(float_number) @number.float
+(float_number) @constant.numeric.float
 
 (directive_head) @operator
 
@@ -18,21 +18,21 @@
   operator: _ @operator)
 
 [
-  (open)
-  (open_ct)
-  (close)
-  (open_list)
-  "|"
-  (close_list)
-  (open_curly)
-  (close_curly)
+ (open)
+ (open_ct)
+ (close)
+ (open_list)
+ "|"
+ (close_list)
+ (open_curly)
+ (close_curly)
 ] @punctuation.bracket
 
 [
-  (arg_list_separator)
-  (comma)
-  (end)
-  (list_notation_separator)
+ (arg_list_separator)
+ (comma)
+ (end)
+ (list_notation_separator)
 ] @punctuation.delimiter
 
 (operator_notation

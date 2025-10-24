@@ -1,61 +1,66 @@
-(comment) @comment @spell
+[
+  "/dts-v1/"
+  "/memreserve/"
+  "/delete-node/"
+  "/delete-property/"
+] @keyword
 
 [
-  (preproc_include)
-  (dtsi_include)
-] @keyword.import
-
-(preproc_def) @constant.macro
-
-(preproc_function_def) @function.macro
+  "#define"
+  "#include"
+] @keyword.directive
 
 [
-  (memory_reservation)
-  (file_version)
-] @attribute
+  "!"
+  "~"
+  "-"
+  "+"
+  "*"
+  "/"
+  "%"
+  "||"
+  "&&"
+  "|"
+  "^"
+  "&"
+  "=="
+  "!="
+  ">"
+  ">="
+  "<="
+  ">"
+  "<<"
+  ">>"
+] @operator
 
 [
-  (string_literal)
-  (byte_string_literal)
-  (system_lib_string)
-] @string
-
-(integer_literal) @number
-
-(identifier) @variable
-
-(node
-  (identifier) @module)
-
-(property
-  (identifier) @property)
-
-(node
-  label: (_) @label)
-
-(call_expression
-  (identifier) @function.macro)
-
-(reference) @label ; referencing labeled_item.identifier
-
-(unit_address) @constant
-
-"=" @operator
+  ","
+  ";"
+] @punctuation.delimiter
 
 [
   "("
   ")"
-  "["
-  "]"
   "{"
   "}"
   "<"
   ">"
 ] @punctuation.bracket
 
-[
-  ";"
-  ":"
-  ","
-  "@"
-] @punctuation.delimiter
+(string_literal) @string
+
+(integer_literal) @constant.numeric.integer
+
+(identifier) @variable
+
+(call_expression
+  function: (identifier) @function)
+
+(labeled_item
+  label: (identifier) @label)
+
+(unit_address) @tag
+
+(reference) @constant
+
+(comment) @comment

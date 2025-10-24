@@ -1,5 +1,4 @@
-(help_text
-  (text) @indent.auto)
+(help_text (text) @align)
 
 [
   (config)
@@ -9,4 +8,4 @@
   (menu)
   (if)
   (help_text)
-] @indent.begin
+] @indent

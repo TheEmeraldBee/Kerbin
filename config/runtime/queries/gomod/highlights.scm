@@ -3,6 +3,7 @@
   "replace"
   "go"
   "toolchain"
+  "tool"
   "exclude"
   "retract"
   "module"
@@ -10,25 +11,9 @@
 
 "=>" @operator
 
-(comment) @comment @spell
-
-(module_path) @string.special.url
-
-(tool_directive) @keyword.directive
-
-(tool) @string.special.url
+(comment) @comment
 
 [
-  (version)
-  (go_version)
-  (toolchain_name)
-] @string.special
-
-[
-  "("
-  ")"
-  "["
-  "]"
-] @punctuation.bracket
-
-"," @punctuation.delimiter
+(version)
+(go_version)
+] @string

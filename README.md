@@ -92,7 +92,7 @@ kerbin-install --update
     sacrificing time to write out the same bindings over and over again.
 
 # Thank You
-- [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter?tab=readme-ov-file) : The default queries built into the config
+- [helix](https://github.com/helix-editor/helix) : The default queries built into the config
 
 ---
 

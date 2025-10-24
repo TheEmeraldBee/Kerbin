@@ -1,43 +1,24 @@
 [
-  (class)
-  (singleton_class)
-  (method)
-  (singleton_method)
-  (module)
-  (call)
-  (if)
-  (block)
-  (do_block)
-  (hash)
-  (array)
   (argument_list)
-  (case)
-  (while)
-  (until)
-  (for)
+  (array)
   (begin)
-  (unless)
-  (assignment)
-  (parenthesized_statements)
-] @indent.begin
-
-[
-  "end"
-  ")"
-  "}"
-  "]"
-] @indent.end
-
-[
-  "end"
-  ")"
-  "}"
-  "]"
-  (when)
+  (block)
+  (call)
+  (class)
+  (case)
   (elsif)
-  (else)
-  (rescue)
-  (ensure)
-] @indent.branch
+  (if)
+  (hash)
+  (method)
+  (module)
+  (singleton_class)
+  (singleton_method)
+] @indent
 
-(comment) @indent.ignore
+[
+  ")"
+  "}"
+  "]"
+  "end"
+  "when"
+] @outdent

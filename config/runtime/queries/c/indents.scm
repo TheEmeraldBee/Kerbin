@@ -1,99 +1,51 @@
 [
   (compound_statement)
+  (declaration_list)
   (field_declaration_list)
-  (case_statement)
   (enumerator_list)
-  (compound_literal_expression)
-  (initializer_list)
-  (init_declarator)
-] @indent.begin
-
-; With current indent logic, if we capture expression_statement with @indent.begin
-; It will be affected by _parent_ node with error subnodes deep down the tree
-; So narrow indent capture to check for error inside expression statement only,
-(expression_statement
-  (_) @indent.begin
-  ";" @indent.end)
-
-(ERROR
-  "for"
-  "(" @indent.begin
-  ";"
-  ";"
-  ")" @indent.end)
-
-((for_statement
-  body: (_) @_body) @indent.begin
-  (#not-kind-eq? @_body "compound_statement"))
-
-(while_statement
-  condition: (_) @indent.begin)
-
-((while_statement
-  body: (_) @_body) @indent.begin
-  (#not-kind-eq? @_body "compound_statement"))
-
-((if_statement)
-  .
-  (ERROR
-    "else" @indent.begin))
-
-(if_statement
-  condition: (_) @indent.begin)
-
-; Supports if without braces (but not both if-else without braces)
-(if_statement
-  consequence: (_
-    ";" @indent.end) @_consequence
-  (#not-kind-eq? @_consequence "compound_statement")
-  alternative: (else_clause
-    "else" @indent.branch
-    [
-      (if_statement
-        (compound_statement) @indent.dedent)? @indent.dedent
-      (compound_statement)? @indent.dedent
-      (_)? @indent.dedent
-    ])?) @indent.begin
-
-(else_clause
-  (_
-    .
-    "{" @indent.branch))
-
-(compound_statement
-  "}" @indent.end)
-
-[
-  ")"
-  "}"
-  (statement_identifier)
-] @indent.branch
-
-[
-  "#define"
-  "#ifdef"
-  "#ifndef"
-  "#elif"
-  "#if"
-  "#else"
-  "#endif"
-] @indent.zero
-
-[
-  (preproc_arg)
-  (string_literal)
-] @indent.ignore
-
-((ERROR
-  (parameter_declaration)) @indent.align
-  (#set! indent.open_delimiter "(")
-  (#set! indent.close_delimiter ")"))
-
-([
-  (argument_list)
   (parameter_list)
-] @indent.align
-  (#set! indent.open_delimiter "(")
-  (#set! indent.close_delimiter ")"))
+  (init_declarator)
+  (expression_statement)
+] @indent
 
-(comment) @indent.auto
+[
+  "case"
+  "}"
+  "]"
+  ")"
+] @outdent
+
+(if_statement
+  consequence: (_) @indent
+  (#not-kind-eq? @indent "compound_statement")
+  (#set! "scope" "all"))
+(while_statement
+  body: (_) @indent
+  (#not-kind-eq? @indent "compound_statement")
+  (#set! "scope" "all"))
+(do_statement
+  body: (_) @indent
+  (#not-kind-eq? @indent "compound_statement")
+  (#set! "scope" "all"))
+(for_statement
+  ")"
+  (_) @indent
+  (#not-kind-eq? @indent "compound_statement")
+  (#set! "scope" "all"))
+
+(parameter_list
+  . (parameter_declaration) @anchor
+  (#set! "scope" "tail")) @align
+(argument_list
+  . (_) @anchor
+  (#set! "scope" "tail")) @align
+; These are a bit opinionated since some people just indent binary/ternary expressions spanning multiple lines.
+; Since they are only triggered when a newline is inserted into an already complete binary/ternary expression,
+; this should happen rarely, so it is not a big deal either way.
+; Additionally, adding these queries has the advantage of preventing such continuation lines from being used
+; as the baseline when the `hybrid` indent heuristic is used (which is desirable since their indentation is so inconsistent). 
+(binary_expression
+  (#set! "scope" "tail")) @anchor @align
+(conditional_expression
+  "?" @anchor
+  (#set! "scope" "tail")) @align

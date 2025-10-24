@@ -1,124 +1,50 @@
-; Program structure
-(module) @local.scope
+;; Scopes
 
-(class_definition
-  body: (block
-    (expression_statement
-      (assignment
-        left: (identifier) @local.definition.field)))) @local.scope
+[
+  (module)
+  (function_definition)
+  (lambda)
+] @local.scope
 
-(class_definition
-  body: (block
-    (expression_statement
-      (assignment
-        left: (_
-          (identifier) @local.definition.field))))) @local.scope
+;; Definitions
 
+; Parameters
+(parameters
+  (identifier) @local.definition.variable.parameter)
+(parameters
+  (typed_parameter
+    (identifier) @local.definition.variable.parameter))
+(parameters
+  (default_parameter 
+    name: (identifier) @local.definition.variable.parameter))
+(parameters 
+  (typed_default_parameter 
+    name: (identifier) @local.definition.variable.parameter))
+(parameters
+  (list_splat_pattern ; *args
+    (identifier) @local.definition.variable.parameter))
+(parameters
+  (dictionary_splat_pattern ; **kwargs
+    (identifier) @local.definition.variable.parameter))
+(parameters
+  (identifier) @local.definition.variable.builtin
+  (#any-of? @local.definition.variable.builtin "self" "cls")) ; label self/cls as builtin
+    
+(lambda_parameters
+  (identifier) @local.definition.variable.parameter)
+  
 ; Imports
-(aliased_import
-  alias: (identifier) @local.definition.import) @local.scope
-
 (import_statement
-  name: (dotted_name
-    (identifier) @local.definition.import)) @local.scope
+  name: (dotted_name 
+    (identifier) @local.definition.namespace))
 
-(import_from_statement
-  name: (dotted_name
-    (identifier) @local.definition.import)) @local.scope
+(aliased_import
+  alias: (identifier) @local.definition.namespace)
 
-; Function with parameters, defines parameters
-(parameters
-  (identifier) @local.definition.parameter)
+;; References
 
-(default_parameter
-  (identifier) @local.definition.parameter)
-
-(typed_parameter
-  (identifier) @local.definition.parameter)
-
-(typed_default_parameter
-  (identifier) @local.definition.parameter)
-
-; *args parameter
-(parameters
-  (list_splat_pattern
-    (identifier) @local.definition.parameter))
-
-; **kwargs parameter
-(parameters
-  (dictionary_splat_pattern
-    (identifier) @local.definition.parameter))
-
-; Function defines function and scope
-((function_definition
-  name: (identifier) @local.definition.function) @local.scope
-  (#set! definition.function.scope "parent"))
-
-((class_definition
-  name: (identifier) @local.definition.type) @local.scope
-  (#set! definition.type.scope "parent"))
-
-(class_definition
-  body: (block
-    (function_definition
-      name: (identifier) @local.definition.method)))
-
-; Loops
-; not a scope!
-(for_statement
-  left: (pattern_list
-    (identifier) @local.definition.var))
-
-(for_statement
-  left: (tuple_pattern
-    (identifier) @local.definition.var))
-
-(for_statement
-  left: (identifier) @local.definition.var)
-
-; not a scope!
-;(while_statement) @local.scope
-; for in list comprehension
-(for_in_clause
-  left: (identifier) @local.definition.var)
-
-(for_in_clause
-  left: (tuple_pattern
-    (identifier) @local.definition.var))
-
-(for_in_clause
-  left: (pattern_list
-    (identifier) @local.definition.var))
-
-(dictionary_comprehension) @local.scope
-
-(list_comprehension) @local.scope
-
-(set_comprehension) @local.scope
-
-; Assignments
-(assignment
-  left: (identifier) @local.definition.var)
-
-(assignment
-  left: (pattern_list
-    (identifier) @local.definition.var))
-
-(assignment
-  left: (tuple_pattern
-    (identifier) @local.definition.var))
-
-(assignment
-  left: (attribute
-    (identifier)
-    (identifier) @local.definition.field))
-
-; Walrus operator  x := 1
-(named_expression
-  (identifier) @local.definition.var)
-
-(as_pattern
-  alias: (as_pattern_target) @local.definition.var)
-
-; REFERENCES
 (identifier) @local.reference
+
+; don't make the name of kwargs locals
+(keyword_argument
+  name: (identifier) @variable.parameter)

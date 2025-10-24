@@ -1,8 +1,14 @@
-"source" @keyword.import
+[
+  "source"
+  "osource"
+  "rsource"
+  "orsource"
+] @keyword.control.import
 
 [
   "mainmenu"
   "config"
+  "configdefault"
   "menuconfig"
   "choice"
   "endchoice"
@@ -24,7 +30,7 @@
   "select"
   "imply"
   "visible if"
-] @keyword.conditional
+] @keyword.control.conditional
 
 [
   "def_bool"
@@ -41,9 +47,6 @@
   "<="
   ">="
   "!"
-  ":="
-  "+="
-  "?="
 ] @operator
 
 [
@@ -54,18 +57,9 @@
   "string"
 ] @type.builtin
 
-[
-  "("
-  ")"
-] @punctuation.bracket
+[ "(" ")" ] @punctuation.bracket
 
-"," @punctuation.delimiter
-
-(macro_variable
-  [
-    "$("
-    ")"
-  ] @punctuation.special)
+(macro_variable ["$(" ")"] @punctuation.special)
 
 (symbol) @variable
 
@@ -75,31 +69,18 @@
   (text)
 ] @string
 
-(config
-  name: (name
-    (symbol) @constant))
-
-(menuconfig
-  name: (name
-    (symbol) @constant))
-
-(choice
-  name: (name
-    (symbol) @constant))
+(config name: (name (symbol) @constant))
+(configdefault name: (name (symbol) @constant))
+(menuconfig name: (name (symbol) @constant))
+(choice name: (name (symbol) @constant))
 
 ((symbol) @constant
-  (#lua-match? @constant "[A-Z0-9]+"))
+  (#match? @constant "[A-Z0-9]+"))
 
-(mainmenu
-  name: (string) @markup.heading)
+(mainmenu name: (string) @markup.heading)
+(comment_entry name: (string) @markup.heading)
+(menu name: (string) @markup.heading)
 
-(comment_entry
-  name: (string) @markup.heading)
+(source (string) @string.special.url @string.special)
 
-(menu
-  name: (string) @markup.heading)
-
-(source
-  (string) @string.special.url)
-
-(comment) @comment @spell
+(comment) @comment

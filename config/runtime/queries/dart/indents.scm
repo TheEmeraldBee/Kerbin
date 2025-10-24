@@ -1,49 +1,100 @@
+; things surrounded by ({[]})
 [
-  (class_body)
-  (function_body)
-  (function_expression_body)
-  (declaration
-    (initializers))
-  (switch_block)
-  (formal_parameter_list)
-  (formal_parameter)
+  (template_substitution)
   (list_literal)
-  (return_statement)
+  (set_or_map_literal)
+  (parenthesized_expression)
   (arguments)
-  (try_statement)
-] @indent.begin
+  (index_selector)
+  (block)
+  (assertion_arguments)
+  (switch_block)
+  (catch_parameters)
+  (for_loop_parts)
+  (configuration_uri_condition)
+  (enum_body)
+  (class_body)
+  (extension_body)
+  (parameter_type_list)
+  (optional_positional_parameter_types)
+  (named_parameter_types)
+  (formal_parameter_list)
+  (optional_formal_parameters)
+] @indent
 
-(switch_block
-  (_) @indent.begin
-  (#set! indent.immediate 1)
-  (#set! indent.start_at_same_line 1))
+; control flow statement which accept one line as body
+
+(for_statement
+  body: _ @indent
+  (#not-kind-eq? @indent block)
+  (#set! "scope" "all")
+)
+
+(while_statement
+  body: _ @indent
+  (#not-kind-eq? @indent block)
+  (#set! "scope" "all")
+)
+
+(do_statement
+  body: _ @indent
+  (#not-kind-eq? @indent block)
+  (#set! "scope" "all")
+)
+
+(if_statement
+  consequence: _ @indent
+  (#not-kind-eq? @indent block)
+  (#set! "scope" "all")
+)
+(if_statement
+  alternative: _ @indent
+  (#not-kind-eq? @indent if_statement)
+  (#not-kind-eq? @indent block)
+  (#set! "scope" "all")
+)
+(if_statement
+  "else" @else
+  alternative: (if_statement) @indent
+  (#not-same-line? @indent @else)
+  (#set! "scope" "all")
+)
+
+(if_element
+  consequence: _ @indent
+  (#set! "scope" "all")
+)
+(if_element
+  alternative: _ @indent
+  (#not-kind-eq? @indent if_element)
+  (#set! "scope" "all")
+)
+(if_element
+  "else" @else
+  alternative: (if_element) @indent
+  (#not-same-line? @indent @else)
+  (#set! "scope" "all")
+)
+
+(for_element
+  body: _ @indent
+  (#set! "scope" "all")
+)
+
+; simple statements
+[
+  (local_variable_declaration)
+  (break_statement)
+  (continue_statement)
+  (return_statement)
+  (yield_statement)
+  (yield_each_statement)
+  (expression_statement)
+] @indent
 
 [
-  (switch_statement_case)
-  (switch_statement_default)
-] @indent.branch
-
-[
-  "("
-  ")"
-  "{"
   "}"
-  "["
   "]"
-] @indent.branch
+  ")"
+] @outdent
 
-"}" @indent.end
-
-(return_statement
-  ";" @indent.end)
-
-(break_statement
-  ";" @indent.end)
-
-(comment) @indent.ignore
-
-; dedenting the else block is painfully slow; replace with simpler strategy
-; (if_statement) @indent.begin
-; (if_statement
-;   (block) @indent.branch)
-(if_statement) @indent.auto

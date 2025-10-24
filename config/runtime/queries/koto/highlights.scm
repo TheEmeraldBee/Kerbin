@@ -5,11 +5,13 @@
   "*"
   "/"
   "%"
+  "^"
   "+="
   "-="
   "*="
   "/="
   "%="
+  "^="
   "=="
   "!="
   "<"
@@ -22,7 +24,9 @@
   (null_check)
 ] @operator
 
-"let" @keyword
+[
+  "let"
+] @keyword
 
 [
   "and"
@@ -33,7 +37,7 @@
 [
   "return"
   "yield"
-] @keyword.return
+] @keyword.control.return
 
 [
   "if"
@@ -42,7 +46,7 @@
   "else if"
   "match"
   "switch"
-] @keyword.conditional
+] @keyword.control.conditional
 
 [
   (break)
@@ -52,21 +56,21 @@
   "loop"
   "until"
   "while"
-] @keyword.repeat
+] @keyword.control.repeat
 
 [
   "throw"
   "try"
   "catch"
   "finally"
-] @keyword.exception
+] @keyword.control.exception
 
 [
   "export"
   "from"
   "import"
   "as"
-] @keyword.import
+] @keyword.control.import
 
 [
   "("
@@ -78,31 +82,45 @@
   "|"
 ] @punctuation.bracket
 
+(string (interpolation ["{" "}"] @punctuation.special))
+
+[
+  ";"
+  ":"
+  ","
+] @punctuation.delimiter
+
 (identifier) @variable
 
 (import_module
-  (identifier) @module)
+  (identifier) @namespace)
 
 (import_item
-  (identifier) @module)
+  (identifier) @namespace)
 
 (export
-  (identifier) @module)
+  (identifier) @namespace)
 
 (chain
-  lookup: (identifier) @variable.member)
+  start: (identifier) @function)
 
 (chain
-  start: (identifier) @function.call)
+  (lookup (identifier)) @variable.other.member)
+
+(call
+  function: (identifier)) @function
+
+(call_arg
+  (identifier) @variable.other.member)
 
 [
   (true)
   (false)
-] @boolean
+] @constant.builtin.boolean
 
-(comment) @comment @spell
+(comment) @comment
 
-(debug) @keyword.debug
+(debug) @keyword
 
 (string) @string
 
@@ -110,29 +128,29 @@
 
 (alignment) @operator
 
-(escape) @string.escape
+(escape) @constant.character.escape
 
 (null) @constant.builtin
 
-(number) @number
+(number) @constant.numeric
 
 (meta) @keyword.directive
 
 (meta
-  name: (identifier) @variable.member)
+  name: (identifier) @variable.other.member)
 
 (entry_inline
-  key: (identifier) @variable.member)
+  key: (identifier) @variable.other.member)
 
 (entry_block
-  key: (identifier) @variable.member)
+  key: (identifier) @variable.other.member)
 
 (self) @variable.builtin
 
-(arg
-  (identifier) @variable.parameter)
-
-(ellipsis) @variable.parameter
-
 (type
   _ @type)
+
+(arg
+  (_ (identifier) @variable.parameter))
+
+(ellipsis) @variable.parameter
