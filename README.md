@@ -91,6 +91,9 @@ kerbin-install --update
     - This allows for drastically simpler bindings for many shared binding types, as well as allowing users to create even more powerful editing systems quickly without
     sacrificing time to write out the same bindings over and over again.
 
+# Thank You
+- [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter?tab=readme-ov-file) : The default queries built into the config
+
 ---
 
 # 🗺  Roadmap 🗺
