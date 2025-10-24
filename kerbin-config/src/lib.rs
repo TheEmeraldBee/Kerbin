@@ -492,7 +492,7 @@ impl Config {
             }
         };
 
-        let mut inputs = state.lock_state::<InputConfig>().await.unwrap();
+        let mut inputs = state.lock_state::<InputConfig>().await;
         for input in self.keybindings {
             inputs.register_input(kerbin_core::Input {
                 valid_modes: input.modes,
@@ -503,7 +503,7 @@ impl Config {
             });
         }
 
-        let mut theme = state.lock_state::<Theme>().await.unwrap();
+        let mut theme = state.lock_state::<Theme>().await;
         for (name, unresolved_style) in self.theme.into_iter() {
             match unresolved_style.resolve(&palette) {
                 Ok(style) => theme.register(name, style),
@@ -511,7 +511,7 @@ impl Config {
             }
         }
 
-        let mut prefixes = state.lock_state::<CommandPrefixRegistry>().await.unwrap();
+        let mut prefixes = state.lock_state::<CommandPrefixRegistry>().await;
 
         for prefix in self.prefixes.into_iter() {
             prefixes.register(CommandPrefix {
@@ -526,7 +526,6 @@ impl Config {
         state
             .lock_state::<PluginConfig>()
             .await
-            .unwrap()
             .0
             .extend(self.plugin_config);
     }

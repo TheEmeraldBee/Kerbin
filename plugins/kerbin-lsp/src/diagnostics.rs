@@ -72,7 +72,7 @@ pub async fn publish_diagnostics(state: &State, msg: &JsonRpcMessage) {
     if let crate::JsonRpcMessage::Notification(notif) = msg
         && let Ok(params) = serde_json::from_value::<PublishDiagnosticsParams>(notif.params.clone())
     {
-        let mut diagnostics_state = state.lock_state::<DiagnosticsState>().await.unwrap();
+        let mut diagnostics_state = state.lock_state::<DiagnosticsState>().await;
         diagnostics_state
             .diagnostics
             .insert(params.uri.to_string(), params.diagnostics);

@@ -41,7 +41,7 @@ pub async fn register_lang(
     let exts: Vec<String> = extensions.into_iter().map(|e| e.to_string()).collect();
 
     // Register with the manager
-    let mut manager = state.lock_state::<LspManager>().await.unwrap();
+    let mut manager = state.lock_state::<LspManager>().await;
     manager.register_language(&name, exts.clone(), info);
     drop(manager);
 
@@ -67,17 +67,14 @@ pub async fn init(state: &mut State) {
         .state(DiagnosticsState::default());
 
     {
-        let mut command_registry = state.lock_state::<CommandRegistry>().await.unwrap();
+        let mut command_registry = state.lock_state::<CommandRegistry>().await;
 
         command_registry.register::<HoverCommand>();
     }
 
     // Setup global state handlers
     {
-        let mut handler_manager = state
-            .lock_state::<crate::LspHandlerManager>()
-            .await
-            .unwrap();
+        let mut handler_manager = state.lock_state::<crate::LspHandlerManager>().await;
 
         handler_manager.on_global_notify("textDocument/publishDiagnostics", |state, msg| {
             Box::pin(publish_diagnostics(state, msg))

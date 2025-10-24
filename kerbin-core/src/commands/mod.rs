@@ -24,6 +24,9 @@ pub use cursor::*;
 mod palette;
 pub use palette::*;
 
+mod registers;
+pub use registers::*;
+
 /// Type alias for a command parsing function.
 ///
 /// This defines the signature required for functions that can parse a slice of

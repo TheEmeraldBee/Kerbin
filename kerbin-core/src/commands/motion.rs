@@ -71,7 +71,7 @@ pub enum MotionCommand {
 #[async_trait::async_trait]
 impl Command for MotionCommand {
     async fn apply(&self, state: &mut State) -> bool {
-        let mut buffers = state.lock_state::<Buffers>().await.unwrap();
+        let mut buffers = state.lock_state::<Buffers>().await;
         let mut cur_buffer = buffers.cur_buffer_mut().await;
 
         let rope_len_bytes = cur_buffer.rope.len();

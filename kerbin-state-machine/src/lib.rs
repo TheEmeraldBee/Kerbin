@@ -103,25 +103,6 @@ impl HookInfo {
     }
 }
 
-#[macro_export]
-macro_rules! get {
-    (@inner $name:ident $(, $($t:tt)+)?) => {
-        let $name = $name.get();
-        get!(@inner $($($t)+)?)
-    };
-    (@inner mut $name:ident $(, $($t:tt)+)?) => {
-        let mut $name = $name.get();
-        get!(@inner $($($t)*)?)
-    };
-    (@inner $($t:tt)+) => {
-        compile_error!("Expected comma-separated list of (mut item) or (item), but got an error while parsing. Make sure you don't have a trailing `,`");
-    };
-    (@inner) => {};
-    ($($t:tt)*) => {
-        get!(@inner $($t)*)
-    };
-}
-
 #[derive(Default)]
 pub struct State {
     pub storage: StateStorage,
@@ -143,17 +124,15 @@ impl State {
         self
     }
 
-    pub async fn lock_state<'a, S: StateName + StaticState>(
-        &'a self,
-    ) -> Option<RwLockWriteGuard<'a, S>> {
-        Some(
-            self.storage
-                .states
-                .get(&S::static_name())?
-                .downcast::<S>()?
-                .write()
-                .await,
-        )
+    pub async fn lock_state<'a, S: StateName + StaticState>(&'a self) -> RwLockWriteGuard<'a, S> {
+        self.storage
+            .states
+            .get(&S::static_name())
+            .expect("Type should be in state")
+            .downcast::<S>()
+            .expect("Stored type should be downcastable")
+            .write()
+            .await
     }
 
     pub fn set_hook<H: Hook, I, D, S: System + Send + Sync + 'static>(

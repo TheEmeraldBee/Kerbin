@@ -203,7 +203,7 @@ enum LogCommand {
     Remove(MessageId),
 }
 
-#[derive(State)]
+#[derive(State, Clone)]
 pub struct LogSender {
     sender: UnboundedSender<LogCommand>,
     next_id: std::sync::Arc<std::sync::atomic::AtomicU64>,

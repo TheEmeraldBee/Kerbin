@@ -96,19 +96,9 @@ pub enum ShellCommand {
 #[async_trait::async_trait]
 impl Command for ShellCommand {
     async fn apply(&self, state: &mut State) -> bool {
-        let uuid = state
-            .lock_state::<SessionUuid>()
-            .await
-            .unwrap()
-            .0
-            .to_string();
-        let config_folder = state.lock_state::<ConfigFolder>().await.unwrap().0.clone();
-        let cur_buf = state
-            .lock_state::<Buffers>()
-            .await
-            .unwrap()
-            .cur_buffer()
-            .await;
+        let uuid = state.lock_state::<SessionUuid>().await.0.to_string();
+        let config_folder = state.lock_state::<ConfigFolder>().await.0.clone();
+        let cur_buf = state.lock_state::<Buffers>().await.cur_buffer().await;
 
         let mut replacements = HashMap::new();
         replacements.insert("session".to_string(), uuid);
@@ -155,7 +145,7 @@ impl Command for ShellCommand {
                 }
             }
             Self::InPlace(args) => {
-                let mut window = state.lock_state::<WindowState>().await.unwrap();
+                let mut window = state.lock_state::<WindowState>().await;
                 window.restore().unwrap();
 
                 // Apply replacements to all arguments

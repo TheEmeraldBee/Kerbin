@@ -40,7 +40,6 @@ pub async fn register_lang(
         state
             .lock_state::<GrammarManager>()
             .await
-            .unwrap()
             .register_extension(ext, &name);
     }
 }
@@ -225,7 +224,7 @@ pub async fn cleanup_dirty(ts_states: ResMut<TreeSitterStates>, buffers: Res<Buf
 }
 
 pub async fn init(state: &mut State) {
-    let config_path = state.lock_state::<ConfigFolder>().await.unwrap().0.clone();
+    let config_path = state.lock_state::<ConfigFolder>().await.0.clone();
 
     state
         .state(TreeSitterStates::default())
@@ -241,7 +240,7 @@ pub async fn init(state: &mut State) {
     state.on_hook(hooks::UpdateCleanup).system(cleanup_dirty);
 
     {
-        let mut commands = state.lock_state::<CommandRegistry>().await.unwrap();
+        let mut commands = state.lock_state::<CommandRegistry>().await;
         commands.register::<TSCommand>();
         commands.register::<TSManagementCommands>();
     }

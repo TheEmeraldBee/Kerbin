@@ -32,8 +32,8 @@ pub struct ProcessLspEventsCommand;
 #[async_trait::async_trait]
 impl kerbin_core::Command for ProcessLspEventsCommand {
     async fn apply(&self, state: &mut State) -> bool {
-        let mut lsp_manager = state.lock_state::<LspManager>().await.unwrap();
-        let handler_manager = state.lock_state::<LspHandlerManager>().await.unwrap();
+        let mut lsp_manager = state.lock_state::<LspManager>().await;
+        let handler_manager = state.lock_state::<LspHandlerManager>().await;
 
         // Process events for all active clients
         for (_lang, client) in lsp_manager.client_map.iter_mut() {
@@ -165,7 +165,7 @@ pub async fn process_lsp_events(
 }
 
 pub async fn log_init(state: &State, msg: &JsonRpcMessage) {
-    let log = state.lock_state::<LogSender>().await.unwrap();
+    let log = state.lock_state::<LogSender>().await;
     if let crate::JsonRpcMessage::Notification(notif) = msg
         && let Some(value) = notif.params.get("value")
         && let Some(kind) = value.get("kind").and_then(|k| k.as_str())

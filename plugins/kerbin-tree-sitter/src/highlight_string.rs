@@ -5,14 +5,14 @@ use crate::{GrammarManager, TextProviderRope, highlight};
 use kerbin_core::{Theme, ascii_forge::window::ContentStyle};
 
 /// Represents a line with styled segments
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct StyledLine {
     pub segments: Vec<(String, ContentStyle)>,
 }
 
 impl StyledLine {
     pub fn new() -> Self {
-        Self { segments: vec![] }
+        Self::default()
     }
 
     pub fn push(&mut self, text: String, style: ContentStyle) {

@@ -293,28 +293,26 @@ pub async fn handle_inputs(
     let mut consumed = false;
     if mode == 'i' {
         for event in window.events() {
-            match event {
-                Event::Key(KeyEvent {
-                    code: KeyCode::Char(chr),
-                    modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
-                    ..
-                }) => {
-                    consumed = true;
+            if let Event::Key(KeyEvent {
+                code: KeyCode::Char(chr),
+                modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
+                ..
+            }) = event
+            {
+                consumed = true;
 
-                    // Existing character handling
-                    let registry = prefix_registry.get().await;
-                    let command = command_registry.get().await.parse_command(
-                        CommandRegistry::split_command(&format!("a '{chr}' false")),
-                        true,
-                        false,
-                        &registry,
-                        &modes,
-                    );
-                    if let Some(command) = command {
-                        command_sender.get().await.send(command).unwrap();
-                    }
+                // Existing character handling
+                let registry = prefix_registry.get().await;
+                let command = command_registry.get().await.parse_command(
+                    CommandRegistry::split_command(&format!("a '{chr}' false")),
+                    true,
+                    false,
+                    &registry,
+                    &modes,
+                );
+                if let Some(command) = command {
+                    command_sender.get().await.send(command).unwrap();
                 }
-                _ => {}
             }
         }
     }

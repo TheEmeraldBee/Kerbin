@@ -189,10 +189,10 @@ impl Command for TSCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             Self::Newline(extend) => {
-                let buffers = state.lock_state::<Buffers>().await.unwrap();
-                let ts_states = state.lock_state::<TreeSitterStates>().await.unwrap();
-                let mut grammars = state.lock_state::<GrammarManager>().await.unwrap();
-                let plugin_config = state.lock_state::<PluginConfig>().await.unwrap();
+                let buffers = state.lock_state::<Buffers>().await;
+                let ts_states = state.lock_state::<TreeSitterStates>().await;
+                let mut grammars = state.lock_state::<GrammarManager>().await;
+                let plugin_config = state.lock_state::<PluginConfig>().await;
 
                 let buffer = buffers.cur_buffer().await;
 
@@ -247,7 +247,6 @@ impl Command for TSCommand {
                 state
                     .lock_state::<CommandSender>()
                     .await
-                    .unwrap()
                     .send(Box::new(BufferCommand::Append(
                         format!("\n{}", new_indent_str),
                         extend.unwrap_or(false),

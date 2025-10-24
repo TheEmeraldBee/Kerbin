@@ -18,7 +18,7 @@ pub enum PaletteCommand {
 #[async_trait::async_trait]
 impl Command for PaletteCommand {
     async fn apply(&self, state: &mut State) -> bool {
-        let mut palette = state.lock_state::<CommandPaletteState>().await.unwrap();
+        let mut palette = state.lock_state::<CommandPaletteState>().await;
 
         match self {
             Self::PushPalette(content) => {
@@ -34,22 +34,17 @@ impl Command for PaletteCommand {
             Self::ExecutePalette => {
                 let content = palette.input.clone();
                 drop(palette);
-                let command = state
-                    .lock_state::<CommandRegistry>()
-                    .await
-                    .unwrap()
-                    .parse_command(
-                        CommandRegistry::split_command(&content),
-                        true,
-                        false,
-                        &state.lock_state::<CommandPrefixRegistry>().await.unwrap(),
-                        &state.lock_state::<ModeStack>().await.unwrap(),
-                    );
+                let command = state.lock_state::<CommandRegistry>().await.parse_command(
+                    CommandRegistry::split_command(&content),
+                    true,
+                    false,
+                    &*state.lock_state::<CommandPrefixRegistry>().await,
+                    &*state.lock_state::<ModeStack>().await,
+                );
                 if let Some(command) = command {
                     state
                         .lock_state::<CommandSender>()
                         .await
-                        .unwrap()
                         .send(command)
                         .unwrap();
                 }

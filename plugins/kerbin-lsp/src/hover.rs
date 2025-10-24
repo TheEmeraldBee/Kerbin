@@ -16,23 +16,12 @@ use crate::{JsonRpcMessage, LspManager, OpenedFiles};
 pub use kerbin_tree_sitter::highlight_string::StyledLine;
 
 /// Per-buffer hover information
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct BufferHoverInfo {
     pub hover: Option<Hover>,
     pub position: Option<usize>,
     pub scroll_offset: usize,
     pub total_lines: usize,
-}
-
-impl Default for BufferHoverInfo {
-    fn default() -> Self {
-        Self {
-            hover: None,
-            position: None,
-            scroll_offset: 0,
-            total_lines: 0,
-        }
-    }
 }
 
 #[derive(Default, State)]
@@ -71,15 +60,10 @@ impl Command for HoverCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             Self::Hover => {
-                let mut lsp_manager = state.lock_state::<LspManager>().await.unwrap();
-                let mut hover_state = state.lock_state::<HoverState>().await.unwrap();
-                let mut opened_files = state.lock_state::<OpenedFiles>().await.unwrap();
-                let buf = state
-                    .lock_state::<Buffers>()
-                    .await
-                    .unwrap()
-                    .cur_buffer()
-                    .await;
+                let mut lsp_manager = state.lock_state::<LspManager>().await;
+                let mut hover_state = state.lock_state::<HoverState>().await;
+                let mut opened_files = state.lock_state::<OpenedFiles>().await;
+                let buf = state.lock_state::<Buffers>().await.cur_buffer().await;
 
                 let file_path = buf.path.clone();
 
@@ -127,8 +111,8 @@ impl Command for HoverCommand {
             }
 
             Self::ScrollUp(amount) => {
-                let mut hover_state = state.lock_state::<HoverState>().await.unwrap();
-                let buffers = state.lock_state::<Buffers>().await.unwrap();
+                let mut hover_state = state.lock_state::<HoverState>().await;
+                let buffers = state.lock_state::<Buffers>().await;
                 let buf = buffers.cur_buffer().await;
                 let file_path = buf.path.clone();
 
@@ -148,8 +132,8 @@ impl Command for HoverCommand {
             }
 
             Self::ScrollDown(amount) => {
-                let mut hover_state = state.lock_state::<HoverState>().await.unwrap();
-                let buffers = state.lock_state::<Buffers>().await.unwrap();
+                let mut hover_state = state.lock_state::<HoverState>().await;
+                let buffers = state.lock_state::<Buffers>().await;
                 let buf = buffers.cur_buffer().await;
                 let file_path = buf.path.clone();
 
@@ -170,8 +154,8 @@ impl Command for HoverCommand {
             }
 
             Self::ScrollTop => {
-                let mut hover_state = state.lock_state::<HoverState>().await.unwrap();
-                let buffers = state.lock_state::<Buffers>().await.unwrap();
+                let mut hover_state = state.lock_state::<HoverState>().await;
+                let buffers = state.lock_state::<Buffers>().await;
                 let buf = buffers.cur_buffer().await;
                 let file_path = buf.path.clone();
 
@@ -188,8 +172,8 @@ impl Command for HoverCommand {
             }
 
             Self::ScrollBottom => {
-                let mut hover_state = state.lock_state::<HoverState>().await.unwrap();
-                let buffers = state.lock_state::<Buffers>().await.unwrap();
+                let mut hover_state = state.lock_state::<HoverState>().await;
+                let buffers = state.lock_state::<Buffers>().await;
                 let buf = buffers.cur_buffer().await;
                 let file_path = buf.path.clone();
 
@@ -428,8 +412,7 @@ fn create_hover_buffer(lines: &[StyledLine], theme: &Theme, scroll_offset: usize
         .map(|l| l.width())
         .max()
         .unwrap_or(10)
-        .min(HOVER_MAX_WIDTH)
-        .max(20);
+        .clamp(20, HOVER_MAX_WIDTH);
 
     let visible_lines = wrapped_lines.len().min(MAX_VISIBLE_LINES);
     let height = visible_lines;
@@ -475,7 +458,7 @@ fn create_hover_buffer(lines: &[StyledLine], theme: &Theme, scroll_offset: usize
 
 pub async fn handle_hover(state: &State, msg: &JsonRpcMessage) {
     if let JsonRpcMessage::Response(response) = msg {
-        let mut hover_state = state.lock_state::<HoverState>().await.unwrap();
+        let mut hover_state = state.lock_state::<HoverState>().await;
 
         // Check if this response is for one of our pending hover requests
         if let Some(file_path) = hover_state.pending_requests.remove(&response.id) {
@@ -518,12 +501,12 @@ pub async fn clear_hover_on_move(
     };
 
     // If cursor moved, clear hover and reset scroll
-    if let Some(pos) = hover.position {
-        if cursor != pos {
-            hover.hover = None;
-            hover.position = None;
-            hover.scroll_offset = 0;
-            hover.total_lines = 0;
-        }
+    if let Some(pos) = hover.position
+        && cursor != pos
+    {
+        hover.hover = None;
+        hover.position = None;
+        hover.scroll_offset = 0;
+        hover.total_lines = 0;
     }
 }

@@ -64,10 +64,8 @@ impl GrammarManager {
                 if file_name != query_dir_name {
                     fs::remove_dir_all(path)?;
                 }
-            } else {
-                if !essential_files.contains(&file_name.to_string()) {
-                    fs::remove_file(path)?;
-                }
+            } else if !essential_files.contains(&file_name.to_string()) {
+                fs::remove_file(path)?;
             }
         }
 
@@ -88,15 +86,16 @@ impl GrammarManager {
     pub fn install_language(config: GrammarInstallConfig) -> Result<String, String> {
         use std::process::Command;
 
-        let is_shared_repo = config.sub_dir.is_some();
-
         let repo_name = config
             .git_url
             .split('/')
-            .last()
+            .next_back()
             .unwrap_or(&config.lang_name)
             .replace(".git", "");
-        let repo_clone_dir = config.base_path.join(&repo_name);
+
+        // Clone into a separate build directory
+        let build_root = config.base_path.join(".build");
+        let repo_clone_dir = build_root.join(&repo_name);
 
         let build_dir = config
             .sub_dir
@@ -113,13 +112,12 @@ impl GrammarManager {
                 .map_err(|e| format!("Failed to clean up existing grammar directory: {e}"))?;
         }
 
-        if !is_shared_repo && repo_clone_dir.exists() {
-            fs::remove_dir_all(&repo_clone_dir)
-                .map_err(|e| format!("Failed to clean up existing grammar directory: {e}"))?;
-        }
-
         let result = (|| {
             if !repo_clone_dir.exists() {
+                // Ensure the build root directory exists
+                fs::create_dir_all(&build_root)
+                    .map_err(|e| format!("Failed to create build directory: {e}"))?;
+
                 tracing::info!("Cloning {} into {:?}", config.git_url, repo_clone_dir);
                 let output = Command::new("git")
                     .arg("clone")
@@ -241,18 +239,12 @@ impl GrammarManager {
             Self::cleanup_grammar_directory(&final_grammar_dir, lang_name)
                 .map_err(|e| format!("Failed to cleanup build dir {e}"))?;
 
-            if repo_clone_dir != final_grammar_dir {
-                std::fs::remove_dir_all(&repo_clone_dir).unwrap();
-            }
-
             Ok(config.lang_name)
         })();
 
-        if result.is_err() && repo_clone_dir.exists() && !is_shared_repo {
-            tracing::error!(
-                "Installation failed. Cleaning up potentially corrupted directory: {:?}",
-                repo_clone_dir
-            );
+        // Always clean up the build directory after installation (success or failure)
+        if repo_clone_dir.exists() {
+            tracing::debug!("Cleaning up build directory: {:?}", repo_clone_dir);
             fs::remove_dir_all(&repo_clone_dir).ok();
         }
 
@@ -318,7 +310,7 @@ impl GrammarManager {
             path2.push(component);
         }
 
-        let paths_to_check = vec![path1, path2];
+        let paths_to_check = vec![path2, path1]; // Go by ../queries first
 
         let mut found_path: Option<PathBuf> = None;
 

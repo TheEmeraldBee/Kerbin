@@ -111,14 +111,14 @@ async fn update(state: &mut State) {
     state.hook(hooks::PostUpdate).call().await;
 
     // Clear the chunks for the next frame (allows for conditional chunks)
-    state.lock_state::<Chunks>().await.unwrap().clear();
+    state.lock_state::<Chunks>().await.clear();
 
     // Register all chunks for rendering
     state.hook(hooks::ChunkRegister).call().await;
 
     // Call the file renderer
     let filetype = {
-        let bufs = state.lock_state::<Buffers>().await.unwrap();
+        let bufs = state.lock_state::<Buffers>().await;
         bufs.cur_buffer().await.ext.clone()
     };
 
@@ -222,7 +222,6 @@ async fn main() {
             state
                 .lock_state::<LogSender>()
                 .await
-                .unwrap()
                 .critical("core::config_load", e);
         }
     }
@@ -233,7 +232,7 @@ async fn main() {
 
     // Register command types
     {
-        let mut commands = state.lock_state::<CommandRegistry>().await.unwrap();
+        let mut commands = state.lock_state::<CommandRegistry>().await;
 
         commands.register::<BufferCommand>();
         commands.register::<CommitCommand>();
@@ -248,13 +247,15 @@ async fn main() {
         commands.register::<MotionCommand>();
 
         commands.register::<ShellCommand>();
+
+        commands.register::<RegisterCommand>();
     }
 
     {
-        let commands = state.lock_state::<CommandRegistry>().await.unwrap();
-        let command_sender = state.lock_state::<CommandSender>().await.unwrap();
-        let prefix_registry = state.lock_state::<CommandPrefixRegistry>().await.unwrap();
-        let modes = state.lock_state::<ModeStack>().await.unwrap();
+        let commands = state.lock_state::<CommandRegistry>().await;
+        let command_sender = state.lock_state::<CommandSender>().await;
+        let prefix_registry = state.lock_state::<CommandPrefixRegistry>().await;
+        let modes = state.lock_state::<ModeStack>().await;
 
         for string in command_strings {
             let words = CommandRegistry::split_command(&string);
@@ -305,10 +306,10 @@ async fn main() {
         let frame_start = tokio::time::Instant::now();
 
         {
-            let commands = state.lock_state::<CommandRegistry>().await.unwrap();
-            let command_sender = state.lock_state::<CommandSender>().await.unwrap();
-            let prefix_registry = state.lock_state::<CommandPrefixRegistry>().await.unwrap();
-            let modes = state.lock_state::<ModeStack>().await.unwrap();
+            let commands = state.lock_state::<CommandRegistry>().await;
+            let command_sender = state.lock_state::<CommandSender>().await;
+            let prefix_registry = state.lock_state::<CommandPrefixRegistry>().await;
+            let modes = state.lock_state::<ModeStack>().await;
 
             while let Some(item) = queue.try_recv::<String>().unwrap() {
                 let words = CommandRegistry::split_command(&item);
@@ -328,7 +329,7 @@ async fn main() {
         // Run the update cycle
         update(&mut state).await;
 
-        if !state.lock_state::<Running>().await.unwrap().0 {
+        if !state.lock_state::<Running>().await.0 {
             break;
         }
 
@@ -349,7 +350,7 @@ async fn main() {
         }
 
         {
-            let mut window = state.lock_state::<WindowState>().await.unwrap();
+            let mut window = state.lock_state::<WindowState>().await;
             match window.update(Duration::from_millis(0)) {
                 Ok(_) => {}
                 Err(e) => {
@@ -362,7 +363,6 @@ async fn main() {
     state
         .lock_state::<WindowState>()
         .await
-        .unwrap()
         .restore()
         .expect("Window should restore fine");
 

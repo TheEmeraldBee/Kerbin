@@ -32,28 +32,22 @@ impl Command for CommitCommand {
                 state
                     .lock_state::<Buffers>()
                     .await
-                    .unwrap()
                     .cur_buffer_mut()
                     .await
                     .start_change_group();
 
                 if let Some(after) = after {
-                    let command = state
-                        .lock_state::<CommandRegistry>()
-                        .await
-                        .unwrap()
-                        .parse_command(
-                            after.clone(),
-                            true,
-                            false,
-                            &state.lock_state::<CommandPrefixRegistry>().await.unwrap(),
-                            &state.lock_state::<ModeStack>().await.unwrap(),
-                        );
+                    let command = state.lock_state::<CommandRegistry>().await.parse_command(
+                        after.clone(),
+                        true,
+                        false,
+                        &*state.lock_state::<CommandPrefixRegistry>().await,
+                        &*state.lock_state::<ModeStack>().await,
+                    );
                     if let Some(command) = command {
                         state
                             .lock_state::<CommandSender>()
                             .await
-                            .unwrap()
                             .send(command)
                             .unwrap();
                     }
@@ -63,7 +57,6 @@ impl Command for CommitCommand {
                 state
                     .lock_state::<Buffers>()
                     .await
-                    .unwrap()
                     .cur_buffer_mut()
                     .await
                     .commit_change_group();
@@ -159,9 +152,9 @@ pub enum BufferCommand {
 #[async_trait::async_trait]
 impl Command for BufferCommand {
     async fn apply(&self, state: &mut State) -> bool {
-        let mut buffers = state.lock_state::<Buffers>().await.unwrap();
+        let mut buffers = state.lock_state::<Buffers>().await;
 
-        let log = state.lock_state::<LogSender>().await.unwrap();
+        let log = state.lock_state::<LogSender>().await;
 
         let mut cur_buffer = buffers.cur_buffer_mut().await;
 
@@ -401,8 +394,8 @@ pub enum BuffersCommand {
 #[async_trait::async_trait]
 impl Command for BuffersCommand {
     async fn apply(&self, state: &mut State) -> bool {
-        let mut buffers = state.lock_state::<Buffers>().await.unwrap();
-        let log = state.lock_state::<LogSender>().await.unwrap();
+        let mut buffers = state.lock_state::<Buffers>().await;
+        let log = state.lock_state::<LogSender>().await;
 
         match self {
             Self::OpenFile(path) => {

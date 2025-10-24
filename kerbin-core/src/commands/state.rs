@@ -25,8 +25,8 @@ impl Command for StateCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match *self {
             Self::Quit => {
-                let bufs = state.lock_state::<Buffers>().await.unwrap();
-                let log = state.lock_state::<LogSender>().await.unwrap();
+                let bufs = state.lock_state::<Buffers>().await;
+                let log = state.lock_state::<LogSender>().await;
                 for buf in &bufs.buffers {
                     if buf.read().await.dirty {
                         log.medium(
@@ -38,18 +38,17 @@ impl Command for StateCommand {
                         return false;
                     }
                 }
-                state.lock_state::<Running>().await.unwrap().0 = false;
+                state.lock_state::<Running>().await.0 = false;
             }
             Self::QuitForce => {
-                state.lock_state::<Running>().await.unwrap().0 = false;
+                state.lock_state::<Running>().await.0 = false;
             }
 
             Self::LogSessionId => {
-                let session_uuid = state.lock_state::<SessionUuid>().await.unwrap().0;
+                let session_uuid = state.lock_state::<SessionUuid>().await.0;
                 state
                     .lock_state::<LogSender>()
                     .await
-                    .unwrap()
                     .high("command::log_session", session_uuid);
             }
         }
