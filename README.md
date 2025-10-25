@@ -137,6 +137,10 @@ file communication systems
     - [x] Ctrl-Shift-V / Cmd-V Paste Event Support
     - [ ] Clipboard Copy & Paste Commands
     - [ ] Registers
+- [ ] Command Templating (% based variables in commands)
+    - Extend this to keybindings, allowing for keybindings to come from templates
+    - Allow keybindings to be registered dynamically (kinda)
+        - Lists of items stored in a template item would repeat that keybind system over and over
 - [ ] Editor Support for wrapped text
 - [ ] Mouse Scrolling Support
     - Allow Mapping Scroll Wheel to a command (`scroll_up = "ml -1"`) or something
