@@ -315,21 +315,10 @@ impl GrammarManager {
         Some((language, query))
     }
 
-    /// Gets a query for a given language by name (e.g., "highlight", "indent").
-    /// It loads and caches the query if it hasn't been loaded yet.
-    /// For languages with inheritance, queries are loaded from the child's directory first,
-    /// falling back to the parent if not found.
-    pub fn get_query(&mut self, lang_name: &str, query_name: &str) -> Option<Arc<Query>> {
+    /// Helper function to find a query file path given a language name and query name.
+    /// Returns the first existing path from the list of candidates.
+    fn find_query_path(&self, lang_name: &str, query_name: &str) -> Option<PathBuf> {
         let normalized_lang = Self::normalize_lang_name(lang_name);
-        let grammar_name = self.get_grammar_name(lang_name);
-        let language = self.get_language(&grammar_name)?;
-
-        // Cache check
-        if let Some(queries) = self.loaded_queries.get(&normalized_lang)
-            && let Some(query) = queries.get(query_name)
-        {
-            return Some(query.clone());
-        }
 
         let query_filename = if query_name.ends_with('s') {
             format!("{}.scm", query_name.to_lowercase())
@@ -338,12 +327,24 @@ impl GrammarManager {
         };
 
         // Generate possible name variations for directory lookup
+        // We need to check both the original name and all possible transformations
         let mut variants = vec![
+            // Original names as-is
             lang_name.to_string(),
+            // Transform underscores to dashes
             lang_name.replace('_', "-"),
+            // Transform underscores to dots
             lang_name.replace('_', "."),
+            // Normalized version
+            normalized_lang.clone(),
+            // Normalized with dashes
             normalized_lang.replace('_', "-"),
+            // Normalized with dots
             normalized_lang.replace('_', "."),
+            // Also check if original had dashes, convert to underscores
+            lang_name.replace('-', "_"),
+            // And dots
+            lang_name.replace('.', "_"),
         ];
 
         // Ensure uniqueness
@@ -396,72 +397,154 @@ impl GrammarManager {
         }
 
         // Find the first existing path
-        let query_path = paths_to_check.into_iter().find(|p| p.exists())?;
+        paths_to_check.into_iter().find(|p| p.exists())
+    }
+
+    /// Gets a query for a given language by name (e.g., "highlight", "indent").
+    /// It loads and caches the query if it hasn't been loaded yet.
+    /// For languages with inheritance, queries are loaded from the child's directory first,
+    /// falling back to the parent if not found.
+    pub fn get_query(&mut self, lang_name: &str, query_name: &str) -> Option<Arc<Query>> {
+        let normalized_lang = Self::normalize_lang_name(lang_name);
+        let grammar_name = self.get_grammar_name(lang_name);
+        let language = self.get_language(&grammar_name)?;
+
+        // Cache check
+        if let Some(queries) = self.loaded_queries.get(&normalized_lang)
+            && let Some(query) = queries.get(query_name)
+        {
+            return Some(query.clone());
+        }
+
+        // Find the query file
+        let query_path = self.find_query_path(lang_name, query_name)?;
 
         // Try to load it
-        if let Ok(mut query_source) = std::fs::read_to_string(&query_path) {
+        let query_source = std::fs::read_to_string(&query_path).ok()?;
+
+        // Check for inheritance directive (should be on first non-empty, non-comment line)
+        let mut inherited_text = String::new();
+        for line in query_source.lines() {
+            let trimmed = line.trim();
+
+            // Skip empty lines and regular comments
+            if trimmed.is_empty()
+                || (trimmed.starts_with(';')
+                    && !trimmed.starts_with("; inherits:")
+                    && !trimmed.starts_with(";inherits:"))
+            {
+                continue;
+            }
+
             // Check for inheritance directive
-            let mut inherited_text = String::new();
-            if let Some(first_line) = query_source.lines().next() {
-                if let Some(rest) = first_line.strip_prefix("; inherit:") {
-                    let inherited_lang = rest.trim();
-                    tracing::debug!(
-                        "Query '{}' for '{}' inherits from '{}'",
-                        query_name,
-                        normalized_lang,
-                        inherited_lang
-                    );
+            if let Some(rest) = trimmed
+                .strip_prefix("; inherits:")
+                .or_else(|| trimmed.strip_prefix(";inherits:"))
+            {
+                let inherited_langs: Vec<&str> = rest.split(',').map(|s| s.trim()).collect();
 
-                    // Load parent query recursively
-                    if self.get_query(inherited_lang, query_name).is_some() {
-                        // Convert Arc<Query> → String by reading file again from disk (simplest and safe)
-                        let inherited_query_path = self
-                            .base_path
-                            .join(format!("tree-sitter-{}", inherited_lang))
-                            .join("queries")
-                            .join(format!("{}s.scm", query_name));
+                tracing::debug!(
+                    "Query '{}' for '{}' inherits from: {:?}",
+                    query_name,
+                    normalized_lang,
+                    inherited_langs
+                );
 
-                        if let Ok(parent_text) = std::fs::read_to_string(&inherited_query_path) {
-                            inherited_text = parent_text;
+                // Load parent queries recursively
+                for inherited_lang in inherited_langs {
+                    if inherited_lang.is_empty() {
+                        continue;
+                    }
+
+                    // Prevent infinite recursion - don't inherit from self
+                    if Self::normalize_lang_name(inherited_lang) == normalized_lang {
+                        tracing::warn!(
+                            "Circular inheritance detected: '{}' tries to inherit from itself",
+                            normalized_lang
+                        );
+                        continue;
+                    }
+
+                    // Try to find and load the parent query
+                    if let Some(parent_path) = self.find_query_path(inherited_lang, query_name) {
+                        if let Ok(parent_text) = std::fs::read_to_string(&parent_path) {
+                            // Remove inheritance directives from parent to avoid double-processing
+                            let cleaned_parent: String = parent_text
+                                .lines()
+                                .filter(|line| {
+                                    let t = line.trim();
+                                    !t.starts_with("; inherits:") && !t.starts_with(";inherits:")
+                                })
+                                .collect::<Vec<_>>()
+                                .join("\n");
+
+                            if !inherited_text.is_empty() {
+                                inherited_text.push('\n');
+                            }
+                            inherited_text.push_str(&cleaned_parent);
                         } else {
                             tracing::warn!(
-                                "Inherited query file for '{}' not found: {:?}",
+                                "Inherited query file for '{}' not found or unreadable: {:?}",
                                 inherited_lang,
-                                inherited_query_path
+                                parent_path
                             );
                         }
+                    } else {
+                        tracing::warn!(
+                            "Could not find query '{}' for inherited language '{}'",
+                            query_name,
+                            inherited_lang
+                        );
                     }
                 }
+
+                // Break after processing inheritance directive
+                break;
             }
 
-            // Compose inherited + current
-            if !inherited_text.is_empty() {
-                query_source = format!("{inherited_text}\n{query_source}");
+            // If we hit actual query content, stop looking for inheritance
+            if !trimmed.starts_with(';') {
+                break;
             }
-
-            // Compile
-            let query = match Query::new(&language, &query_source) {
-                Ok(q) => Arc::new(q),
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to parse query file for '{}' (query: {}): {:?}",
-                        normalized_lang,
-                        query_name,
-                        e
-                    );
-                    return None;
-                }
-            };
-
-            self.loaded_queries
-                .entry(normalized_lang)
-                .or_default()
-                .insert(query_name.to_string(), query.clone());
-
-            Some(query)
-        } else {
-            None
         }
+
+        // Compose inherited + current (remove inheritance directive from current)
+        let cleaned_current: String = query_source
+            .lines()
+            .filter(|line| {
+                let t = line.trim();
+                !t.starts_with("; inherits:") && !t.starts_with(";inherits:")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let final_source = if !inherited_text.is_empty() {
+            format!("{}\n\n{}", inherited_text, cleaned_current)
+        } else {
+            cleaned_current
+        };
+
+        // Compile the final query
+        let query = match Query::new(&language, &final_source) {
+            Ok(q) => Arc::new(q),
+            Err(e) => {
+                tracing::error!(
+                    "Failed to parse query file for '{}' (query: {}): {:?}",
+                    normalized_lang,
+                    query_name,
+                    e
+                );
+                tracing::debug!("Query source:\n{}", final_source);
+                return None;
+            }
+        };
+
+        self.loaded_queries
+            .entry(normalized_lang)
+            .or_default()
+            .insert(query_name.to_string(), query.clone());
+
+        Some(query)
     }
 
     /// If the language inherits from another, the parent's grammar will be loaded.
