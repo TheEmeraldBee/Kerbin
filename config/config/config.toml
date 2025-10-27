@@ -6,5 +6,9 @@ paths = ["./theme.toml"]
 # Import all keybind modules. This is by default vim style bindings
 paths = ["./vim/init.toml", "./utils/init.toml"]
 
+[[import]]
+# Import all plugin configs
+paths = ["./plugins/init.toml"]
+
 [core]
 framerate = 60

@@ -44,6 +44,32 @@ pub async fn register_lang(
     }
 }
 
+pub async fn register_alias(
+    state: &mut State,
+    base_name: impl ToString,
+    name: impl ToString,
+    exts: impl IntoIterator<Item = impl ToString>,
+) {
+    let base_name = base_name.to_string();
+    let name = name.to_string();
+
+    state
+        .lock_state::<GrammarManager>()
+        .await
+        .register_language_inheritance(&name, &base_name);
+
+    for ext in exts.into_iter() {
+        state
+            .on_hook(hooks::UpdateFiletype::new(ext.to_string()))
+            .system(render_tree_sitter_extmarks);
+
+        state
+            .lock_state::<GrammarManager>()
+            .await
+            .register_extension(ext, &name);
+    }
+}
+
 pub async fn sync_buffer_changes_to_ts(
     states: ResMut<TreeSitterStates>,
     grammars: ResMut<GrammarManager>,
@@ -243,5 +269,41 @@ pub async fn init(state: &mut State) {
         let mut commands = state.lock_state::<CommandRegistry>().await;
         commands.register::<TSCommand>();
         commands.register::<TSManagementCommands>();
+    }
+}
+
+pub async fn register_default(state: &mut State) {
+    let plugin_conf = state.lock_state::<PluginConfig>().await;
+
+    let entries = match plugin_conf.get::<Vec<ConfigEntry>>("tree-sitter-grammars") {
+        None => {
+            return;
+        }
+        Some(Err(e)) => {
+            let log = state.lock_state::<LogSender>().await;
+            log.critical(
+                "tree-sitter::install_all",
+                format!("malformed config in tree-sitter-grammars: {e}"),
+            );
+            return;
+        }
+        Some(Ok(t)) => t,
+    };
+
+    drop(plugin_conf);
+
+    for entry in entries {
+        match entry {
+            ConfigEntry::Language {
+                lang_name,
+                file_extensions,
+                ..
+            } => register_lang(state, lang_name, file_extensions).await,
+            ConfigEntry::Alias {
+                base_name,
+                new_name,
+                file_extensions,
+            } => register_alias(state, base_name, new_name, file_extensions).await,
+        }
     }
 }

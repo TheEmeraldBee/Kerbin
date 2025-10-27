@@ -4,6 +4,7 @@ use std::{
 };
 
 use ascii_forge::window::Window;
+use serde::de::DeserializeOwned;
 use tokio::sync::mpsc::UnboundedSender;
 use toml::Value;
 use uuid::Uuid;
@@ -29,6 +30,14 @@ pub struct Running(pub bool);
 /// This allows plugins to store and retrieve their configurations dynamically.
 #[derive(State)]
 pub struct PluginConfig(pub HashMap<String, Value>);
+
+impl PluginConfig {
+    pub fn get<T: DeserializeOwned>(&self, key: &str) -> Option<Result<T, String>> {
+        self.0
+            .get(key)
+            .map(|x| x.clone().try_into().map_err(|x| format!("{x}")))
+    }
+}
 
 /// State for sending commands through an unbounded MPSC sender.
 ///

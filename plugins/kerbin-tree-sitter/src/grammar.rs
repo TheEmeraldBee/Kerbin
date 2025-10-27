@@ -23,14 +23,21 @@ pub struct GrammarManager {
     /// Base path where grammars are stored, e.g., `{config_path}`
     pub(crate) base_path: PathBuf,
 
-    /// Maps a grammar name to a map of its loaded queries by name (e.g., "highlight").
+    /// Maps a normalized grammar name to a map of its loaded queries by name (e.g., "highlight").
+    /// Keys are normalized (c_sharp, not c.sharp or c-sharp)
     loaded_queries: HashMap<String, HashMap<String, Arc<Query>>>,
 
-    /// Maps a grammar name (e.g., "rust") to its loaded Language object.
+    /// Maps a normalized grammar name (e.g., "rust", "c_sharp") to its loaded Language object.
+    /// Keys are normalized (c_sharp, not c.sharp or c-sharp)
     loaded_grammars: HashMap<String, Language>,
 
-    /// Maps a file extension (e.g., "rs") to a grammar name ("rust").
+    /// Maps a file extension (e.g., "rs") to a normalized grammar name ("rust", "c_sharp").
+    /// Values are normalized for consistency
     pub extension_map: HashMap<String, String>,
+
+    /// Maps a language alias to its parent grammar.
+    /// e.g., "tsx" -> "typescript" means tsx inherits typescript's grammar but has its own queries
+    language_inheritance: HashMap<String, String>,
 }
 
 impl GrammarManager {
@@ -40,16 +47,23 @@ impl GrammarManager {
             loaded_grammars: HashMap::new(),
             loaded_queries: HashMap::new(),
             extension_map: HashMap::new(),
+            language_inheritance: HashMap::new(),
         }
+    }
+
+    /// Normalizes a language name by replacing `-` and `.` with `_`.
+    pub fn normalize_lang_name(name: &str) -> String {
+        name.replace("-", "_").replace(".", "_")
     }
 
     /// Cleans up the grammar directory after a successful build, keeping only the
     /// compiled library and query files.
     fn cleanup_grammar_directory(dir: &Path, lang_name: &str) -> io::Result<()> {
+        let normalized = Self::normalize_lang_name(lang_name);
         let essential_files: Vec<String> = vec![
-            format!("{}.so", lang_name.replace("-", "_")),
-            format!("{}.dll", lang_name.replace("-", "_")),
-            format!("{}.dylib", lang_name.replace("-", "_")),
+            format!("{}.so", normalized),
+            format!("{}.dll", normalized),
+            format!("{}.dylib", normalized),
         ];
 
         let query_dir_name = "queries";
@@ -82,7 +96,7 @@ impl GrammarManager {
     }
 
     /// Installs a language based on the install config
-    /// Installs to the config's runtime/grammars path
+    /// Installs to the config's runtime/grammars path with normalized directory name
     pub fn install_language(config: GrammarInstallConfig) -> Result<String, String> {
         use std::process::Command;
 
@@ -103,9 +117,11 @@ impl GrammarManager {
             .map(|sub| repo_clone_dir.join(sub))
             .unwrap_or_else(|| repo_clone_dir.clone());
 
+        // Use normalized name for the final directory
+        let normalized_lang = Self::normalize_lang_name(&config.lang_name);
         let final_grammar_dir = config
             .base_path
-            .join(format!("tree-sitter-{}", config.lang_name));
+            .join(format!("tree-sitter-{}", normalized_lang));
 
         if final_grammar_dir.exists() {
             fs::remove_dir_all(&final_grammar_dir)
@@ -161,33 +177,31 @@ impl GrammarManager {
                 ));
             }
 
-            let lang_name = &config.lang_name;
-
             let initial_filename_so = format!(
                 "{}.so",
                 config
                     .special_rename
                     .clone()
-                    .unwrap_or(lang_name.replace("-", "_"))
+                    .unwrap_or(normalized_lang.clone())
             );
             let initial_filename_dll = format!(
                 "{}.dll",
                 config
                     .special_rename
                     .clone()
-                    .unwrap_or(lang_name.replace("-", "_"))
+                    .unwrap_or(normalized_lang.clone())
             );
             let initial_filename_dylib = format!(
                 "{}.dylib",
                 config
                     .special_rename
                     .clone()
-                    .unwrap_or(lang_name.replace("-", "_"))
+                    .unwrap_or(normalized_lang.clone())
             );
 
-            let lib_filename_so = format!("{}.so", lang_name.replace("-", "_"));
-            let lib_filename_dll = format!("{}.dll", lang_name.replace("-", "_"));
-            let lib_filename_dylib = format!("{}.dylib", lang_name.replace("-", "_"));
+            let lib_filename_so = format!("{}.so", normalized_lang);
+            let lib_filename_dll = format!("{}.dll", normalized_lang);
+            let lib_filename_dylib = format!("{}.dylib", normalized_lang);
 
             let (initial_compiled_lib_name, compiled_lib_name) = [
                 (initial_filename_so.clone(), lib_filename_so.clone()),
@@ -230,16 +244,16 @@ impl GrammarManager {
             if !queries_moved {
                 tracing::warn!(
                     "Could not find queries for {} in {:?} or {:?}. Continuing.",
-                    lang_name,
+                    normalized_lang,
                     build_dir.join("queries"),
                     build_dir.join("src/queries")
                 );
             }
 
-            Self::cleanup_grammar_directory(&final_grammar_dir, lang_name)
+            Self::cleanup_grammar_directory(&final_grammar_dir, &normalized_lang)
                 .map_err(|e| format!("Failed to cleanup build dir {e}"))?;
 
-            Ok(config.lang_name)
+            Ok(normalized_lang)
         })();
 
         // Always clean up the build directory after installation (success or failure)
@@ -252,8 +266,35 @@ impl GrammarManager {
     }
 
     /// Register an extension to a given language.
+    /// The lang parameter will be normalized automatically (c.sharp -> c_sharp)
     pub fn register_extension(&mut self, ext: impl ToString, lang: impl ToString) {
-        self.extension_map.insert(ext.to_string(), lang.to_string());
+        let normalized_lang = Self::normalize_lang_name(&lang.to_string());
+        self.extension_map.insert(ext.to_string(), normalized_lang);
+    }
+
+    /// Register a language that inherits a grammar from another language.
+    /// The child will use the parent's grammar but can have its own queries.
+    ///
+    /// # Example
+    /// ```
+    /// // tsx inherits typescript's grammar but has its own queries
+    /// grammar_manager.register_language_inheritance("tsx", "typescript");
+    /// ```
+    pub fn register_language_inheritance(&mut self, child: impl ToString, parent: impl ToString) {
+        let normalized_child = Self::normalize_lang_name(&child.to_string());
+        let normalized_parent = Self::normalize_lang_name(&parent.to_string());
+        self.language_inheritance
+            .insert(normalized_child, normalized_parent);
+    }
+
+    /// Gets the grammar name to use for loading the actual grammar.
+    /// If the language has a parent, returns the parent's name.
+    fn get_grammar_name(&self, lang_name: &str) -> String {
+        let normalized = Self::normalize_lang_name(lang_name);
+        self.language_inheritance
+            .get(&normalized)
+            .cloned()
+            .unwrap_or(normalized)
     }
 
     /// Gets a language for a given file extension, loading it if necessary.
@@ -276,60 +317,135 @@ impl GrammarManager {
 
     /// Gets a query for a given language by name (e.g., "highlight", "indent").
     /// It loads and caches the query if it hasn't been loaded yet.
+    /// For languages with inheritance, queries are loaded from the child's directory first,
+    /// falling back to the parent if not found.
     pub fn get_query(&mut self, lang_name: &str, query_name: &str) -> Option<Arc<Query>> {
-        let language = self.get_language(lang_name)?;
+        let normalized_lang = Self::normalize_lang_name(lang_name);
+        let grammar_name = self.get_grammar_name(lang_name);
+        let language = self.get_language(&grammar_name)?;
 
-        if let Some(queries) = self.loaded_queries.get(lang_name)
+        // Cache check
+        if let Some(queries) = self.loaded_queries.get(&normalized_lang)
             && let Some(query) = queries.get(query_name)
         {
             return Some(query.clone());
         }
 
-        let query_filename = if query_name.ends_with("s") {
+        let query_filename = if query_name.ends_with('s') {
             format!("{}.scm", query_name.to_lowercase())
         } else {
             format!("{}s.scm", query_name.to_lowercase())
         };
 
-        // Define all the query path components separately for clarity
-        let query_dir_components: [String; 3] = [
-            "queries".to_string(),
+        // Generate possible name variations for directory lookup
+        let mut variants = vec![
             lang_name.to_string(),
-            query_filename.clone(),
+            lang_name.replace('_', "-"),
+            lang_name.replace('_', "."),
+            normalized_lang.replace('_', "-"),
+            normalized_lang.replace('_', "."),
         ];
 
-        let path1 = self
-            .base_path
-            .join(format!("tree-sitter-{}", lang_name))
-            .join("queries")
-            .join(query_filename);
+        // Ensure uniqueness
+        variants.sort();
+        variants.dedup();
 
-        let mut path2 = self.base_path.join(".."); // Go up one directory
-        for component in query_dir_components {
-            // Add "queries", lang_name, query_filename
-            path2.push(component);
+        let mut paths_to_check = Vec::new();
+
+        // Add search paths for each variant
+        for variant in &variants {
+            // Shared child query dir
+            paths_to_check.push(
+                self.base_path
+                    .join("..")
+                    .join("queries")
+                    .join(variant)
+                    .join(&query_filename),
+            );
+            // Child grammar query dir
+            paths_to_check.push(
+                self.base_path
+                    .join(format!("tree-sitter-{}", variant))
+                    .join("queries")
+                    .join(&query_filename),
+            );
         }
 
-        let paths_to_check = vec![path2, path1]; // Go by ../queries first
-
-        let mut found_path: Option<PathBuf> = None;
-
-        for path in paths_to_check {
-            if path.exists() {
-                found_path = Some(path);
-                break; // Stop checking once found
+        // If inherited, do the same for the parent
+        if let Some(parent_name) = self.language_inheritance.get(&normalized_lang) {
+            let parent_variants = vec![
+                parent_name.clone(),
+                parent_name.replace('_', "-"),
+                parent_name.replace('_', "."),
+            ];
+            for variant in parent_variants {
+                paths_to_check.push(
+                    self.base_path
+                        .join("..")
+                        .join("queries")
+                        .join(&variant)
+                        .join(&query_filename),
+                );
+                paths_to_check.push(
+                    self.base_path
+                        .join(format!("tree-sitter-{}", variant))
+                        .join("queries")
+                        .join(&query_filename),
+                );
             }
         }
 
-        let query_path = found_path?;
+        // Find the first existing path
+        let query_path = paths_to_check.into_iter().find(|p| p.exists())?;
 
-        if let Ok(query_source) = std::fs::read_to_string(query_path) {
+        // Try to load it
+        if let Ok(mut query_source) = std::fs::read_to_string(&query_path) {
+            // Check for inheritance directive
+            let mut inherited_text = String::new();
+            if let Some(first_line) = query_source.lines().next() {
+                if let Some(rest) = first_line.strip_prefix("; inherit:") {
+                    let inherited_lang = rest.trim();
+                    tracing::debug!(
+                        "Query '{}' for '{}' inherits from '{}'",
+                        query_name,
+                        normalized_lang,
+                        inherited_lang
+                    );
+
+                    // Load parent query recursively
+                    if self.get_query(inherited_lang, query_name).is_some() {
+                        // Convert Arc<Query> → String by reading file again from disk (simplest and safe)
+                        let inherited_query_path = self
+                            .base_path
+                            .join(format!("tree-sitter-{}", inherited_lang))
+                            .join("queries")
+                            .join(format!("{}s.scm", query_name));
+
+                        if let Ok(parent_text) = std::fs::read_to_string(&inherited_query_path) {
+                            inherited_text = parent_text;
+                        } else {
+                            tracing::warn!(
+                                "Inherited query file for '{}' not found: {:?}",
+                                inherited_lang,
+                                inherited_query_path
+                            );
+                        }
+                    }
+                }
+            }
+
+            // Compose inherited + current
+            if !inherited_text.is_empty() {
+                query_source = format!("{inherited_text}\n{query_source}");
+            }
+
+            // Compile
             let query = match Query::new(&language, &query_source) {
                 Ok(q) => Arc::new(q),
                 Err(e) => {
                     tracing::error!(
                         "Failed to parse query file for '{}' (query: {}): {:?}",
-                        lang_name,
+                        normalized_lang,
                         query_name,
                         e
                     );
@@ -338,7 +454,7 @@ impl GrammarManager {
             };
 
             self.loaded_queries
-                .entry(lang_name.to_string())
+                .entry(normalized_lang)
                 .or_default()
                 .insert(query_name.to_string(), query.clone());
 
@@ -348,22 +464,26 @@ impl GrammarManager {
         }
     }
 
-    /// Loads a grammar by its name (e.g., "rust").
+    /// If the language inherits from another, the parent's grammar will be loaded.
     pub fn get_language(&mut self, name: &str) -> Option<Language> {
-        if let Some(lang) = self.loaded_grammars.get(name) {
+        let grammar_name = self.get_grammar_name(name);
+
+        // Check cache with grammar name (not the child alias)
+        if let Some(lang) = self.loaded_grammars.get(&grammar_name) {
             return Some(lang.clone());
         }
 
         tracing::info!("Couldn't find `{name}` in loaded tree-sitter grammars, loading...");
 
-        let lib_path = self.base_path.join(format!("tree-sitter-{name}"));
-        let lib_filename = format!("{}.so", name.replace("-", "_"));
+        // Use grammar name for directory path (the parent if inherited)
+        let lib_path = self.base_path.join(format!("tree-sitter-{}", grammar_name));
+        let lib_filename = format!("{}.so", grammar_name);
 
         let lib_file = lib_path.join(lib_filename);
 
         unsafe {
             let library = Library::new(&lib_file).ok()?;
-            let lib_symbol = format!("tree_sitter_{}\0", name.replace("-", "_"));
+            let lib_symbol = format!("tree_sitter_{}\0", grammar_name);
             let language_func: Symbol<unsafe extern "C" fn() -> Language> =
                 library.get(lib_symbol.as_bytes()).ok()?;
 
@@ -371,8 +491,8 @@ impl GrammarManager {
 
             std::mem::forget(library);
 
-            self.loaded_grammars
-                .insert(name.to_string(), language.clone());
+            // Cache with grammar name (so parent is cached once for all children)
+            self.loaded_grammars.insert(grammar_name, language.clone());
             Some(language)
         }
     }

@@ -117,7 +117,7 @@
 "statusline.mode.x" = { fg = "mantle", bg = "lavender", attrs = ["bold"] }
 "statusline.mode.v" = { fg = "mantle", bg = "pink", attrs = ["bold"] }
 
-[plugin_config.statusline.modes]
+[plugin.statusline.modes]
 n = { long_name = " NORMAL " }
 i = { long_name = " INSERT " }
 c = { long_name = " COMMAND " }

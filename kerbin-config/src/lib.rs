@@ -414,7 +414,7 @@ impl Config {
                         return Err(format!("`theme` section in {:?} must be a table", path).into());
                     }
                 }
-                "plugin_config" => {
+                "plugin" => {
                     if let Value::Table(value_table) = value {
                         let current_plugin_data: HashMap<String, Value> = value_table.try_into()?;
 

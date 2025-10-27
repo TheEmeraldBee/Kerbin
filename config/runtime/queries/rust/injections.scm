@@ -165,6 +165,6 @@
     ; strings, across the entire token tree
     "rsx"
   )
-  (#set! injection.language "rust-format-args-macro")
+  (#set! injection.language "rust-format-args")
   (#set! injection.include-children)
 )
