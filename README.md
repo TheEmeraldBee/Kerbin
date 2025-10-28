@@ -136,11 +136,52 @@ file communication systems
 - [ ] Copy/Paste Support (Registers)
     - [x] Ctrl-Shift-V / Cmd-V Paste Event Support
     - [ ] Clipboard Copy & Paste Commands
-    - [ ] Registers
+    - [x] Registers
+- [ ] Keybinding System Reimagination **HIGHEST PRIORITY** (This one changes how a lot of systems need to work, better done earlier rather than later.)
+    - [ ] Use similar system to hooks that allow for matching keybindings
+        - Examples:
+            - ctrl-(a|b) **matches second**
+            - ctrl-a **matches first**
+            - ctrl-\* **matches last**
+        - This would make keybindings on their own much more powerful
+        - This would make each keybind a valid "variable" in the keybinding
+        - This would also apply to command templating, IE:
+```toml
+[[keybind]]
+modes = ["n"]
+keys = ["\"", "*" "y"]
+commands = ["copy %1"] # Copy with the key-name (up, down, a, b, page-up, etc) to that register.
+desc = "Copy to register name"
+```
+    - [ ] Allow for `$(my-shell-expansion %0)` to use shell commands to translate things
+```toml
+[[keybind]]
+modes = ["n"]
+keys = ["\"", "*" "y"]
+commands = ["copy $(%config_dir/translate-keybind-to-register.sh %1)"] # Copy with the key-name (up, down, a, b, page-up) (translated) to that register.
+desc = "Copy to register name (translated)"
+```
+        - This will allow for commands to be drastically more complex, while still being simple when wanted to be
+        - Most importantly, these need to be able to fail, IE, when returning a bad return status, log it and don't run the command
 - [ ] Command Templating (% based variables in commands)
     - Extend this to keybindings, allowing for keybindings to come from templates
     - Allow keybindings to be registered dynamically (kinda)
         - Lists of items stored in a template item would repeat that keybind system over and over
+        - Examples:
+```toml
+[[keybind]]
+modes = ["n"]
+keys = ["\"", "%used_registers" "p"]
+commands = ["paste %1"] # Paste the single value from %used_registers
+desc = "Pase used register"
+
+[[keybind]]
+modes = ["n"]
+keys = ["\"", "%used_registers" "p"]
+commands = ["paste %1"] # Paste the single value from %used_registers
+desc = "Pase used register (translated)"
+```
+        - In this example, we have the following that may become something like "-a-p and "-b-p, etc
 - [ ] Editor Support for wrapped text
 - [ ] Mouse Scrolling Support
     - Allow Mapping Scroll Wheel to a command (`scroll_up = "ml -1"`) or something
