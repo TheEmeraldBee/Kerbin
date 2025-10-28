@@ -149,7 +149,7 @@ file communication systems
 ```toml
 [[keybind]]
 modes = ["n"]
-keys = ["\"", "*" "y"]
+keys = ["\"", "*", "y"]
 commands = ["copy %1"] # Copy with the key-name (up, down, a, b, page-up, etc) to that register.
 desc = "Copy to register name"
 ```
@@ -157,7 +157,7 @@ desc = "Copy to register name"
 ```toml
 [[keybind]]
 modes = ["n"]
-keys = ["\"", "*" "y"]
+keys = ["\"", "*", "y"]
 commands = ["copy $(%config_dir/translate-keybind-to-register.sh %1)"] # Copy with the key-name (up, down, a, b, page-up) (translated) to that register.
 desc = "Copy to register name (translated)"
 ```
@@ -171,13 +171,13 @@ desc = "Copy to register name (translated)"
 ```toml
 [[keybind]]
 modes = ["n"]
-keys = ["\"", "%used_registers" "p"]
+keys = ["\"", "%used_registers", "p"]
 commands = ["paste %1"] # Paste the single value from %used_registers
 desc = "Pase used register"
 
 [[keybind]]
 modes = ["n"]
-keys = ["\"", "%used_registers" "p"]
+keys = ["\"", "%used_registers", "p"]
 commands = ["paste %1"] # Paste the single value from %used_registers
 desc = "Pase used register (translated)"
 ```
