@@ -8,6 +8,7 @@
 {
   packages = with pkgs; [
     bacon
+    cargo-flamegraph
   ];
   languages.rust = {
     enable = true;

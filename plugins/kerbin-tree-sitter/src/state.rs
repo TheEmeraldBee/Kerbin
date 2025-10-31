@@ -59,11 +59,10 @@ impl TSState {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct Highlight {
     range: Range<usize>,
     style: ContentStyle,
-    depth: usize,
 }
 
 pub struct TextProviderRope<'a>(pub &'a Rope);
@@ -117,16 +116,6 @@ where
     results
 }
 
-fn calculate_node_depth(node: tree_sitter::Node) -> usize {
-    let mut depth = 0;
-    let mut current = node;
-    while let Some(parent) = current.parent() {
-        depth += 1;
-        current = parent;
-    }
-    depth
-}
-
 pub fn highlight(
     text: &Rope,
     tree: &Tree,
@@ -150,7 +139,6 @@ pub fn highlight(
             Some(Highlight {
                 range: capture.node.byte_range(),
                 style,
-                depth: calculate_node_depth(capture.node),
             })
         } else {
             tracing::debug!("No query match found for: {capture_name}");
@@ -164,70 +152,60 @@ pub fn highlight(
         return map;
     }
 
-    // Sort highlights: by start position, then by depth (deeper = higher priority)
     highlights.sort_by(|a, b| {
         a.range
             .start
             .cmp(&b.range.start)
-            .then_with(|| a.depth.cmp(&b.depth))
+            .then_with(|| b.range.end.cmp(&a.range.end))
     });
 
-    // Build a map of byte position -> style layers
-    // Each position can have multiple layers, we'll resolve them at the end
-    let mut layers: BTreeMap<usize, Vec<(usize, ContentStyle, Range<usize>)>> = BTreeMap::new();
+    let mut result_map = BTreeMap::new();
+    let mut style_stack: Vec<(usize, ContentStyle)> = vec![(usize::MAX, ContentStyle::default())];
+    let mut last_pos = 0;
 
-    for hl in &highlights {
-        // Add start point
-        layers
-            .entry(hl.range.start)
-            .or_default()
-            .push((hl.depth, hl.style, hl.range.clone()));
+    for highlight in highlights {
+        let start = highlight.range.start;
+        let end = highlight.range.end;
 
-        // Add end point
-        layers.entry(hl.range.end).or_default();
+        while style_stack.last().unwrap().0 <= start {
+            let (expiry_pos, _) = style_stack.pop().unwrap();
+            let current_style = style_stack.last().unwrap().1;
+
+            if expiry_pos > last_pos {
+                result_map.insert(expiry_pos, current_style);
+                last_pos = expiry_pos;
+            }
+        }
+
+        let current_style = style_stack.last().unwrap().1;
+        if highlight.style != current_style {
+            result_map.insert(start, highlight.style);
+            last_pos = start;
+        }
+
+        style_stack.push((end, highlight.style));
+        style_stack.sort_by(|a, b| b.0.cmp(&a.0));
     }
 
-    // Now walk through all positions and resolve the active style at each point
-    let mut result = BTreeMap::new();
-    let mut active_layers: Vec<(usize, ContentStyle, Range<usize>)> = vec![];
-    let default_style = ContentStyle::default();
-
-    for (&pos, new_layers) in &layers {
-        // Remove expired layers
-        active_layers.retain(|(_, _, range)| range.end > pos);
-
-        // Add new layers
-        active_layers.extend(new_layers.iter().cloned());
-
-        // Sort by depth (deeper = higher priority = later in list)
-        active_layers.sort_by_key(|(depth, _, _)| *depth);
-
-        // The style at this position is the deepest active layer
-        let current_style = active_layers
-            .last()
-            .map(|(_, style, _)| *style)
-            .unwrap_or(default_style);
-
-        result.insert(pos, current_style);
+    while style_stack.len() > 1 {
+        let (expiry_pos, _) = style_stack.pop().unwrap();
+        let current_style = style_stack.last().unwrap().1;
+        if expiry_pos > last_pos {
+            result_map.insert(expiry_pos, current_style);
+            last_pos = expiry_pos;
+        }
     }
 
-    // Ensure we start at position 0
-    if !result.contains_key(&0) {
-        result.insert(0, default_style);
-    }
-
-    // Remove consecutive duplicate styles
-    let mut final_result = BTreeMap::new();
+    let mut final_map = BTreeMap::new();
     let mut last_style: Option<ContentStyle> = None;
-
-    for (&pos, &style) in &result {
+    for (pos, style) in result_map {
         if Some(style) != last_style {
-            final_result.insert(pos, style);
+            final_map.insert(pos, style);
             last_style = Some(style);
         }
     }
 
-    final_result
+    final_map
 }
 
 pub async fn render_tree_sitter_extmarks(bufs: ResMut<Buffers>, highlights: Res<HighlightMap>) {
