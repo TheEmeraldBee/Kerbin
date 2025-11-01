@@ -10,6 +10,8 @@ edition = "2024"
 kerbin-macros = { path = "./kerbin-macros" }
 kerbin-core = { path = "./kerbin-core" }
 
+thiserror = "2.0.17"
+
 tokio = { version = "1.47.1", features = [ "full" ] }
 async-trait = "0.1.89"
 

@@ -4,14 +4,5 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-kerbin-core = { path="../../kerbin-core" }
-lsp-types = "0.97.0"
-serde_json = "1.0.145"
+kerbin-core = { path = "../../kerbin-core" }
 
-serde.workspace = true
-
-tracing.workspace = true
-
-tokio.workspace = true
-
-kerbin-tree-sitter = { path="../kerbin-tree-sitter" }

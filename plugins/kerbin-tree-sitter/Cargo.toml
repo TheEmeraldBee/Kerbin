@@ -4,13 +4,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-ropey = { version = "=2.0.0-beta.1", features = ["metric_chars", "metric_lines_lf"] }
-tree-sitter = "0.25.8"
-libloading = "0.8.8"
-tokio.workspace = true
+kerbin-core = { path = "../../kerbin-core" }
+libloading = "0.8.9"
+tree-sitter = "0.25.10"
 
 serde.workspace = true
-
-tracing.workspace = true
-
-kerbin-core = { path = "../../kerbin-core" }
+thiserror.workspace = true
