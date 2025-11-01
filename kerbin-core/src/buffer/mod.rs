@@ -1,7 +1,8 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     io::{self, BufReader, BufWriter, ErrorKind, Write},
     path::{Path, PathBuf},
+    sync::Arc,
     time::SystemTime,
 };
 
@@ -12,6 +13,7 @@ pub mod buffers;
 pub use buffers::*;
 
 pub mod systems;
+use kerbin_state_machine::{StateName, StaticState};
 pub use systems::*;
 
 pub mod cursor;
@@ -24,6 +26,7 @@ pub mod render;
 pub use render::*;
 
 use ropey::{LineType, Rope};
+use tokio::sync::{OwnedRwLockWriteGuard, RwLock};
 
 /// Used internally for defining a set of actions that were applied together as a single undo/redo unit.
 ///
@@ -76,6 +79,10 @@ pub struct TextBuffer {
     /// A set of flags that may be set on a buffer
     pub flags: HashSet<&'static str>,
 
+    /// A set of states stored within a buffer
+    /// Used for tying states to a buffer specifically
+    pub states: HashMap<String, Box<dyn StateName>>,
+
     /// A list of data that marks byte changes applied to the rope.
     /// Each entry is an array of three `((row, col), byte_idx)` tuples:
     /// `[0]` is the start position of the edit.
@@ -118,6 +125,7 @@ impl Default for TextBuffer {
             primary_cursor: 0,
 
             flags: HashSet::default(),
+            states: HashMap::default(),
 
             byte_changes: vec![],
 
@@ -150,14 +158,6 @@ impl TextBuffer {
     /// even if the file does not yet exist. This method also handles
     /// extracting the file extension, initializing cursors, and reading file content.
     /// If the file does not exist, an empty buffer is created.
-    ///
-    /// # Arguments
-    ///
-    /// * `path_str`: The string path to the file to open.
-    ///
-    /// # Returns
-    ///
-    /// A new `TextBuffer` instance with the file's content and metadata.
     pub fn open(path_str: String) -> io::Result<Self> {
         let mut found_ext = "".to_string();
 
@@ -195,18 +195,34 @@ impl TextBuffer {
         })
     }
 
+    /// Inserts a state into the buffer, replacing the value if it exists
+    pub fn set_state<T: StateName + StaticState>(&mut self, state: T) {
+        self.states
+            .insert(state.name(), Box::new(Arc::new(RwLock::new(state))));
+    }
+
+    /// Returns whether the state is within the buffer or not
+    pub fn has_state<T: StateName + StaticState>(&self) -> bool {
+        self.states.contains_key(&T::static_name())
+    }
+
+    /// Retrieves a state from the internal storage, returning None if non-existent
+    pub async fn get_state<T: StateName + StaticState>(&self) -> Option<OwnedRwLockWriteGuard<T>> {
+        if let Some(s) = self
+            .states
+            .get(&T::static_name())
+            .and_then(|x| x.downcast())
+        {
+            Some(s.clone().write_owned().await)
+        } else {
+            None
+        }
+    }
+
     /// Given a byte offset, returns a tuple containing the `((line_idx, col_idx), byte_idx)`.
     ///
     /// This format is convenient for registering edits within the `byte_changes` vector,
     /// particularly for external tools like Tree-sitter.
-    ///
-    /// # Arguments
-    ///
-    /// * `byte`: The byte offset within the rope.
-    ///
-    /// # Returns
-    ///
-    /// A tuple `((usize, usize), usize)` representing `((line_index, column_index), byte_index)`.
     pub fn get_edit_part(&self, byte: usize) -> ((usize, usize), usize) {
         let line_idx = self.rope.byte_to_line_idx(byte, LineType::LF_CR);
         let col = byte - self.rope.line_to_byte_idx(line_idx, LineType::LF_CR);
@@ -219,12 +235,6 @@ impl TextBuffer {
     /// This method stores the start, old end, and new end positions of an edit.
     /// This information is crucial for systems that need to react to buffer changes,
     /// such as syntax highlighting or language server protocols.
-    ///
-    /// # Arguments
-    ///
-    /// * `start`: The `((line, col), byte)` tuple for the start of the edit.
-    /// * `old_end`: The `((line, col), byte)` tuple for the end of the previous state of the edit.
-    /// * `new_end`: The `((line, col), byte)` tuple for the end of the new state of the edit.
     pub fn register_input_edit(
         &mut self,
         start: ((usize, usize), usize),
@@ -235,20 +245,6 @@ impl TextBuffer {
     }
 
     /// Applies a given `BufferAction` to the editor.
-    ///
-    /// This is the primary method for making all modifications to the buffer's content.
-    /// It automatically handles:
-    /// - Grouping actions for undo/redo.
-    /// - Clearing the redo stack upon new changes.
-    /// - Returning a boolean indicating the success of the action.
-    ///
-    /// # Arguments
-    ///
-    /// * `action`: An instance of a type implementing `BufferAction` to be applied.
-    ///
-    /// # Returns
-    ///
-    /// `true` if the action was successfully applied, `false` otherwise.
     pub fn action(&mut self, action: impl BufferAction) -> bool {
         if self.current_change.is_none() {
             self.start_change_group();
@@ -312,10 +308,6 @@ impl TextBuffer {
     ///
     /// The `primary_cursor` index will be clamped to remain within the
     /// valid range of `0` to `self.cursors.len() - 1` and will not wrap.
-    ///
-    /// # Arguments
-    ///
-    /// * `offset`: The signed offset to move the primary cursor index (e.g., `1` for next, `-1` for previous).
     pub fn change_cursor(&mut self, offset: isize) {
         self.primary_cursor = self
             .primary_cursor
@@ -324,27 +316,16 @@ impl TextBuffer {
     }
 
     /// Returns an immutable reference to the current primary cursor of the buffer.
-    ///
-    /// # Returns
-    ///
-    /// A `&Cursor` representing the primary cursor.
     pub fn primary_cursor(&self) -> &Cursor {
         &self.cursors[self.primary_cursor]
     }
 
     /// Returns a mutable reference to the current primary cursor of the buffer.
-    ///
-    /// # Returns
-    ///
-    /// A `&mut Cursor` representing the primary cursor.
     pub fn primary_cursor_mut(&mut self) -> &mut Cursor {
         &mut self.cursors[self.primary_cursor]
     }
 
     /// Applies the undo operation of the last `ChangeGroup` on the undo stack.
-    ///
-    /// This effectively reverts the most recent group of changes. It also records
-    /// the inverse of these inversed actions onto the redo stack.
     pub fn undo(&mut self) {
         self.commit_change_group();
         if let Some(group) = self.undo_stack.pop() {
@@ -374,9 +355,6 @@ impl TextBuffer {
     }
 
     /// Applies the redo operation from the redo stack.
-    ///
-    /// This re-applies a previously undone `ChangeGroup`. It also records
-    /// the inverse of these redone actions onto the undo stack.
     pub fn redo(&mut self) {
         self.commit_change_group();
         if let Some(group) = self.redo_stack.pop() {
@@ -440,14 +418,6 @@ impl TextBuffer {
     ///
     /// Handles directory creation and ensures the file exists.
     /// A scratch file (`<scratch>`) cannot be written without providing a new path.
-    ///
-    /// # Arguments
-    ///
-    /// * `path`: An `Option<String>` representing a new path to save to, or `None` to save to the current path.
-    ///
-    /// # Panics
-    ///
-    /// Panics if unable to create directories, create the file, or if writing to disk fails unexpectedly.
     pub fn write_file(&mut self, path: Option<String>) {
         if let Some(new_path) = path {
             let path = Path::new(&new_path);
@@ -522,16 +492,6 @@ impl TextBuffer {
     /// This function directly adjusts the cursor's position by `bytes` within the buffer's
     /// content, clamping the new position to be within the valid range of the `Rope`.
     /// It can optionally extend the current selection.
-    ///
-    /// # Arguments
-    ///
-    /// * `bytes`: The signed number of bytes to move the cursor (positive for forward, negative for backward).
-    /// * `extend_selection`: If `true`, the selection will be extended. If `false`,
-    ///   the selection will collapse to the new cursor position.
-    ///
-    /// # Returns
-    ///
-    /// `true` if the cursor successfully moved to a new byte position, `false` otherwise.
     pub fn move_bytes(&mut self, bytes: isize, extend_selection: bool) -> bool {
         if bytes == 0 {
             return false;
@@ -568,16 +528,6 @@ impl TextBuffer {
     /// This function adjusts the cursor's line position by `rows`, attempting to maintain
     /// the current column position. The new line position is clamped to be within
     /// the valid range of lines in the `Rope`. It can optionally extend the current selection.
-    ///
-    /// # Arguments
-    ///
-    /// * `rows`: The signed number of rows to move the cursor (positive for down, negative for up).
-    /// * `extend_selection`: If `true`, the selection will be extended. If `false`,
-    ///   the selection will collapse to the new cursor position.
-    ///
-    /// # Returns
-    ///
-    /// `true` if the cursor successfully moved to a new byte position, `false` otherwise.
     pub fn move_lines(&mut self, rows: isize, extend_selection: bool) -> bool {
         if rows == 0 {
             return false;
@@ -647,16 +597,6 @@ impl TextBuffer {
     /// This function adjusts the cursor's character position by `chars` within the buffer's
     /// content, clamping the new position to be within the valid range of the `Rope`.
     /// It handles multi-byte characters correctly. It can optionally extend the current selection.
-    ///
-    /// # Arguments
-    ///
-    /// * `chars`: The signed number of characters to move the cursor (positive for forward, negative for backward).
-    /// * `extend_selection`: If `true`, the selection will be extended. If `false`,
-    ///   the selection will collapse to the new cursor position.
-    ///
-    /// # Returns
-    ///
-    /// `true` if the cursor successfully moved to a new character position, `false` otherwise.
     pub fn move_chars(&mut self, chars: isize, extend_selection: bool) -> bool {
         if chars == 0 {
             return false;
@@ -750,18 +690,6 @@ impl TextBuffer {
 /// This function attempts to resolve `.` and `..` components and canonicalize
 /// existing parts of the path, but will not fail if a full canonicalization
 /// is not possible due to non-existent parts.
-///
-/// # Arguments
-///
-/// * `path_str`: A string slice representing the path to canonicalize.
-///
-/// # Returns
-///
-/// A `PathBuf` representing the best-effort canonicalized path.
-///
-/// # Panics
-///
-/// Panics if `std::env::current_dir()` fails when resolving a relative path.
 pub fn get_canonical_path_with_non_existent(path_str: &str) -> PathBuf {
     let path = PathBuf::from(path_str);
     let mut resolved_path = PathBuf::new();

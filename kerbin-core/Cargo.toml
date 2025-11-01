@@ -18,11 +18,12 @@ tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber = "0.3.19"
 
+ropey.workspace = true
+
 shellwords = "1.1.0"
 serde.workspace = true
 tree-sitter = "0.25.8"
 toml = { version = "0.9.5", default-features = false, features = ["display", "fast_hash", "serde"] }
-ropey = { version = "=2.0.0-beta.1", features = ["metric_chars", "metric_lines_lf"] }
 regex-cursor = { version = "0.1.5", default-features = false, features = ["perf-inline"] }
 
 unicode-width = "0.2.1"

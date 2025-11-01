@@ -1,64 +1,72 @@
 # Golang
 [[plugin.tree-sitter-grammars]]
-type = "Language"
-url = "https://github.com/tree-sitter/tree-sitter-go.git"
-lang_name = "go"
+type = "def"
+name = "go"
 exts = ["go"]
+
+url = "https://github.com/tree-sitter/tree-sitter-go.git"
 
 # Rust
 [[plugin.tree-sitter-grammars]]
-type = "Language"
-url = "https://github.com/tree-sitter/tree-sitter-rust.git"
-lang_name = "rust"
+type = "def"
+name = "rust"
 exts = ["rs"]
 
-[[plugin.tree-sitter-grammars]]
-type = "Language"
-url = "https://github.com/nik-rev/tree-sitter-rust-format-args.git"
-lang_name = "rust_format_args"
-exts = []
-alias = "rust-format-args"
+url = "https://github.com/tree-sitter/tree-sitter-rust.git"
 
 [[plugin.tree-sitter-grammars]]
-type = "Alias"
-base_name = "markdown"
+type = "def"
+name = "rust_format_args"
+exts = []
+
+url = "https://github.com/nik-rev/tree-sitter-rust-format-args.git"
+build_name = "rust-format-args"
+
+[[plugin.tree-sitter-grammars]]
+type = "alias"
+base_lang = "markdown"
 new_name = "markdown_rustdoc"
 exts = []
 
 # Python
 [[plugin.tree-sitter-grammars]]
-type = "Language"
-url = "https://github.com/tree-sitter/tree-sitter-python.git"
-lang_name = "python"
+type = "def"
+name = "python"
 exts = ["py"]
+
+url = "https://github.com/tree-sitter/tree-sitter-python.git"
 
 # Toml
 [[plugin.tree-sitter-grammars]]
-type = "Language"
-url = "https://github.com/ikatyang/tree-sitter-toml.git"
-lang_name = "toml"
+type = "def"
+name = "toml"
 exts = ["toml"]
+
+url = "https://github.com/ikatyang/tree-sitter-toml.git"
 
 # Comment
 [[plugin.tree-sitter-grammars]]
-type = "Language"
-url = "https://github.com/stsewd/tree-sitter-comment.git"
-lang_name = "comment"
+type = "def"
+name = "comment"
 exts = []
+
+url = "https://github.com/stsewd/tree-sitter-comment.git"
 
 # Markdown
 [[plugin.tree-sitter-grammars]]
-type = "Language"
-url = "https://github.com/tree-sitter-grammars/tree-sitter-markdown.git"
-lang_name = "markdown"
+type = "def"
+name = "markdown"
 exts = ["md"]
+
+url = "https://github.com/tree-sitter-grammars/tree-sitter-markdown.git"
 sub_dir = "tree-sitter-markdown"
 
 [[plugin.tree-sitter-grammars]]
-type = "Language"
-url = "https://github.com/tree-sitter-grammars/tree-sitter-markdown.git"
-lang_name = "markdown_inline"
+type = "def"
+name = "markdown_inline"
 exts = []
+
+url = "https://github.com/tree-sitter-grammars/tree-sitter-markdown.git"
 sub_dir = "tree-sitter-markdown-inline"
-alias = "markdown-inline"
+build_name = "markdown-inline"
 

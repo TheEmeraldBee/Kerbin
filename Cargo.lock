@@ -816,6 +816,7 @@ version = "0.1.0"
 dependencies = [
  "kerbin-core",
  "libloading",
+ "ropey",
  "serde",
  "thiserror 2.0.17",
  "tree-sitter",
