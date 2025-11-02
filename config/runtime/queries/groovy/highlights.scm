@@ -1,11 +1,12 @@
 [
   "!instanceof"
   "assert"
-  "class"
   "extends"
   "instanceof"
   "package"
 ] @keyword
+
+"class" @keyword.type
 
 [
   "!in"
@@ -19,31 +20,31 @@
   "else"
   "if"
   "switch"
-] @keyword.control.conditional
+] @keyword.conditional
 
 [
   "catch"
   "finally"
   "try"
-] @keyword.control.exception
+] @keyword.exception
 
 "def" @keyword.function
 
-"import" @keyword.control.import
+"import" @keyword.import
 
 [
   "for"
   "while"
   (break)
   (continue)
-] @keyword.control.repeat
+] @keyword.repeat
 
-"return" @keyword.control.return
+"return" @keyword.return
 
 [
   "true"
   "false"
-] @constant.builtin.boolean
+] @boolean
 
 (null) @constant.builtin
 
@@ -67,16 +68,16 @@
   "public"
   "static"
   "synchronized"
-] @keyword.storage.modifier
+] @keyword.modifier
 
-(comment) @comment
+(comment) @comment @spell
 
 (shebang) @keyword.directive
 
 (string) @string
 
 (string
-  (escape_sequence) @constant.character.escape)
+  (escape_sequence) @string.escape)
 
 (string
   (interpolation
@@ -97,7 +98,7 @@
   "."
 ] @punctuation.delimiter
 
-(number_literal) @constant.numeric
+(number_literal) @number
 
 (identifier) @variable
 
@@ -147,6 +148,8 @@
   "!"
 ] @operator
 
+(wildcard_import) @character.special
+
 (string
   "/" @string)
 
@@ -154,7 +157,7 @@
   ([
     "?"
     ":"
-  ]) @keyword.operator)
+  ]) @keyword.conditional.ternary)
 
 (map
   (map_item
@@ -215,9 +218,8 @@
   function: (identifier) @function)
 
 (function_call
-  function:
-    (dotted_identifier
-      (identifier) @function .))
+  function: (dotted_identifier
+    (identifier) @function .))
 
 (function_call
   (argument_list
@@ -228,9 +230,8 @@
   function: (identifier) @function)
 
 (juxt_function_call
-  function:
-    (dotted_identifier
-      (identifier) @function .))
+  function: (dotted_identifier
+    (identifier) @function .))
 
 (juxt_function_call
   (argument_list
@@ -250,19 +251,19 @@
 
 "@interface" @function.macro
 
-(groovy_doc) @comment.block.documentation
+(groovy_doc) @comment.documentation @spell
 
 (groovy_doc
   [
     (groovy_doc_param)
     (groovy_doc_throws)
     (groovy_doc_tag)
-  ] @string.special)
+  ] @string.special @nospell)
 
 (groovy_doc
   (groovy_doc_param
-    (identifier) @variable.parameter))
+    (identifier) @variable.parameter) @nospell)
 
 (groovy_doc
   (groovy_doc_throws
-    (identifier) @type))
+    (identifier) @type @nospell))

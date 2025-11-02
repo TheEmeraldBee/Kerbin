@@ -1,90 +1,159 @@
+; Preprocs
+(preprocessor_directive) @keyword.directive
+
+; Includes
+"include" @keyword.import
+
+; Keywords
 [
-  (comment)
-  (multiline_comment)
-] @comment
+  "assert"
+  "field"
+  "let"
+  "def"
+  "defm"
+  "defset"
+  "defvar"
+] @keyword
+
+[
+  "multiclass"
+  "class"
+] @keyword.type
+
+"in" @keyword.operator
+
+; Conditionals
+[
+  "if"
+  "else"
+  "then"
+] @keyword.conditional
+
+; Repeats
+"foreach" @keyword.repeat
+
+; Variables
+(identifier) @variable
+
+(var) @variable.builtin
+
+; Parameters
+(template_arg
+  (identifier) @variable.parameter)
+
+; Types
+(type) @type
+
+[
+  "bit"
+  "int"
+  "string"
+  "dag"
+  "bits"
+  "list"
+  "code"
+] @type.builtin
+
+(class
+  name: (identifier) @type)
+
+(multiclass
+  name: (identifier) @type)
+
+(def
+  name: (value
+    (_) @type))
+
+(defm
+  name: (value
+    (_) @type))
+
+(defset
+  name: (identifier) @type)
+
+(parent_class_list
+  (identifier) @type
+  (value
+    (_) @type)?)
+
+(anonymous_record
+  (identifier) @type)
+
+(anonymous_record
+  (value
+    (_) @type))
+
+((identifier) @type
+  (#lua-match? @type "^_*[A-Z][A-Z0-9_]+$"))
+
+; Fields
+(instruction
+  (identifier) @variable.member)
+
+(let_instruction
+  (identifier) @variable.member)
+
+; Functions
+([
+  (bang_operator)
+  (cond_operator)
+] @function
+  (#set! priority 105))
+
+; Operators
+[
+  "="
+  "#"
+  "-"
+  ":"
+  "..."
+] @operator
+
+; Literals
+(string) @string
+
+(code) @string.special
+
+(integer) @number
+
+(boolean) @boolean
+
+(uninitialized_value) @constant.builtin
+
+; Punctuation
+[
+  "{"
+  "}"
+] @punctuation.bracket
+
+[
+  "["
+  "]"
+] @punctuation.bracket
 
 [
   "("
   ")"
-  "["
-  "]"
-  "{"
-  "}"
+] @punctuation.bracket
+
+[
   "<"
   ">"
 ] @punctuation.bracket
 
 [
+  "."
   ","
   ";"
-  "."
 ] @punctuation.delimiter
 
+"!" @punctuation.special
+
+; Comments
 [
-  "#"
-  "-"
-  "..."
-  ":"
-] @operator
+  (comment)
+  (multiline_comment)
+] @comment @spell
 
-[
-  "="
-  "!cond"
-  (operator_keyword)
-] @function
-
-[
-  "true"
-  "false"
-] @constant.builtin.boolean
-
-[
-  "?"
-] @constant.builtin
-
-(var) @variable
-
-(template_arg (identifier) @variable.parameter)
-
-(_ argument: (value (identifier) @variable.parameter))
-
-(type) @type
-
-"code" @type.builtin
-
-(number) @constant.numeric.integer
-[
-  (string_string)
-  (code_string)
-] @string
-
-(preprocessor) @keyword.directive
-
-[
-  "class"
-  "field"
-  "let"
-  "defvar"
-  "def"
-  "defset"
-  "defvar"
-  "deftype"
-  "assert"
-  "dump"
-] @keyword
-
-[
-  "let"
-  "in"
-  "foreach"
-  "if"
-  "then"
-  "else"
-] @keyword.operator
-
-"include" @keyword.control.import
-
-[
-  "multiclass"
-  "defm"
-] @namespace
+((comment) @keyword.directive @nospell
+  (#lua-match? @keyword.directive "^.*RUN"))

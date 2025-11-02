@@ -1,10 +1,38 @@
-(comment) @comment
+[
+  "@media"
+  "@charset"
+  "@namespace"
+  "@supports"
+  "@keyframes"
+  (at_keyword)
+] @keyword.directive
+
+"@import" @keyword.import
 
 [
-  (tag_name)
+  (to)
+  (from)
+] @keyword
+
+(comment) @comment @spell
+
+(tag_name) @tag
+
+(class_name) @type
+
+(id_name) @constant
+
+[
+  (property_name)
+  (feature_name)
+] @property
+
+[
   (nesting_selector)
   (universal_selector)
-] @tag
+] @character.special
+
+(function_name) @function
 
 [
   "~"
@@ -23,77 +51,59 @@
 
 [
   "and"
+  "or"
   "not"
   "only"
-  "or"
 ] @keyword.operator
 
-(attribute_selector (plain_value) @string)
+(important) @keyword.modifier
 
-(property_name) @variable.other.member
-(plain_value) @constant
+(attribute_selector
+  (plain_value) @string)
+
+(pseudo_element_selector
+  "::"
+  (tag_name) @attribute)
+
+(pseudo_class_selector
+  (class_name) @attribute)
+
+(attribute_name) @tag.attribute
+
+(namespace_name) @module
+
+(keyframes_name) @variable
 
 ((property_name) @variable
-  (#match? @variable "^--"))
+  (#lua-match? @variable "^[-][-]"))
+
 ((plain_value) @variable
-  (#match? @variable "^--"))
-
-(class_name) @label
-(feature_name) @variable.other.member
-(function_name) @function
-(id_name) @label
-(namespace_name) @namespace
-
-(attribute_name) @attribute
-(pseudo_element_selector (tag_name) @attribute)
-(pseudo_class_selector (class_name) @attribute)
+  (#lua-match? @variable "^[-][-]"))
 
 [
-  "@charset"
-  "@import"
-  "@keyframes"
-  "@media"
-  "@namespace"
-  "@supports"
-  (at_keyword)
-  (from)
-  (important)
-  (to)
-  (keyword_query)
-  (keyframes_name)
+  (string_value)
+  (color_value)
   (unit)
-] @keyword
+] @string
 
-; @apply something;
-(at_rule
-  . (at_keyword) @keyword
-  . (keyword_query) @constant
-  (#eq? @keyword "@apply"))
+(integer_value) @number
+
+(float_value) @number.float
 
 [
   "#"
-  "."
-] @punctuation
-
-(string_value) @string
-(color_value "#" @string.special)
-(color_value) @string.special
-
-(integer_value) @constant.numeric.integer
-(float_value) @constant.numeric.float
-
-[
-  ")"
-  "("
-  "["
-  "]"
-  "{"
-  "}"
-] @punctuation.bracket
-
-[
   ","
-  ";"
+  "."
   ":"
   "::"
+  ";"
 ] @punctuation.delimiter
+
+[
+  "{"
+  ")"
+  "("
+  "}"
+  "["
+  "]"
+] @punctuation.bracket

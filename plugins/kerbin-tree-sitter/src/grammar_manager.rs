@@ -4,7 +4,8 @@ use kerbin_core::{kerbin_macros::State, *};
 use tree_sitter::Query;
 
 use crate::{
-    grammar::{Grammar, GrammarDefinition, GrammarEntry, GrammarLoadError},
+    grammar::{Grammar, GrammarDefinition, GrammarEntry, GrammarLoadError, find_library},
+    grammar_install::install_language,
     state::TreeSitterState,
 };
 
@@ -36,14 +37,64 @@ impl GrammarManager {
     pub async fn register_extension_handlers(&self, state: &mut State) {
         for ext in self.ext_map.keys() {
             state
-                .lock_state::<LogSender>()
-                .await
-                .critical("tree-sitter::register_handlers", ext);
-            state
                 .on_hook(hooks::UpdateFiletype::new(ext))
                 .system(crate::state::open_files)
                 .system(crate::state::update_trees)
                 .system(crate::highlighter::highlight_file);
+        }
+    }
+
+    /// Iterates through all grammars, attempting to locate their installation
+    /// Attempts to install them if possible, logging the results
+    ///
+    /// Never returns an error, will log to console if it fails
+    pub async fn install_all_grammars(&self, state: &State) {
+        let config_path = state.lock_state::<ConfigFolder>().await.0.clone();
+
+        let mut to_load = vec![];
+
+        for grammar in self.lang_map.values() {
+            let lib_path = grammar.get_file_path(&config_path);
+
+            if find_library(&lib_path).is_none() {
+                // Clone to allow for threading
+                to_load.push(grammar.clone());
+            }
+        }
+
+        let log = state.lock_state::<LogSender>().await.clone();
+
+        if to_load.is_empty() {
+            log.low(
+                "tree-sitter::install_all_grammars",
+                "All grammars already installed",
+            );
+        }
+
+        for grammar in to_load {
+            let log = log.clone();
+            let grammar_name = grammar.name.clone();
+            let config_path = config_path.clone();
+
+            tokio::task::spawn_blocking(move || {
+                match install_language(format!("{config_path}/runtime/grammars").into(), grammar) {
+                    Ok(_) => {
+                        log.low(
+                            "tree-sitter::install_language",
+                            format!("Grammar for {grammar_name} successfully installed!"),
+                        );
+                    }
+                    Err(e) => {
+                        log.critical(
+                            "tree-sitter::install_language",
+                            format!(
+                                "Failed to install language {} due to error: {}",
+                                grammar_name, e
+                            ),
+                        );
+                    }
+                }
+            });
         }
     }
 

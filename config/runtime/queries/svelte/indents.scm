@@ -1,24 +1,34 @@
-[
-  (element)
-  (start_tag)
-  (if_statement)
-  (else_if_block)
-  (else_block)
-  (then_block)
-  (each_statement)
-  (key_statement)
-  (snippet_statement)
-  (await_statement)
-  (style_element)
-  (script_element)
-  (expression)
-] @indent
+; inherits: html
 
 [
-  (end_tag)
+  (if_statement)
+  (each_statement)
+  (await_statement)
+  (key_statement)
+  (snippet_statement)
+] @indent.begin
+
+(if_end
+  "}" @indent.end)
+
+(each_end
+  "}" @indent.end)
+
+(await_end
+  "}" @indent.end)
+
+(key_end
+  "}" @indent.end)
+
+(snippet_end
+  "}" @indent.end)
+
+[
   (if_end)
+  (else_if_block)
+  (else_block)
   (each_end)
   (await_end)
   (key_end)
   (snippet_end)
-] @outdent
+] @indent.branch

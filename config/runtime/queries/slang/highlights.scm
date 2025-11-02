@@ -1,8 +1,8 @@
 ; inherits: c
 
 ; cpp
-((identifier) @variable.other.member
-  (#match? @variable.other.member "^m_.*$"))
+((identifier) @variable.member
+  (#lua-match? @variable.member "^m_.*$"))
 
 (parameter_declaration
   declarator: (reference_declarator) @variable.parameter)
@@ -16,25 +16,30 @@
 (optional_parameter_declaration
   declarator: (_) @variable.parameter)
 
+;(field_expression) @variable.parameter ;; How to highlight this?
+((field_expression
+  (field_identifier) @function.method) @_parent
+  (#has-parent? @_parent template_method function_declarator))
+
 (field_declaration
-  (field_identifier) @variable.other.member)
+  (field_identifier) @variable.member)
 
 (field_initializer
-  (field_identifier) @variable.other.member)
+  (field_identifier) @property)
 
 (function_declarator
   declarator: (field_identifier) @function.method)
 
 (concept_definition
-  name: (identifier) @type)
+  name: (identifier) @type.definition)
 
 (alias_declaration
-  name: (type_identifier) @type)
+  name: (type_identifier) @type.definition)
 
-(namespace_identifier) @namespace
+(namespace_identifier) @module
 
 ((namespace_identifier) @type
-  (#match? @type "^[%u]"))
+  (#lua-match? @type "^[%u]"))
 
 (case_statement
   value: (qualified_identifier
@@ -49,7 +54,7 @@
   [
     (qualified_identifier)
     (identifier)
-  ] @namespace)
+  ] @module)
 
 (destructor_name
   (identifier) @function.method)
@@ -70,6 +75,13 @@
       (qualified_identifier
         (identifier) @function))))
 
+((qualified_identifier
+  (qualified_identifier
+    (qualified_identifier
+      (qualified_identifier
+        (identifier) @function)))) @_parent
+  (#has-ancestor? @_parent function_declarator))
+
 (function_declarator
   (template_function
     (identifier) @function))
@@ -80,44 +92,57 @@
 
 "static_assert" @function.builtin
 
-
 (call_expression
   (qualified_identifier
-    (identifier) @function))
-
+    (identifier) @function.call))
 
 (call_expression
   (qualified_identifier
     (qualified_identifier
-      (identifier) @function)))
+      (identifier) @function.call)))
 
 (call_expression
   (qualified_identifier
     (qualified_identifier
       (qualified_identifier
-        (identifier) @function))))
+        (identifier) @function.call))))
+
+((qualified_identifier
+  (qualified_identifier
+    (qualified_identifier
+      (qualified_identifier
+        (identifier) @function.call)))) @_parent
+  (#has-ancestor? @_parent call_expression))
 
 (call_expression
   (template_function
-    (identifier) @function))
+    (identifier) @function.call))
 
 (call_expression
   (qualified_identifier
     (template_function
-      (identifier) @function)))
+      (identifier) @function.call)))
 
 (call_expression
   (qualified_identifier
     (qualified_identifier
       (template_function
-        (identifier) @function))))
+        (identifier) @function.call))))
 
 (call_expression
   (qualified_identifier
     (qualified_identifier
       (qualified_identifier
         (template_function
-          (identifier) @function)))))
+          (identifier) @function.call)))))
+
+((qualified_identifier
+  (qualified_identifier
+    (qualified_identifier
+      (qualified_identifier
+        (template_function
+          (identifier) @function.call))))) @_parent
+  (#has-ancestor? @_parent call_expression))
 
 ; methods
 (function_declarator
@@ -126,33 +151,33 @@
 
 (call_expression
   (field_expression
-    (field_identifier) @function.method))
+    (field_identifier) @function.method.call))
 
 ; constructors
 ((function_declarator
   (qualified_identifier
     (identifier) @constructor))
-  (#match? @constructor "^%u"))
+  (#lua-match? @constructor "^%u"))
 
 ((call_expression
   function: (identifier) @constructor)
-  (#match? @constructor "^%u"))
+  (#lua-match? @constructor "^%u"))
 
 ((call_expression
   function: (qualified_identifier
     name: (identifier) @constructor))
-  (#match? @constructor "^%u"))
+  (#lua-match? @constructor "^%u"))
 
 ((call_expression
   function: (field_expression
     field: (field_identifier) @constructor))
-  (#match? @constructor "^%u"))
+  (#lua-match? @constructor "^%u"))
 
 ; constructing a type in an initializer list: Constructor ():  **SuperType (1)**
 ((field_initializer
   (field_identifier) @constructor
   (argument_list))
-  (#match? @constructor "^%u"))
+  (#lua-match? @constructor "^%u"))
 
 ; Constants
 (this) @variable.builtin
@@ -160,9 +185,9 @@
 (null
   "nullptr" @constant.builtin)
 
-(true) @constant.builtin.boolean
+(true) @boolean
 
-(false) @constant.builtin.boolean
+(false) @boolean
 
 ; Literals
 (raw_string_literal) @string
@@ -173,7 +198,7 @@
   "catch"
   "noexcept"
   "throw"
-] @keyword.control.exception
+] @keyword.exception
 
 [
   "decltype"
@@ -191,13 +216,13 @@
   "template"
   "typename"
   "concept"
-] @keyword.storage.type
+] @keyword.type
 
 [
   "co_await"
   "co_yield"
   "co_return"
-] @keyword
+] @keyword.coroutine
 
 [
   "public"
@@ -205,7 +230,7 @@
   "protected"
   "final"
   "virtual"
-] @keyword.storage.modifier
+] @keyword.modifier
 
 [
   "new"
@@ -266,11 +291,10 @@
   "triangleadj"
   "lineadj"
   "triangle"
-] @keyword
+] @keyword.modifier
 
 ((identifier) @variable.builtin
-  (#match? @variable.builtin "^SV_"))
-; ((identifier) @variable)
+  (#lua-match? @variable.builtin "^SV_"))
 
 (hlsl_attribute) @attribute
 
@@ -280,7 +304,11 @@
     "]"
   ] @attribute)
 
-"This" @type.builtin
+[
+  "var"
+  "let"
+  "This"
+] @type.builtin
 
 [
   "interface"
@@ -288,8 +316,6 @@
   "property"
   "associatedtype"
   "where"
-	"var"
-	"let"
 ] @keyword
 
 "__init" @constructor
@@ -299,53 +325,6 @@
   "get"
   "set"
 ] @function.builtin
-
-(call_expression) @function
-
-(call_expression (identifier)) @function
-
-((call_expression
-  function: (identifier) @function.builtin)
-  (#any-of? @function.builtin
-		"frac" "abs" "acos" "acosh" "asin" "asinh" "atan" "atanh" "cos" "cosh" "exp" "exp2" "floor" "log" "log10" "log2" "round" "rsqrt" "sin" "sincos" "sinh" "sqrt" "tan" "tanh" "trunc"
-		"AllMemoryBarrier" "AllMemoryBarrierWithGroupSync" "DeviceMemoryBarrier" "DeviceMemoryBarrierWithGroupSync" "GroupMemoryBarrier" "GroupMemoryBarrierWithGroupSync"
-		"abort" "clip" "errorf" "printf"
-		"all" "any" "countbits" "faceforward" "firstbithigh" "firstbitlow" "isfinite" "isinf" "isnan" "max" "min" "noise" "pow" "reversebits" "sign"
-		"asdouble" "asfloat" "asint" "asuint" "D3DCOLORtoUBYTE4" "f16tof32" "f32tof16"
-		"ceil" "clamp" "degrees" "fma" "fmod" "frac" "frexp" "ldexp" "lerp" "mad" "modf" "radiants" "saturate" "smoothstep" "step"
-		"cross" "determinant" "distance" "dot" "dst" "length" "lit" "msad4" "mul" "normalize" "rcp" "reflect" "refract" "transpose"
-		"ddx" "ddx_coarse" "ddx_fine" "ddy" "ddy_coarse" "ddy_fine" "fwidth"
-		"EvaluateAttributeAtCentroid" "EvaluateAttributeAtSample" "EvaluateAttributeSnapped"
-		"GetRenderTargetSampleCount" "GetRenderTargetSamplePosition"
-		"InterlockedAdd" "InterlockedAnd" "InterlockedCompareExchange" "InterlockedCompareStore" "InterlockedExchange" "InterlockedMax" "InterlockedMin" "InterlockedOr" "InterlockedXor"
-		"InterlockedCompareStoreFloatBitwise" "InterlockedCompareExchangeFloatBitwise"
-		"Process2DQuadTessFactorsAvg" "Process2DQuadTessFactorsMax" "Process2DQuadTessFactorsMin" "ProcessIsolineTessFactors"
-		"ProcessQuadTessFactorsAvg" "ProcessQuadTessFactorsMax" "ProcessQuadTessFactorsMin" "ProcessTriTessFactorsAvg" "ProcessTriTessFactorsMax" "ProcessTriTessFactorsMin"
-		"tex1D" "tex1Dbias" "tex1Dgrad" "tex1Dlod" "tex1Dproj"
-		"tex2D" "tex2Dbias" "tex2Dgrad" "tex2Dlod" "tex2Dproj"
-		"tex3D" "tex3Dbias" "tex3Dgrad" "tex3Dlod" "tex3Dproj"
-		"texCUBE" "texCUBEbias" "texCUBEgrad" "texCUBElod" "texCUBEproj"
-		"WaveIsFirstLane" "WaveGetLaneCount" "WaveGetLaneIndex"
-		"IsHelperLane"
-		"WaveActiveAnyTrue" "WaveActiveAllTrue" "WaveActiveBallot"
-		"WaveReadLaneFirst" "WaveReadLaneAt"
-		"WaveActiveAllEqual" "WaveActiveAllEqualBool" "WaveActiveCountBits"
-		"WaveActiveSum" "WaveActiveProduct" "WaveActiveBitAnd" "WaveActiveBitOr" "WaveActiveBitXor" "WaveActiveMin" "WaveActiveMax"
-		"WavePrefixCountBits" "WavePrefixProduct" "WavePrefixSum"
-		"QuadReadAcrossX" "QuadReadAcrossY" "QuadReadAcrossDiagonal" "QuadReadLaneAt"
-		"QuadAny" "QuadAll"
-		"WaveMatch" "WaveMultiPrefixSum" "WaveMultiPrefixProduct" "WaveMultiPrefixCountBits" "WaveMultiPrefixAnd" "WaveMultiPrefixOr" "WaveMultiPrefixXor"
-		"NonUniformResourceIndex"
-		"DispatchMesh" "SetMeshOutputCounts"
-		"dot4add_u8packed" "dot4add_i8packed" "dot2add"
-		"RestartStrip"
-		"CalculateLevelOfDetail" "CalculateLevelOfDetailUnclamped" "Gather" "GetDimensions" "GetSamplePosition" "Load" "Sample" "SampleBias" "SampleCmp" "SampleCmpLevelZero" "SampleGrad" "SampleLevel" "GatherRaw" "SampleCmpLevel"
-		"SampleCmpBias" "SampleCmpGrad"
-		"WriteSamplerFeedback" "WriteSamplerFeedbackBias" "WriteSamplerFeedbackGrad" "WriteSamplerFeedbackLevel"
-		"Append" "Consume" "DecrementCounter" "IncrementCounter"
-		"Load2" "Load3" "Load4" "Store" "Store2" "Store3" "Store4"
-		"GatherRed" "GatherGreen" "GatherBlue" "GatherAlpha" "GatherCmp" "GatherCmpRed" "GatherCmpGreen" "GatherCmpBlue" "GatherCmpAlpha"
-	))
 
 (interface_requirements
   (identifier) @type)
@@ -365,7 +344,7 @@
 [
   "__exported"
   "import"
-] @keyword.control.import
+] @keyword.import
 
 (property_declaration
-  (identifier) @variable.other.member)
+  (identifier) @property)

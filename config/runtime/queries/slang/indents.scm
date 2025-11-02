@@ -3,4 +3,4 @@
 [
   (interface_specifier)
   (extension_specifier)
-] @indent
+] @indent.begin

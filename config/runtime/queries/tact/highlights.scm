@@ -1,42 +1,22 @@
-; See: https://docs.helix-editor.com/master/themes.html#syntax-highlighting
-; -------------------------------------------------------------------------
-
-; attribute
-; ---------
-
-[
-  "@name"
-  "@interface"
-] @attribute
-
-; operator
+; variable
 ; --------
+(identifier) @variable
 
-[
-  "-" "-="
-  "+" "+="
-  "*" "*="
-  "/" "/="
-  "%" "%="
-  "=" "=="
-  "!" "!=" "!!"
-  "<" "<=" "<<"
-  ">" ">=" ">>"
-  "&" "|"
-  "&&" "||"
-] @operator
+(destruct_bind
+  name: (identifier) @variable.member
+  bind: (identifier) @variable)
 
-; punctuation.bracket
-; -------------------
+; variable.builtin
+; ----------------
+(self) @variable.builtin
 
-[
-  "(" ")"
-  "{" "}"
-] @punctuation.bracket
+; variable.parameter
+; ------------------
+(parameter
+  name: (identifier) @variable.parameter)
 
 ; punctuation.delimiter
 ; ---------------------
-
 [
   ";"
   ","
@@ -45,69 +25,254 @@
   "?"
 ] @punctuation.delimiter
 
-; variable
+; punctuation.bracket
+; -------------------
+[
+  "("
+  ")"
+  "{"
+  "}"
+] @punctuation.bracket
+
+; operator
 ; --------
+[
+  "-"
+  "-="
+  "+"
+  "+="
+  "*"
+  "*="
+  "/"
+  "/="
+  "%"
+  "%="
+  "="
+  "=="
+  "!"
+  "!="
+  "!!"
+  "<"
+  "<="
+  "<<"
+  "<<="
+  ">"
+  ">="
+  ">>"
+  ">>="
+  "&"
+  "&="
+  "|"
+  "|="
+  "^"
+  "^="
+  "&&"
+  "&&="
+  "||"
+  "||="
+  "->"
+  ".."
+] @operator
 
-(identifier) @variable
+; constructor
+; -----------
+(instance_expression
+  name: (identifier) @constructor)
 
-; variable.builtin
+(initOf
+  name: (identifier) @constructor)
+
+(codeOf
+  name: (identifier) @constructor)
+
+; type
+; ----
+(type_identifier) @type
+
+; type.builtin
+; ------------
+((identifier) @type.builtin
+  (#any-of? @type.builtin "Context" "SendParameters" "StateInit" "StdAddress" "VarAddress"))
+
+(generic_parameter_list
+  "<" @punctuation.bracket
+  ">" @punctuation.bracket)
+
+(bounced_type
+  "bounced" @type.builtin
+  "<" @punctuation.bracket
+  ">" @punctuation.bracket)
+
+(map_type
+  "map" @type.builtin
+  "<" @punctuation.bracket
+  ">" @punctuation.bracket)
+
+((type_identifier) @type.builtin
+  (#any-of? @type.builtin "Address" "Bool" "Builder" "Cell" "Int" "Slice" "String" "StringBuilder"))
+
+(tlb_serialization
+  "as" @keyword
+  type: (identifier) @type)
+
+; string
+; ------
+(string) @string
+
+; string.escape
+; -------------
+(escape_sequence) @string.escape
+
+; string.special.path
+; -------------------
+(import
+  name: (string) @string.special.path)
+
+; boolean
+; -------
+(boolean) @boolean
+
+; constant
+; --------
+(global_constant
+  name: (identifier) @constant)
+
+(storage_constant
+  name: (identifier) @constant)
+
+; constant.builtin
 ; ----------------
+(null) @constant.builtin
 
-(self) @variable.builtin
+((identifier) @constant.builtin
+  (#any-of? @constant.builtin
+    "SendDefaultMode" "SendBounceIfActionFail" "SendPayGasSeparately" "SendIgnoreErrors"
+    "SendDestroyIfZero" "SendRemainingValue" "SendRemainingBalance" "SendOnlyEstimateFee"
+    "ReserveExact" "ReserveAllExcept" "ReserveAtMost" "ReserveAddOriginalBalance"
+    "ReserveInvertSign" "ReserveBounceIfActionFail"))
 
-; variable.parameter
-; ------------------
-
-(parameter
-  name: (identifier) @variable.parameter)
-
-; variable.other.member
-; ---------------------
-
-(field
-  name: (identifier) @variable.other.member)
-
-(contract_body
-  (constant
-    name: (identifier) @variable.other.member))
-
-(trait_body
-  (constant
-    name: (identifier) @variable.other.member))
+; property
+; --------
+(instance_argument
+  name: (identifier) @variable.member)
 
 (field_access_expression
-  name: (identifier) @variable.other.member)
+  name: (identifier) @variable.member)
 
-(lvalue (_) (_) @variable.other.member)
+(field
+  name: (identifier) @variable.member)
 
-(instance_argument
-  name: (identifier) @variable.other.member)
+(storage_variable
+  name: (identifier) @variable.member)
 
-; comment.block
-; -------------
+; number
+; ------
+(integer) @number
 
-(comment) @comment.block
+; keyword
+; -------
+[
+  "with"
+  "const"
+  "let"
+  ; "public" ; -- not used, but declared in grammar.ohm
+  ; "extend" ; -- not used, but declared in grammar.ohm
+] @keyword
 
-; comment.line
+; keyword.type
 ; ------------
+[
+  "contract"
+  "trait"
+  "struct"
+  "message"
+] @keyword.type
 
-((comment) @comment.line
-  (#match? @comment.line "^//"))
+; keyword.function
+; ----------------
+[
+  "fun"
+  "native"
+  "asm"
+] @keyword.function
+
+; keyword.operator
+; ----------------
+"initOf" @keyword.operator
+
+"codeOf" @keyword.operator
+
+; keyword.import
+; --------------
+"import" @keyword.import
+
+; keyword.modifier
+; ---------------
+[
+  "get"
+  "mutates"
+  "extends"
+  "virtual"
+  "override"
+  "inline"
+  "abstract"
+] @keyword.modifier
+
+; keyword.repeat
+; --------------
+(foreach_statement
+  .
+  (_)
+  .
+  (_)
+  .
+  "in" @keyword.repeat)
+
+[
+  "while"
+  "repeat"
+  "do"
+  "until"
+  "foreach"
+] @keyword.repeat
+
+; keyword.return
+; --------------
+"return" @keyword.return
+
+; keyword.exception
+; -----------------
+[
+  "try"
+  "catch"
+] @keyword.exception
+
+; keyword.conditional
+; -------------------
+[
+  "if"
+  "else"
+] @keyword.conditional
+
+; keyword.directive.define
+; ------------------------
+"primitive" @keyword.directive.define
 
 ; function
 ; --------
-
-(func_identifier) @function
-
 (native_function
   name: (identifier) @function)
 
-(static_function
+(asm_function
   name: (identifier) @function)
 
-(static_call_expression
+(global_function
   name: (identifier) @function)
 
+(func_identifier) @function
+
+; function.method
+; ---------------
 (init_function
   "init" @function.method)
 
@@ -120,179 +285,58 @@
 (external_function
   "external" @function.method)
 
-(function
+(storage_function
   name: (identifier) @function.method)
 
-; function.method
+; function.call
+; -------------
+(static_call_expression
+  name: (identifier) @function.call)
+
+; function.method.call
 ; ---------------
-
 (method_call_expression
-  name: (identifier) @function.method)
+  name: (identifier) @function.method.call)
 
-; function.builtin
-; ----------------
-
-((identifier) @function.builtin
-  (#any-of? @function.builtin
-    "send" "sender" "require" "now"
-    "myBalance" "myAddress" "newAddress"
-    "contractAddress" "contractAddressExt"
-    "emit" "cell" "ton"
-    "beginString" "beginComment" "beginTailString" "beginStringFromBuilder" "beginCell" "emptyCell"
-    "randomInt" "random"
-    "checkSignature" "checkDataSignature" "sha256"
-    "min" "max" "abs" "pow"
-    "throw" "dump" "getConfigParam"
-    "nativeThrowWhen" "nativeThrowUnless" "nativeReserve"
-    "nativeRandomize" "nativeRandomizeLt" "nativePrepareRandom" "nativeRandom" "nativeRandomInterval")
-  (#is-not? local))
-
-; keyword.control.conditional
-; ---------------------------
-
-[
-  "if" "else"
-] @keyword.control.conditional
-
-; keyword.control.repeat
-; ----------------------
-
-[
-  "while" "repeat" "do" "until"
-] @keyword.control.repeat
-
-; keyword.control.import
-; ----------------------
-
-"import" @keyword.control.import
-
-; keyword.control.return
-; ----------------------
-
-"return" @keyword.control.return
-
-; keyword.operator
-; ----------------
-
-"initOf" @keyword.operator
-
-; keyword.directive
-; -----------------
-
-"primitive" @keyword.directive
-
-; keyword.function
-; ----------------
-
-[
-  "fun"
-  "native"
-] @keyword.function
-
-; keyword.storage.type
-; --------------------
-
-[
-  "contract" "trait" "struct" "message" "with"
-  "const" "let"
-] @keyword.storage.type
-
-; keyword.storage.modifier
-; ------------------------
-
-[
-  "get" "mutates" "extends" "virtual" "override" "inline" "abstract"
-] @keyword.storage.modifier
-
-; keyword
-; -------
-
-[
-  "with"
-  ; "public" ; -- not used, but declared in grammar.ohm
-  ; "extend" ; -- not used, but declared in grammar.ohm
-] @keyword
-
-; constant.builtin.boolean
-; ------------------------
-
-(boolean) @constant.builtin.boolean
-
-; constant.builtin
-; ----------------
-
-((identifier) @constant.builtin
-  (#any-of? @constant.builtin
-    "SendPayGasSeparately"
-    "SendIgnoreErrors"
-    "SendDestroyIfZero"
-    "SendRemainingValue"
-    "SendRemainingBalance")
-  (#is-not? local))
-
-(null) @constant.builtin
-
-; constant.numeric.integer
-; ------------------------
-
-(integer) @constant.numeric.integer
-
-; constant
-; --------
-
-(constant
-  name: (identifier) @constant)
-
-; string
-; ------
-
-(string) @string
-
-; string.special.path
-; -------------------
-
-(import_statement
-  library: (string) @string.special.path)
-
-; type
-; ----
-
-(type_identifier) @type
-
-; type.builtin
+; asm-specific
 ; ------------
+(tvm_instruction) @function.call
 
-(tlb_serialization
-  "as" @keyword
-  type: (identifier) @type.builtin
-  (#any-of? @type.builtin
-    "int8" "int16" "int32" "int64" "int128" "int256" "int257"
-    "uint8" "uint16" "uint32" "uint64" "uint128" "uint256"
-    "coins" "remaining" "bytes32" "bytes64"))
+(asm_integer) @number
 
-((type_identifier) @type.builtin
-  (#any-of? @type.builtin
-    "Address" "Bool" "Builder" "Cell" "Int" "Slice" "String" "StringBuilder"))
+(asm_string) @string
 
-(map_type
-  "map" @type.builtin
-  "<" @punctuation.bracket
-  ">" @punctuation.bracket)
+(asm_control_register) @string.special.symbol
 
-(bounced_type
-  "bounced" @type.builtin
-  "<" @punctuation.bracket
-  ">" @punctuation.bracket)
+(asm_stack_register) @string.special.symbol
 
-((identifier) @type.builtin
-  (#eq? @type.builtin "SendParameters")
-  (#is-not? local))
+(asm_hex_bitstring) @function.macro
 
-; constructor
-; -----------
+(asm_bin_bitstring) @function.macro
 
-(instance_expression
-  name: (identifier) @constructor)
+(asm_boc_hex) @function.macro
 
-(initOf
-  name: (identifier) @constructor)
+(asm_cont_name) @variable
+
+; within asm_sequence
+[
+  "<{"
+  "}>"
+  "}>c"
+  "}>s"
+  "}>CONT"
+] @punctuation.bracket
+
+; attribute
+; ---------
+[
+  "@name"
+  "@interface"
+] @attribute
+
+; comment
+; -------
+(comment) @comment @spell
+
+((comment) @comment.documentation
+  (#lua-match? @comment.documentation "^/[*][*][^*].*[*]/$"))

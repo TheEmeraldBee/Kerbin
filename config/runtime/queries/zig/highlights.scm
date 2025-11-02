@@ -1,9 +1,7 @@
 ; Variables
-
 (identifier) @variable
 
 ; Parameters
-
 (parameter
   name: (identifier) @variable.parameter)
 
@@ -11,12 +9,11 @@
   (identifier) @variable.parameter)
 
 ; Types
-
 (parameter
   type: (identifier) @type)
 
 ((identifier) @type
-  (#match? @type "^[A-Z_][a-zA-Z0-9_]*"))
+  (#lua-match? @type "^[A-Z_][a-zA-Z0-9_]*"))
 
 (variable_declaration
   (identifier) @type
@@ -34,9 +31,8 @@
 ] @type.builtin
 
 ; Constants
-
 ((identifier) @constant
-  (#match? @constant "^[A-Z][A-Z_0-9]+$"))
+  (#lua-match? @constant "^[A-Z][A-Z_0-9]+$"))
 
 [
   "null"
@@ -53,7 +49,6 @@
     type: (identifier) @constant))
 
 ; Labels
-
 (block_label
   (identifier) @label)
 
@@ -61,63 +56,44 @@
   (identifier) @label)
 
 ; Fields
-
 (field_initializer
   .
-  (identifier) @variable.other.member)
+  (identifier) @variable.member)
 
 (field_expression
   (_)
-  member: (identifier) @variable.other.member)
-
-(field_expression
-  (_)
-  member: (identifier) @type (#match? @type "^[A-Z_][a-zA-Z0-9_]*"))
-
-(field_expression
-  (_)
-  member: (identifier) @constant (#match? @constant "^[A-Z][A-Z_0-9]+$"))
+  member: (identifier) @variable.member)
 
 (container_field
-  name: (identifier) @variable.other.member)
+  name: (identifier) @variable.member)
 
 (initializer_list
   (assignment_expression
-      left: (field_expression
-              .
-              member: (identifier) @variable.other.member)))
+    left: (field_expression
+      .
+      member: (identifier) @variable.member)))
 
 ; Functions
-
 (builtin_identifier) @function.builtin
 
 (call_expression
-  function: (identifier) @function)
+  function: (identifier) @function.call)
 
 (call_expression
   function: (field_expression
-    member: (identifier) @function.method))
+    member: (identifier) @function.call))
 
 (function_declaration
   name: (identifier) @function)
 
 ; Modules
-
 (variable_declaration
-  (_)
+  (identifier) @module
   (builtin_function
-    (builtin_identifier) @keyword.control.import
-    (#any-of? @keyword.control.import "@import" "@cImport")))
-
-(variable_declaration
-  (_)
-  (field_expression
-    object: (builtin_function
-      (builtin_identifier) @keyword.control.import
-      (#any-of? @keyword.control.import "@import" "@cImport"))))
+    (builtin_identifier) @keyword.import
+    (#any-of? @keyword.import "@import" "@cImport")))
 
 ; Builtins
-
 [
   "c"
   "..."
@@ -130,30 +106,30 @@
   (identifier) @variable.builtin)
 
 ; Keywords
-
 [
   "asm"
+  "defer"
+  "errdefer"
   "test"
-] @keyword
-
-[
   "error"
   "const"
   "var"
+] @keyword
+
+[
   "struct"
   "union"
   "enum"
   "opaque"
-] @keyword.storage.type
+] @keyword.type
 
-; todo: keyword.coroutine
 [
   "async"
   "await"
   "suspend"
   "nosuspend"
   "resume"
-] @keyword
+] @keyword.coroutine
 
 "fn" @keyword.function
 
@@ -163,35 +139,30 @@
   "orelse"
 ] @keyword.operator
 
-[
-  "try"
-  "unreachable"
-  "return"
-] @keyword.control.return
+"return" @keyword.return
 
 [
   "if"
   "else"
   "switch"
-  "catch"
-] @keyword.control.conditional
+] @keyword.conditional
 
 [
   "for"
   "while"
   "break"
   "continue"
-] @keyword.control.repeat
+] @keyword.repeat
 
 [
   "usingnamespace"
   "export"
-] @keyword.control.import
+] @keyword.import
 
 [
-  "defer"
-  "errdefer"
-] @keyword.control.exception
+  "try"
+  "catch"
+] @keyword.exception
 
 [
   "volatile"
@@ -208,10 +179,9 @@
   "comptime"
   "packed"
   "threadlocal"
-] @keyword.storage.modifier
+] @keyword.modifier
 
 ; Operator
-
 [
   "="
   "*="
@@ -268,24 +238,23 @@
 ] @operator
 
 ; Literals
+(character) @character
 
-(character) @constant.character
-
-[
+([
   (string)
   (multiline_string)
 ] @string
+  (#set! "priority" 95))
 
-(integer) @constant.numeric.integer
+(integer) @number
 
-(float) @constant.numeric.float
+(float) @number.float
 
-(boolean) @constant.builtin.boolean
+(boolean) @boolean
 
-(escape_sequence) @constant.character.escape
+(escape_sequence) @string.escape
 
 ; Punctuation
-
 [
   "["
   "]"
@@ -304,11 +273,11 @@
   "->"
 ] @punctuation.delimiter
 
-(payload "|" @punctuation.bracket)
+(payload
+  "|" @punctuation.bracket)
 
 ; Comments
+(comment) @comment @spell
 
-(comment) @comment.line
-
-((comment) @comment.block.documentation
-  (#match? @comment.block.documentation "^//!"))
+((comment) @comment.documentation
+  (#lua-match? @comment.documentation "^//!"))

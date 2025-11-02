@@ -1,58 +1,82 @@
-(line_comment) @comment.line
-(block_comment) @comment.block
+; highlights.scm
+; See this for full list: https://github.com/nvim-treesitter/nvim-treesitter/blob/master/CONTRIBUTING.md
+; comments
+(line_comment) @comment @spell
 
-(argument name: (identifier) @variable.parameter)
+(block_comment) @comment @spell
 
-(local_var name: (identifier) @variable)
-(environment_var name:(identifier) @variable.builtin)
+; Argument definition
+(argument
+  name: (identifier) @variable.parameter)
+
+; Variables
+(local_var
+  name: (identifier) @variable)
+
+(environment_var
+  name: (identifier) @variable.builtin)
+
 (builtin_var) @constant.builtin
 
-(function_definition name: (variable) @function)
+; (variable) @variable
+; Functions
+(function_definition
+  name: (variable) @function)
 
-(named_argument name: (identifier) @variable.other.member)
+; For function calls
+(named_argument
+  name: (identifier) @function.call)
 
-(method_call name: (method_name) @function.method)
+; Methods
+(method_call
+  name: (method_name) @function.method.call)
 
-(class) @keyword.storage.type
+; Classes
+(class) @type
 
-(number) @constant.numeric
-(float) @constant.numeric.float
+; Literals
+(number) @number
+
+(float) @number.float
 
 (string) @string
+
 (symbol) @string.special.symbol
 
+; Operators
 [
-"&&"
-"||"
-"&"
-"|"
-"^"
-"=="
-"!="
-"<"
-"<="
-">"
-">="
-"<<"
-">>"
-"+"
-"-"
-"*"
-"/"
-"%"
-"="
-"|@|"
-"@@"
-"@|@"
+  "&&"
+  "||"
+  "&"
+  "|"
+  "^"
+  "=="
+  "!="
+  "<"
+  "<="
+  ">"
+  ">="
+  "<<"
+  ">>"
+  "+"
+  "-"
+  "*"
+  "/"
+  "%"
+  "="
 ] @operator
 
+; Keywords
 [
-"arg"
-"classvar"
-"const"
-"var"
+  "arg"
+  "classvar"
+  "const"
+  ; "super"
+  ; "this"
+  "var"
 ] @keyword
 
+; Brackets
 [
   "("
   ")"
@@ -63,14 +87,17 @@
   "|"
 ] @punctuation.bracket
 
+; Delimiters
 [
   ";"
   "."
   ","
 ] @punctuation.delimiter
 
-(control_structure) @keyword.control.conditional
+; control structure
+(control_structure) @keyword.conditional
 
-(escape_sequence) @string.special
+(escape_sequence) @string.escape
 
-(duplicated_statement) @keyword.control.repeat
+; SinOsc.ar()!2
+(duplicated_statement) @keyword.repeat

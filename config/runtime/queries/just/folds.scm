@@ -1,5 +1,3 @@
-; Define collapse points
-
 ([
   (recipe)
   (string)

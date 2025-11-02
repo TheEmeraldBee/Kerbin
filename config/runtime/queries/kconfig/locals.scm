@@ -12,6 +12,13 @@
   (if)
 ] @local.scope
 
-(type_definition (string) @local.definition.type)
-(type_definition (input_prompt (string) @local.definition.type))
-(type_definition_default (expression (string) @local.definition.type))
+(type_definition
+  (string) @local.definition.var)
+
+(type_definition
+  (input_prompt
+    (string) @local.definition.var))
+
+(type_definition_default
+  (expression
+    (string) @local.definition.var))

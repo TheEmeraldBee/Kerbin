@@ -1,14 +1,17 @@
 (string) @string
 
-(field_name) @variable.other.member
+(field_name) @variable.member
 
-(comment) @comment
+(comment) @comment @spell
 
-(number) @constant.numeric
-; covers e.g. booleans and "inf"
-(scalar_value (identifier)) @constant
-; Covers "-inf"
-(scalar_value (signed_identifier)) @constant.numeric
+(number) @number
+
+; For stuff like "inf" and "-inf".
+(scalar_value
+  [
+    (identifier)
+    (signed_identifier)
+  ]) @number
 
 [
   (open_squiggly)
@@ -18,5 +21,3 @@
   (open_arrow)
   (close_arrow)
 ] @punctuation.bracket
-
-"," @punctuation.delimiter

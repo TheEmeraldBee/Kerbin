@@ -1,155 +1,204 @@
-;; Operators
-
+; Fish highlighting
+; Operators
 [
- "&&"
- "||"
- "|"
- "&|"
- "2>|"
- "&"
- ".."
- "!"
- (direction)
- (stream_redirect)
+  "&&"
+  "||"
+  "|"
+  "&|"
+  "2>|"
+  "&"
+  ".."
+  "!"
+  (direction)
+  (stream_redirect)
 ] @operator
 
+; match operators of test command
+(command
+  name: (word) @function.builtin
+  (#eq? @function.builtin "test")
+  argument: (word) @operator
+  (#match? @operator "^(!?\\=|-[a-zA-Z]+)$"))
+
+; match operators of [ command
+(command
+  name: (word) @punctuation.bracket
+  (#eq? @punctuation.bracket "[")
+  argument: (word) @operator
+  (#match? @operator "^(!?\\=|-[a-zA-Z]+)$"))
+
 [
- "not"
- "and"
- "or"
+  "not"
+  "and"
+  "or"
 ] @keyword.operator
 
-;; Conditionals
-
+; Conditionals
 (if_statement
-[
- "if"
- "end"
-] @keyword.control.conditional)
+  [
+    "if"
+    "end"
+  ] @keyword.conditional)
 
 (switch_statement
-[
- "switch"
- "end"
-] @keyword.control.conditional)
+  [
+    "switch"
+    "end"
+  ] @keyword.conditional)
 
 (case_clause
-[
- "case"
-] @keyword.control.conditional)
+  "case" @keyword.conditional)
 
 (else_clause
-[
- "else"
-] @keyword.control.conditional)
+  "else" @keyword.conditional)
 
 (else_if_clause
-[
- "else"
- "if"
-] @keyword.control.conditional)
+  [
+    "else"
+    "if"
+  ] @keyword.conditional)
 
-;; Loops/Blocks
-
+; Loops/Blocks
 (while_statement
-[
- "while"
- "end"
-] @keyword.control.repeat)
+  [
+    "while"
+    "end"
+  ] @keyword.repeat)
 
 (for_statement
-[
- "for"
- "end"
-] @keyword.control.repeat)
+  [
+    "for"
+    "end"
+  ] @keyword.repeat)
 
 (begin_statement
-[
- "begin"
- "end"
-] @keyword.control.repeat)
+  [
+    "begin"
+    "end"
+  ] @keyword.repeat)
 
-;; Keywords
-
+; Keywords
 [
- "in"
- (break)
- (continue)
+  "in"
+  (break)
+  (continue)
 ] @keyword
 
-"return" @keyword.control.return
+"return" @keyword.return
 
-;; Punctuation
-
+; Punctuation
 [
- "["
- "]"
- "{"
- "}"
- "("
- ")"
+  "["
+  "]"
+  "{"
+  "}"
+  "("
+  ")"
 ] @punctuation.bracket
 
 "," @punctuation.delimiter
 
-;; Commands
-
-(command name: (word) @function)
-
-(command
-  name: (word) @function.builtin (#match? @function.builtin "^test$")
-  argument: (word) @operator (#match? @operator "^(!?=|-[a-zA-Z]+)$"))
-
-(command
-  name: (word) @punctuation.bracket (#match? @punctuation.bracket "^\\[$")
-  argument: (word) @operator (#match? @operator "^(!?=|-[a-zA-Z]+)$"))
-
+; Commands
 (command
   argument: [
-             (word) @variable.parameter (#match? @variable.parameter "^-")
-            ]
-)
+    (word) @variable.parameter
+    (#lua-match? @variable.parameter "^[-]")
+  ])
 
-; derived from builtin -n (fish 3.7.1)
+(command_substitution
+  "$" @punctuation.special)
+
+; non-builtin command names
+(command
+  name: (word) @function.call)
+
+; derived from builtin -n (fish 3.2.2)
 (command
   name: [
     (word) @function.builtin
-    (#any-of? @function.builtin "abbr" "alias" "and" "argparse" "begin" "bg" "bind" "block" "break" "breakpoint" "builtin" "case" "cd" "command" "commandline" "complete" "contains" "continue" "count" "disown" "echo" "else" "emit" "end" "eval" "exec" "exit" "false" "fg" "for" "function" "functions" "history" "if" "isatty" "jobs" "math" "not" "or" "path" "printf" "pwd" "random" "read" "realpath" "return" "set" "set_color" "source" "status" "string" "switch" "test" "time" "true" "type" "ulimit" "wait" "while")
-  ]
-)
+    (#any-of? @function.builtin
+      "." ":" "_" "alias" "argparse" "bg" "bind" "block" "breakpoint" "builtin" "cd" "command"
+      "commandline" "complete" "contains" "count" "disown" "echo" "emit" "eval" "exec" "exit" "fg"
+      "functions" "history" "isatty" "jobs" "math" "printf" "pwd" "random" "read" "realpath" "set"
+      "set_color" "source" "status" "string" "test" "time" "type" "ulimit" "wait")
+  ])
 
-;; Functions
-
-(function_definition ["function" "end"] @keyword.function)
+; Functions
+(function_definition
+  [
+    "function"
+    "end"
+  ] @keyword.function)
 
 (function_definition
   name: [
-        (word) (concatenation)
-        ]
-@function)
+    (word)
+    (concatenation)
+  ] @function)
 
 (function_definition
   option: [
-          (word)
-          (concatenation (word))
-          ] @variable.parameter (#match? @variable.parameter "^-")
-)
+    (word)
+    (concatenation
+      (word))
+  ] @variable.parameter
+  (#lua-match? @variable.parameter "^[-]"))
 
-;; Strings
+; Strings
+[
+  (double_quote_string)
+  (single_quote_string)
+] @string
 
-[(double_quote_string) (single_quote_string)] @string
-(escape_sequence) @constant.character.escape
+(escape_sequence) @string.escape
 
-;; Variables
-
+; Variables
 (variable_name) @variable
+
 (variable_expansion) @constant
 
-;; Nodes
+(variable_expansion
+  "$" @punctuation.special) @none
 
-(integer) @constant.numeric.integer
-(float) @constant.numeric.float
+; Reference: https://fishshell.com/docs/current/language.html#special-variables
+((variable_name) @variable.builtin
+  (#any-of? @variable.builtin
+    "PATH" "CDPATH" "LANG" "LC_ALL" "LC_COLLATE" "LC_CTYPE" "LC_MESSAGES" "LC_MONETARY" "LC_NUMERIC"
+    "LC_TIME" "fish_color_normal" "fish_color_command" "fish_color_keyword" "fish_color_keyword"
+    "fish_color_redirection" "fish_color_end" "fish_color_error" "fish_color_param"
+    "fish_color_valid_path" "fish_color_option" "fish_color_comment" "fish_color_selection"
+    "fish_color_operator" "fish_color_escape" "fish_color_autosuggestion" "fish_color_cwd"
+    "fish_color_cwd_root" "fish_color_user" "fish_color_host" "fish_color_host_remote"
+    "fish_color_status" "fish_color_cancel" "fish_color_search_match" "fish_color_history_current"
+    "fish_pager_color_progress" "fish_pager_color_background" "fish_pager_color_prefix"
+    "fish_pager_color_completion" "fish_pager_color_description"
+    "fish_pager_color_selected_background" "fish_pager_color_selected_prefix"
+    "fish_pager_color_selected_completion" "fish_pager_color_selected_description"
+    "fish_pager_color_secondary_background" "fish_pager_color_secondary_prefix"
+    "fish_pager_color_secondary_completion" "fish_pager_color_secondary_description"
+    "fish_term24bit" "fish_term256" "fish_ambiguous_width" "fish_emoji_width"
+    "fish_autosuggestion_enabled" "fish_handle_reflow" "fish_key_bindings" "fish_escape_delay_ms"
+    "fish_sequence_key_delay_ms" "fish_complete_path" "fish_cursor_selection_mode"
+    "fish_function_path" "fish_greeting" "fish_history" "fish_trace" "FISH_DEBUG"
+    "FISH_DEBUG_OUTPUT" "fish_user_paths" "umask" "BROWSER" "_" "argv" "CMD_DURATION" "COLUMNS"
+    "LINES" "fish_kill_signal" "fish_killring" "fish_read_limit" "fish_pid" "history" "HOME"
+    "hostname" "IFS" "last_pid" "PWD" "pipestatus" "SHLVL" "status" "status_generation" "TERM"
+    "USER" "EUID" "version" "FISH_VERSION"))
+
+; Nodes
+[
+  (integer)
+  (float)
+] @number
+
 (comment) @comment
 
-((word) @constant.builtin.boolean
-(#match? @constant.builtin.boolean "^(true|false)$"))
+(comment) @spell
+
+((word) @boolean
+  (#any-of? @boolean "true" "false"))
+
+((program
+  .
+  (comment) @keyword.directive @nospell)
+  (#lua-match? @keyword.directive "^#!/"))

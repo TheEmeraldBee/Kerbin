@@ -1,39 +1,34 @@
-; This file tells us about the scope of variables so e.g. local
-; variables override global functions with the same name
-
+; Source: https://github.com/IndianBoy42/tree-sitter-just/blob/main/queries/just/locals.scm
 ; Scope
-
 (recipe) @local.scope
 
 ; Definitions
-
 (alias
-  alias_name: (identifier) @local.definition.variable)
+  left: (identifier) @local.definition.var)
 
 (assignment
-  name: (identifier) @local.definition.variable)
+  left: (identifier) @local.definition.var)
 
-(mod
+(module
   name: (identifier) @local.definition.namespace)
 
-(recipe_parameter
-  name: (identifier) @local.definition.variable.parameter)
+(parameter
+  name: (identifier) @local.definition.var)
 
-(recipe
+(recipe_header
   name: (identifier) @local.definition.function)
 
 ; References
-
 (alias
-  name: (identifier) @local.reference)
+  right: (identifier) @local.reference)
 
 (function_call
   name: (identifier) @local.reference)
 
-(module_path
+(dependency
   name: (identifier) @local.reference)
 
-(recipe_dependency
+(dependency_expression
   name: (identifier) @local.reference)
 
 (value

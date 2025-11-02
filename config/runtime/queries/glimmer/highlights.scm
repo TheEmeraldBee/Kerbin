@@ -1,94 +1,117 @@
 ; === Tag Names ===
-
 ; Tags that start with a lower case letter are HTML tags
 ; We'll also use this highlighting for named blocks (which start with `:`)
 ((tag_name) @tag
-  (#match? @tag "^(:)?[a-z]"))
+  (#lua-match? @tag "^:?[%l]"))
+
 ; Tags that start with a capital letter are Glimmer components
 ((tag_name) @constructor
-  (#match? @constructor "^[A-Z]"))
+  (#lua-match? @constructor "^%u"))
 
 (attribute_name) @attribute
 
 (string_literal) @string
-(number_literal) @constant.numeric.integer
-(boolean_literal) @constant.builtin.boolean
+
+(number_literal) @number
+
+(boolean_literal) @boolean
 
 (concat_statement) @string
 
 ; === Block Statements ===
-
 ; Highlight the brackets
-(block_statement_start) @punctuation.delimiter
-(block_statement_end) @punctuation.delimiter
+(block_statement_start) @tag.delimiter
+
+(block_statement_end) @tag.delimiter
 
 ; Highlight `if`/`each`/`let`
-(block_statement_start path: (identifier) @keyword.control.conditional)
-(block_statement_end path: (identifier) @keyword.control.conditional)
-((mustache_statement (identifier) @keyword.control.conditional)
- (#eq? @keyword.control.conditional "else"))
+(block_statement_start
+  path: (identifier) @keyword.conditional)
+
+(block_statement_end
+  path: (identifier) @keyword.conditional)
+
+((mustache_statement
+  (identifier) @keyword.conditional)
+  (#lua-match? @keyword.conditional "else"))
 
 ; == Mustache Statements ===
-
 ; Highlight the whole statement, to color brackets and separators
-(mustache_statement) @punctuation.delimiter
+(mustache_statement) @tag.delimiter
 
 ; An identifier in a mustache expression is a variable
-((mustache_statement [
-  (path_expression (identifier) @variable)
-  (identifier) @variable
+((mustache_statement
+  [
+    (path_expression
+      (identifier) @variable)
+    (identifier) @variable
   ])
   (#not-any-of? @variable "yield" "outlet" "this" "else"))
+
 ; As are arguments in a block statement
-((block_statement_start argument: [
-  (path_expression (identifier) @variable)
-  (identifier) @variable
+(block_statement_start
+  argument: [
+    (path_expression
+      (identifier) @variable)
+    (identifier) @variable
   ])
- (#not-eq? @variable "this"))
+
 ; As is an identifier in a block param
-(block_params (identifier) @variable)
+(block_params
+  (identifier) @variable)
+
 ; As are helper arguments
-((helper_invocation argument: [
-  (path_expression (identifier) @variable)
-  (identifier) @variable
+((helper_invocation
+  argument: [
+    (path_expression
+      (identifier) @variable)
+    (identifier) @variable
   ])
   (#not-eq? @variable "this"))
+
 ; `this` should be highlighted as a built-in variable
 ((identifier) @variable.builtin
   (#eq? @variable.builtin "this"))
 
 ; If the identifier is just "yield" or "outlet", it's a keyword
-((mustache_statement (identifier) @keyword.control.return)
-  (#any-of? @keyword.control.return "yield" "outlet"))
+((mustache_statement
+  (identifier) @keyword)
+  (#any-of? @keyword "yield" "outlet"))
 
 ; Helpers are functions
-((helper_invocation helper: [
-  (path_expression (identifier) @function)
-  (identifier) @function
+((helper_invocation
+  helper: [
+    (path_expression
+      (identifier) @function)
+    (identifier) @function
   ])
   (#not-any-of? @function "if" "yield"))
 
-((helper_invocation helper: (identifier) @keyword.control.conditional)
-  (#any-of? @keyword.control.conditional "if" "yield"))
+((helper_invocation
+  helper: (identifier) @keyword.conditional)
+  (#eq? @keyword.conditional "if"))
 
-(hash_pair key: (identifier) @variable)
-(hash_pair value: (identifier) @variable)
-(hash_pair [
-  (path_expression (identifier) @variable)
-  (identifier) @variable
-  ])
+((helper_invocation
+  helper: (identifier) @keyword)
+  (#eq? @keyword "yield"))
 
-(comment_statement) @comment
+(hash_pair
+  key: (identifier) @property)
 
-(attribute_node "=" @operator)
+(comment_statement) @comment @spell
 
-(block_params "as" @keyword.control)
-(block_params "|" @operator)
+(attribute_node
+  "=" @operator)
+
+(block_params
+  "as" @keyword)
+
+(block_params
+  "|" @operator)
 
 [
   "<"
   ">"
   "</"
   "/>"
-] @punctuation.delimiter
-
+] @tag.delimiter

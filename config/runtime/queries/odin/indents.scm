@@ -2,24 +2,45 @@
   (block)
   (enum_declaration)
   (union_declaration)
+  (bit_field_declaration)
   (struct_declaration)
   (struct)
   (parameters)
   (tuple_type)
-  (struct_type)
   (call_expression)
   (switch_case)
-] @indent
+] @indent.begin
+
+; hello(
+((identifier)
+  .
+  (ERROR
+    "(" @indent.begin))
 
 [
- ")"
- "]"
-] @outdent
+  ")"
+  "]"
+] @indent.branch @indent.end
 
 ; Have to do all closing brackets separately because the one for switch statements shouldn't end.
-(block "}" @outdent)
-(enum_declaration "}" @outdent)
-(union_declaration "}" @outdent)
-(struct_declaration "}" @outdent)
-(struct "}" @outdent)
-(struct_type "}" @outdent)
+(block
+  "}" @indent.branch @indent.end)
+
+(enum_declaration
+  "}" @indent.branch @indent.end)
+
+(union_declaration
+  "}" @indent.branch @indent.end)
+
+(struct_declaration
+  "}" @indent.branch @indent.end)
+
+(struct
+  "}" @indent.branch @indent.end)
+
+[
+  (comment)
+  (block_comment)
+  (string)
+  (ERROR)
+] @indent.auto

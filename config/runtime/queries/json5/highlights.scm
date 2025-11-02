@@ -1,20 +1,15 @@
 [
   (true)
   (false)
-] @constant.builtin.boolean
-(null) @constant.builtin
-(number) @constant.numeric
+] @boolean
+
+(null) @constant
 
 (string) @string
-(comment) @comment
+
+(number) @number
+
+(comment) @comment @spell
 
 (member
-  name: (_) @variable.other.member)
-
-"," @punctuation.delimiter
-[
-  "["
-  "]"
-  "{"
-  "}"
-] @punctuation.bracket
+  name: (_) @keyword)

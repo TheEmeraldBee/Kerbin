@@ -1,60 +1,81 @@
-(comment) @comment
+(comment) @comment @spell
 
-(filter_identifier) @function.method
-(function_identifier) @function.method
+(filter_identifier) @function.call
+
+(function_identifier) @function.call
+
 (test) @function.builtin
+
 (variable) @variable
+
 (string) @string
+
 (interpolated_string) @string
+
 (operator) @operator
-(number) @constant.numeric.integer
-(boolean) @constant.builtin.boolean
+
+(number) @number
+
+(boolean) @boolean
+
 (null) @constant.builtin
+
 (keyword) @keyword
+
 (attribute) @attribute
+
 (tag) @tag
-(conditional) @keyword.control.conditional
-(repeat) @keyword.control.repeat
+
+(conditional) @keyword.conditional
+
+(repeat) @keyword.repeat
+
 (method) @function.method
+
 (parameter) @variable.parameter
 
 [
-    "{{"
-    "}}"
-    "{{-"
-    "-}}"
-    "{{~"
-    "~}}"
-    "{%"
-    "%}"
-    "{%-"
-    "-%}"
-    "{%~"
-    "~%}"
-] @keyword
+  "{{"
+  "}}"
+  "{{-"
+  "-}}"
+  "{{~"
+  "~}}"
+  "{%"
+  "%}"
+  "{%-"
+  "-%}"
+  "{%~"
+  "~%}"
+] @tag.delimiter
 
 [
-    ","
-    "."
-    "?"
-    ":"
-    "="
+  ","
+  "."
 ] @punctuation.delimiter
 
 [
-    "("
-    ")"
-    "["
-    "]"
-    "{"
-] @punctuation.bracket
+  "?"
+  ":"
+  "="
+  "|"
+] @operator
 
-(hash [
-    "}"
-] @punctuation.bracket)
-
-(interpolated_string [
+(interpolated_string
+  [
     "#{"
     "}"
-] @punctuation.delimiter)
+  ] @punctuation.special)
 
+[
+  "("
+  ")"
+  "["
+  "]"
+] @punctuation.bracket
+
+(hash
+  [
+    "{"
+    "}"
+  ] @punctuation.bracket)

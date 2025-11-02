@@ -1,49 +1,63 @@
-(object_id) @attribute
+(object_id) @variable
 
 (string) @string
-(escape_sequence) @constant.character.escape
 
-(comment) @comment
+(escape_sequence) @string.escape
+
+(comment) @comment @spell
 
 (constant) @constant.builtin
-(boolean) @constant.builtin.boolean
+
+(boolean) @boolean
+
+(using) @keyword.import
 
 (template) @keyword
 
-(using) @keyword.control.import
-
 (decorator) @attribute
 
-(property_definition (property_name) @variable.other.member)
 (property_definition
-  (property_binding
-    "bind" @keyword
-    (property_name) @variable.other.member
-    ["no-sync-create" "bidirectional" "inverted"]* @keyword))
+  (property_name) @property)
 
 (object) @type
 
-(signal_binding (signal_name) @function.builtin)
-(signal_binding (function (identifier)) @function)
-(signal_binding "swapped" @keyword)
+(signal_binding
+  (signal_name) @function.builtin)
 
-(styles_list "styles" @function.macro)
-(layout_definition "layout" @function.macro)
+(signal_binding
+  (function
+    (identifier)) @function)
 
-(gettext_string "_" @function.builtin)
+(signal_binding
+  "swapped" @keyword)
 
-(menu_definition "menu" @keyword)
-(menu_section "section" @keyword)
-(menu_item "item" @function.macro)
+(styles_list
+  "styles" @function.macro)
 
-(template_definition (template_name_qualifier) @keyword.storage.type)
+(layout_definition
+  "layout" @function.macro)
 
-(import_statement (gobject_library) @namespace)
+(gettext_string
+  "_" @function.builtin)
 
-(import_statement (version_number) @constant.numeric.float)
+(menu_definition
+  "menu" @keyword)
 
-(float) @constant.numeric.float
-(number) @constant.numeric
+(menu_section
+  "section" @keyword)
+
+(menu_item
+  "item" @function.macro)
+
+(import_statement
+  (gobject_library) @module)
+
+(import_statement
+  (version_number) @number.float)
+
+(float) @number.float
+
+(number) @number
 
 [
   ";"

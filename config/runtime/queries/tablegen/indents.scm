@@ -1,3 +1,39 @@
-(statement) @indent
+[
+  (assert)
+  (class)
+  (multiclass)
+  (def)
+  (defm)
+  (defvar)
+  (foreach)
+  (if)
+  (let)
+  (value_suffix)
+] @indent.begin
 
-"}" @outdent
+[
+  "}"
+  "]"
+  ")"
+  ">"
+] @indent.end
+
+[
+  "{"
+  "}"
+] @indent.branch
+
+[
+  "["
+  "]"
+] @indent.branch
+
+[
+  "("
+  ")"
+] @indent.branch
+
+[
+  "<"
+  ">"
+] @indent.branch

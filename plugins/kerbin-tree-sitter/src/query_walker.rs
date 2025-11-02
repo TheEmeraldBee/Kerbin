@@ -23,6 +23,9 @@ pub struct QueryMatchEntry<'a> {
 
     /// Index of the injected tree (None if from main tree)
     pub injected_index: Option<usize>,
+
+    /// Byte offset to add to node positions (0 for main tree, start_byte for injected trees)
+    pub byte_offset: usize,
 }
 
 /// Callback-based walker that processes all query matches in a tree and its injected trees
@@ -136,6 +139,7 @@ impl<'tree, 'rope> QueryWalker<'tree, 'rope> {
                 lang: self.state.lang.clone(),
                 is_injected: false,
                 injected_index: None,
+                byte_offset: 0,
             };
 
             if !callback(entry) {
@@ -162,6 +166,7 @@ impl<'tree, 'rope> QueryWalker<'tree, 'rope> {
                     lang: injected.lang.clone(),
                     is_injected: true,
                     injected_index: Some(idx),
+                    byte_offset: injected.byte_range.start,
                 };
 
                 if !callback(entry) {
@@ -193,6 +198,7 @@ impl<'tree, 'rope> QueryWalker<'tree, 'rope> {
                 lang: entry.lang,
                 is_injected: entry.is_injected,
                 injected_index: entry.injected_index,
+                byte_offset: entry.byte_offset,
             });
             true
         });
@@ -226,6 +232,7 @@ pub struct StoredQueryMatch {
     pub lang: String,
     pub is_injected: bool,
     pub injected_index: Option<usize>,
+    pub byte_offset: usize,
 }
 
 /// A stored version of a capture that doesn't hold references

@@ -1,16 +1,20 @@
 [
-  (struct_declaration)
-  (function_declaration)
-  (if_expression)
-  (match_expression)
-  (for_statement)
-  (unsafe_expression)
-  (var_declaration)
+  (import_declaration)
   (const_declaration)
-] @indent
+  (type_declaration)
+  (type_initializer)
+  (block)
+  (map_init_expression)
+  (call_expression)
+  (parameter_list)
+] @indent.begin
+
+"}" @indent.branch
+
+(parameter_list
+  ")" @indent.branch)
 
 [
-  "]"
-  ")"
-  "}"
-] @outdent
+  (line_comment)
+  (block_comment)
+] @indent.ignore

@@ -1,57 +1,201 @@
-;; Maps AST nodes (left) to highlighting classes (right)
-;; See https://docs.helix-editor.com/themes.html#scopes
-;; for the supported scopes.
-;; Don't forget to run the command `hx --grammar fetch` to fetch the grammars,
-;; and `hx --grammar build` to build any out-of-date grammars.
-
-"fn" @keyword.function
-"return" @keyword.control.return
-"import" @keyword.control.import
-"export" @keyword.control.import
-[
- "if"
- "else"
- ] @keyword.control.conditional
 (identifier) @variable
 
-;; highlight type names
-(type_name
-  (identifier) @type
-) @type
+(import_stmt
+  (dotted_name
+    (identifier) @module))
 
-(fn_call
-  callee: (identifier) @function
-  (labeledArg
-    label: (identifier) @variable.parameter
-  )
-)
+(import_stmt
+  (dotted_name
+    (identifier) @module)
+  (identifier) @module)
 
+(basic_type) @type.builtin
 
-;; operators
-(binary_operator) @operator
-(prefix_operator) @operator
+(schema_type
+  (dotted_name
+    (identifier) @type))
 
-;; punctuation
+(schema_type
+  (dotted_name
+    (identifier) @module
+    (identifier) @type))
 
-; ".." @punctuation.special
+(schema_expr
+  (identifier) @type)
 
-"(" @punctuation.bracket
-")" @punctuation.bracket
-"[" @punctuation.bracket
-"]" @punctuation.bracket
-"{" @punctuation.bracket
-"}" @punctuation.bracket
+(protocol_stmt
+  (identifier) @type)
 
-; "." @punctuation.delimiter
-"," @punctuation.delimiter
-; ":" @punctuation.delimiter
-; ";" @punctuation.delimiter
+(rule_stmt
+  (identifier) @type)
 
-;; literals
-(boolean) @constant.builtin.boolean
+(schema_stmt
+  (identifier) @type)
+
+(lambda_expr
+  (typed_parameter
+    (identifier) @variable.parameter))
+
+(lambda_expr
+  (identifier) @variable.parameter)
+
+(selector_expr
+  (select_suffix
+    (identifier) @property))
+
+(comment) @comment @spell
+
 (string) @string
-(number) @constant.numeric
 
-;; comments
-(shebang) @keyword.directive
-(comment) @comment
+(escape_sequence) @string.escape
+
+(schema_stmt
+  body: (block
+    .
+    (string
+      (string_content) @string.documentation)))
+
+(decorator
+  (identifier) @attribute)
+
+(call_expr
+  function: (identifier) @function)
+
+(call_expr
+  function: (selector_expr
+    (select_suffix
+      (identifier) @function)))
+
+(integer) @number
+
+(float) @number.float
+
+[
+  (true)
+  (false)
+] @boolean
+
+[
+  (none)
+  (undefined)
+] @constant.builtin
+
+"for" @keyword.repeat
+
+[
+  "elif"
+  "else"
+  "if"
+] @keyword.conditional
+
+"lambda" @keyword.function
+
+(quant_op) @keyword.operator
+
+[
+  "protocol"
+  "rule"
+  "schema"
+  "type"
+  "mixin"
+] @keyword.type
+
+"assert" @keyword.debug
+
+[
+  "as"
+  "import"
+] @keyword.import
+
+"check" @keyword
+
+[
+  "("
+  ")"
+  "["
+  "]"
+  "{"
+  "}"
+] @punctuation.bracket
+
+[
+  ","
+  ":"
+  "."
+  "?."
+  "?:"
+  "?"
+] @punctuation.delimiter
+
+(interpolation
+  "${" @punctuation.special
+  "}" @punctuation.special)
+
+[
+  "+"
+  "-"
+  "*"
+  "**"
+  "/"
+  "//"
+  "%"
+  "<<"
+  ">>"
+  "&"
+  "|"
+  "^"
+  "<"
+  ">"
+  "~"
+  "<="
+  ">="
+  "=="
+  "!="
+  "="
+  "+="
+  "-="
+  "*="
+  "**="
+  "/="
+  "//="
+  "%="
+  "<<="
+  ">>="
+  "&="
+  "^="
+  "->"
+] @operator
+
+"@" @attribute
+
+[
+  "and"
+  "or"
+  "not"
+  "in"
+  "is"
+] @keyword.operator
+
+; second argument is a regex in all regex functions with at least two arguments
+(call_expr
+  function: (selector_expr
+    (identifier) @_regex)
+  arguments: (argument_list
+    (_)
+    .
+    (string
+      (string_content) @string.regexp))
+  (#eq? @_regex "regex"))
+
+; first argument is a regex in 'regex.compile' function
+(call_expr
+  function: (selector_expr
+    (identifier) @_regex
+    (select_suffix
+      (identifier) @_fn
+      (#eq? @_fn "compile")))
+  arguments: (argument_list
+    .
+    (string
+      (string_content) @string.regexp))
+  (#eq? @_regex "regex"))

@@ -1,25 +1,88 @@
-; Scopes
+((function_declaration
+  name: (identifier) @local.definition.function) ; @function
+  )
 
-[
-  (function_declaration)
-  (method_declaration)
-  (type_declaration)
-  (block)
-] @local.scope
+((method_declaration
+  name: (field_identifier) @local.definition.method) ; @function.method
+  )
 
-; Definitions
+(short_var_declaration
+  left: (expression_list
+    (identifier) @local.definition.var))
 
-(parameter_declaration (identifier) @local.definition.variable.parameter)
-(variadic_parameter_declaration (identifier) @local.definition.variable.parameter)
+(var_spec
+  name: (identifier) @local.definition.var)
+
+(parameter_declaration
+  (identifier) @local.definition.var)
+
+(variadic_parameter_declaration
+  (identifier) @local.definition.var)
+
+(for_statement
+  (range_clause
+    left: (expression_list
+      (identifier) @local.definition.var)))
 
 (const_declaration
- (const_spec
-  name: (identifier) @local.definition.constant))
+  (const_spec
+    name: (identifier) @local.definition.var))
 
-; References
+(type_declaration
+  (type_spec
+    name: (type_identifier) @local.definition.type))
 
+; reference
 (identifier) @local.reference
 
-; Field names in struct literals are identifier rather than field_identifier,
-; these cannot be locals.
-(keyed_element . (literal_element (identifier) @variable.other.member))
+(type_identifier) @local.reference
+
+(field_identifier) @local.reference
+
+((package_identifier) @local.reference
+  (#set! reference.kind "namespace"))
+
+(package_clause
+  (package_identifier) @local.definition.namespace)
+
+(import_spec_list
+  (import_spec
+    name: (package_identifier) @local.definition.namespace))
+
+; Call references
+((call_expression
+  function: (identifier) @local.reference)
+  (#set! reference.kind "call"))
+
+((call_expression
+  function: (selector_expression
+    field: (field_identifier) @local.reference))
+  (#set! reference.kind "call"))
+
+((call_expression
+  function: (parenthesized_expression
+    (identifier) @local.reference))
+  (#set! reference.kind "call"))
+
+((call_expression
+  function: (parenthesized_expression
+    (selector_expression
+      field: (field_identifier) @local.reference)))
+  (#set! reference.kind "call"))
+
+; Scopes
+(func_literal) @local.scope
+
+(source_file) @local.scope
+
+(function_declaration) @local.scope
+
+(if_statement) @local.scope
+
+(block) @local.scope
+
+(expression_switch_statement) @local.scope
+
+(for_statement) @local.scope
+
+(method_declaration) @local.scope

@@ -1,93 +1,24 @@
-; This file specifies how matched syntax patterns should be highlighted
+[
+  "true"
+  "false"
+] @boolean
 
 [
-  "export"
-  "import"
-  "unexport"
-] @keyword.control.import
-
-"mod" @keyword.directive
+  "if"
+  "else"
+] @keyword.conditional
 
 [
   "alias"
   "set"
   "shell"
+  "mod"
 ] @keyword
 
 [
-  "if"
-  "else"
-] @keyword.control.conditional
-
-[
-  "&&"
-  "||"
-] @operator
-
-; Variables
-
-(value
-  (identifier) @variable)
-
-(alias
-  alias_name: (identifier) @variable)
-
-(assignment
-  name: (identifier) @variable)
-
-(shell_variable_name) @variable
-
-(unexport
-  name: (identifier) @variable)
-
-; Functions
-
-(recipe
-  name: (identifier) @function)
-
-(recipe_dependency
-  name: (identifier) @function.call)
-
-(function_call
-  name: (identifier) @function.builtin)
-
-; Parameters
-
-(recipe_parameter
-  name: (identifier) @variable.parameter)
-
-; Namespaces
-
-(mod
-  name: (identifier) @namespace)
-
-(module_path
-  name: (identifier) @namespace)
-
-; Paths
-
-(mod
-  (path) @string.special.path)
-
-(import
-  (path) @string.special.path)
-
-; Shebangs
-
-(shebang_line) @keyword.directive
-(shebang_line
-  (shebang_shell) @string.special)
-
-
-(shell_expanded_string
-  [
-    (expansion_short_start)
-    (expansion_long_start)
-    (expansion_long_middle)
-    (expansion_long_end)
-  ] @punctuation.special)
-
-; Operators
+  "import"
+  "export"
+] @keyword.import
 
 [
   ":="
@@ -95,7 +26,6 @@
   "=="
   "!="
   "=~"
-  "!~"
   "@"
   "="
   "$"
@@ -109,50 +39,111 @@
   ":"
 ] @operator
 
-; Punctuation
+[
+  "("
+  ")"
+  "["
+  "]"
+  "{{"
+  "}}"
+  "{"
+  "}"
+] @punctuation.bracket
+
+[
+  "`"
+  "```"
+] @punctuation.special
 
 "," @punctuation.delimiter
 
-[
-  "{"
-  "}"
-  "["
-  "]"
-  "("
-  ")"
-  "{{"
-  "}}"
-] @punctuation.bracket
+(shebang) @keyword.directive
 
-[ "`" "```" ] @punctuation.special
-
-; Literals
-
-; Booleans are not allowed anywhere except in settings
-(setting
-  (boolean) @constant.builtin.boolean)
+(comment) @comment @spell
 
 [
   (string)
   (external_command)
 ] @string
 
-[
-  (escape_sequence)
-  (escape_variable_end)
-] @constant.character.escape
+(escape_sequence) @string.escape
 
-; Comments
+(module
+  (identifier) @module)
 
-(comment) @comment.line
+(assignment
+  (identifier) @variable)
 
-; highlight known settings
+(alias
+  (identifier) @variable)
+
+(value
+  (identifier) @variable)
+
+; Recipe definitions
+(recipe_header
+  (identifier) @function)
+
+(dependency
+  (identifier) @function.call)
+
+(dependency_expression
+  (identifier) @function.call)
+
+(parameter
+  (identifier) @variable.parameter)
+
+(dependency_expression
+  (expression
+    (value
+      (identifier) @variable.parameter)))
+
+; Fallback highlighting for recipe bodies
+(recipe
+  (recipe_body) @string
+  (#set! priority 90))
+
+; Ref: https://just.systems/man/en/chapter_26.html
+;(setting (identifier) @error)
 (setting
-  name: (_) @keyword.function)
+  (identifier) @constant.builtin
+  (#any-of? @constant.builtin
+    "allow-duplicate-recipes" "dotenv-filename" "dotenv-load" "dotenv-path" "export" "fallback"
+    "ignore-comments" "positional-arguments" "tempdir" "windows-powershell" "windows-shell"))
 
-; highlight known attributes
-(attribute
-  name: (identifier) @attribute)
+(recipe
+  (attribute
+    (identifier) @attribute))
 
-; Numbers are part of the syntax tree, even if disallowed
-(numeric_error) @error
+; https://just.systems/man/en/attributes.html
+((recipe
+  (attribute
+    (identifier) @attribute.builtin))
+  (#any-of? @attribute.builtin
+    "confirm" "doc" "extension" "group" "linux" "macos" "no-cd" "no-exit-message" "no-quiet"
+    "openbsd" "positional-arguments" "private" "script" "unix" "windows" "working-directory"))
+
+((recipe
+  (attribute
+    (identifier) @_doc
+    argument: (string) @string.documentation))
+  (#eq? @_doc "doc"))
+
+((recipe
+  (attribute
+    (identifier) @_dir
+    argument: (string) @string.special.path))
+  (#eq? @_dir "working-directory"))
+
+; Ref: https://just.systems/man/en/chapter_31.html
+;(function_call (identifier) @error)
+(function_call
+  (identifier) @function.call
+  (#any-of? @function.call
+    "arch" "num_cpus" "os" "os_family" "env_var" "env_var_or_default" "env" "invocation_directory"
+    "invocation_directory_native" "justfile" "justfile_directory" "just_executable" "quote"
+    "replace" "replace_regex" "trim" "trim_end" "trim_end_match" "trim_end_matches" "trim_start"
+    "trim_start_match" "trim_start_matches" "capitalize" "kebabcase" "lowercamelcase" "lowercase"
+    "shoutykebabcase" "shoutysnakecase" "snakecase" "titlecase" "uppercamelcase" "uppercase"
+    "absolute_path" "extension" "file_name" "file_stem" "parent_directory" "without_extension"
+    "clean" "join" "path_exists" "error" "sha256" "sha256_file" "uuid" "semver_matches"))

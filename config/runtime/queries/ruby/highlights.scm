@@ -1,34 +1,296 @@
+; Variables
+[
+  (identifier)
+  (global_variable)
+] @variable
+
+; Keywords
+[
+  "alias"
+  "begin"
+  "do"
+  "end"
+  "ensure"
+  "module"
+  "rescue"
+  "then"
+] @keyword
+
+"class" @keyword.type
+
+[
+  "return"
+  "yield"
+] @keyword.return
+
+[
+  "and"
+  "or"
+  "in"
+  "not"
+] @keyword.operator
+
+[
+  "def"
+  "undef"
+] @keyword.function
+
+(method
+  "end" @keyword.function)
+
+[
+  "case"
+  "else"
+  "elsif"
+  "if"
+  "unless"
+  "when"
+  "then"
+] @keyword.conditional
+
+(if
+  "end" @keyword.conditional)
+
+[
+  "for"
+  "until"
+  "while"
+  "break"
+  "redo"
+  "retry"
+  "next"
+] @keyword.repeat
+
+(constant) @constant
+
+((identifier) @keyword.modifier
+  (#any-of? @keyword.modifier "private" "protected" "public"))
+
+[
+  "rescue"
+  "ensure"
+] @keyword.exception
+
+; Function calls
+"defined?" @function
+
+(call
+  receiver: (constant)? @type
+  method: [
+    (identifier)
+    (constant)
+  ] @function.call)
+
+(program
+  (call
+    (identifier) @keyword.import)
+  (#any-of? @keyword.import "require" "require_relative" "load"))
+
+; Function definitions
+(alias
+  (identifier) @function)
+
+(setter
+  (identifier) @function)
+
+(method
+  name: [
+    (identifier) @function
+    (constant) @type
+  ])
+
+(singleton_method
+  name: [
+    (identifier) @function
+    (constant) @type
+  ])
+
+(class
+  name: (constant) @type)
+
+(module
+  name: (constant) @type)
+
+(superclass
+  (constant) @type)
+
+; Identifiers
+[
+  (class_variable)
+  (instance_variable)
+] @variable.member
+
+((identifier) @constant.builtin
+  (#any-of? @constant.builtin
+    "__callee__" "__dir__" "__id__" "__method__" "__send__" "__ENCODING__" "__FILE__" "__LINE__"))
+
+((identifier) @function.builtin
+  (#any-of? @function.builtin "attr_reader" "attr_writer" "attr_accessor" "module_function"))
+
+((call
+  !receiver
+  method: (identifier) @function.builtin)
+  (#any-of? @function.builtin "include" "extend" "prepend" "refine" "using"))
+
+((identifier) @keyword.exception
+  (#any-of? @keyword.exception "raise" "fail" "catch" "throw"))
+
+((constant) @type
+  (#not-lua-match? @type "^[A-Z0-9_]+$"))
+
+[
+  (self)
+  (super)
+] @variable.builtin
+
+(method_parameters
+  (identifier) @variable.parameter)
+
+(lambda_parameters
+  (identifier) @variable.parameter)
+
+(block_parameters
+  (identifier) @variable.parameter)
+
+(splat_parameter
+  (identifier) @variable.parameter)
+
+(hash_splat_parameter
+  (identifier) @variable.parameter)
+
+(optional_parameter
+  (identifier) @variable.parameter)
+
+(destructured_parameter
+  (identifier) @variable.parameter)
+
+(block_parameter
+  (identifier) @variable.parameter)
+
+(keyword_parameter
+  (identifier) @variable.parameter)
+
+; TODO: Re-enable this once it is supported
+; ((identifier) @function
+;  (#is-not? local))
+; Literals
+[
+  (string_content)
+  (heredoc_content)
+  "\""
+  "`"
+] @string
+
+[
+  (heredoc_beginning)
+  (heredoc_end)
+] @label
+
+[
+  (bare_symbol)
+  (simple_symbol)
+  (delimited_symbol)
+  (hash_key_symbol)
+] @string.special.symbol
+
+(regex
+  (string_content) @string.regexp)
+
+(escape_sequence) @string.escape
+
+(integer) @number
+
+(float) @number.float
+
+[
+  (true)
+  (false)
+] @boolean
+
+(nil) @constant.builtin
+
+(comment) @comment @spell
+
+((program
+  .
+  (comment) @keyword.directive @nospell)
+  (#lua-match? @keyword.directive "^#!/"))
+
+(program
+  (comment)+ @comment.documentation
+  (class))
+
+(module
+  (comment)+ @comment.documentation
+  (body_statement
+    (class)))
+
+(class
+  (comment)+ @comment.documentation
+  (body_statement
+    (method)))
+
+(body_statement
+  (comment)+ @comment.documentation
+  (method))
+
 ; Operators
 [
-":"
-"?"
-"~"
-"=>"
-"->"
-"!"
+  "!"
+  "="
+  "=="
+  "==="
+  "<=>"
+  "=>"
+  "->"
+  ">>"
+  "<<"
+  ">"
+  "<"
+  ">="
+  "<="
+  "**"
+  "*"
+  "/"
+  "%"
+  "+"
+  "-"
+  "&"
+  "|"
+  "^"
+  "&&"
+  "||"
+  "||="
+  "&&="
+  "!="
+  "%="
+  "+="
+  "-="
+  "*="
+  "/="
+  "=~"
+  "!~"
+  "?"
+  ":"
+  ".."
+  "..."
 ] @operator
-
-(assignment
-  "=" @operator)
-
-(operator_assignment
-  operator: ["+=" "-=" "*=" "**=" "/=" "||=" "|=" "&&=" "&=" "%=" ">>=" "<<=" "^="] @operator)
-
-(binary
-  operator: ["/" "|" "==" "===" "||" "&&" ">>" "<<" "<" ">" "<=" ">=" "&" "^" "!~" "=~" "<=>" "**" "*" "!=" "%" "-" "+"] @operator)
-
-(range
-  operator: [".." "..."] @operator)
 
 [
   ","
   ";"
   "."
   "&."
+  "::"
 ] @punctuation.delimiter
 
+(regex
+  "/" @punctuation.bracket)
+
+(pair
+  ":" @punctuation.delimiter)
+
 [
-  "|"
   "("
   ")"
   "["
@@ -39,153 +301,9 @@
   "%i("
 ] @punctuation.bracket
 
-; Literals
-
-[
-  (string)
-  (bare_string)
-  (subshell)
-  (heredoc_body)
-  (heredoc_beginning)
-] @string
-
-[
-  (simple_symbol)
-  (delimited_symbol)
-  (bare_symbol)
-] @string.special.symbol
-
-(pair key: ((_)":" @string.special.symbol) @string.special.symbol)
-
-(regex) @string.regexp
-(escape_sequence) @constant.character.escape
-
-[
-  (integer)
-  (float)
-] @constant.numeric.integer
-
-[
-  (nil)
-  (true)
-  (false)
-] @constant.builtin
+(block_parameters
+  "|" @punctuation.bracket)
 
 (interpolation
   "#{" @punctuation.special
-  "}" @punctuation.special) @embedded
-
-(comment) @comment
-
-; Identifiers
-
-((identifier) @function.method
- (#is-not? local))
-
-[
-  (identifier)
-] @variable
-
-[
-  (class_variable)
-  (instance_variable)
-] @variable.other.member
-
-(constant) @constructor
-
-((identifier) @constant.builtin
- (#match? @constant.builtin "^(__FILE__|__LINE__|__ENCODING__)$"))
-
-((constant) @constant.builtin
- (#match? @constant.builtin "^(ENV|ARGV|ARGF|RUBY_PLATFORM|RUBY_RELEASE_DATE|RUBY_VERSION|STDERR|STDIN|STDOUT|TOPLEVEL_BINDING)$"))
-
-((constant) @constant
- (#match? @constant "^[A-Z\\d_]+$"))
-
-(self) @variable.builtin
-(super) @function.builtin
-
-[(forward_parameter)(forward_argument)] @variable.parameter
-(keyword_parameter name:((_)":" @variable.parameter) @variable.parameter)
-(optional_parameter name:((_)"=" @operator) @variable.parameter)
-(optional_parameter name: (identifier) @variable.parameter)
-(splat_parameter name: (identifier) @variable.parameter) @variable.parameter
-(hash_splat_parameter name: (identifier) @variable.parameter) @variable.parameter
-(method_parameters (identifier) @variable.parameter)
-(block_parameter (identifier) @variable.parameter)
-(block_parameters (identifier) @variable.parameter)
-
-; Function definitions
-
-(alias (identifier) @function.method)
-(setter (identifier) @function.method)
-(method name: [(identifier) (constant)] @function.method)
-(singleton_method name: [(identifier) (constant)] @function.method)
-
-; Function calls
-
-(call
-  method: [(identifier) (constant)] @function.method)
-
-((identifier) @function.builtin
- (#match? @function.builtin "^(attr|attr_accessor|attr_reader|attr_writer|include|prepend|refine|private|protected|public)$"))
-
-"defined?" @function.builtin
-
-; Keywords
-
-[
-  "BEGIN"
-  "END"
-  "alias"
-  "begin"
-  "class"
-  "do"
-  "end"
-  "module"
-  "in"
-  "rescue"
-  "ensure"
-] @keyword
-
-[
-  "if"
-  "else"
-  "elsif"
-  "when"
-  "case"
-  "unless"
-  "then"
-] @keyword.control.conditional
-
-[
-  "for"
-  "while"
-  "retry"
-  "until"
-  "redo"
-] @keyword.control.repeat
-
-[
-  "yield"
-  "return"
-  "next"
-  "break"
-] @keyword.control.return
-
-[
-  "def"
-  "undef"
-] @keyword.function
-
-((identifier) @keyword.control.import
- (#match? @keyword.control.import "^(require|require_relative|load|autoload)$"))
-
-[
-  "or"
-  "and"
-  "not"
-] @keyword.operator
-
-((identifier) @keyword.control.exception
- (#match? @keyword.control.exception "^(raise|fail)$"))
+  "}" @punctuation.special)

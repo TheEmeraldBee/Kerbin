@@ -1,20 +1,38 @@
 [
   (true)
   (false)
-] @constant.builtin.boolean
-(null) @constant.builtin
-(number) @constant.numeric
+] @boolean
 
-(string) @string
-(escape_sequence) @constant.character.escape
+(null) @constant.builtin
+
+(number) @number
 
 (pair
-  key: (_) @variable.other.member)
+  key: (string) @property)
 
-"," @punctuation.delimiter
+(pair
+  value: (string) @string)
+
+(array
+  (string) @string)
+
+[
+  ","
+  ":"
+] @punctuation.delimiter
+
 [
   "["
   "]"
   "{"
   "}"
 ] @punctuation.bracket
+
+("\"" @conceal
+  (#set! conceal ""))
+
+(escape_sequence) @string.escape
+
+((escape_sequence) @conceal
+  (#eq? @conceal "\\\"")
+  (#set! conceal "\""))

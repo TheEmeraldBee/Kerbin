@@ -46,6 +46,9 @@
   "!"
 ] @operator
 
+; Do *not* spell check strings since they typically have some sort of
+; interpolation in them, or, are typically used for things like filenames, URLs,
+; flags and file content.
 [
   (string)
   (raw_string)
@@ -76,7 +79,7 @@
   "case"
   "in"
   "esac"
-] @keyword.control.conditional
+] @keyword.conditional
 
 [
   "for"
@@ -85,7 +88,7 @@
   "select"
   "until"
   "while"
-] @keyword.control.repeat
+] @keyword.repeat
 
 [
   "declare"
@@ -96,7 +99,7 @@
   "unsetenv"
 ] @keyword
 
-"export" @keyword.control.import
+"export" @keyword.import
 
 "function" @keyword.function
 
@@ -114,10 +117,10 @@
     "SIGRTMAX-12" "SIGRTMAX-11" "SIGRTMAX-10" "SIGRTMAX-9" "SIGRTMAX-8" "SIGRTMAX-7" "SIGRTMAX-6"
     "SIGRTMAX-5" "SIGRTMAX-4" "SIGRTMAX-3" "SIGRTMAX-2" "SIGRTMAX-1" "SIGRTMAX"))
 
-((word) @constant.builtin.boolean
-  (#any-of? @constant.builtin.boolean "true" "false"))
+((word) @boolean
+  (#any-of? @boolean "true" "false"))
 
-(comment) @comment
+(comment) @comment @spell
 
 (test_operator) @operator
 
@@ -146,7 +149,7 @@
   [
     "?"
     ":"
-  ] @keyword.control.conditional)
+  ] @keyword.conditional.ternary)
 
 (binary_expression
   operator: _ @operator)
@@ -161,7 +164,7 @@
   name: (word) @function)
 
 (command_name
-  (word) @function)
+  (word) @function.call)
 
 (command_name
   (word) @function.builtin
@@ -185,7 +188,10 @@
 (unset_command
   (word) @variable.parameter)
 
-(number) @constant.numeric
+(number) @number
+
+((word) @number
+  (#lua-match? @number "^[0-9]+$"))
 
 (file_redirect
   (word) @string.special.path)
@@ -208,19 +214,19 @@
 (expansion
   "@"
   .
-  operator: _ @constant.character)
+  operator: _ @character.special)
 
 ((expansion
   (subscript
-    index: (word) @constant.character))
-  (#any-of? @constant.character "@" "*"))
+    index: (word) @character.special))
+  (#any-of? @character.special "@" "*"))
 
 "``" @punctuation.special
 
 (variable_name) @variable
 
 ((variable_name) @constant
-  (#match? @constant "^[A-Z][A-Z_0-9]*$"))
+  (#lua-match? @constant "^[A-Z][A-Z_0-9]*$"))
 
 ((variable_name) @variable.builtin
   (#any-of? @variable.builtin
@@ -248,3 +254,8 @@
   (regex)
   (extglob_pattern)
 ] @string.regexp
+
+((program
+  .
+  (comment) @keyword.directive @nospell)
+  (#lua-match? @keyword.directive "^#!/"))

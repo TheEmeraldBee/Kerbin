@@ -7,6 +7,7 @@
   (binary)
   (block)
   (bounds)
+  (call)
   (cast)
   (class)
   (class_pattern)
@@ -27,10 +28,14 @@
   (tuple)
   (tuple_pattern)
   (type_arguments)
-] @indent
+] @indent.begin
 
 [
   ")"
   "]"
   "}"
-] @outdent
+] @indent.end @indent.branch
+
+(line_comment) @indent.auto
+
+(string) @indent.auto

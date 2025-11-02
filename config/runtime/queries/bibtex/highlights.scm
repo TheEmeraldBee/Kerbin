@@ -1,3 +1,4 @@
+; CREDITS @pfoerster (adapted from https://github.com/latex-lsp/tree-sitter-bibtex)
 [
   (string_type)
   (preamble_type)
@@ -9,6 +10,8 @@
   (comment)
 ] @comment
 
+(comment) @spell
+
 [
   "="
   "#"
@@ -16,10 +19,10 @@
 
 (command) @function.builtin
 
-(number) @constant.numeric
+(number) @number
 
 (field
-  name: (identifier) @variable.builtin)
+  name: (identifier) @property)
 
 (token
   (identifier) @variable.parameter)
@@ -29,10 +32,17 @@
   (quote_word)
 ] @string
 
+((field
+  name: (identifier) @_url
+  value: (value
+    (token
+      (brace_word) @string.special.url)))
+  (#any-of? @_url "url" "doi"))
+
 [
   (key_brace)
   (key_paren)
-] @attribute
+] @markup.link.label
 
 (string
   name: (identifier) @constant)

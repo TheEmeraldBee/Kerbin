@@ -1,29 +1,19 @@
+; highlights.scm
+[
+  (key_string)
+  (json_key_string)
+] @property
+
 [
   "[QueryStringParams]"
-  "[Query]"
   "[FormParams]"
-  "[Form]"
   "[MultipartFormData]"
-  "[Multipart]"
   "[Cookies]"
   "[Captures]"
   "[Asserts]"
   "[Options]"
   "[BasicAuth]"
-] @attribute
-
-(comment) @comment
-
-[
-  (key_string)
-  (json_key_string)
-] @variable.other.member
- 
-(value_string) @string
-(quoted_string) @string
-(json_string) @string
-(file_value) @string.special.path
-(regex) @string.regex
+] @module
 
 [
   "\\"
@@ -35,10 +25,7 @@
   (multiline_string_escaped_char)
   (filename_escaped_char)
   (json_string_escaped_char)
-] @constant.character.escape
-
-(method) @type.builtin
-(multiline_string_type) @type
+] @string.escape
 
 [
   "status"
@@ -54,25 +41,8 @@
   "sha256"
   "md5"
   "bytes"
-  "daysAfterNow"
-  "daysBeforeNow"
-  "htmlEscape"
-  "htmlUnescape"
-  "decode"
-  "format"
-  "nth"
-  "replace"
-  "split"
-  "toDate"
-  "toInt"
-  "urlEncode"
-  "urlDecode"
-  "count"
 ] @function.builtin
 
-(filter) @attribute
-
-(version) @string.special
 [
   "null"
   "cacert"
@@ -85,29 +55,25 @@
   "retry"
   "retry-interval"
   "retry-max-count"
-  (variable_option "variable")
   "verbose"
   "very-verbose"
 ] @constant.builtin
 
-(boolean) @constant.builtin.boolean
+(variable_option
+  "variable" @constant.builtin)
+
+(boolean) @boolean
 
 (variable_name) @variable
 
 [
   "not"
   "equals"
-  "=="
   "notEquals"
-  "!="
   "greaterThan"
-  ">"
   "greaterThanOrEquals"
-  ">="
   "lessThan"
-  "<"
   "lessThanOrEquals"
-  "<="
   "startsWith"
   "endsWith"
   "contains"
@@ -119,15 +85,26 @@
   "isBoolean"
   "isString"
   "isCollection"
-  "isNumber"
-  "isIsoDate"
-  "isEmpty"
 ] @keyword.operator
 
-(integer) @constant.numeric.integer
-(float) @constant.numeric.float
-(status) @constant.numeric
-(json_number) @constant.numeric.float
+[
+  "=="
+  "!="
+  ">"
+  ">="
+  "<"
+  "<="
+] @operator
+
+[
+  (integer)
+  (status)
+] @number
+
+[
+  (float)
+  (json_number)
+] @number.float
 
 [
   ":"
@@ -141,10 +118,31 @@
   "}"
   "{{"
   "}}"
-] @punctuation.special
+] @punctuation.bracket
+
+[
+  (value_string)
+  (quoted_string)
+  (json_string)
+] @string
 
 [
   "base64,"
-  "file,"
   "hex,"
+  (version)
 ] @string.special
+
+[
+  "file,"
+  (file_value)
+] @string.special.path
+
+(regex) @string.regexp
+
+(multiline_string_type) @type
+
+(comment) @comment @spell
+
+(filter) @attribute
+
+(method) @type.builtin

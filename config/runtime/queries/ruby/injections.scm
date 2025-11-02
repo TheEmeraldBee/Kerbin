@@ -1,35 +1,23 @@
 ((comment) @injection.content
- (#set! injection.language "comment"))
+  (#set! injection.language "comment"))
 
-((heredoc_body 
+(heredoc_body
   (heredoc_content) @injection.content
-  (heredoc_end) @name
-  (#set! injection.language "sql")) 
- (#eq? @name "SQL"))
+  (heredoc_end) @injection.language
+  (#downcase! @injection.language))
 
-((heredoc_body
-  (heredoc_content) @injection.content
-  (heredoc_end) @name
-  (#set! injection.language "graphql"))
- (#any-of? @name
-       "GQL"
-       "GRAPHQL"))
-
-((heredoc_body
-  (heredoc_content) @injection.content
-  (heredoc_end) @name
-  (#set! injection.language "erb"))
- (#eq? @name "ERB"))
-
-; `<command>`
-; %x{<command>}
-(subshell
+(regex
   (string_content) @injection.content
-  (#set! injection.language "bash"))
+  (#set! injection.language "regex"))
 
-(call
-  method: (identifier) @_method (#any-of? @_method "system" "spawn" "exec")
+((call
+  receiver: (identifier) @_receiver
+  method: (identifier) @_method
   arguments: (argument_list
-    (string
-      (string_content) @injection.content))
-  (#set! injection.language "bash"))
+    (pair
+      key: (hash_key_symbol)
+      value: (string
+        (string_content) @injection.content))))
+  (#eq? @_receiver "binding")
+  (#any-of? @_method "b" "break")
+  (#set! injection.self))

@@ -1,9 +1,14 @@
-; This query specifies how to auto-indent logical blocks.
-;
-; Better documentation with diagrams is in https://docs.helix-editor.com/guides/indent.html
-
+; Source: https://github.com/IndianBoy42/tree-sitter-just/blob/main/queries/just/indents.scm
 [
   (recipe)
   (string)
   (external_command)
-] @indent @extend
+] @indent.begin
+
+(string
+  [
+    "'''"
+    "\"\"\""
+  ] @indent.branch @indent.end)
+
+(comment) @indent.auto

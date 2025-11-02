@@ -1,148 +1,117 @@
 [
-  (use_list)
-  (block)
-  (match_block)
-  (arguments)
-  (parameters)
-  (declaration_list)
-  (field_declaration_list)
-  (field_initializer_list)
+  (mod_item)
+  (struct_item)
+  (enum_item)
+  (impl_item)
+  (struct_expression)
   (struct_pattern)
-  (tuple_pattern)
-  (unit_expression)
-  (enum_variant_list)
-  (call_expression)
-  (binary_expression)
-  (field_expression)
-  (await_expression)
+  (tuple_struct_pattern)
   (tuple_expression)
-  (array_expression)
+  (tuple_type)
+  (tuple_pattern)
+  (match_block)
+  (call_expression)
+  (assignment_expression)
+  (arguments)
+  (block)
   (where_clause)
-  (type_cast_expression)
-
+  (use_list)
+  (array_expression)
+  (ordered_field_declaration_list)
+  (field_declaration_list)
+  (enum_variant_list)
+  (parameters)
   (token_tree)
-  (macro_definition)
-  (token_tree_pattern)
   (token_repetition)
-] @indent
+  (macro_definition)
+] @indent.begin
+
+; Typing in "(" inside macro definitions breaks the tree entirely
+; Making macro_definition becoming errors
+; Offset this by adding back one indent for start of macro rules
+(ERROR
+  .
+  "macro_rules!"
+  [
+    "("
+    "{"
+    "["
+  ] @indent.begin
+  (#set! indent.immediate)
+  (#set! indent.start_at_same_line))
+
+(macro_definition
+  [
+    ")"
+    "}"
+    "]"
+  ] @indent.end)
+
+(trait_item
+  body: (_) @indent.begin)
+
+(string_literal
+  (escape_sequence)) @indent.begin
+
+(block
+  "}" @indent.end)
+
+(enum_item
+  body: (enum_variant_list
+    "}" @indent.end))
+
+(impl_item
+  body: (declaration_list
+    "}" @indent.end))
+
+(match_expression
+  body: (match_block
+    "}" @indent.end))
+
+(mod_item
+  body: (declaration_list
+    "}" @indent.end))
+
+(struct_item
+  body: (field_declaration_list
+    "}" @indent.end))
+
+(struct_expression
+  body: (field_initializer_list
+    "}" @indent.end))
+
+(struct_pattern
+  "}" @indent.end)
+
+(tuple_struct_pattern
+  ")" @indent.end)
+
+(tuple_type
+  ")" @indent.end)
+
+(tuple_pattern
+  ")" @indent.end)
+
+(trait_item
+  body: (declaration_list
+    "}" @indent.end))
+
+(impl_item
+  (where_clause) @indent.dedent)
 
 [
-  "}"
-  "]"
+  "where"
   ")"
-] @outdent
+  "]"
+  "}"
+] @indent.branch
 
-; Indent the right side of assignments.
-; The #not-same-line? predicate is required to prevent an extra indent for e.g.
-; an else-clause where the previous if-clause starts on the same line as the assignment.
-(assignment_expression
-  .
-  (_) @expr-start
-  right: (_) @indent
-  (#not-same-line? @indent @expr-start)
-  (#set! "scope" "all")
-)
-(compound_assignment_expr
-  .
-  (_) @expr-start
-  right: (_) @indent
-  (#not-same-line? @indent @expr-start)
-  (#set! "scope" "all")
-)
-(let_declaration
-  "let" @expr-start
-  value: (_) @indent
-  alternative: (_)? @indent
-  (#not-same-line? @indent @expr-start)
-  (#set! "scope" "all")
-)
-(let_condition
-  .
-  (_) @expr-start
-  value: (_) @indent
-  (#not-same-line? @indent @expr-start)
-  (#set! "scope" "all")
-)
-(if_expression
-  .
-  (_) @expr-start
-  condition: (_) @indent
-  (#not-same-line? @indent @expr-start)
-  (#set! "scope" "all")
-)
-(static_item
-  .
-  (_) @expr-start
-  value: (_) @indent
-  (#not-same-line? @indent @expr-start)
-  (#set! "scope" "all")
-)
-(field_pattern
-  .
-  (_) @expr-start
-  pattern: (_) @indent
-  (#not-same-line? @indent @expr-start)
-  (#set! "scope" "all")
-)
-; Indent type aliases that span multiple lines, similar to
-; regular assignment expressions
-(type_item
-  .
-  (_) @expr-start
-  type: (_) @indent
-  (#not-same-line? @indent @expr-start)
-  (#set! "scope" "all")
-)
+(impl_item
+  (declaration_list) @indent.branch)
 
-; Some field expressions where the left part is a multiline expression are not
-; indented by cargo fmt.
-; Because this multiline expression might be nested in an arbitrary number of
-; field expressions, this can only be matched using a Regex.
-(field_expression
-  value: (_) @val
-  "." @outdent
-  ; Check whether the first line ends with `(`, `{` or `[` (up to whitespace).
-  (#match? @val "(\\A[^\\n\\r]+(\\(|\\{|\\[)[\\t ]*(\\n|\\r))")
-)
-; Same as above, but with an additional `call_expression`. This is required since otherwise
-; the arguments of the function call won't be outdented.
-(call_expression
-  function: (field_expression
-    value: (_) @val
-    "." @outdent
-    (#match? @val "(\\A[^\\n\\r]+(\\(|\\{|\\[)[\\t ]*(\\n|\\r))")
-  )
-  arguments: (_) @outdent
-)
+[
+  (line_comment)
+  (string_literal)
+] @indent.ignore
 
-
-; Indent if guards in patterns.
-; Since the tree-sitter grammar doesn't create a node for the if expression,
-; it's not possible to do this correctly in all cases. Indenting the tail of the
-; whole pattern whenever it contains an `if` only fails if the `if` appears after
-; the second line of the pattern (which should only rarely be the case)
-(match_pattern
-  .
-  (_) @expr-start
-  "if" @pattern-guard
-  (#not-same-line? @expr-start @pattern-guard)
-) @indent
-
-; Align closure parameters if they span more than one line
-(closure_parameters
-  "|"
-  .
-  (_) @anchor
-  (_) @expr-end
-  .
-  (#not-same-line? @anchor @expr-end)
-) @align
-
-(for_expression
-  "in" @in
-  .
-  (_) @indent
-  (#not-same-line? @in @indent)
-  (#set! "scope" "all")
-)
-  
+(raw_string_literal) @indent.auto

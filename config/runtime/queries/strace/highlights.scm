@@ -1,8 +1,56 @@
+[
+  "killed"
+  "by"
+  "exited"
+  "with"
+  "<unfinished ...>"
+  "<..."
+  "resumed>"
+] @keyword
+
+[
+  (errorName)
+  (errorDescription)
+] @keyword.exception
+
 (syscall) @function.builtin
-(integer) @constant.numeric
-(pointer) @constant.numeric
+
+; Literals
+[
+  (integer)
+  (pointer)
+] @number
+
 (value) @label
+
 (string) @string
-(comment) @comment
-(errorName) @error
-(errorDescription) @error
+
+[
+  "="
+  "|"
+  "*"
+  "&&"
+  "=="
+] @operator
+
+; Punctuation
+[
+  "+++"
+  "---"
+  "..."
+  "~"
+] @punctuation.special
+
+[
+  "("
+  ")"
+  "["
+  "]"
+] @punctuation.bracket
+
+[
+  ","
+  "=>"
+] @punctuation.delimiter
+
+(comment) @comment @spell

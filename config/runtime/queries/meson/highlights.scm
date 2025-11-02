@@ -1,62 +1,77 @@
-(comment) @comment
+(comment) @comment @spell
+
+(number) @number
+
+(bool) @boolean
 
 (identifier) @variable
 
 [
-    (assignment_operator)
-    (additive_operator)
-    (multiplicative_operator)
-    (equality_operator)
-    ">="
-    "<="
-    "<"
-    ">"
-    "+"
-    "-"
-] @operator
-
-[
-    (and)
-    (or)
-    (not)
-    (in)
-] @keyword.operator
-
-[
-    "(" ")" "[" "]" "{" "}"
+  "("
+  ")"
+  "{"
+  "}"
+  "["
+  "]"
 ] @punctuation.bracket
 
 [
-    (if)
-    (elif)
-    (else)
-    (endif)
-] @keyword.control.conditional
-
-[
-    (foreach)
-    (endforeach)
-    (break)
-    (continue)
-] @keyword.control.repeat
-
-(boolean_literal) @constant.builtin.boolean
-(int_literal) @constant.numeric.integer
-
-(keyword_argument keyword: (identifier) @variable.parameter)
-(escape_sequence) @constant.character.escape
-(bad_escape) @warning
-
-[
-"."
-","
-":"
+  ":"
+  ","
+  "."
 ] @punctuation.delimiter
 
 [
-    (string_literal)
-    (fstring_literal)
-] @string
+  "and"
+  "not"
+  "or"
+  "in"
+] @keyword.operator
 
-; these are listed last, because they override keyword queries
-(function_expression (identifier) @function)
+[
+  "="
+  "=="
+  "!="
+  "+"
+  "/"
+  "/="
+  "+="
+  "-="
+  ">"
+  ">="
+] @operator
+
+(ternaryoperator
+  [
+    "?"
+    ":"
+  ] @keyword.conditional.ternary)
+
+[
+  "if"
+  "elif"
+  "else"
+  "endif"
+] @keyword.conditional
+
+[
+  "foreach"
+  "endforeach"
+  (keyword_break)
+  (keyword_continue)
+] @keyword.repeat
+
+(string) @string
+
+"@" @punctuation.special
+
+(normal_command
+  command: (identifier) @function)
+
+(pair
+  key: (identifier) @property)
+
+(escape_sequence) @string.escape
+
+((identifier) @variable.builtin
+  (#any-of? @variable.builtin "meson" "host_machine" "build_machine" "target_machine"))

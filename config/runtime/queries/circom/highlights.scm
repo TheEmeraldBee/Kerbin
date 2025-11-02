@@ -4,69 +4,73 @@
 
 ; Pragma
 ; -----------
-(pragma_directive) @keyword.directive
+[
+  "pragma"
+  "circom"
+] @keyword.directive
+
+(circom_version) @string.special
 
 ; Include
 ; -----------
-(include_directive) @keyword.directive
+[
+  "public"
+  "signal"
+  "var"
+  "include"
+] @keyword.import
 
 ; Literals
 ; --------
 (string) @string
-(int_literal) @constant.numeric.integer
-(comment) @comment
+
+(int_literal) @number
 
 ; Definitions
 ; -----------
 (function_definition
-  name:  (identifier) @keyword.function)
+  name: (identifier) @function)
 
 (template_definition
-  name:  (identifier) @keyword.function)
+  name: (identifier) @function)
 
 ; Use constructor coloring for special functions
-(main_component_definition) @constructor
+"main" @constructor
 
 ; Invocations
-(call_expression . (identifier) @function)
+(call_expression
+  .
+  (identifier) @function.call)
 
 ; Function parameters
-(parameter name: (identifier) @variable.parameter)
+(parameter
+  name: (identifier) @variable.parameter)
 
 ; Members
-(member_expression property: (property_identifier) @variable.other.member)
+(member_expression
+  property: (property_identifier) @property)
 
 ; Tokens
 ; -------
-
 ; Keywords
 [
- "signal"
- "var"
- "component"
-] @keyword.storage.type
-
-[  "include" ] @keyword.control.import
-
-[
- "public"
- "input"
- "output"
- ] @keyword.storage.modifier
+  "input"
+  "output"
+  "public"
+  "component"
+] @keyword
 
 [
- "for"
- "while"
-] @keyword.control.repeat
+  "for"
+  "while"
+] @keyword.repeat
 
 [
- "if"
- "else"
-] @keyword.control.conditional
+  "if"
+  "else"
+] @keyword.conditional
 
-[
- "return"
-] @keyword.control.return
+"return" @keyword.return
 
 [
   "function"
@@ -90,53 +94,44 @@
 ] @punctuation.delimiter
 
 ; Operators
-; https://docs.circom.io/circom-language/basic-operators
 [
-  "="
-  "?"
   "&&"
   "||"
-  "!"
-  "<" 
-  ">" 
-  "<=" 
-  ">=" 
-  "==" 
-  "!=" 
+  ">>"
+  "<<"
+  "&"
+  "^"
+  "|"
   "+"
   "-"
   "*"
-  "**"
   "/"
-  "\\"
   "%"
+  "**"
+  "<"
+  "<="
+  "="
+  "=="
+  "!="
   "+="
   "-="
-  "*="
-  "**="
-  "/="
-  "\\="
-  "%="
+  ">="
+  ">"
+  "!"
+  "~"
+  "-"
+  "+"
   "++"
   "--"
-  "&"
-  "|"
-  "~"
-  "^"
-  ">>"
-  "<<"
-  "&="
-  "|="
-  ; "\~=" ; bug, uncomment and circom will not highlight
-  "^="
-  ">>="
-  "<<="
-] @operator
-
-[
   "<=="
   "==>"
   "<--"
   "-->"
   "==="
 ] @operator
+
+; Comments
+(comment) @comment @spell
+
+((comment) @comment.documentation
+  (#lua-match? @comment.documentation "^/[*][*][^*].*[*]/$"))

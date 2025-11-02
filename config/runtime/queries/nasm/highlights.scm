@@ -1,27 +1,39 @@
-(comment) @comment
-
-(label) @label
-
-(preproc_expression) @keyword.directive
-
+; adapted from https://github.com/naclsn/tree-sitter-nasm/blob/main/queries/highlights.scm
 (word) @variable
+
 ((word) @constant
-  (#match? @constant "^[A-Z_][?A-Z_0-9]+$"))
+  (#lua-match? @constant "^[A-Z_][?A-Z_0-9]+$"))
+
 ((word) @constant.builtin
-  (#match? @constant.builtin "^__\\?[A-Z_a-z0-9]+\\?__$"))
+  (#lua-match? @constant.builtin "^__%?[A-Z_a-z0-9]+%?__$"))
 
 [
   (line_here_token)
   (section_here_token)
 ] @variable.builtin
 
+(label
+  (word) @label)
+
+(assembl_directive_symbols
+  (word) @label)
+
+(assembl_directive_sections
+  (word) @label)
+
 (unary_expression
   operator: _ @operator)
+
 (binary_expression
   operator: _ @operator)
+
+"?" @constant.builtin
+
 (conditional_expression
-  "?" @operator
-  ":" @operator)
+  [
+    "?"
+    ":"
+  ] @keyword.conditional.ternary)
 
 [
   ":"
@@ -38,43 +50,43 @@
 ] @punctuation.bracket
 
 (instruction_prefix) @keyword
+
 (actual_instruction
-  instruction: (word) @function)
+  instruction: (word) @function.builtin)
 
 (call_syntax_expression
-  base: (word) @function)
+  base: (word) @function.call)
 
 (size_hint) @type
+
 (struc_declaration
   name: (word) @type)
+
 (struc_instance
   name: (word) @type)
 
 (effective_address
- hint: _ @type)
+  hint: _ @type)
+
 (effective_address
- segment: _ @constant.builtin)
+  segment: _ @constant.builtin)
 
-(register) @constant.builtin
+(register) @variable.builtin
 
-(number_literal) @constant.numeric.integer
 (string_literal) @string
-(float_literal) @constant.numeric.float
-(packed_bcd_literal) @constant.numeric.integer
 
-(preproc_arg) @keyword.directive
+(float_literal) @number.float
 
 [
-  (preproc_def)
-  (preproc_function_def)
-  (preproc_undef)
+  (packed_bcd_literal)
+  (number_literal)
+] @number
+
+[
   (preproc_alias)
   (preproc_multiline_macro)
   (preproc_multiline_unmacro)
-  (preproc_if)
   (preproc_rotate)
-  (preproc_rep_loop)
-  (preproc_include)
   (preproc_pathsearch)
   (preproc_depend)
   (preproc_use)
@@ -89,6 +101,28 @@
   (preproc_line)
   (preproc_clear)
 ] @keyword.directive
+
+(preproc_include) @keyword.import
+
+(preproc_rep_loop) @keyword.repeat
+
+(preproc_if) @keyword.conditional
+
+[
+  (preproc_def)
+  (preproc_undef)
+] @keyword.directive.define
+
+(preproc_function_def) @keyword.function
+
+[
+  (preproc_expression)
+  (preproc_arg)
+] @constant.macro
+
+(preproc_multiline_macro
+  name: (word) @function)
+
 [
   (pseudo_instruction_dx)
   (pseudo_instruction_resx)
@@ -96,7 +130,8 @@
   (pseudo_instruction_equ_command)
   (pseudo_instruction_times_prefix)
   (pseudo_instruction_alignx_macro)
-] @function.special
+] @function
+
 [
   (assembl_directive_target)
   (assembl_directive_defaults)
@@ -109,7 +144,6 @@
   (assembl_directive_floathandling)
   (assembl_directive_org)
   (assembl_directive_sectalign)
-
   (assembl_directive_primitive_target)
   (assembl_directive_primitive_defaults)
   (assembl_directive_primitive_sections)
@@ -124,3 +158,5 @@
   (assembl_directive_primitive_warning)
   (assembl_directive_primitive_map)
 ] @keyword
+
+(comment) @comment @spell

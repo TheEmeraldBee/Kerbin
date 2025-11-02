@@ -1,6 +1,8 @@
-(line_comment) @comment.line
+(line_comment
+  (comment_content) @spell) @comment
 
-(block_comment) @comment.block
+(block_comment
+  (comment_content) @spell) @comment.documentation
 
 (identifier) @variable
 
@@ -10,14 +12,17 @@
   "alias"
   "architecture"
   "array"
+  ; "assume"
   "attribute"
   "block"
   "body"
   "component"
   "configuration"
   "context"
+  ; "cover"
   "disconnect"
   "entity"
+  ; "fairness"
   "file"
   "force"
   "generate"
@@ -34,10 +39,14 @@
   "range"
   "reject"
   "release"
+  ; "restrict"
   "sequence"
   "transport"
   "unaffected"
   "view"
+  ; "vmode"
+  ; "vpkg"
+  ; "vprop"
   "vunit"
 ] @keyword
 
@@ -63,15 +72,21 @@
   "wait"
   "on"
   "until"
-] @keyword
+] @keyword.coroutine
+
+(end_process
+  "end" @keyword.coroutine)
 
 (timeout_clause
-  "for" @keyword)
+  "for" @keyword.coroutine)
 
 [
   "function"
   "procedure"
 ] @keyword.function
+
+(subprogram_end
+  "end" @keyword.function)
 
 [
   "to"
@@ -82,7 +97,7 @@
 [
   "library"
   "use"
-] @keyword.control.import
+] @keyword.import
 
 [
   "subtype"
@@ -92,7 +107,7 @@
   "constant"
   "signal"
   "variable"
-] @keyword.storage.type
+] @keyword.type
 
 [
   "protected"
@@ -101,6 +116,7 @@
   "impure"
   "inertial"
   "postponed"
+  ; "strong"
   "guarded"
   "out"
   "inout"
@@ -109,23 +125,26 @@
   "register"
   "bus"
   "shared"
-] @keyword.storage.modifier
+] @keyword.modifier
 
 (mode
-  "in" @keyword.storage.modifier)
+  "in" @keyword.modifier)
 
 (force_mode
-  "in" @keyword.storage.modifier)
+  "in" @keyword.modifier)
 
 [
   "while"
   "loop"
   "next"
   "exit"
-] @keyword.control.repeat
+] @keyword.repeat
+
+(end_loop
+  "end" @keyword.repeat)
 
 (for_loop
-  "for" @keyword.control.repeat)
+  "for" @keyword.repeat)
 
 (block_configuration
   "for" @keyword)
@@ -139,49 +158,55 @@
 (end_for
   "for" @keyword)
 
-"return" @keyword.control.return
+"return" @keyword.return
 
 [
   "assert"
   "report"
   "severity"
-] @keyword
+] @keyword.debug
 
 [
   "if"
   "then"
   "elsif"
   "case"
-] @keyword.control.conditional
+] @keyword.conditional
+
+(end_if
+  "end" @keyword.conditional)
+
+(end_case
+  "end" @keyword.conditional)
 
 (when_element
-  "when" @keyword.control.conditional)
+  "when" @keyword.conditional)
 
 (case_generate_alternative
-  "when" @keyword.control.conditional)
+  "when" @keyword.conditional)
 
 (else_statement
-  "else" @keyword.control.conditional)
+  "else" @keyword.conditional)
 
 (else_generate
-  "else" @keyword.control.conditional)
+  "else" @keyword.conditional)
 
 [
   "with"
   "select"
-] @keyword.control.conditional
+] @keyword.conditional.ternary
 
 (when_expression
-  "when" @keyword.control.conditional)
+  "when" @keyword.conditional.ternary)
 
 (else_expression
-  "else" @keyword.control.conditional)
+  "else" @keyword.conditional.ternary)
 
 (else_waveform
-  "else" @keyword.control.conditional)
+  "else" @keyword.conditional.ternary)
 
 (else_expression_or_unaffected
-  "else" @keyword.control.conditional)
+  "else" @keyword.conditional.ternary)
 
 "null" @constant.builtin
 
@@ -213,13 +238,13 @@
 
 (directive_body) @keyword.directive
 
-(directive_constant_builtin) @constant.builtin
+(directive_constant_builtin) @constant.macro
 
-(directive_error) @keyword.directive
+(directive_error) @comment.error
 
 (directive_protect) @keyword.directive
 
-(directive_warning) @keyword.directive
+(directive_warning) @comment.warning
 
 [
   (condition_conversion)
@@ -232,6 +257,7 @@
   "*"
   "/"
   ":"
+  "|"
   "=>"
 ] @operator
 
@@ -249,7 +275,7 @@
   ","
   "."
   ";"
-] @punctuation.delimiters
+] @punctuation.delimiter
 
 [
   "("
@@ -265,27 +291,27 @@
 [
   (decimal_integer)
   (string_literal_std_logic)
-] @constant.numeric.integer
+] @number
 
-(decimal_float) @constant.numeric.float
+(decimal_float) @number.float
 
-(bit_string_length) @type.parameter
+(bit_string_length) @property
 
 (bit_string_base) @type.builtin
 
-(bit_string_value) @constant.numeric.integer
+(bit_string_value) @number
 
 (based_literal
   (based_base) @type.builtin
-  (based_integer) @constant.numeric.integer)
+  (based_integer) @number)
 
 (based_literal
   (based_base) @type.builtin
-  (based_float) @constant.numeric.float)
+  (based_float) @number.float)
 
-(string_literal) @string
+(string_literal) @string @spell
 
-(character_literal) @constant.character
+(character_literal) @character
 
 (library_constant_std_logic) @constant.builtin
 
@@ -293,13 +319,15 @@
 
 (library_function) @function.builtin
 
-(library_constant_boolean) @constant.builtin.boolean
+(library_constant_boolean) @boolean
 
-(library_constant_character) @constant.character
+(library_constant_character) @character
 
-(unit) @keyword.storage.modifier
+(library_constant_debug) @keyword.debug
 
-(library_constant_unit) @keyword.storage.modifier
+(unit) @keyword.modifier
+
+(library_constant_unit) @keyword.modifier
 
 (label) @label
 
@@ -312,7 +340,7 @@
   "map" @constructor)
 
 (selection
-  (identifier) @variable.other.member)
+  (identifier) @variable.member)
 
 (_
   view: (_) @type)
@@ -321,22 +349,22 @@
   type: (_) @type)
 
 (_
-  library: (_) @namespace)
+  library: (_) @module)
 
 (_
-  package: (_) @namespace)
+  package: (_) @module)
 
 (_
-  entity: (_) @namespace)
+  entity: (_) @module)
 
 (_
-  component: (_) @namespace)
+  component: (_) @module)
 
 (_
-  configuration: (_) @type.parameter)
+  configuration: (_) @property)
 
 (_
-  architecture: (_) @type.parameter)
+  architecture: (_) @property)
 
 (_
   function: (_) @function)
@@ -363,15 +391,38 @@
 
 (_
   entity: (name
-    (_)) @namespace)
+    (_)) @module)
 
 (_
   component: (name
-    (_)) @namespace)
+    (_)) @module)
 
 (_
   configuration: (name
-    (_)) @namespace)
+    (_)) @module)
 
 (library_type) @type.builtin
 
+[
+  (attribute_function)
+  (attribute_impure_function)
+  (attribute_mode_view)
+  (attribute_pure_function)
+  (attribute_range)
+  (attribute_signal)
+  (attribute_subtype)
+  (attribute_type)
+  (attribute_value)
+  (library_attribute)
+] @attribute.builtin
+
+(library_namespace) @module.builtin
+
+(subtype_declaration
+  (identifier) @type.definition)
+
+(type_declaration
+  (identifier) @type.definition)
+
+(mode_view_declaration
+  (identifier) @type.definition)

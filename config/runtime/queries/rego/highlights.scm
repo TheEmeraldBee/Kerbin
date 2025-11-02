@@ -1,10 +1,8 @@
+; highlights.scm
 [
   (import)
-] @keyword.control.import
-
-[
   (package)
-] @namespace
+] @keyword.import
 
 [
   (with)
@@ -12,20 +10,18 @@
   (every)
   (some)
   (in)
-  (default)
-  "null"
-] @keyword.control
-
-[
   (not)
   (if)
   (contains)
   (else)
-] @keyword.control.conditional
+  (default)
+  "null"
+] @keyword
 
 [
-  (boolean)
-] @constant.builtin.boolean
+  "true"
+  "false"
+] @boolean
 
 [
   (assignment_operator)
@@ -39,17 +35,24 @@
   (raw_string)
 ] @string
 
-(term (ref (var))) @variable
+(term
+  (ref
+    (var))) @variable
 
-(comment) @comment.line
+(comment) @comment @spell
 
-(number) @constant.numeric.integer
+(number) @number
 
-(expr_call func_name: (fn_name (var) @function .))
+(expr_call
+  func_name: (fn_name
+    (var) @function .))
 
-(expr_call func_arguments: (fn_args (expr) @variable.parameter))
+(expr_call
+  func_arguments: (fn_args
+    (expr) @variable.parameter))
 
-(rule_args (term) @variable.parameter)
+(rule_args
+  (term) @variable.parameter)
 
 [
   (open_paren)
@@ -60,9 +63,22 @@
   (close_curly)
 ] @punctuation.bracket
 
-(rule (rule_head (var) @function.method))
+(rule
+  (rule_head
+    (var) @function.method))
 
 (rule
-  (rule_head (term (ref (var) @namespace)))
-  (rule_body (query (literal (expr (expr_infix (expr (term (ref (var)) @_output)))))) (#eq? @_output @namespace))
-)
+  (rule_head
+    (term
+      (ref
+        (var) @module)))
+  (rule_body
+    (query
+      (literal
+        (expr
+          (expr_infix
+            (expr
+              (term
+                (ref
+                  (var)) @_output))))))
+    (#eq? @_output @module)))

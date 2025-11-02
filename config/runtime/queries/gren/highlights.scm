@@ -1,111 +1,121 @@
+; Keywords
 [
-  (module)
   (as)
+  (port)
   (exposing)
-  (backslash)
+  (alias)
+  (infix)
 ] @keyword
 
-(import) @keyword.control.import
-
+; Keywords - Conditionals
 [
   "if"
   "then"
   "else"
-  (when)
-  (is)
-] @keyword.control.conditional
-
-[
-  (type)
-  (alias)
-  (infix)
-  (port)
   "let"
   "in"
-] @keyword.storage.type
+  (when)
+  (is)
+] @keyword.conditional
 
-(dot) @operator
-
+; Keywords - Imports
 [
-  (colon)
-  (arrow)
-  (eq)
-  (operator_identifier)
-  "|"
-] @keyword.operator
+  (import)
+  (module)
+] @keyword.import
 
+; Operators
+[
+  (arrow)
+  (backslash)
+  (colon)
+  (operator_identifier)
+  (eq)
+] @operator
+
+; Punctuation
 [
   "("
   ")"
-  "["
-  "]"
   "{"
   "}"
+  "["
+  "]"
 ] @punctuation.bracket
 
-"," @punctuation.delimiter
+[
+  ","
+  "|"
+  (dot)
+] @punctuation.delimiter
 
-; modules
+; Comments
+[
+  (block_comment)
+  (line_comment)
+] @comment
 
-(module_declaration(upper_case_qid) @namespace)
-(import_clause(upper_case_qid) @namespace)
-(import_clause(as_clause(upper_case_identifier) @namespace))
-(exposing_list(exposed_type(upper_case_identifier) @type))
-(exposing_list(exposed_value) @variable)
+; Strings
+[
+  (close_quote)
+  (open_quote)
+  (regular_string_part)
+] @string
 
-; functions
+; Strings - Escape
+(string_escape) @string.escape
 
-(type_annotation(lower_case_identifier) @function)
-(port_annotation(lower_case_identifier) @function)
-(file (value_declaration (function_declaration_left(lower_case_identifier) @function)))
+; Characters
+[
+  (open_char)
+  (close_char)
+] @character
 
-; types
+(type_annotation
+  (lower_case_identifier) @function)
 
-(field name: (lower_case_identifier) @variable.other.member)
-(field_type name: (lower_case_identifier) @variable.other.member)
-(field_access_expr(lower_case_identifier) @variable)
+(port_annotation
+  (lower_case_identifier) @function)
 
-(type_declaration(upper_case_identifier) @type)
-(type_declaration typeName: (lower_type_name) @type.parameter)
+(function_declaration_left
+  (lower_case_identifier) @function)
 
-(type_alias_declaration name: (upper_case_identifier) @type)
-(type_alias_declaration typeVariable: (lower_type_name) @type.parameter)
+(function_call_expr
+  target: (value_expr) @function)
 
-(type_ref(upper_case_qid) @type)
-(type_ref(upper_case_qid(upper_case_identifier) @namespace (dot) (upper_case_identifier) @type))
+(field_access_expr
+  (value_expr
+    (value_qid) @variable.member))
 
-(type_variable(lower_case_identifier) @type.parameter)
+(lower_pattern) @variable.parameter
 
-; variables
+(record_base_identifier) @variable
 
-(union_pattern constructor: (upper_case_qid (upper_case_identifier) @namespace (dot) (upper_case_identifier) @constructor)) 
-(union_pattern constructor: (upper_case_qid (upper_case_identifier) @constructor)) 
+(number_constant_expr) @number
 
-(union_variant(upper_case_identifier) @constructor)
+(type) @keyword.type
 
-(value_expr name: (value_qid (upper_case_identifier) @namespace))
-(value_expr(upper_case_qid(upper_case_identifier) @namespace (dot) (upper_case_identifier) @constructor))
-(value_expr(upper_case_qid(upper_case_identifier)) @constructor)
+(type_declaration
+  (upper_case_identifier) @type)
 
-(value_expr(value_qid(upper_case_identifier) @namespace (dot) (lower_case_identifier) @variable))
-(value_expr(value_qid(lower_case_identifier) @variable))
+(type_ref) @type
 
-(let_in_expr(value_declaration(function_declaration_left(lower_case_identifier) @variable)))
+(type_alias_declaration
+  name: (upper_case_identifier) @type)
 
-(function_declaration_left(lower_pattern(lower_case_identifier) @variable.parameter))
+(union_variant
+  (upper_case_identifier) @type)
 
-; comments
+(union_pattern
+  constructor: (upper_case_qid
+    (upper_case_identifier) @label
+    (dot)
+    (upper_case_identifier) @type))
 
-(line_comment) @comment
-(block_comment) @comment
+(union_pattern
+  constructor: (upper_case_qid
+    (upper_case_identifier) @type))
 
-; numbers
-
-(number_constant_expr) @constant.numeric
-
-; strings
-
-(string_escape) @constant.character.escape
-
-(string_constant_expr) @string
-(char_constant_expr) @constant.character
+(value_expr
+  (upper_case_qid
+    (upper_case_identifier)) @type)

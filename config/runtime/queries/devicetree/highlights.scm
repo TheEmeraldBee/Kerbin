@@ -1,66 +1,61 @@
-[
-  "/dts-v1/"
-  "/memreserve/"
-  "/delete-node/"
-  "/delete-property/"
-] @keyword
+(comment) @comment @spell
 
 [
-  "#define"
-  "#include"
-] @keyword.directive
+  (preproc_include)
+  (dtsi_include)
+] @keyword.import
+
+(preproc_def) @constant.macro
+
+(preproc_function_def) @function.macro
 
 [
-  "!"
-  "~"
-  "-"
-  "+"
-  "*"
-  "/"
-  "%"
-  "||"
-  "&&"
-  "|"
-  "^"
-  "&"
-  "=="
-  "!="
-  ">"
-  ">="
-  "<="
-  ">"
-  "<<"
-  ">>"
-] @operator
+  (memory_reservation)
+  (file_version)
+] @attribute
 
 [
-  ","
-  ";"
-] @punctuation.delimiter
+  (string_literal)
+  (byte_string_literal)
+  (system_lib_string)
+] @string
+
+(integer_literal) @number
+
+(identifier) @variable
+
+(node
+  (identifier) @module)
+
+(property
+  (identifier) @property)
+
+(node
+  label: (_) @label)
+
+(call_expression
+  (identifier) @function.macro)
+
+(reference) @label ; referencing labeled_item.identifier
+
+(unit_address) @constant
+
+"=" @operator
 
 [
   "("
   ")"
+  "["
+  "]"
   "{"
   "}"
   "<"
   ">"
 ] @punctuation.bracket
 
-(string_literal) @string
-
-(integer_literal) @constant.numeric.integer
-
-(identifier) @variable
-
-(call_expression
-  function: (identifier) @function)
-
-(labeled_item
-  label: (identifier) @label)
-
-(unit_address) @tag
-
-(reference) @constant
-
-(comment) @comment
+[
+  ";"
+  ":"
+  ","
+  "@"
+] @punctuation.delimiter

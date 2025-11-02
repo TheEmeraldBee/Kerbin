@@ -1,70 +1,74 @@
+(comment) @comment @spell
+
+[
+  "forall"
+  "in"
+  "let"
+  "default"
+  "doc"
+  "rec"
+] @keyword
+
+"fun" @keyword.function
+
+"import" @keyword.import
+
+[
+  "if"
+  "then"
+  "else"
+] @keyword.conditional
+
+"match" @keyword.conditional
+
 (types) @type
-(type_builtin) @type.builtin
+
 "Array" @type.builtin
 
-(enum_tag) @constructor
+; BUILTIN Constants
+(bool) @boolean
 
 "null" @constant.builtin
-(bool) @constant.builtin.boolean
-(str_esc_char) @constant.character.escape
-(num_literal) @constant.numeric
 
-(str_chunks) @string
+(num_literal) @number
 
-; NOTE: Nickel has no block comments
-(comment) @comment.line
-; Nickel doesn't use comments for documentation, ideally this would be
-; `@documentation` or something similar
-(annot_atom
-  doc: (static_string) @comment.block.documentation
-)
+(infix_op) @operator
 
-(record_operand (atom (ident) @variable))
-(let_in_block
-  "let" @keyword
-  "rec"? @keyword
-  "in" @keyword
-)
+(type_atom) @type
 
-(let_binding
-  pat: (pattern
-    (ident) @variable
-  )
-)
+(enum_tag) @variable
 
-(fun_expr
-  "fun" @keyword.function
-  pats:
-    (pattern_fun (ident) @variable.parameter)+
-  "=>" @operator
-)
-(record_field) @variable.other.member
+(chunk_literal_single) @string
+
+(chunk_literal_multi) @string
+
+(str_esc_char) @string.escape
 
 [
-  "."
-] @punctuation.delimiter
-[
-  "{" "}"
-  "(" ")"
-  "[|" "|]"
-  "[" "]"
+  "{"
+  "}"
+  "("
+  ")"
+  "[|"
+  "|]"
 ] @punctuation.bracket
+
 (multstr_start) @punctuation.bracket
+
 (multstr_end) @punctuation.bracket
+
 (interpolation_start) @punctuation.bracket
+
 (interpolation_end) @punctuation.bracket
 
-["forall" "default" "doc"] @keyword
-["if" "then" "else" "match"] @keyword.control.conditional
-"import" @keyword.control.import
+(record_field) @variable.member
 
-(infix_expr
-  op: (_) @operator
-)
+(builtin) @function.builtin
+
+(fun_expr
+  pats: (pattern_fun
+    (ident) @variable.parameter))
 
 (applicative
   t1: (applicative
-    (record_operand) @function
-  )
-)
-(builtin) @function.builtin
+    (record_operand) @function))

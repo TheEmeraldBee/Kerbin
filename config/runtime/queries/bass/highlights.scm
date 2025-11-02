@@ -1,101 +1,126 @@
-; GENERATED VIA https://github.com/vito/tree-sitter-bass
+; Variables
+(list
+  (symbol) @variable)
 
-;;; comments
+(cons
+  (symbol) @variable)
 
-(comment) @comment.line
+(scope
+  (symbol) @variable)
 
-;;; punctuation
+(symbind
+  (symbol) @variable)
 
-["(" ")" "[" "]" "{" "}"] @punctuation.bracket
+; Constants
+((symbol) @constant
+  (#lua-match? @constant "^_*[A-Z][A-Z0-9_]*$"))
 
-;;; constants
+; Functions
+(list
+  .
+  (symbol) @function)
 
-[(ignore) (null)] @constant.builtin
+; Namespaces
+(symbind
+  (symbol) @module
+  .
+  (keyword))
 
-(bool) @constant.builtin.boolean
+; Includes
+((symbol) @keyword.import
+  (#any-of? @keyword.import "use" "import" "load"))
 
-(int) @constant.numeric.integer
+; Keywords
+((symbol) @keyword
+  (#any-of? @keyword "do" "doc"))
 
-;;; strings
+; Special Functions
+; Keywords construct a symbol
+(keyword) @constructor
 
-;; string literals
+((list
+  .
+  (symbol) @keyword.function
+  .
+  (symbol) @function
+  (symbol)? @variable.parameter)
+  (#any-of? @keyword.function "def" "defop" "defn" "fn"))
 
+((cons
+  .
+  (symbol) @keyword.function
+  .
+  (symbol) @function
+  (symbol)? @variable.parameter)
+  (#any-of? @keyword.function "def" "defop" "defn" "fn"))
+
+((symbol) @function.builtin
+  (#any-of? @function.builtin
+    "dump" "mkfs" "json" "log" "error" "now" "cons" "wrap" "unwrap" "eval" "make-scope" "bind"
+    "meta" "with-meta" "null?" "ignore?" "boolean?" "number?" "string?" "symbol?" "scope?" "sink?"
+    "source?" "list?" "pair?" "applicative?" "operative?" "combiner?" "path?" "empty?" "thunk?" "+"
+    "*" "quot" "-" "max" "min" "=" ">" ">=" "<" "<=" "list->source" "across" "emit" "next"
+    "reduce-kv" "assoc" "symbol->string" "string->symbol" "str" "substring" "trim" "scope->list"
+    "string->fs-path" "string->cmd-path" "string->dir" "subpath" "path-name" "path-stem"
+    "with-image" "with-dir" "with-args" "with-cmd" "with-stdin" "with-env" "with-insecure"
+    "with-label" "with-port" "with-tls" "with-mount" "thunk-cmd" "thunk-args" "resolve" "start"
+    "addr" "wait" "read" "cache-dir" "binds?" "recall-memo" "store-memo" "mask" "list" "list*"
+    "first" "rest" "length" "second" "third" "map" "map-pairs" "foldr" "foldl" "append" "filter"
+    "conj" "list->scope" "merge" "apply" "id" "always" "vals" "keys" "memo" "succeeds?" "run" "last"
+    "take" "take-all" "insecure!" "from" "cd" "wrap-cmd" "mkfile" "path-base" "not"))
+
+((symbol) @function.macro
+  (#any-of? @function.macro
+    "op" "current-scope" "quote" "let" "provide" "module" "or" "and" "curryfn" "for" "$" "linux"))
+
+; Conditionals
+((symbol) @keyword.conditional
+  (#any-of? @keyword.conditional "if" "case" "cond" "when"))
+
+; Repeats
+((symbol) @keyword.repeat
+  (#any-of? @keyword.repeat "each"))
+
+; Operators
+((symbol) @operator
+  (#any-of? @operator "&" "*" "+" "-" "<" "<=" "=" ">" ">="))
+
+; Punctuation
+[
+  "("
+  ")"
+] @punctuation.bracket
+
+[
+  "{"
+  "}"
+] @punctuation.bracket
+
+[
+  "["
+  "]"
+] @punctuation.bracket
+
+((symbol) @punctuation.delimiter
+  (#eq? @punctuation.delimiter "->"))
+
+; Literals
 (string) @string
-(string (string_escape) @constant.character.escape)
 
-;; keywords (symbol literals)
+(escape_sequence) @string.escape
 
-(keyword) @string.special.symbol
+(path) @string.special.url
 
-;; paths
+(number) @number
 
-(dot) @string.special.path
-(dotdot) @string.special.path
-(command) @string.special.path
-(subpath (symbol) @string.special.path)
+(boolean) @boolean
 
-; slashes in a path denote a combiner call
-(subpath (slash) @function)
+[
+  (ignore)
+  (null)
+] @constant.builtin
 
+"^" @character.special
 
-;;; generic highlighting for all forms
-
-; first symbol in a list form is a combiner call
-(list . (symbol) @function)
-
-; highlight symbols as vars only when they're clearly vars
-(cons (symbol) @variable)
-(scope (symbol) @variable)
-(path form: (symbol) @variable)
-(symbind form: (symbol) @variable)
-
-
-;;; specific highlighting for builtins & special forms
-
-;; symbol classification based highlighting
-
-(list . (symbol) @keyword.control.conditional (#match? @keyword.control.conditional "^(if|case|cond|when)$"))
-(cons . (symbol) @keyword.control.conditional (#match? @keyword.control.conditional "^(if|case|cond|when)$"))
-
-(list . (symbol) @keyword.control.repeat (#match? @keyword.control.repeat "^(each)$"))
-(cons . (symbol) @keyword.control.repeat (#match? @keyword.control.repeat "^(each)$"))
-
-(list . (symbol) @label (#match? @label "^(def|defop|defn)$"))
-(cons . (symbol) @label (#match? @label "^(def|defop|defn)$"))
-
-(list . (symbol) @function.builtin (#match? @function.builtin "^(dump|mkfs|json|log|error|now|cons|wrap|unwrap|eval|make-scope|bind|meta|with-meta|null\\?|ignore\\?|boolean\\?|number\\?|string\\?|symbol\\?|scope\\?|sink\\?|source\\?|list\\?|pair\\?|applicative\\?|operative\\?|combiner\\?|path\\?|empty\\?|thunk\\?|\\+|\\*|quot|-|max|min|=|>|>=|<|<=|list->source|across|emit|next|reduce-kv|assoc|symbol->string|string->symbol|str|substring|trim|scope->list|string->fs-path|string->cmd-path|string->dir|subpath|path-name|path-stem|with-image|with-dir|with-args|with-cmd|with-stdin|with-env|with-insecure|with-label|with-port|with-tls|with-mount|thunk-cmd|thunk-args|resolve|start|addr|wait|read|cache-dir|binds\\?|recall-memo|store-memo|mask|list|list\\*|first|rest|length|second|third|map|map-pairs|foldr|foldl|append|filter|conj|list->scope|merge|apply|id|always|vals|keys|memo|succeeds\\?|run|last|take|take-all|insecure!|from|cd|wrap-cmd|mkfile|path-base|not)$"))
-(cons . (symbol) @function.builtin (#match? @function.builtin "^(dump|mkfs|json|log|error|now|cons|wrap|unwrap|eval|make-scope|bind|meta|with-meta|null\\?|ignore\\?|boolean\\?|number\\?|string\\?|symbol\\?|scope\\?|sink\\?|source\\?|list\\?|pair\\?|applicative\\?|operative\\?|combiner\\?|path\\?|empty\\?|thunk\\?|\\+|\\*|quot|-|max|min|=|>|>=|<|<=|list->source|across|emit|next|reduce-kv|assoc|symbol->string|string->symbol|str|substring|trim|scope->list|string->fs-path|string->cmd-path|string->dir|subpath|path-name|path-stem|with-image|with-dir|with-args|with-cmd|with-stdin|with-env|with-insecure|with-label|with-port|with-tls|with-mount|thunk-cmd|thunk-args|resolve|start|addr|wait|read|cache-dir|binds\\?|recall-memo|store-memo|mask|list|list\\*|first|rest|length|second|third|map|map-pairs|foldr|foldl|append|filter|conj|list->scope|merge|apply|id|always|vals|keys|memo|succeeds\\?|run|last|take|take-all|insecure!|from|cd|wrap-cmd|mkfile|path-base|not)$"))
-
-(list . (symbol) @function.macro (#match? @function.macro "^(op|fn|current-scope|quote|let|provide|module|or|and|->|curryfn|for|\\$|linux)$"))
-(cons . (symbol) @function.macro (#match? @function.macro "^(op|fn|current-scope|quote|let|provide|module|or|and|->|curryfn|for|\\$|linux)$"))
-
-(list . (symbol) @keyword.builtin (#match? @keyword.builtin "^(do|doc)$"))
-(cons . (symbol) @keyword.builtin (#match? @keyword.builtin "^(do|doc)$"))
-
-(list . (symbol) @keyword.control.import (#match? @keyword.control.import "^(use|import|load)$"))
-(cons . (symbol) @keyword.control.import (#match? @keyword.control.import "^(use|import|load)$"))
-
-
-;; special cases
-
-; [a & b] highlights & as operator rather than a regular symbol
-(list (symbol) @operator (#match? @operator "&"))
-(cons (symbol) @operator (#match? @operator "&"))
-
-; (-> x y z) highlights first x as var, y z as function
-(list
-  .
-  (symbol) @function.macro
-  (#eq? @function.macro "->")
-  .
-  (symbol) @variable.parameter
-  (symbol) @function)
-
-; (-> 42 x y) highlights 42 as regular number
-(list
-  .
-  (symbol) @function.macro
-  (#eq? @function.macro "->")
-  .
-  (_)
-  (symbol) @function)
+; Comments
+(comment) @comment @spell

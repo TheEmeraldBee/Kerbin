@@ -1,4 +1,4 @@
-(comment) @comment
+(comment) @comment @spell
 
 (keyword) @keyword
 
@@ -8,6 +8,6 @@
     "{{-"
     "}}"
     "-}}"
-  ] @punctuation.bracket)
+  ] @punctuation.special)
 
 "|>" @operator

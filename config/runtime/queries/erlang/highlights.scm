@@ -1,165 +1,184 @@
-; Comments
-(tripledot) @comment.unused
+((atom) @constant
+  (#set! priority "90"))
 
-[(comment) (line_comment) (shebang)] @comment
+(var) @variable
 
-; Basic types
-(variable) @variable
-(atom) @string.special.symbol
-((atom) @constant.builtin.boolean
- (#match? @constant.builtin.boolean "^(true|false)$"))
-[(string) (sigil)] @string
-(character) @constant.character
-(escape_sequence) @constant.character.escape
+(char) @character
 
-(integer) @constant.numeric.integer
-(float) @constant.numeric.float
+(integer) @number
 
-; Punctuation
-["," "." "-" ";"] @punctuation.delimiter
-["(" ")" "#" "{" "}" "[" "]" "<<" ">>"] @punctuation.bracket
+(float) @number.float
 
-; Operators
-(binary_operator operator: _ @operator)
-(unary_operator operator: _ @operator)
-["/" ":" "->"] @operator
+(comment) @comment @spell
 
-(binary_operator
-  left: (atom) @function
-  operator: "/"
-  right: (integer) @constant.numeric.integer)
+((comment) @comment.documentation
+  (#lua-match? @comment.documentation "^[%%][%%]"))
 
-((binary_operator operator: _ @keyword.operator)
- (#match? @keyword.operator "^\\w+$"))
-((unary_operator operator: _ @keyword.operator)
- (#match? @keyword.operator "^\\w+$"))
+; keyword
+[
+  "fun"
+  "div"
+] @keyword
 
-; Functions
-(function_clause name: (atom) @function)
-(call module: (atom) @namespace)
-(call function: (atom) @function)
-(stab_clause name: (atom) @function)
-(function_capture module: (atom) @namespace)
-(function_capture function: (atom) @function)
+; bracket
+[
+  "("
+  ")"
+  "{"
+  "}"
+  "["
+  "]"
+  "#"
+] @punctuation.bracket
 
-; Keywords
-(attribute name: (atom) @keyword)
+; Comparisons
+[
+  "=="
+  "=:="
+  "=/="
+  "=<"
+  ">="
+  "<"
+  ">"
+] @operator ; .comparison
 
-["case" "fun" "if" "of" "when" "end" "receive" "try" "catch" "after" "begin" "maybe"] @keyword
+; operator
+[
+  ":"
+  ":="
+  "!"
+  ; "-"
+  "+"
+  "="
+  "->"
+  "=>"
+  "|"
+  "?="
+] @operator
 
-; Attributes
-; module declaration
-(attribute
-  name: (atom) @keyword
-  (arguments (atom) @namespace)
- (#any-of? @keyword "module" "behaviour" "behavior"))
+[
+  ","
+  "."
+  ";"
+] @punctuation.delimiter
 
-(attribute
-  name: (atom) @keyword
-  (arguments
-    .
-    (atom) @namespace)
- (#eq? @keyword "import"))
+; conditional
+[
+  "receive"
+  "if"
+  "case"
+  "of"
+  "when"
+  "after"
+  "begin"
+  "end"
+  "maybe"
+  "else"
+] @keyword.conditional
 
-(attribute
-  name: (atom) @keyword
-  (arguments
-    .
-    [(atom) @type (macro)]
-    [
-      (tuple (atom)? @variable.other.member)
-      (tuple
-        (binary_operator
-          left: (atom) @variable.other.member
-          operator: ["=" "::"]))
-      (tuple
-        (binary_operator
-          left:
-            (binary_operator
-              left: (atom) @variable.other.member
-              operator: "=")
-          operator: "::"))
-      ])
- (#eq? @keyword "record"))
+[
+  "catch"
+  "try"
+] @keyword.exception
 
-(attribute
-  name: (atom) @keyword
-  (arguments
-    .
-    [
-      (atom) @constant
-      (variable) @constant
-      (call
-        function:
-          [(variable) (atom)] @keyword.directive)
-    ])
- (#eq? @keyword "define"))
-
-(attribute
-  name: (atom) @keyword
-  (arguments
-    (_) @keyword.directive)
- (#any-of? @keyword "ifndef" "ifdef"))
-
-(attribute
-  name: (atom) @keyword
-  module: (atom) @namespace
- (#any-of? @keyword "spec" "callback"))
-
-(attribute
-  name: (atom) @keyword
-  (arguments [
-    (string)
-    (sigil)
-  ] @comment.block.documentation)
- (#any-of? @keyword "doc" "moduledoc"))
+((atom) @boolean
+  (#any-of? @boolean "true" "false"))
 
 ; Macros
-(macro
-  "?"+ @keyword.directive
-  name: (_) @keyword.directive)
+((macro_call_expr) @constant.macro
+  (#set! priority 101))
 
-(macro
-  "?"+ @constant
-  name: (_) @constant
-  !arguments)
+; Preprocessor
+(pp_define
+  lhs: _ @constant.macro
+  (#set! priority 101))
 
-; Parameters
-; specs
-((attribute
-   name: (atom) @keyword
-   (stab_clause
-     pattern: (arguments (variable)? @variable.parameter)
-     body: (variable)? @variable.parameter))
- (#match? @keyword "(spec|callback)"))
-; functions
-(function_clause pattern: (arguments (variable) @variable.parameter))
-; anonymous functions
-(stab_clause pattern: (arguments (variable) @variable.parameter))
-; parametric types
-((attribute
-    name: (atom) @keyword
-    (arguments
-      (binary_operator
-        left: (call (arguments (variable) @variable.parameter))
-        operator: "::")))
- (#match? @keyword "(type|opaque)"))
-; macros
-((attribute
-   name: (atom) @keyword
-   (arguments
-     (call (arguments (variable) @variable.parameter))))
- (#eq? @keyword "define"))
+(_preprocessor_directive) @keyword.directive
+(#set! priority 99)
+
+; Attributes
+(pp_include) @keyword.import
+
+(pp_include_lib) @keyword.import
+
+(export_attribute) @keyword.import
+
+(export_type_attribute) @type.definition
+
+(export_type_attribute
+  types: (fa
+    fun: _ @type
+    (#set! priority 101)))
+
+(behaviour_attribute) @keyword.import
+
+(module_attribute
+  (atom) @module) @keyword.import
+
+(wild_attribute
+  name: (attr_name
+    name: _ @attribute)) @attribute
 
 ; Records
-(record_content
-  (binary_operator
-    left: (atom) @variable.other.member
-    operator: "="))
+(record_expr) @type
 
-(record field: (atom) @variable.other.member)
-(record name: (atom) @type)
+(record_field_expr
+  _ @variable.member) @type
 
-; Ignored variables
-((variable) @comment.unused
- (#match? @comment.unused "^_"))
+(record_field_name
+  _ @variable.member) @type
+
+(record_name
+  "#" @type
+  name: _ @type) @type
+
+(record_decl
+  name: _ @type) @type.definition
+
+(record_field
+  name: _ @variable.member)
+
+(record_field
+  name: _ @variable.member
+  ty: _ @type)
+
+; Type alias
+(type_alias
+  name: _ @type) @type.definition
+
+(spec) @type.definition
+
+[
+  (string)
+  (binary)
+] @string
+
+; expr_function_call
+(call
+  expr: [
+    (atom)
+    (remote)
+    (var)
+  ] @function)
+
+(call
+  (atom) @keyword.exception
+  (#any-of? @keyword.exception "error" "throw" "exit"))
+
+; Parenthesized expression: (SomeFunc)(), only highlight the parens
+(call
+  expr: (paren_expr
+    "(" @function.call
+    ")" @function.call))
+
+; function
+(external_fun) @function.call
+
+(internal_fun
+  fun: (atom) @function.call)
+
+(function_clause
+  name: (atom) @function)
+
+(fa
+  fun: (atom) @function)

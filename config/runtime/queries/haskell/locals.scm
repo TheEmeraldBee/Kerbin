@@ -1,4 +1,9 @@
-(signature name: (variable) @local.definition.function)
-(function name: (variable) @local.definition.function)
-(pattern/variable) @local.definition.variable.parameter
+(signature
+  name: (variable)) @local.definition
+
+(function
+  name: (variable)) @local.definition
+
+(pattern/variable) @local.definition
+
 (expression/variable) @local.reference

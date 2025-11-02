@@ -1,7 +1,19 @@
-(expression) @string
-(statement) @variable.builtin
-(keyword) @keyword
-(comment) @comment
-(identifier) @variable.parameter
-(operator) @operator
-(string) @string
+; inherits: jinja_inline
+
+[
+  "{{"
+  "{{-"
+  "{{+"
+  "+}}"
+  "-}}"
+  "}}"
+  "{%"
+  "{%-"
+  "{%+"
+  "+%}"
+  "-%}"
+  "%}"
+] @keyword.directive
+
+; TODO: only match raw
+(raw_start) @keyword

@@ -1,11 +1,14 @@
+; indents.scm
 [
   (json_object)
   (json_array)
-  (xml_tag)
-] @indent
+] @indent.begin
 
 [
   "}"
   "]"
-  (xml_close_tag)
-] @outdent
+] @indent.branch
+
+(xml_tag) @indent.begin
+
+(xml_close_tag) @indent.branch

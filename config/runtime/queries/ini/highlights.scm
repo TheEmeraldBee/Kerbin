@@ -1,7 +1,7 @@
 (section_name
-  (text) @type)
+  (text) @markup.heading)
 
-(comment) @comment
+(comment) @comment @spell
 
 [
   "["
@@ -11,5 +11,6 @@
 "=" @operator
 
 (setting
-  (setting_name) @variable.other.member
-  ((setting_value) @string)?)
+  (setting_name) @property)
+
+(setting_value) @string

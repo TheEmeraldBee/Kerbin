@@ -1,74 +1,129 @@
-(string_array "," @punctuation.delimiter)
-(string_array ["[" "]"] @punctuation.bracket)
+(string_array
+  "," @punctuation.delimiter)
+
+(string_array
+  [
+    "["
+    "]"
+  ] @punctuation.bracket)
 
 [
-    "ARG"
-    "AS LOCAL"
-    "BUILD"
-    "CACHE"
-    "CMD"
-    "COPY"
-    "DO"
-    "ENTRYPOINT"
-    "ENV"
-    "EXPOSE"
-    "FROM DOCKERFILE"
-    "FROM"
-    "FUNCTION"
-    "GIT CLONE"
-    "HOST"
-    "IMPORT"
-    "LABEL"
-    "LET"
-    "PROJECT"
-    "RUN"
-    "SAVE ARTIFACT"
-    "SAVE IMAGE"
-    "SET"
-    "USER"
-    "VERSION"
-    "VOLUME"
-    "WORKDIR"
+  "ARG"
+  "AS LOCAL"
+  "BUILD"
+  "CACHE"
+  "CMD"
+  "COPY"
+  "DO"
+  "ENTRYPOINT"
+  "ENV"
+  "EXPOSE"
+  "FROM DOCKERFILE"
+  "FROM"
+  "FUNCTION"
+  "GIT CLONE"
+  "HOST"
+  "IMPORT"
+  "LABEL"
+  "LET"
+  "PROJECT"
+  "RUN"
+  "SAVE ARTIFACT"
+  "SAVE IMAGE"
+  "SET"
+  "USER"
+  "VERSION"
+  "VOLUME"
+  "WORKDIR"
 ] @keyword
 
-(for_command ["FOR" "IN" "END"] @keyword.control.repeat)
+(for_command
+  [
+    "FOR"
+    "IN"
+    "END"
+  ] @keyword.repeat)
 
-(if_command ["IF" "END"] @keyword.control.conditional)
-(elif_block ["ELSE IF"] @keyword.control.conditional)
-(else_block ["ELSE"] @keyword.control.conditional)
+(if_command
+  [
+    "IF"
+    "END"
+  ] @keyword.conditional)
 
-(import_command ["IMPORT" "AS"] @keyword.control.import)
+(elif_block
+  "ELSE IF" @keyword.conditional)
 
-(try_command ["TRY" "FINALLY" "END"] @keyword.control.exception)
+(else_block
+  "ELSE" @keyword.conditional)
 
-(wait_command ["WAIT" "END"] @keyword.control)
-(with_docker_command ["WITH DOCKER" "END"] @keyword.control)
+(import_command
+  [
+    "IMPORT"
+    "AS"
+  ] @keyword.import)
+
+(try_command
+  [
+    "TRY"
+    "FINALLY"
+    "END"
+  ] @keyword.exception)
+
+(wait_command
+  [
+    "WAIT"
+    "END"
+  ] @keyword)
+
+(with_docker_command
+  [
+    "WITH DOCKER"
+    "END"
+  ] @keyword)
 
 [
-    (comment)
-    (line_continuation_comment)
-] @comment
-
-(line_continuation) @operator
+  (comment)
+  (line_continuation_comment)
+] @comment @spell
 
 [
-    (target_ref)
-    (target_artifact)
-    (function_ref)
+  (target_ref)
+  (target_artifact)
+  (function_ref)
 ] @function
 
-(target (identifier) @function)
+(target
+  (identifier) @function)
 
 [
-    (double_quoted_string)
-    (single_quoted_string)
+  (double_quoted_string)
+  (single_quoted_string)
 ] @string
+
 (unquoted_string) @string.special
-(escape_sequence) @constant.character.escape
+
+(escape_sequence) @string.escape
 
 (variable) @variable
-(expansion ["$" "{" "}" "(" ")"] @punctuation.special)
-(build_arg) @variable
-(options (_) @variable.parameter)
+
+(expansion
+  [
+    "$"
+    "{"
+    "}"
+    "("
+    ")"
+  ] @punctuation.special)
+
+(build_arg
+  [
+    "--"
+    (variable)
+  ] @variable.parameter)
+
+(options
+  (_) @property)
 
 "=" @operator
+
+(line_continuation) @operator

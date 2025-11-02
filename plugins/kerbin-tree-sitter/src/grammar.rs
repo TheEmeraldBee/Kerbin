@@ -1,7 +1,7 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 use libloading::{Library, Symbol};
-use tree_sitter::{Language, Query};
+use tree_sitter::Language;
 
 #[derive(thiserror::Error, Debug)]
 pub enum GrammarLoadError {
@@ -37,6 +37,7 @@ pub struct GrammarDefinition {
     /// The custom path to the language (default to
     /// {config_path}/runtime/grammars/{name}/{name})
     /// Don't include .so/.dylib/.dll, this is automatically checked
+    ///
     pub location: Option<String>,
 
     /// Name of the language
@@ -51,13 +52,36 @@ pub struct GrammarDefinition {
     pub install: Option<GrammarInstallDefinition>,
 }
 
+impl GrammarDefinition {
+    /// Locates the name for the file of the grammar, returning it's probable location
+    /// This does not check for the file existing
+    pub fn get_file_path(&self, config_path: &str) -> String {
+        match &self.location {
+            Some(t) => t.clone(),
+            None => format!(
+                "{config_path}/runtime/grammars/tree-sitter-{0}/{0}",
+                self.name
+            ),
+        }
+    }
+
+    /// Figures out the name of the entry symbol for the grammar
+    pub fn get_symbol_name(&self) -> String {
+        match &self.entry {
+            Some(t) => t.clone(),
+            None => format!("tree_sitter_{}", self.name),
+        }
+    }
+}
+
 #[derive(serde::Deserialize, Clone)]
 pub struct GrammarInstallDefinition {
     /// The git-url for the grammar
     pub url: String,
 
     /// The .so/.dylib/.dll that is created
-    pub build_name: String,
+    /// Defaults to language name
+    pub build_name: Option<String>,
 
     /// The Sub-directory that should be entered into the git repository
     pub sub_dir: Option<String>,
@@ -65,18 +89,20 @@ pub struct GrammarInstallDefinition {
 
 /// Represents a loaded grammar file
 pub struct Grammar {
+    /// The name of the language for the grammar
     pub name: String,
 
+    /// The loaded language file for the grammar
     pub lang: Language,
-    pub lib: Library,
 
-    pub queries: HashMap<String, Arc<Query>>,
+    /// The dynamic library for the grammar
+    pub lib: Library,
 }
 
-fn find_library(base_path: &str) -> Option<PathBuf> {
-    let extensions = get_platform_extensions();
-
-    for ext in extensions {
+/// Locates a .so/.dylib/.dll depending on the active OS
+/// Defaults to [".so", ".dylib"] for unknown languages
+pub fn find_library(base_path: &str) -> Option<PathBuf> {
+    for ext in get_platform_extensions() {
         let path = PathBuf::from(format!("{}.{}", base_path, ext));
         if path.exists() {
             return Some(path);
@@ -102,7 +128,7 @@ const fn get_platform_extensions() -> &'static [&'static str] {
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-fn get_platform_extensions() -> &'static [&'static str] {
+const fn get_platform_extensions() -> &'static [&'static str] {
     // For other Unix-like systems, try .so first
     &["so", "dylib"]
 }
@@ -128,25 +154,14 @@ impl Grammar {
                 name: name.to_string(),
                 lang,
                 lib,
-                queries: HashMap::default(),
             })
         }
     }
 
     /// Loads a grammar from a GrammarDefinition, getting correct paths automatically
     pub fn from_def(config_path: &str, def: &GrammarDefinition) -> Result<Self, GrammarLoadError> {
-        let path = match &def.location {
-            Some(t) => t,
-            None => &format!(
-                "{config_path}/runtime/grammars/tree-sitter-{0}/{0}",
-                def.name
-            ),
-        };
-
-        let symbol = match &def.entry {
-            Some(t) => t,
-            None => &format!("tree_sitter_{}", def.name),
-        };
+        let path = &def.get_file_path(config_path);
+        let symbol = &def.get_symbol_name();
 
         Self::load(&def.name, path, symbol)
     }

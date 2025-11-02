@@ -1,4 +1,4 @@
-; Keywords
+(identifier_or_member_expression) @type
 
 [
   "is"
@@ -8,16 +8,13 @@
 
 [
   "namespace"
+  "model"
   "scalar"
   "interface"
-  "alias"
-] @keyword
-
-[
-  "model"
   "enum"
   "union"
-] @keyword.storage.type
+  "alias"
+] @keyword.type
 
 [
   "op"
@@ -25,12 +22,12 @@
   "dec"
 ] @keyword.function
 
-"extern" @keyword.storage.modifier
+"extern" @keyword.modifier
 
 [
   "import"
   "using"
-] @keyword.control.import
+] @keyword.import
 
 [
   "("
@@ -59,34 +56,27 @@
 
 "?" @punctuation.special
 
-; Identifiers
-
-(identifier_or_member_expression) @type
-
-; Imports
-
-(import_statement
-  (quoted_string_literal) @string.special.path)
-
-; Namespaces
-
-(using_statement
-  module: (identifier_or_member_expression) @namespace)
-
-(namespace_statement
-  name: (identifier_or_member_expression) @namespace)
-
-; Comments
-
 [
   (single_line_comment)
-] @comment.line
+  (multi_line_comment)
+] @comment @spell
 
 [
-  (multi_line_comment)
-] @comment.block
+  (quoted_string_literal)
+  (triple_quoted_string_literal)
+] @string
 
-; Decorators
+(boolean_literal) @boolean
+
+[
+  (decimal_literal)
+  (hex_integer_literal)
+  (binary_integer_literal)
+] @number
+
+(escape_sequence) @string.escape
+
+(builtin_type) @type.builtin
 
 (decorator
   "@" @attribute
@@ -95,83 +85,51 @@
 (augment_decorator_statement
   name: (identifier_or_member_expression) @attribute)
 
-(decorator
-  (decorator_arguments) @variable.parameter)
+(using_statement
+  module: (identifier_or_member_expression) @module)
 
-; Scalars
-
-(scalar_statement
-  name: (identifier) @type)
-
-; Models
+(namespace_statement
+  name: (identifier_or_member_expression) @module)
 
 (model_statement
   name: (identifier) @type)
 
 (model_property
-  name: (identifier) @variable.other.member)
-
-; Operations
-
-(operation_statement
-  name: (identifier) @function.method)
-
-(operation_arguments
-  (model_property
-    name: (identifier) @variable.parameter))
-
-(template_parameter
-  name: (identifier) @type.parameter)
-
-(function_parameter
-  name: (identifier) @variable.parameter)
-
-; Interfaces
-
-(interface_statement
-  name: (identifier) @type)
-
-(interface_statement
-  (interface_body
-    (interface_member
-      (identifier) @function.method)))
-
-; Enums
-
-(enum_statement
-  name: (identifier) @type.enum)
-
-(enum_member
-  name: (identifier) @constant)
-
-; Unions
+  name: (identifier) @variable.member)
 
 (union_statement
   name: (identifier) @type)
 
 (union_variant
-  name: (identifier) @type.enum.variant)
+  name: (identifier) @variable.member)
 
-; Aliases
+(scalar_statement
+  name: (identifier) @type)
+
+(interface_statement
+  name: (identifier) @type)
+
+(enum_statement
+  name: (identifier) @type)
+
+(enum_member
+  name: (identifier) @constant)
+
+(operation_statement
+  name: (identifier) @function)
+
+(template_parameter
+  name: (identifier) @type)
 
 (alias_statement
   name: (identifier) @type)
 
-; Built-in types
+(decorator_declaration_statement
+  name: (identifier) @attribute)
 
-[
-  (quoted_string_literal)
-  (triple_quoted_string_literal)
-] @string
+(function_parameter
+  name: (identifier) @variable.parameter)
 
-(escape_sequence) @constant.character.escape
-
-(boolean_literal) @constant.builtin.boolean
-
-[
-  (decimal_literal)
-  (hex_integer_literal)
-  (binary_integer_literal)
-] @constant.numeric.integer
-
-(builtin_type) @type.builtin
+(operation_arguments
+  (model_property
+    name: (identifier) @variable.parameter))

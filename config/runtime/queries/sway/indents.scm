@@ -1,71 +1,95 @@
 [
-  (use_list)
-  (block)
-  (match_block)
-  (arguments)
-  (parameters)
-  (declaration_list)
-  (field_declaration_list)
-  (field_initializer_list)
+  (mod_item)
+  (struct_item)
+  (enum_item)
+  (impl_item)
+  (struct_expression)
   (struct_pattern)
-  (tuple_pattern)
-  (unit_expression)
-  (enum_variant_list)
-  (call_expression)
-  (binary_expression)
-  (field_expression)
+  (tuple_struct_pattern)
   (tuple_expression)
-  (array_expression)
+  (tuple_type)
+  (tuple_pattern)
+  (match_block)
+  (call_expression)
+  (asm_block)
+  (asm_parameters)
+  (assignment_expression)
+  (arguments)
+  (block)
   (where_clause)
-
+  (use_list)
+  (array_expression)
+  (ordered_field_declaration_list)
+  (field_declaration_list)
+  (enum_variant_list)
+  (parameters)
   (token_tree)
-] @indent
+] @indent.begin
+
+(trait_item
+  body: (_) @indent.begin)
+
+(string_literal
+  (escape_sequence)) @indent.begin
+
+(block
+  "}" @indent.end)
+
+(asm_block
+  "}" @indent.end)
+
+(enum_item
+  body: (enum_variant_list
+    "}" @indent.end))
+
+(impl_item
+  body: (declaration_list
+    "}" @indent.end))
+
+(match_expression
+  body: (match_block
+    "}" @indent.end))
+
+(struct_item
+  body: (field_declaration_list
+    "}" @indent.end))
+
+(struct_expression
+  body: (field_initializer_list
+    "}" @indent.end))
+
+(struct_pattern
+  "}" @indent.end)
+
+(tuple_struct_pattern
+  ")" @indent.end)
+
+(tuple_type
+  ")" @indent.end)
+
+(tuple_pattern
+  ")" @indent.end)
+
+(trait_item
+  body: (declaration_list
+    "}" @indent.end))
+
+(impl_item
+  (where_clause) @indent.dedent)
 
 [
-  "}"
-  "]"
+  "where"
   ")"
-] @outdent
+  "]"
+  "}"
+] @indent.branch
 
-; Indent the right side of assignments.
-; The #not-same-line? predicate is required to prevent an extra indent for e.g.
-; an else-clause where the previous if-clause starts on the same line as the assignment.
-(assignment_expression
-  .
-  (_) @expr-start
-  right: (_) @indent
-  (#not-same-line? @indent @expr-start)
-  (#set! "scope" "all")
-)
-(compound_assignment_expr
-  .
-  (_) @expr-start
-  right: (_) @indent
-  (#not-same-line? @indent @expr-start)
-  (#set! "scope" "all")
-)
-(let_declaration
-  .
-  (_) @expr-start
-  value: (_) @indent
-  alternative: (_)? @indent
-  (#not-same-line? @indent @expr-start)
-  (#set! "scope" "all")
-)
-(if_expression
-  .
-  (_) @expr-start
-  condition: (_) @indent
-  (#not-same-line? @indent @expr-start)
-  (#set! "scope" "all")
-)
+(impl_item
+  (declaration_list) @indent.branch)
 
-; Some field expressions where the left part is a multiline expression are not
-; indented by cargo fmt.
-; Because this multiline expression might be nested in an arbitrary number of
-; field expressions, this can only be matched using a Regex.
-(field_expression
-  value: (_) @val
-  "." @outdent
-  (#match? @val "(\\A[^\\n\\r]+\\([\\t ]*(\\n|\\r).*)|(\\A[^\\n\\r]*\\{[\\t ]*(\\n|\\r))")
-)
+[
+  (line_comment)
+  (string_literal)
+] @indent.ignore
+
+(raw_string_literal) @indent.auto

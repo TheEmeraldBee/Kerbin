@@ -1,30 +1,10 @@
-; ------------
-; Variables identifiers
-; ------------
-
+; Identifiers
 (identifier) @variable
 
-; Remaining identifiers that start with capital letters should be types (PascalCase)
-(
-  (identifier) @type
-  (#match? @type "^[A-Z]"))
-
-; SCREAMING_SNAKE_CASE
-(
-  (identifier) @constant
-  (#match? @constant "^[A-Z][A-Z0-9_]*$"))
-
-(const_statement
-  (assignment
-    . (identifier) @constant))
-
-; Field expressions are either module content or struct fields.
-; Module types and constants should already be captured, so this
-; assumes the remaining identifiers to be struct fields.
 (field_expression
-  (_)
-  (identifier) @variable.other.member)
+  (identifier) @variable.member .)
 
+; Symbols
 (quote_expression
   ":" @string.special.symbol
   [
@@ -32,226 +12,100 @@
     (operator)
   ] @string.special.symbol)
 
-; ------
+; Function calls
+(call_expression
+  (identifier) @function.call)
+
+(call_expression
+  (field_expression
+    (identifier) @function.call .))
+
+(broadcast_call_expression
+  (identifier) @function.call)
+
+(broadcast_call_expression
+  (field_expression
+    (identifier) @function.call .))
+
+(binary_expression
+  (_)
+  (operator) @_pipe
+  (identifier) @function.call
+  (#any-of? @_pipe "|>" ".|>"))
+
 ; Macros
-; ------
-
-(macro_definition
-  name: (identifier) @function.macro)
-
 (macro_identifier
   "@" @function.macro
   (identifier) @function.macro)
 
-; -------------------
-; Modules and Imports
-; -------------------
+(macro_definition
+  (signature
+    (call_expression
+      .
+      (identifier) @function.macro)))
 
-(module_definition
-  name: (identifier) @namespace)
-  
-(import_statement
-  (identifier) @namespace)
-  
-(selected_import
-  . (identifier) @namespace)
-
-(scoped_identifier
-  (identifier) @namespace)
-
-; -------------------
-; Function definition
-; -------------------
-
-(
-  (function_definition
-    name: [
-      (identifier) @function
-      (scoped_identifier
-        (identifier) @namespace
-        (identifier) @function)
-    ])
-  ; prevent constructors (PascalCase) to be highlighted as functions
-  (#match? @function "^[^A-Z]"))
-
-(
-  (short_function_definition
-    name: [
-      (identifier) @function
-      (scoped_identifier
-        (identifier) @namespace
-        (identifier) @function)
-    ])
-  ; prevent constructors (PascalCase) to be highlighted as functions
-  (#match? @function "^[^A-Z]"))
-
-; ---------------
-; Functions calls
-; ---------------
-
-(
-  (call_expression
-    (identifier) @function)
-  ; prevent constructors (PascalCase) to be highlighted as functions
-  (#match? @function "^[^A-Z]"))
-
-(
-  (call_expression
-    (field_expression (identifier) @function .))
-  (#match? @function "^[^A-Z]"))
-
-(
-  (broadcast_call_expression
-    (identifier) @function)
-  (#match? @function "^[^A-Z]"))
-
-(
-  (broadcast_call_expression
-    (field_expression (identifier) @function .))
-  (#match? @function "^[^A-Z]"))
-
-
-; -------------------
-; Functions builtins
-; -------------------
-
+; Built-in functions
+; filter(name -> Base.eval(Core, name) isa Core.Builtin, names(Core))
 ((identifier) @function.builtin
   (#any-of? @function.builtin
-    "_abstracttype" "_apply_iterate" "_apply_pure" "_call_in_world" "_call_in_world_total"
-    "_call_latest" "_equiv_typedef" "_expr" "_primitivetype" "_setsuper!" "_structtype" "_typebody!"
-    "_typevar" "applicable" "apply_type" "arrayref" "arrayset" "arraysize" "const_arrayref"
-    "donotdelete" "fieldtype" "get_binding_type" "getfield" "ifelse" "invoke" "isa" "isdefined"
-    "modifyfield!" "nfields" "replacefield!" "set_binding_type!" "setfield!" "sizeof" "svec"
-    "swapfield!" "throw" "tuple" "typeassert" "typeof"))
+    "applicable" "fieldtype" "getfield" "getglobal" "invoke" "isa" "isdefined" "modifyfield!"
+    "modifyglobal!" "nfields" "replacefield!" "replaceglobal!" "setfield!" "setfieldonce!"
+    "setglobal!" "setglobalonce!" "swapfield!" "swapglobal!" "throw" "tuple" "typeassert" "typeof"))
 
-; -----------
-; Parameters
-; -----------
+; Type definitions
+(type_head
+  (_) @type.definition)
 
-(parameter_list
-  (identifier) @variable.parameter)
-
-(optional_parameter
-  . (identifier) @variable.parameter)
-
-(slurp_parameter
-  (identifier) @variable.parameter)
-
-(typed_parameter
-  parameter: (identifier)? @variable.parameter
-  type: (_) @type)
-
-(function_expression
-  . (identifier) @variable.parameter) ; Single parameter arrow functions
-
-; -----
-; Types
-; -----
-
-; Definitions
-(abstract_definition
-  name: (identifier) @type.definition) @keyword
-
-(primitive_definition
-  name: (identifier) @type.definition) @keyword
-
-(struct_definition
-  name: (identifier) @type)
-
-(struct_definition
-  . (_)
-    (identifier) @variable.other.member)
-
-(struct_definition
-  . (_)
-  (typed_expression
-    . (identifier) @variable.other.member))
-
-(type_clause
+; Type annotations
+(parametrized_type_expression
   [
     (identifier) @type
     (field_expression
       (identifier) @type .)
-  ])
-
-; Annotations
-(parametrized_type_expression
-  (_) @type
+  ]
   (curly_expression
     (_) @type))
-
-(type_parameter_list
-  (identifier) @type)
 
 (typed_expression
-  (identifier) @type . )
+  (identifier) @type .)
 
-(function_definition
-  return_type: (identifier) @type)
+(unary_typed_expression
+  (identifier) @type .)
 
-(short_function_definition
-  return_type: (identifier) @type)
+(where_expression
+  [
+    (curly_expression
+      (_) @type)
+    (_) @type
+  ] .)
 
-(where_clause
-  (identifier) @type)
+(unary_expression
+  (operator) @operator
+  (_) @type
+  (#any-of? @operator "<:" ">:"))
 
-(where_clause
-  (curly_expression
-    (_) @type))
+(binary_expression
+  (_) @type
+  (operator) @operator
+  (_) @type
+  (#any-of? @operator "<:" ">:"))
 
-; ---------
-; Builtins
-; ---------
-
-; This list was generated with:
-;
-;  istype(x) = typeof(x) === DataType || typeof(x) === UnionAll
-;  get_types(m) = filter(x -> istype(Base.eval(m, x)), names(m))
-;  type_names = sort(union(get_types(Core), get_types(Base)))
-;
+; Built-in types
+; filter(name -> typeof(Base.eval(Core, name)) in [DataType, UnionAll], names(Core))
 ((identifier) @type.builtin
   (#any-of? @type.builtin
-    "AbstractArray" "AbstractChannel" "AbstractChar" "AbstractDict" "AbstractDisplay"
-    "AbstractFloat" "AbstractIrrational" "AbstractLock" "AbstractMatch" "AbstractMatrix"
-    "AbstractPattern" "AbstractRange" "AbstractSet" "AbstractSlices" "AbstractString"
-    "AbstractUnitRange" "AbstractVecOrMat" "AbstractVector" "Any" "ArgumentError" "Array"
-    "AssertionError" "Atomic" "BigFloat" "BigInt" "BitArray" "BitMatrix" "BitSet" "BitVector" "Bool"
-    "BoundsError" "By" "CanonicalIndexError" "CapturedException" "CartesianIndex" "CartesianIndices"
-    "Cchar" "Cdouble" "Cfloat" "Channel" "Char" "Cint" "Cintmax_t" "Clong" "Clonglong" "Cmd" "Colon"
-    "ColumnSlices" "Complex" "ComplexF16" "ComplexF32" "ComplexF64" "ComposedFunction"
-    "CompositeException" "ConcurrencyViolationError" "Condition" "Cptrdiff_t" "Cshort" "Csize_t"
-    "Cssize_t" "Cstring" "Cuchar" "Cuint" "Cuintmax_t" "Culong" "Culonglong" "Cushort" "Cvoid"
-    "Cwchar_t" "Cwstring" "DataType" "DenseArray" "DenseMatrix" "DenseVecOrMat" "DenseVector" "Dict"
-    "DimensionMismatch" "Dims" "DivideError" "DomainError" "EOFError" "Enum" "ErrorException"
-    "Exception" "ExponentialBackOff" "Expr" "Float16" "Float32" "Float64" "Function" "GlobalRef"
-    "HTML" "IO" "IOBuffer" "IOContext" "IOStream" "IdDict" "IndexCartesian" "IndexLinear"
-    "IndexStyle" "InexactError" "InitError" "Int" "Int128" "Int16" "Int32" "Int64" "Int8" "Integer"
-    "InterruptException" "InvalidStateException" "Irrational" "KeyError" "LazyString" "LinRange"
-    "LineNumberNode" "LinearIndices" "LoadError" "Lt" "MIME" "Matrix" "Method" "MethodError"
-    "Missing" "MissingException" "Module" "NTuple" "NamedTuple" "Nothing" "Number" "Ordering"
-    "OrdinalRange" "OutOfMemoryError" "OverflowError" "Pair" "ParseError" "PartialQuickSort" "Perm"
-    "PermutedDimsArray" "Pipe" "ProcessFailedException" "Ptr" "QuoteNode" "Rational" "RawFD"
-    "ReadOnlyMemoryError" "Real" "ReentrantLock" "Ref" "Regex" "RegexMatch" "Returns"
-    "ReverseOrdering" "RoundingMode" "RowSlices" "SegmentationFault" "Set" "Signed" "Slices" "Some"
-    "SpinLock" "StackFrame" "StackOverflowError" "StackTrace" "Stateful" "StepRange" "StepRangeLen"
-    "StridedArray" "StridedMatrix" "StridedVecOrMat" "StridedVector" "String" "StringIndexError"
-    "SubArray" "SubString" "SubstitutionString" "Symbol" "SystemError" "Task" "TaskFailedException"
-    "Text" "TextDisplay" "Timer" "Tmstruct" "Tuple" "Type" "TypeError" "TypeVar" "UInt" "UInt128"
-    "UInt16" "UInt32" "UInt64" "UInt8" "UndefInitializer" "UndefKeywordError" "UndefRefError"
-    "UndefVarError" "Union" "UnionAll" "UnitRange" "Unsigned" "Val" "VecElement" "VecOrMat" "Vector"
-    "VersionNumber" "WeakKeyDict" "WeakRef"))
+    "AbstractArray" "AbstractChar" "AbstractFloat" "AbstractString" "Any" "ArgumentError" "Array"
+    "AssertionError" "Bool" "BoundsError" "Char" "ConcurrencyViolationError" "Cvoid" "DataType"
+    "DenseArray" "DivideError" "DomainError" "ErrorException" "Exception" "Expr" "Float16" "Float32"
+    "Float64" "Function" "GlobalRef" "IO" "InexactError" "InitError" "Int" "Int128" "Int16" "Int32"
+    "Int64" "Int8" "Integer" "InterruptException" "LineNumberNode" "LoadError" "Method"
+    "MethodError" "Module" "NTuple" "NamedTuple" "Nothing" "Number" "OutOfMemoryError"
+    "OverflowError" "Pair" "Ptr" "QuoteNode" "ReadOnlyMemoryError" "Real" "Ref" "SegmentationFault"
+    "Signed" "StackOverflowError" "String" "Symbol" "Task" "Tuple" "Type" "TypeError" "TypeVar"
+    "UInt" "UInt128" "UInt16" "UInt32" "UInt64" "UInt8" "UndefInitializer" "UndefKeywordError"
+    "UndefRefError" "UndefVarError" "Union" "UnionAll" "Unsigned" "VecElement" "WeakRef"))
 
-((identifier) @variable.builtin
-  (#any-of? @variable.builtin "begin" "end"))
-
-((identifier) @variable.builtin
-  (#any-of? @variable.builtin "begin" "end"))
-
-
-; --------
 ; Keywords
-; --------
-
 [
   "global"
   "local"
@@ -279,88 +133,63 @@
   [
     "if"
     "end"
-  ] @keyword.control.conditional)
+  ] @keyword.conditional)
 
 (elseif_clause
-  "elseif" @keyword.control.conditional)
+  "elseif" @keyword.conditional)
 
 (else_clause
-  "else" @keyword.control.conditional)
-
-(if_clause
-  "if" @keyword.control.conditional) ; `if` clause in comprehensions
+  "else" @keyword.conditional)
 
 (ternary_expression
   [
     "?"
     ":"
-  ] @keyword.control.conditional)
+  ] @keyword.conditional.ternary)
 
 (try_statement
   [
     "try"
     "end"
-  ] @keyword.control.exception)
-
-(finally_clause
-  "finally" @keyword.control.exception)
+  ] @keyword.exception)
 
 (catch_clause
-  "catch" @keyword.control.exception)
+  "catch" @keyword.exception)
+
+(finally_clause
+  "finally" @keyword.exception)
 
 (for_statement
   [
     "for"
     "end"
-  ] @keyword.control.repeat)
+  ] @keyword.repeat)
+
+(for_binding
+  "outer" @keyword.repeat)
+
+; comprehensions
+(for_clause
+  "for" @keyword.repeat)
+
+(if_clause
+  "if" @keyword.conditional)
 
 (while_statement
   [
     "while"
     "end"
-  ] @keyword.control.repeat)
-
-(for_clause
-  "for" @keyword.control.repeat)
+  ] @keyword.repeat)
 
 [
   (break_statement)
   (continue_statement)
-] @keyword.control.repeat
+] @keyword.repeat
 
-(module_definition
-  [
-    "module"
-    "baremodule"
-    "end"
-  ] @keyword.control.import)
-
-(import_statement
-  [
-    "import"
-    "using"
-  ] @keyword.control.import)
-
-(import_alias
-  "as" @keyword.control.import)
-
-(export_statement
-  "export" @keyword.control.import)
-
-(selected_import
-  ":" @punctuation.delimiter)
-
-(struct_definition
-  [
-    "struct"
-    "end"
-  ] @keyword)
-
-(macro_definition
-  [
-    "macro"
-    "end"
-  ] @keyword)
+[
+  "const"
+  "mutable"
+] @keyword.modifier
 
 (function_definition
   [
@@ -374,23 +203,63 @@
     "end"
   ] @keyword.function)
 
+(macro_definition
+  [
+    "macro"
+    "end"
+  ] @keyword)
+
 (return_statement
-  "return" @keyword.control.return)
+  "return" @keyword.return)
 
-[
-  "const"
-  "mutable"
-] @keyword.storage.modifier
+(module_definition
+  [
+    "module"
+    "baremodule"
+    "end"
+  ] @keyword.import)
 
-; ---------
-; Operators
-; ---------
+(export_statement
+  "export" @keyword.import)
 
-[
-  (operator)
-  "="
-  "∈"
-] @operator
+(public_statement
+  "public" @keyword.import)
+
+(import_statement
+  "import" @keyword.import)
+
+(using_statement
+  "using" @keyword.import)
+
+(import_alias
+  "as" @keyword.import)
+
+(selected_import
+  ":" @punctuation.delimiter)
+
+(struct_definition
+  [
+    "mutable"
+    "struct"
+    "end"
+  ] @keyword.type)
+
+(abstract_definition
+  [
+    "abstract"
+    "type"
+    "end"
+  ] @keyword.type)
+
+(primitive_definition
+  [
+    "primitive"
+    "type"
+    "end"
+  ] @keyword.type)
+
+; Operators & Punctuation
+(operator) @operator
 
 (adjoint_expression
   "'" @operator)
@@ -398,84 +267,106 @@
 (range_expression
   ":" @operator)
 
+(arrow_function_expression
+  "->" @operator)
+
+[
+  "."
+  "..."
+] @punctuation.special
+
+[
+  ","
+  ";"
+  "::"
+] @punctuation.delimiter
+
+; Treat `::` as operator in type contexts, see
+; https://github.com/nvim-treesitter/nvim-treesitter/pull/7392
+(typed_expression
+  "::" @operator)
+
+(unary_typed_expression
+  "::" @operator)
+
+[
+  "("
+  ")"
+  "["
+  "]"
+  "{"
+  "}"
+] @punctuation.bracket
+
+; Interpolation
+(string_interpolation
+  .
+  "$" @punctuation.special)
+
+(interpolation_expression
+  .
+  "$" @punctuation.special)
+
+; Keyword operators
 ((operator) @keyword.operator
   (#any-of? @keyword.operator "in" "isa"))
-
-(for_binding
-  "in" @keyword.operator)
-
-(where_clause
-  "where" @keyword.operator)
 
 (where_expression
   "where" @keyword.operator)
 
-(binary_expression
-  (_)
-  (operator) @operator
-  (identifier) @function
-  (#any-of? @operator "|>" ".|>"))
+; Built-in constants
+((identifier) @constant.builtin
+  (#any-of? @constant.builtin "nothing" "missing"))
 
-; ------------
-; Punctuations
-; ------------
+((identifier) @variable.builtin
+  (#any-of? @variable.builtin "begin" "end")
+  (#has-ancestor? @variable.builtin index_expression))
 
-[
-  "."
-  "," 
-  ";"
-  "::"
-  "->"
-] @punctuation.delimiter
-
-"..." @punctuation.special
-
-[
-  "("
-  ")" 
-  "["
-  "]"
-  "{" 
-  "}"
-] @punctuation.bracket
-
-; ---------
 ; Literals
-; ---------
+(boolean_literal) @boolean
 
-(boolean_literal) @constant.builtin.boolean
+(integer_literal) @number
 
-(integer_literal) @constant.numeric.integer
+(float_literal) @number.float
 
-(float_literal) @constant.numeric.float
+((identifier) @number.float
+  (#any-of? @number.float "NaN" "NaN16" "NaN32" "Inf" "Inf16" "Inf32"))
 
-(
-  ((identifier) @constant.numeric.float)
-  (#match? @constant.numeric.float "^((Inf|NaN)(16|32|64)?)$"))
+(character_literal) @character
 
-(
-  ((identifier) @constant.builtin)
-  (#match? @constant.builtin "^(nothing|missing|undef)$"))
-
-(character_literal) @constant.character
-
-(escape_sequence) @constant.character.escape
+(escape_sequence) @string.escape
 
 (string_literal) @string
 
 (prefixed_string_literal
   prefix: (identifier) @function.macro) @string
 
-(command_literal) @string
+(command_literal) @string.special
 
 (prefixed_command_literal
-  prefix: (identifier) @function.macro) @string
+  prefix: (identifier) @function.macro) @string.special
 
-; ---------
-; Comments
-; ---------
+((string_literal) @string.documentation
+  .
+  [
+    (abstract_definition)
+    (assignment)
+    (const_statement)
+    (function_definition)
+    (macro_definition)
+    (module_definition)
+    (struct_definition)
+  ])
+
+(source_file
+  (string_literal) @string.documentation
+  .
+  [
+    (identifier)
+    (call_expression)
+  ])
 
 [
   (line_comment)
   (block_comment)
-] @comment
+] @comment @spell

@@ -1,7 +1,16 @@
-(user) @namespace
-(auth) @keyword
-(uid) @constant
-(gid) @constant
+(user) @module
+
+(auth) @string.special.symbol
+
 (gecos) @string
-(home) @variable
-(shell) @attribute
+
+(home) @string.special.path
+
+(shell) @string.special.path
+
+[
+  (gid)
+  (uid)
+] @number
+
+(separator) @punctuation.delimiter

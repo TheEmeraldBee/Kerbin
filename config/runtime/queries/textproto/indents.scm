@@ -1,11 +1,14 @@
-[
-  (message_value)
-  (message_list)
-  (scalar_list)
-] @indent
+(message_value) @indent.begin
 
-[
-  (close_arrow)
-  (close_square)
-  (close_squiggly)
-] @outdent
+(message_value
+  (close_squiggly) @indent.branch)
+
+(scalar_list) @indent.begin
+
+(scalar_list
+  (close_square) @indent.branch)
+
+(message_list) @indent.begin
+
+(message_list
+  (close_square) @indent.branch)

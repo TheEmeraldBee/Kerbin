@@ -6,9 +6,9 @@
 
 "=>" @operator
 
-(comment) @comment
+(comment) @comment @spell
 
 [
-(version)
-(go_version)
+  (version)
+  (go_version)
 ] @string

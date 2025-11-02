@@ -2,10 +2,10 @@
 [
   "package"
   "import"
-] @keyword.control.import
+] @keyword.import
 
 ; Namespaces
-(package_identifier) @namespace
+(package_identifier) @module
 
 (import_spec
   [
@@ -22,10 +22,10 @@
 (attribute) @attribute
 
 ; Conditionals
-"if" @keyword.control.conditional
+"if" @keyword.conditional
 
 ; Repeats
-"for" @keyword.control.repeat
+"for" @keyword.repeat
 
 (for_clause
   "_" @punctuation.special)
@@ -60,23 +60,23 @@
 ; Fields & Properties
 (field
   (label
-    (identifier) @variable.other.member))
+    (identifier) @variable.member))
 
 (selector_expression
   (_)
-  (identifier) @variable.other.member)
+  (identifier) @property)
 
 ; Functions
 (call_expression
-  function: (identifier) @function)
+  function: (identifier) @function.call)
 
 (call_expression
   function: (selector_expression
     (_)
-    (identifier) @function))
+    (identifier) @function.call))
 
 (call_expression
-  function: (builtin_function) @function)
+  function: (builtin_function) @function.call)
 
 (builtin_function) @function.builtin
 
@@ -87,7 +87,7 @@
 (primitive_type) @type.builtin
 
 ((identifier) @type
-  (#match? @type "^_?#"))
+  (#lua-match? @type "^_?#"))
 
 [
   (slice_type)
@@ -103,10 +103,19 @@
 [
   "{"
   "}"
+] @punctuation.bracket
+
+[
   "["
   "]"
+] @punctuation.bracket
+
+[
   "("
   ")"
+] @punctuation.bracket
+
+[
   "<"
   ">"
 ] @punctuation.bracket
@@ -122,17 +131,17 @@
 [
   (escape_char)
   (escape_unicode)
-] @constant.character.escape
+] @string.escape
 
-(number) @constant.numeric
+(number) @number
 
-(float) @constant.numeric.float
+(float) @number.float
 
 (si_unit
   (float)
   (_) @string.special.symbol)
 
-(boolean) @constant.builtin.boolean
+(boolean) @boolean
 
 [
   (null)
@@ -144,7 +153,7 @@
 (interpolation
   "\\(" @punctuation.special
   (_)
-  ")" @punctuation.special)
+  ")" @punctuation.special) @none
 
 (interpolation
   "\\("
@@ -152,4 +161,4 @@
   ")")
 
 ; Comments
-(comment) @comment
+(comment) @comment @spell

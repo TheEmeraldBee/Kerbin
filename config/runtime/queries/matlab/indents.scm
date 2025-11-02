@@ -1,3 +1,5 @@
+"end" @indent.end @indent.branch
+
 [
   (arguments_statement)
   (if_statement)
@@ -11,14 +13,28 @@
   (events)
   (methods)
   (properties)
-] @indent
+] @indent.begin
 
 [
-  (elseif_clause)
-  (else_clause)
-  (case_clause)
-  (otherwise_clause)
-  (catch_clause)
-] @indent @extend
+  "elseif"
+  "else"
+  "case"
+  "otherwise"
+  "catch"
+] @indent.branch
 
-[ "end" ] @outdent
+((matrix
+  (row) @indent.align)
+  (#set! indent.open_delimiter "[")
+  (#set! indent.close_delimiter "]"))
+
+((cell
+  (row) @indent.align)
+  (#set! indent.open_delimiter "{")
+  (#set! indent.close_delimiter "}"))
+
+((parenthesis) @indent.align
+  (#set! indent.open_delimiter "(")
+  (#set! indent.close_delimiter ")"))
+
+(comment) @indent.auto

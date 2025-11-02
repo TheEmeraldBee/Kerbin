@@ -1,27 +1,24 @@
-; https://github.com/connorlay/tree-sitter-heex/blob/592e22292a367312c35e13de7fdb888f029981d6/queries/highlights.scm
 ; HEEx delimiters
 [
-  "<!"
-  "<"
-  "<%#"
-  ">"
-  "</"
+  "%>"
+  "--%>"
+  "-->"
   "/>"
-  ; These could be `@keyword`s but the closing `>` wouldn't be highlighted
-  ; as `@keyword`
-  "<:"
+  "<!"
+  "<!--"
+  "<"
+  "<%!--"
+  "<%"
+  "<%#"
+  "<%%="
+  "<%="
+  "</"
   "</:"
-] @punctuation.bracket
-
-; Non-comment or tag delimiters
-[
+  "<:"
+  ">"
   "{"
   "}"
-  "<%"
-  "<%="
-  "<%%="
-  "%>"
-] @keyword
+] @tag.delimiter
 
 ; HEEx operators are highlighted as such
 "=" @operator
@@ -30,34 +27,28 @@
 (doctype) @constant
 
 ; HEEx comments are highlighted as such
+(comment) @comment @spell
+
+; HEEx text content is treated as markup
+; (text) @none
+; HEEx tags and slots are highlighted as HTML
 [
-  "<!--"
-  "-->"
-  "<%!--"
-  "--%>"
-  (comment)
-] @comment
-
-; HEEx tags are highlighted as HTML
-(tag_name) @tag
-
-; HEEx slots are highlighted as atoms (symbols)
-(slot_name) @string.special.symbol
+  (tag_name)
+  (slot_name)
+] @tag
 
 ; HEEx attributes are highlighted as HTML attributes
-(attribute_name) @attribute
+(attribute_name) @tag.attribute
+
 [
   (attribute_value)
   (quoted_attribute_value)
 ] @string
 
-; HEEx special attributes are keywords
-(special_attribute_name) @keyword
-
-; HEEx components are highlighted as Elixir modules and functions
+; HEEx components are highlighted as modules and function calls
 (component_name
   [
-    (module) @namespace
+    (module) @type
     (function) @function
     "." @punctuation.delimiter
   ])

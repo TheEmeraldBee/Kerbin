@@ -1,38 +1,79 @@
 ((comment) @injection.content
- (#set! injection.language "comment"))
-
-(command
-  name: (command_name (word) @_command)
-  argument: (raw_string) @injection.content
- (#match? @_command "^[gnm]?awk$")
- (#set! injection.language "awk"))
+  (#set! injection.language "comment"))
 
 ((regex) @injection.content
   (#set! injection.language "regex"))
 
-(command
-  name: (command_name (word) @_command (#any-of? @_command "jq" "jaq"))
-  argument: [
-    (raw_string) @injection.content
-    (string (string_content) @injection.content)
-  ]
-  (#set! injection.language "jq"))
+((heredoc_redirect
+  (heredoc_body) @injection.content
+  (heredoc_end) @injection.language)
+  (#downcase! @injection.language))
 
-(command
-  name: (command_name (word) @_command (#eq? @_command "alias"))
-  argument: (concatenation
-    (word)
-    [
-      (raw_string) @injection.content
-      (string (string_content) @injection.content)
-    ])
-  (#set! injection.language "bash"))
-
-(command
-  name: (command_name (word) @_command (#any-of? @_command "eval" "trap"))
+; printf 'format'
+((command
+  name: (command_name) @_command
   .
   argument: [
+    (string) @injection.content
+    (concatenation
+      (string) @injection.content)
     (raw_string) @injection.content
-    (string (string_content) @injection.content)
-  ]
-  (#set! injection.language "bash"))
+    (concatenation
+      (raw_string) @injection.content)
+  ])
+  (#eq? @_command "printf")
+  (#offset! @injection.content 0 1 0 -1)
+  (#set! injection.include-children)
+  (#set! injection.language "printf"))
+
+; printf -v var 'format'
+((command
+  name: (command_name) @_command
+  argument: (word) @_arg
+  .
+  (_)
+  .
+  argument: [
+    (string) @injection.content
+    (concatenation
+      (string) @injection.content)
+    (raw_string) @injection.content
+    (concatenation
+      (raw_string) @injection.content)
+  ])
+  (#eq? @_command "printf")
+  (#eq? @_arg "-v")
+  (#offset! @injection.content 0 1 0 -1)
+  (#set! injection.include-children)
+  (#set! injection.language "printf"))
+
+; printf -- 'format'
+((command
+  name: (command_name) @_command
+  argument: (word) @_arg
+  .
+  argument: [
+    (string) @injection.content
+    (concatenation
+      (string) @injection.content)
+    (raw_string) @injection.content
+    (concatenation
+      (raw_string) @injection.content)
+  ])
+  (#eq? @_command "printf")
+  (#eq? @_arg "--")
+  (#offset! @injection.content 0 1 0 -1)
+  (#set! injection.include-children)
+  (#set! injection.language "printf"))
+
+((command
+  name: (command_name) @_command
+  .
+  argument: [
+    (string)
+    (raw_string)
+  ] @injection.content)
+  (#eq? @_command "bind")
+  (#offset! @injection.content 0 1 0 -1)
+  (#set! injection.include-children)
+  (#set! injection.language "readline"))

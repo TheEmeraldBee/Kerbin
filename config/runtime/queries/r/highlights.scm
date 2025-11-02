@@ -1,124 +1,148 @@
-; highlights.scm
-
-(identifier) @variable
-
 ; Literals
+(integer) @number
 
-(integer) @constant.numeric.integer
+(float) @number.float
 
-(float) @constant.numeric.float
-
-(complex) @constant.numeric.integer
+(complex) @number
 
 (string) @string
-(string (escape_sequence) @constant.character.escape)
 
-(comment) @comment
+(string
+  (string_content
+    (escape_sequence) @string.escape))
 
-(formal_parameters (identifier) @variable.parameter)
-(formal_parameters (default_parameter (identifier) @variable.parameter))
+; Comments
+(comment) @comment @spell
+
+((program
+  .
+  (comment) @keyword.directive @nospell)
+  (#lua-match? @keyword.directive "^#!/"))
 
 ; Operators
 [
- "="
- "<-"
- "<<-"
- "->>"
- "->"
-] @operator
-
-(unary operator: [
-  "-"
-  "+"
-  "!"
+  "?"
+  ":="
+  "="
+  "<-"
+  "<<-"
+  "->"
+  "->>"
   "~"
-] @operator)
-
-(binary operator: [
-  "-"
-  "+"
-  "*"
-  "/"
-  "^"
-  "<"
-  ">"
-  "<="
-  ">="
-  "=="
-  "!="
+  "|>"
   "||"
   "|"
   "&&"
   "&"
+  "<"
+  "<="
+  ">"
+  ">="
+  "=="
+  "!="
+  "+"
+  "-"
+  "*"
+  "/"
+  "::"
+  ":::"
+  "**"
+  "^"
+  "$"
+  "@"
   ":"
-  "~"
-] @operator)
-
-[
-  "|>"
-  (special)
+  "!"
+  "special"
 ] @operator
 
-(lambda_function "\\" @operator)
-
+; Punctuation
 [
- "("
- ")"
- "["
- "]"
- "{"
- "}"
-] @punctuation.bracket
-
-(dollar "$" @operator)
-
-(subset2
- [
+  "("
+  ")"
+  "{"
+  "}"
+  "["
+  "]"
   "[["
   "]]"
- ] @punctuation.bracket)
+] @punctuation.bracket
 
-[
- "in"
- (dots)
- (break)
- (next)
- (inf)
-] @keyword
+(comma) @punctuation.delimiter
 
-[
-  (nan)
-  (na)
-  (null)
-] @type.builtin
+; Variables
+(identifier) @variable
+
+; Functions
+(binary_operator
+  lhs: (identifier) @function
+  operator: "<-"
+  rhs: (function_definition))
+
+(binary_operator
+  lhs: (identifier) @function
+  operator: "="
+  rhs: (function_definition))
+
+; Calls
+(call
+  function: (identifier) @function.call)
+
+(extract_operator
+  rhs: (identifier) @variable.member)
+
+function: (extract_operator
+  rhs: (identifier) @function.method.call)
+
+; Parameters
+(parameters
+  (parameter
+    name: (identifier) @variable.parameter))
+
+(arguments
+  (argument
+    name: (identifier) @variable.parameter))
+
+; Namespace
+(namespace_operator
+  lhs: (identifier) @module)
+
+(call
+  function: (namespace_operator
+    rhs: (identifier) @function))
+
+; Keywords
+(function_definition
+  name: "function" @keyword.function)
+
+(function_definition
+  name: "\\" @operator)
+
+(return) @keyword.return
 
 [
   "if"
   "else"
-  "switch"
-] @keyword.control.conditional
+] @keyword.conditional
 
 [
   "while"
   "repeat"
   "for"
-] @keyword.control.repeat
+  "in"
+  (break)
+  (next)
+] @keyword.repeat
 
 [
   (true)
   (false)
-] @constant.builtin.boolean
+] @boolean
 
-"function" @keyword.function
-
-(call function: (identifier) @function)
-(default_argument name: (identifier) @variable.parameter)
-
-
-(namespace_get namespace: (identifier) @namespace
- "::" @operator)
-(namespace_get_internal namespace: (identifier) @namespace
- ":::" @operator)
-
-(namespace_get function: (identifier) @function.method)
-(namespace_get_internal function: (identifier) @function.method)
+[
+  (null)
+  (inf)
+  (nan)
+  (na)
+  (dots)
+  (dot_dot_i)
+] @constant.builtin

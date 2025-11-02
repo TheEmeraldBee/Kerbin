@@ -3,10 +3,19 @@
   (map)
   (tuple)
   (struct)
-] @indent
+] @indent.begin
 
 [
+  "{"
   "}"
-  "]"
+] @indent.branch
+
+[
+  "("
   ")"
-] @outdent
+] @indent.branch
+
+[
+  "["
+  "]"
+] @indent.branch

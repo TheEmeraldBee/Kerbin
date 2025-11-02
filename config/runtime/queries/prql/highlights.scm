@@ -9,7 +9,6 @@
   (keyword_window)
   (keyword_join)
   (keyword_select)
-  (keyword_case)
   (keyword_append)
   (keyword_remove)
   (keyword_intersect)
@@ -19,23 +18,27 @@
   (keyword_let)
   (keyword_prql)
   (keyword_from_text)
-  (keyword_loop)
 ] @keyword
 
-(literal) @string
+(keyword_loop) @keyword.repeat
+
+(keyword_case) @keyword.conditional
+
+[
+  (literal_string)
+  (f_string)
+  (s_string)
+] @string
 
 (assignment
-  alias: (field) @variable.other.member)
+  alias: (field) @variable.member)
 
-alias: (identifier) @variable.other.member
+alias: (identifier) @variable.member
 
-(f_string) @string.special
-(s_string) @string.special
-
-(comment) @comment
+(comment) @comment @spell
 
 (function_call
-  (identifier) @function)
+  (identifier) @function.call)
 
 [
   "+"
@@ -66,19 +69,12 @@ alias: (identifier) @variable.other.member
 [
   ","
   "."
-  (pipe)
   "->"
 ] @punctuation.delimiter
 
-(literal
-  (integer) @constant.numeric.integer)
+(integer) @number
 
-(integer) @constant.numeric.integer
-
-(literal
-  (decimal_number) @constant.numeric.float)
-
-(decimal_number) @constant.numeric.float
+(decimal_number) @number.float
 
 [
   (keyword_min)
@@ -90,28 +86,22 @@ alias: (identifier) @variable.other.member
   (keyword_sum)
   (keyword_stddev)
   (keyword_count)
-  (keyword_lag)
-  (keyword_lead)
-  (keyword_first)
-  (keyword_last)
   (keyword_rank)
-  (keyword_row_number)
-  (keyword_round)
-  (keyword_all)
-  (keyword_map)
 ] @function
 
 [
- (keyword_side)
- (keyword_version)
- (keyword_target)
- (keyword_null)
- (keyword_format)
+  (keyword_side)
+  (keyword_format)
 ] @attribute
+
+[
+  (keyword_version)
+  (keyword_target)
+] @keyword.modifier
 
 (target) @function.builtin
 
- [
+[
   (date)
   (time)
   (timestamp)
@@ -124,12 +114,12 @@ alias: (identifier) @variable.other.member
   (keyword_full)
   (keyword_csv)
   (keyword_json)
-] @function.method
+] @function.method.call
 
 [
   (keyword_true)
   (keyword_false)
-] @constant.builtin.boolean
+] @boolean
 
 (function_definition
   (keyword_let)
@@ -141,3 +131,5 @@ alias: (identifier) @variable.other.member
 (variable
   (keyword_let)
   name: (identifier) @constant)
+
+(keyword_null) @constant.builtin
