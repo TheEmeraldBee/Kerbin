@@ -1,17 +1,12 @@
 [
-  (meta_map)
+  (meta)
   (map)
   (imap)
   (array)
-] @indent.begin
+] @indent
 
 [
   "]"
   "}"
   ">"
-] @indent.end @indent.branch
-
-[
-  (ERROR)
-  (comment)
-] @indent.auto
+] @outdent

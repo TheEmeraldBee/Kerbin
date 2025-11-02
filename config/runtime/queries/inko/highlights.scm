@@ -10,7 +10,6 @@
 
 [
   ","
-  "->"
   "."
   ":"
 ] @punctuation.delimiter
@@ -50,25 +49,28 @@
   "|="
 ] @operator
 
+; Identifiers/variable references
+(identifier) @variable
+
+((identifier) @function
+  (#is-not? local))
+
 ; Keywords
 [
   "as"
-  "copy"
   "for"
   "impl"
-  "in"
-  "inline"
   "let"
-  "move"
   "mut"
-  "recover"
   "ref"
   "uni"
+  "move"
+  "recover"
 ] @keyword
 
 "fn" @keyword.function
 
-"import" @keyword.import
+"import" @keyword.control.import
 
 [
   "and"
@@ -76,42 +78,39 @@
 ] @keyword.operator
 
 [
-  "trait"
   "type"
-] @keyword.type
+  "trait"
+] @keyword.storage.type
 
 [
   "extern"
   (modifier)
   (visibility)
-] @keyword.modifier
+] @keyword.storage.modifier
 
 [
   "loop"
   "while"
   (break)
   (next)
-] @keyword.repeat
+] @keyword.control.repeat
 
-"return" @keyword.return
+"return" @keyword.control.return
 
 [
   "throw"
   "try"
-] @keyword.exception
+] @keyword.control.exception
 
 [
   "case"
   "else"
   "if"
   "match"
-] @keyword.conditional
-
-; Identifiers/variable references
-(identifier) @variable
+] @keyword.control.conditional
 
 ; Comments
-(line_comment) @comment @spell
+(line_comment) @comment.line
 
 ; Literals
 (self) @variable.builtin
@@ -121,30 +120,28 @@
 [
   (true)
   (false)
-] @boolean
+] @constant.builtin.boolean
 
-(integer) @number
+(integer) @constant.numeric.integer
 
-(float) @number.float
+(float) @constant.numeric.float
 
 (string) @string
 
-(escape_sequence) @string.escape
+(escape_sequence) @constant.character.escape
 
 (interpolation
   "${" @punctuation.special
-  "}" @punctuation.special) @none
+  "}" @punctuation.special)
 
 (constant) @constant
 
 ; Patterns
-(integer_pattern) @number
+(integer_pattern) @constant.numeric.integer
 
 (string_pattern) @string
 
 (constant_pattern) @constant
-
-(boolean_pattern) @boolean
 
 ; Types
 (generic_type
@@ -156,16 +153,12 @@
 (extern_import
   path: _ @string)
 
-(import
-  (path
-    (identifier) @module))
-
 ; Classes
 (class
   name: _ @type)
 
 (define_field
-  name: _ @variable.member)
+  name: _ @variable.other.member)
 
 ; Traits
 (trait
@@ -195,9 +188,6 @@
   name: _ @variable.parameter)
 
 (call
-  name: [
-    (name)
-    (constant)
-  ] @function)
+  name: _ @function)
 
-(field) @variable.member
+(field) @variable.other.member

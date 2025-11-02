@@ -1,59 +1,45 @@
-(comment) @comment @spell
+(comment) @comment
 
-(value) @variable
-
-[
-  (location_modifier)
-  "="
-] @operator
+(block_directive
+	(directive) @type)
 
 [
-  (keyword)
-  "location"
-] @keyword
-
-[
-  "if"
-  "map"
-] @keyword.conditional
-
-(boolean) @boolean
-
-[
-  (auto)
-  (constant)
-  (level)
-  (connection_method)
-  (var)
-  (condition)
-] @variable.builtin
-
-[
-  (file)
-  (mask)
-] @string.special.path
-
-[
-  (string_literal)
-  (quoted_string_literal)
-] @string
-
-(directive
-  (variable
-    (keyword) @variable.parameter))
-
-(location_route) @string.special
-
-";" @punctuation.delimiter
-
-[
-  (numeric_literal)
-  (time)
-  (size)
-  (cpumask)
-] @number
-
-[
-  "{"
-  "}"
+	"{"
+	"}"
+	"("
+	")"
+	"["
+	"]"
 ] @punctuation.bracket
+
+(simple_directive
+	(directive) @function)
+
+[
+	";"
+] @punctuation.delimiter
+
+((generic) @keyword
+ (#any-of? @keyword
+ 	"on"
+ 	"off"
+ 	"any"
+ 	"auto"))
+
+(modifier) @operator
+
+(generic) @variable
+
+(string) @string
+
+(number) @constant.numeric
+(metric) @constant.numeric
+
+(variable) @variable.parameter
+
+(regex) @string
+
+(modifier) @keyword.operator
+
+(lua_block_directive
+	"access_by_lua_block" @function)

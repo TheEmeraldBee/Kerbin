@@ -1,5 +1,3 @@
-((python_code) @injection.content
-  (#set! injection.language "python"))
+([(line_comment)] @injection.content
+ (#set! injection.language "comment"))
 
-((comment) @injection.content
-  (#set! injection.language "comment"))

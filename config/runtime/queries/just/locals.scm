@@ -1,34 +1,39 @@
-; Source: https://github.com/IndianBoy42/tree-sitter-just/blob/main/queries/just/locals.scm
+; This file tells us about the scope of variables so e.g. local
+; variables override global functions with the same name
+
 ; Scope
+
 (recipe) @local.scope
 
 ; Definitions
+
 (alias
-  left: (identifier) @local.definition.var)
+  alias_name: (identifier) @local.definition.variable)
 
 (assignment
-  left: (identifier) @local.definition.var)
+  name: (identifier) @local.definition.variable)
 
-(module
+(mod
   name: (identifier) @local.definition.namespace)
 
-(parameter
-  name: (identifier) @local.definition.var)
+(recipe_parameter
+  name: (identifier) @local.definition.variable.parameter)
 
-(recipe_header
+(recipe
   name: (identifier) @local.definition.function)
 
 ; References
+
 (alias
-  right: (identifier) @local.reference)
+  name: (identifier) @local.reference)
 
 (function_call
   name: (identifier) @local.reference)
 
-(dependency
+(module_path
   name: (identifier) @local.reference)
 
-(dependency_expression
+(recipe_dependency
   name: (identifier) @local.reference)
 
 (value

@@ -1,3 +1,4 @@
+; https://github.com/connorlay/tree-sitter-heex/blob/592e22292a367312c35e13de7fdb888f029981d6/queries/injections.scm
 ; directives are standalone tags like '<%= @x %>'
 ;
 ; partial_expression_values are elixir code that is part of an expression that
@@ -5,26 +6,23 @@
 ;     <%= if true do %>
 ;       <p>hello, tree-sitter!</p>
 ;     <% end %>
-(directive
-  [
-    (partial_expression_value)
-    (ending_expression_value)
-  ] @injection.content
-  (#set! injection.language "elixir")
-  (#set! injection.include-children)
-  (#set! injection.combined))
+((directive
+    [
+      (partial_expression_value)
+      (ending_expression_value)
+    ] @injection.content)
+ (#set! injection.language "elixir")
+ (#set! injection.include-children)
+ (#set! injection.combined))
 
 ; Regular expression_values do not need to be combined
-((directive
-  (expression_value) @injection.content)
-  (#set! injection.language "elixir"))
+((directive (expression_value) @injection.content)
+ (#set! injection.language "elixir"))
 
 ; expressions live within HTML tags, and do not need to be combined
 ;     <link href={ Routes.static_path(..) } />
-(expression
-  (expression_value) @injection.content
-  (#set! injection.language "elixir"))
+((expression (expression_value) @injection.content)
+ (#set! injection.language "elixir"))
 
-; HEEx comments
-((comment) @injection.content
-  (#set! injection.language "comment"))
+((comment) @injection.content 
+ (#set! injection.language "comment"))

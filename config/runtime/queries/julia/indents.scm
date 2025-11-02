@@ -18,35 +18,23 @@
   (comprehension_expression)
   (matrix_expression)
   (vector_expression)
-] @indent.begin
+] @indent
 
 [
   "end"
   ")"
   "]"
   "}"
-] @indent.end
+] @outdent
 
-[
-  "end"
-  ")"
-  "]"
-  "}"
-  (else_clause)
-  (elseif_clause)
-  (catch_clause)
-  (finally_clause)
-] @indent.branch
+(argument_list
+  . (_) @anchor
+  (#set! "scope" "tail")) @align
 
-[
-  (line_comment)
-  (block_comment)
-] @indent.ignore
+(parameter_list
+  . (_) @anchor
+  (#set! "scope" "tail")) @align
 
-((argument_list) @indent.align
-  (#set! indent.open_delimiter "(")
-  (#set! indent.close_delimiter ")"))
-
-((curly_expression) @indent.align
-  (#set! indent.open_delimiter "{")
-  (#set! indent.close_delimiter "}"))
+(curly_expression
+  . (_) @anchor
+  (#set! "scope" "tail")) @align

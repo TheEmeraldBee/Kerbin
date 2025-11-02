@@ -1,52 +1,57 @@
-[
-  (line_comment)
-  (block_comment)
-] @comment @spell
+;; ----------------------------------------------------------------------------
+;; Literals and comments
 
-((line_comment) @comment.documentation @spell
-  (#lua-match? @comment.documentation "^///"))
+(line_comment) @comment.line
+
+(block_comment) @comment.block
+
+(xml_doc) @comment.block.documentation
 
 (const
   [
-    (_) @constant
-    (unit) @constant.builtin
+   (_) @constant
+   (unit) @constant.builtin
   ])
 
-(primary_constr_args
-  (_) @variable.parameter)
+(primary_constr_args (_) @variable.parameter)
 
-(class_as_reference
-  (_) @variable.parameter.builtin)
+((identifier_pattern (long_identifier (identifier) @special))
+ (#match? @special "^\_.*"))
 
-(type_name
-  type_name: (_) @type.definition)
+((long_identifier
+  (identifier)+
+  .
+  (identifier) @variable.other.member))
+
+;; ----------------------------------------------------------------------------
+;; Punctuation
+
+(wildcard_pattern) @string.special
+
+(type_name type_name: (_) @type)
 
 [
-  (_type)
-  (atomic_type)
+ (type)
+ (atomic_type)
 ] @type
 
 (member_signature
   .
-  (identifier) @function.method)
-
-(member_signature
+  (identifier) @function.method
   (curried_spec
     (arguments_spec
+      "*"* @operator
       (argument_spec
         (argument_name_spec
-          "?"? @character.special
+          "?"? @special
           name: (_) @variable.parameter)))))
 
-(union_type_case
-  (identifier) @constant)
+(union_type_case) @constant
 
 (rules
   (rule
     pattern: (_) @constant
     block: (_)))
-
-(wildcard_pattern) @character.special
 
 (identifier_pattern
   .
@@ -54,98 +59,62 @@
   .
   (_) @variable)
 
-(optional_pattern
-  "?" @character.special)
+(fsi_directive_decl . (string) @namespace)
 
-(fsi_directive_decl
-  .
-  (string) @module)
-
-(import_decl
-  .
-  (_) @module)
-
+(import_decl . (_) @namespace)
 (named_module
-  name: (_) @module)
-
+  name: (_) @namespace)
 (namespace
-  name: (_) @module)
-
+  name: (_) @namespace)
 (module_defn
-  (identifier) @module)
+  .
+  (_) @namespace)
 
 (ce_expression
   .
-  (_) @constant.macro)
+  (_) @function.macro)
 
 (field_initializer
-  field: (_) @property)
+  field: (_) @variable.other.member)
 
 (record_fields
   (record_field
     .
-    (identifier) @property))
+    (identifier) @variable.other.member))
 
-(value_declaration_left
-  .
-  (_) @variable)
+(dot_expression
+  base: (_) @namespace
+  field: (_) @variable.other.member)
+
+(value_declaration_left . (_) @variable)
 
 (function_declaration_left
-  .
-  (_) @function)
-
-(argument_patterns
+  . (_) @function
   [
-    (const)
-    (long_identifier)
-    (_pattern)
+    (argument_patterns)
+    (argument_patterns (long_identifier (identifier)))
   ] @variable.parameter)
-
-(argument_patterns
-  (typed_pattern
-    (_pattern) @variable.parameter
-    (_type) @type))
-
-(argument_patterns
-  (record_pattern
-    (field_pattern
-      .
-      (long_identifier) @variable.parameter)))
-
-(argument_patterns
-  (array_pattern
-    (_pattern)? @variable.parameter))
-
-(argument_patterns
-  (list_pattern
-    (_pattern)? @variable.parameter))
-
-((argument_patterns
-  (long_identifier
-    (identifier) @character.special))
-  (#lua-match? @character.special "^\_.*"))
 
 (member_defn
   (method_or_prop_defn
     [
       (property_or_ident) @function
       (property_or_ident
-        instance: (identifier) @variable.parameter.builtin
+        instance: (identifier) @variable.builtin
         method: (identifier) @function.method)
     ]
     args: (_)* @variable.parameter))
 
-(dot_expression
-  .
-  (_) @variable.member
-  .
-  (_))
-
 (application_expression
   .
-  (_) @function.call
-  .
-  (_) @variable)
+  [
+    (long_identifier_or_op [
+      (long_identifier (identifier)* (identifier) @function)
+      (identifier) @function
+    ])
+    (typed_expression . (long_identifier_or_op (long_identifier (identifier)* . (identifier) @function.call)))
+    (dot_expression base: (_) @variable.other.member field: (_) @function)
+  ] @function)
 
 ((infix_expression
   .
@@ -153,17 +122,21 @@
   .
   (infix_op) @operator
   .
-  (_) @function.call)
-  (#eq? @operator "|>"))
+  (_) @function
+  )
+ (#eq? @operator "|>")
+ )
 
 ((infix_expression
   .
-  (_) @function.call
+  (_) @function
   .
   (infix_op) @operator
   .
-  (_))
-  (#eq? @operator "<|"))
+  (_)
+  )
+ (#eq? @operator "<|")
+ )
 
 [
   (xint)
@@ -176,51 +149,42 @@
   (uint64)
   (nativeint)
   (unativeint)
-] @number
+] @constant.numeric.integer
 
 [
   (ieee32)
   (ieee64)
   (float)
   (decimal)
-] @number.float
+] @constant.numeric.float
 
-(bool) @boolean
+(bool) @constant.builtin.boolean
 
-[
+([
   (string)
   (triple_quoted_string)
   (verbatim_string)
   (char)
-] @spell @string
+] @string)
 
 (compiler_directive_decl) @keyword.directive
 
-(preproc_line
-  "#line" @keyword.directive)
-
-(attribute
-  target: (identifier)? @keyword
-  (_type) @attribute)
+(attribute) @attribute
 
 [
   "("
   ")"
   "{"
   "}"
-  ".["
   "["
   "]"
   "[|"
   "|]"
   "{|"
   "|}"
-] @punctuation.bracket
-
-[
   "[<"
   ">]"
-] @punctuation.special
+] @punctuation.bracket
 
 (format_string_eval
   [
@@ -231,8 +195,6 @@
 [
   ","
   ";"
-  ":"
-  "."
 ] @punctuation.delimiter
 
 [
@@ -244,24 +206,13 @@
   "~"
   "->"
   "<-"
-  "&"
   "&&"
-  "|"
   "||"
   ":>"
   ":?>"
-  ".."
-  "*"
   (infix_op)
   (prefix_op)
-  (op_identifier)
 ] @operator
-
-(generic_type
-  [
-    "<"
-    ">"
-  ] @punctuation.bracket)
 
 [
   "if"
@@ -271,7 +222,7 @@
   "when"
   "match"
   "match!"
-] @keyword.conditional
+] @keyword.control.conditional
 
 [
   "and"
@@ -286,20 +237,21 @@
   "return!"
   "yield"
   "yield!"
-] @keyword.return
+] @keyword.control.return
 
 [
   "for"
   "while"
   "downto"
   "to"
-] @keyword.repeat
+] @keyword.control.repeat
+
 
 [
   "open"
   "#r"
   "#load"
-] @keyword.import
+] @keyword.control.import
 
 [
   "abstract"
@@ -311,7 +263,7 @@
   "rec"
   "global"
   (access_modifier)
-] @keyword.modifier
+] @keyword.storage.modifier
 
 [
   "let"
@@ -326,13 +278,17 @@
   "type"
   "inherit"
   "interface"
-  "and"
-  "class"
-  "struct"
-] @keyword.type
+] @keyword.storage.type
 
-((identifier) @keyword.exception
-  (#any-of? @keyword.exception "failwith" "failwithf" "raise" "reraise"))
+(try_expression
+  [
+    "try"
+    "with"
+    "finally"
+  ] @keyword.control.exception)
+
+((identifier) @keyword.control.exception
+ (#any-of? @keyword.control.exception "failwith" "failwithf" "raise" "reraise"))
 
 [
   "as"
@@ -344,6 +300,8 @@
   "in"
   "do"
   "do!"
+  "event"
+  "field"
   "fun"
   "function"
   "get"
@@ -351,6 +309,8 @@
   "lazy"
   "new"
   "of"
+  "param"
+  "property"
   "struct"
   "val"
   "module"
@@ -360,28 +320,13 @@
 
 [
   "null"
-  (unit)
 ] @constant.builtin
 
-(match_expression
-  "with" @keyword.conditional)
+(match_expression "with" @keyword.control.conditional)
 
-(try_expression
-  [
-    "try"
-    "with"
-    "finally"
-  ] @keyword.exception)
-
-(application_expression
-  (unit) @function.call)
-
-((_type
-  (long_identifier
-    (identifier) @type.builtin))
-  (#any-of? @type.builtin
-    "bool" "byte" "sbyte" "int16" "uint16" "int" "uint" "int64" "uint64" "nativeint" "unativeint"
-    "decimal" "float" "double" "float32" "single" "char" "string" "unit"))
+((type
+  (long_identifier (identifier) @type.builtin))
+ (#any-of? @type.builtin "bool" "byte" "sbyte" "int16" "uint16" "int" "uint" "int64" "uint64" "nativeint" "unativeint" "decimal" "float" "double" "float32" "single" "char" "string" "unit"))
 
 (preproc_if
   [
@@ -393,19 +338,13 @@
 (preproc_else
   "#else" @keyword.directive)
 
-((identifier) @module.builtin
-  (#any-of? @module.builtin
-    "Array" "Async" "Directory" "File" "List" "Option" "Path" "Map" "Set" "Lazy" "Seq" "Task"
-    "String" "Result"))
+((long_identifier
+  (identifier)+ @namespace
+  .
+  (identifier)))
 
-((value_declaration
-  (attributes
-    (attribute
-      (_type
-        (long_identifier
-          (identifier) @attribute))))
-  (function_or_value_defn
-    (value_declaration_left
-      .
-      (_) @constant)))
-  (#eq? @attribute "Literal"))
+(long_identifier_or_op
+  (op_identifier) @operator)
+
+((identifier) @namespace
+ (#any-of? @namespace "Array" "Async" "Directory" "File" "List" "Option" "Path" "Map" "Set" "Lazy" "Seq" "Task" "String" "Result" ))

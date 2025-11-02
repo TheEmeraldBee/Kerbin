@@ -1,42 +1,33 @@
-; Primitives
-(comment) @comment @spell
-
-(nat) @number
-
+;; Primitives
+(comment) @comment
+(nat) @constant.numeric
 (unit) @constant.builtin
-
-(literal_char) @character
-
+(literal_char) @constant.character
 (literal_text) @string
+(literal_boolean) @constant.builtin.boolean
 
-(literal_boolean) @boolean
-
-; Keywords
-(type_kw) @keyword.type
-
+;; Keywords
 [
   (kw_forall)
+  (kw_equals)
   (do)
   (kw_let)
   (ability)
   (where)
 ] @keyword
 
-(structural) @keyword.modifier
-
-(unique) @keyword.modifier
-
-(type_constructor) @constructor
-
-((doc_block) @comment.documentation @spell
-  (#set! priority 90))
+(kw_let) @keyword.function
+(type_kw) @keyword.storage.modifier
+(structural) @keyword.storage.modifier
+("use") @keyword.control.import
+(unique) @keyword.storage.modifier
 
 [
   (operator)
   (pipe)
   (arrow_symbol)
   (or)
-  (kw_equals)
+  (and)
 ] @operator
 
 [
@@ -46,7 +37,7 @@
   (match)
   (with)
   (cases)
-] @keyword.conditional
+] @keyword.control.conditional
 
 (blank_pattern) @variable.builtin
 
@@ -54,23 +45,25 @@
 
 (use_clause) @keyword.import
 
-; Types
+;; Types
 (record_field
-  (field_name) @variable.member
+  (field_name) @variable.other.member
   type: (regular_identifier) @type)
 
 (type_name) @type
 
 (type_declaration
-  (regular_identifier) @type)
+  (regular_identifier) @type.enum.variant)
 
 (ability_name
-  (path)? @module
+  (path)? @namespace
   (regular_identifier) @type)
 
 (ability_declaration
   (ability_name) @type
   (type_argument) @variable.parameter)
+
+(type_constructor) @constructor
 
 (constructor
   (constructor_name) @constructor)
@@ -79,16 +72,16 @@
   type: (regular_identifier) @type)
 
 (effect
-  (regular_identifier) @attribute) ; NOTE: an effect is a special type
+  (regular_identifier) @special) ; NOTE: an effect is a special type
 
 ; Namespaces
-(path) @module
+(path) @namespace
 
-(namespace) @module
+(namespace) @namespace
 
 ; Terms
 (type_signature
-  term_name: (path) @module
+  term_name: (path) @namespace
   term_name: (regular_identifier) @variable)
 
 (type_signature
@@ -97,7 +90,7 @@
 (term_type) @type
 
 (term_definition
-  name: (path) @module)
+  name: (path) @namespace)
 
 (term_definition
   name: (regular_identifier) @variable)
@@ -105,7 +98,7 @@
 (term_definition
   param: (regular_identifier) @variable.parameter)
 
-; Punctuation
+;; Punctuation
 [
   (type_signature_colon)
   ":"

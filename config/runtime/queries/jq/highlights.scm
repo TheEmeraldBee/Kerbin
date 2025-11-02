@@ -1,15 +1,17 @@
+;; From nvim-treesitter, contributed by @ObserverOfTime et al.
+
 ; Variables
 (variable) @variable
 
 ((variable) @constant.builtin
   (#eq? @constant.builtin "$ENV"))
 
-((variable) @constant.macro
-  (#eq? @constant.macro "$__loc__"))
+((variable) @constant.builtin
+  (#eq? @constant.builtin "$__loc__"))
 
 ; Properties
 (index
-  (identifier) @property)
+  (identifier) @variable.other.member)
 
 ; Labels
 (query
@@ -19,14 +21,14 @@
   break_statement: (variable) @label)
 
 ; Literals
-(number) @number
+(number) @constant.numeric
 
 (string) @string
 
 [
   "true"
   "false"
-] @boolean
+] @constant.builtin.boolean
 
 "null" @type.builtin
 
@@ -34,7 +36,7 @@
 [
   "\\("
   ")"
-] @character.special
+] @special
 
 ; Format
 (format) @attribute
@@ -51,7 +53,7 @@
   "foreach"
 ] @function.builtin
 
-((funcname) @function.call
+((funcname) @function
   .
   "(")
 
@@ -90,7 +92,7 @@
 [
   "import"
   "include"
-] @keyword.import
+] @keyword.control.import
 
 [
   "if"
@@ -98,12 +100,12 @@
   "elif"
   "else"
   "end"
-] @keyword.conditional
+] @keyword.control.conditional
 
 [
   "try"
   "catch"
-] @keyword.exception
+] @keyword.control.exception
 
 [
   "or"
@@ -155,4 +157,4 @@
 ] @punctuation.bracket
 
 ; Comments
-(comment) @comment @spell
+(comment) @comment.line

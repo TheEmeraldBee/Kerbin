@@ -13,11 +13,9 @@
   "Type"
   "Sleep"
   "Hide"
-  "Show"
-] @keyword
+  "Show" ] @keyword
 
-[
-  "Shell"
+[ "Shell"
   "FontFamily"
   "FontSize"
   "Framerate"
@@ -30,23 +28,19 @@
   "Theme"
   "LoopOffset"
   "Width"
-] @type
+  "BorderRadius"
+  "Margin"
+  "MarginFill"
+  "WindowBar"
+  "WindowBarSize"
+  "CursorBlink" ] @type
 
-"@" @operator
-
+[ "@" ] @operator
 (control) @function.macro
-
-(float) @number.float
-
-(integer) @number
-
-(comment) @comment @spell
-
-[
-  (string)
-  (json)
-] @string
-
+(float) @constant.numeric.float
+(integer) @constant.numeric.integer
+(comment) @comment
+[(string) (json)] @string.special.path
 (path) @string.special.path
-
-(time) @string.special
+(time) @string.special.symbol
+(boolean) @constant.builtin.boolean

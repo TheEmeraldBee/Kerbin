@@ -2,6 +2,27 @@ use crate::{grammar_manager::GrammarManager, query_walker::QueryWalker, state::T
 use std::ops::Range;
 
 use kerbin_core::{ascii_forge::window::ContentStyle, *};
+use tree_sitter::QueryProperty;
+
+pub fn get_capture_priority(query: &tree_sitter::Query, pattern_index: usize) -> i64 {
+    // Default base priority: pattern order
+    let mut priority = pattern_index as i64;
+
+    for QueryProperty { key, value, .. } in query.property_settings(pattern_index) {
+        if key.as_ref() == "priority"
+            && let Some(value) = value
+            && let Ok(num) = value.parse::<i64>()
+        {
+            priority = num;
+        }
+    }
+
+    priority
+}
+
+fn capture_specificity(name: &str) -> usize {
+    name.matches('.').count()
+}
 
 /// Translates a capture name into a style
 pub fn translate_name_to_style(theme: &Theme, mut name: &str) -> ContentStyle {
@@ -25,18 +46,7 @@ pub fn translate_name_to_style(theme: &Theme, mut name: &str) -> ContentStyle {
 pub struct HighlightSpan {
     pub byte_range: Range<usize>,
     pub capture_name: String,
-}
-
-/// A highlight event - either pushing or popping a highlight from the stack
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum HighlightEvent {
-    /// Push a new highlight onto the stack at this byte position
-    Push {
-        byte_pos: usize,
-        capture_name: String,
-    },
-    /// Pop a highlight from the stack at this byte position
-    Pop { byte_pos: usize },
+    pub priority: i64,
 }
 
 pub struct Highlighter<'tree, 'rope> {
@@ -55,56 +65,120 @@ impl<'tree, 'rope> Highlighter<'tree, 'rope> {
         Some(Self { walker })
     }
 
-    /// Generate highlight events in byte position order
-    /// These events can be processed with a stack to determine the active highlight at any position
-    pub fn events(mut self) -> Vec<HighlightEvent> {
-        let mut events = Vec::new();
+    pub fn collect_spans(mut self) -> Vec<HighlightSpan> {
+        let mut spans = Vec::new();
 
-        // Collect all captures
         self.walker.walk(|entry| {
+            let query = &entry.query;
             for capture in entry.query_match.captures {
-                let capture_name = entry.query.capture_names()[capture.index as usize];
+                let capture_name = query.capture_names()[capture.index as usize];
+                let range = capture.node.byte_range().start + entry.byte_offset
+                    ..capture.node.byte_range().end + entry.byte_offset;
 
-                events.push(HighlightEvent::Push {
-                    byte_pos: capture.node.byte_range().start,
+                let base_priority = get_capture_priority(query, entry.query_match.pattern_index);
+                let specificity = capture_specificity(capture_name);
+                let priority = base_priority * 10 + specificity as i64;
+
+                spans.push(HighlightSpan {
+                    byte_range: range,
                     capture_name: capture_name.to_string(),
-                });
-
-                events.push(HighlightEvent::Pop {
-                    byte_pos: capture.node.byte_range().end,
+                    priority,
                 });
             }
-
             true
         });
 
-        // Sort events by position, with Pop events before Push events at the same position
-        events.sort_by(|a, b| {
-            let pos_a = match a {
-                HighlightEvent::Push { byte_pos, .. } => *byte_pos,
-                HighlightEvent::Pop { byte_pos } => *byte_pos,
-            };
-            let pos_b = match b {
-                HighlightEvent::Push { byte_pos, .. } => *byte_pos,
-                HighlightEvent::Pop { byte_pos } => *byte_pos,
-            };
-
-            pos_a.cmp(&pos_b).then_with(|| {
-                // Pop before Push at same position
-                match (a, b) {
-                    (HighlightEvent::Pop { .. }, HighlightEvent::Push { .. }) => {
-                        std::cmp::Ordering::Less
-                    }
-                    (HighlightEvent::Push { .. }, HighlightEvent::Pop { .. }) => {
-                        std::cmp::Ordering::Greater
-                    }
-                    _ => std::cmp::Ordering::Equal,
-                }
-            })
-        });
-
-        events
+        spans
     }
+}
+
+pub fn merge_overlapping_spans(spans: Vec<HighlightSpan>) -> Vec<HighlightSpan> {
+    if spans.is_empty() {
+        return Vec::new();
+    }
+
+    // Collect all split points (start and end positions)
+    let mut split_points = std::collections::BTreeSet::new();
+    for span in &spans {
+        split_points.insert(span.byte_range.start);
+        split_points.insert(span.byte_range.end);
+    }
+
+    let split_points: Vec<usize> = split_points.into_iter().collect();
+
+    // For each segment between split points, find the highest priority span
+    let mut segments: Vec<Option<(String, i64)>> = Vec::new();
+
+    for i in 0..split_points.len().saturating_sub(1) {
+        let seg_start = split_points[i];
+        let seg_end = split_points[i + 1];
+
+        // Find all spans that cover this segment
+        let mut best_span: Option<(String, i64)> = None;
+
+        for span in &spans {
+            // Check if this span covers the segment
+            if span.byte_range.start <= seg_start && span.byte_range.end >= seg_end {
+                if let Some((_, best_priority)) = &best_span {
+                    if span.priority > *best_priority {
+                        best_span = Some((span.capture_name.clone(), span.priority));
+                    }
+                } else {
+                    best_span = Some((span.capture_name.clone(), span.priority));
+                }
+            }
+        }
+
+        segments.push(best_span);
+    }
+
+    // Merge consecutive segments with the same style into spans
+    let mut result = Vec::new();
+    let mut current_start = None;
+    let mut current_style: Option<(String, i64)> = None;
+
+    for (i, segment_style) in segments.iter().enumerate() {
+        let seg_start = split_points[i];
+
+        match (&current_style, segment_style) {
+            (Some((cur_name, cur_pri)), Some((seg_name, seg_pri)))
+                if cur_name == seg_name && cur_pri == seg_pri =>
+            {
+                // Continue current span
+            }
+            (Some((name, priority)), _) => {
+                // End current span and start new one
+                if let Some(start) = current_start {
+                    result.push(HighlightSpan {
+                        byte_range: start..seg_start,
+                        capture_name: name.clone(),
+                        priority: *priority,
+                    });
+                }
+                current_start = segment_style.as_ref().map(|_| seg_start);
+                current_style = segment_style.clone();
+            }
+            (None, Some(_)) => {
+                // Start new span
+                current_start = Some(seg_start);
+                current_style = segment_style.clone();
+            }
+            (None, None) => {
+                // No span active
+            }
+        }
+    }
+
+    // Don't forget the last span
+    if let (Some(start), Some((name, priority))) = (current_start, current_style) {
+        result.push(HighlightSpan {
+            byte_range: start..*split_points.last().unwrap(),
+            capture_name: name,
+            priority,
+        });
+    }
+
+    result
 }
 
 pub async fn highlight_file(
@@ -129,37 +203,19 @@ pub async fn highlight_file(
         return;
     };
 
-    let events = highlighter.events();
+    let spans = highlighter.collect_spans();
 
     let renderer = &mut buf.renderer;
     renderer.clear_extmark_ns("tree-sitter::highlights");
 
-    // Stack tracks (capture_name, start_byte_pos)
-    let mut style_stack: Vec<(String, usize)> = Vec::new();
+    for span in merge_overlapping_spans(spans) {
+        let hl_style = translate_name_to_style(&theme, &span.capture_name);
 
-    for event in events {
-        match event {
-            HighlightEvent::Push {
-                byte_pos,
-                capture_name,
-            } => {
-                // Push the new highlight onto the stack with its start position
-                style_stack.push((capture_name, byte_pos));
-            }
-            HighlightEvent::Pop { byte_pos } => {
-                // Pop and create the extmark with the complete range
-                if let Some((capture_name, start_pos)) = style_stack.pop() {
-                    // Get the style for this capture name
-                    let hl_style = translate_name_to_style(&theme, &capture_name);
-
-                    renderer.add_extmark_range(
-                        "tree-sitter::highlights",
-                        start_pos..byte_pos,
-                        1,
-                        vec![ExtmarkDecoration::Highlight { hl: hl_style }],
-                    );
-                }
-            }
-        }
+        renderer.add_extmark_range(
+            "tree-sitter::highlights",
+            span.byte_range.clone(),
+            span.priority as i32,
+            vec![ExtmarkDecoration::Highlight { hl: hl_style }],
+        );
     }
 }

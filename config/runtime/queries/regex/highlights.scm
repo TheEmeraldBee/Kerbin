@@ -1,12 +1,11 @@
-; Forked from tree-sitter-regex
-; The MIT License (MIT) Copyright (c) 2014 Max Brunsfeld
+; upstream: https://github.com/tree-sitter/tree-sitter-regex/blob/e1cfca3c79896ff79842f057ea13e529b66af636/queries/highlights.scm
+
 [
   "("
   ")"
   "(?"
   "(?:"
   "(?<"
-  "<"
   ">"
   "["
   "]"
@@ -14,40 +13,40 @@
   "}"
 ] @punctuation.bracket
 
-(group_name) @property
-
-; These are escaped special characters that lost their special meaning
-; -> no special highlighting
-(identity_escape) @string.regexp
-
-(class_character) @constant
-
-(decimal_digits) @number
-
-[
-  (control_letter_escape)
-  (character_class_escape)
-  (control_escape)
-  (boundary_assertion)
-  (non_boundary_assertion)
-] @string.escape
-
 [
   "*"
   "+"
-  "?"
   "|"
   "="
+  "<="
   "!"
-  "-"
-  "\\k"
-  (lazy)
+  "<!"
+  "?"
 ] @operator
 
 [
+  (identity_escape)
+  (control_letter_escape)
+  (character_class_escape)
+  (control_escape)
   (start_assertion)
   (end_assertion)
-  ","
-] @punctuation.delimiter
+  (boundary_assertion)
+  (non_boundary_assertion)
+] @constant.character.escape
 
-(any_character) @variable.builtin
+(group_name) @label
+
+(count_quantifier
+  [
+    (decimal_digits) @constant.numeric
+    "," @punctuation.delimiter
+  ])
+
+(character_class
+  [
+    "^" @operator
+    (class_range "-" @operator)
+  ])
+
+(class_character) @constant.character

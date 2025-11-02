@@ -1,17 +1,8 @@
-(identifier) @type
+(identifier) @variable
 
-[
-  "strict"
-  "graph"
-  "digraph"
-  "subgraph"
-  "node"
-  "edge"
-] @keyword
-
+(keyword) @keyword
 (string_literal) @string
-
-(number_literal) @number
+(number_literal) @constant.numeric
 
 [
   (edgeop)
@@ -34,16 +25,16 @@
 
 (subgraph
   id: (id
-    (identifier) @module))
+    (identifier) @namespace)
+)
 
 (attribute
   name: (id
-    (identifier) @variable.member))
-
-(attribute
+    (identifier) @type)
   value: (id
-    (identifier) @constant))
+    (identifier) @constant)
+)
 
-(comment) @comment @spell
+(comment) @comment
 
 (preproc) @keyword.directive

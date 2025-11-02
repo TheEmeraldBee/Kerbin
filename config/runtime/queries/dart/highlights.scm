@@ -1,171 +1,87 @@
-(identifier) @variable
-
 (dotted_identifier_list) @string
 
 ; Methods
 ; --------------------
-; TODO: add method/call_expression to grammar and
-; distinguish method call from variable access
-(function_expression_body
-  (identifier) @function.call)
+(super) @function.builtin
 
-; ((identifier)(selector (argument_part)) @function)
-; NOTE: This query is a bit of a work around for the fact that the dart grammar doesn't
-; specifically identify a node as a function call
-(((identifier) @function.call
-  (#lua-match? @function.call "^_?[%l]"))
-  .
-  (selector
-    .
-    (argument_part))) @function.call
+(function_expression_body (identifier) @function.method)
+((identifier)(selector (argument_part)) @function.method)
 
 ; Annotations
 ; --------------------
 (annotation
-  "@" @attribute
   name: (identifier) @attribute)
-
-; Operators and Tokens
-; --------------------
-(template_substitution
-  "$" @punctuation.special
-  "{" @punctuation.special
-  "}" @punctuation.special) @none
-
-(template_substitution
-  "$" @punctuation.special
-  (identifier_dollar_escaped) @variable) @none
-
-(escape_sequence) @string.escape
-
-[
-  "=>"
-  ".."
-  "??"
-  "=="
-  "!"
-  "?"
-  "&&"
-  "%"
-  "<"
-  ">"
-  "="
-  ">="
-  "<="
-  "||"
-  ">>>="
-  ">>="
-  "<<="
-  "&="
-  "|="
-  "??="
-  "%="
-  "+="
-  "-="
-  "*="
-  "/="
-  "^="
-  "~/="
-  (shift_operator)
-  (multiplicative_operator)
-  (increment_operator)
-  (is_operator)
-  (prefix_operator)
-  (equality_operator)
-  (additive_operator)
-] @operator
-
-[
-  "("
-  ")"
-  "["
-  "]"
-  "{"
-  "}"
-] @punctuation.bracket
-
-; Delimiters
-; --------------------
-[
-  ";"
-  "."
-  ","
-  ":"
-  "?."
-  "?"
-] @punctuation.delimiter
+(marker_annotation
+  name: (identifier) @attribute)
 
 ; Types
 ; --------------------
 (class_definition
   name: (identifier) @type)
-
+  
 (constructor_signature
-  name: (identifier) @type)
-
-(scoped_identifier
-  scope: (identifier) @type)
+  name: (identifier) @function.method)
 
 (function_signature
   name: (identifier) @function.method)
 
 (getter_signature
-  (identifier) @function.method)
+  (identifier) @function.builtin)
 
 (setter_signature
-  name: (identifier) @function.method)
+  name: (identifier) @function.builtin)
 
 (enum_declaration
   name: (identifier) @type)
 
 (enum_constant
-  name: (identifier) @type)
+  name: (identifier) @type.builtin)
 
-(void_type) @type
+(void_type) @type.builtin
 
+((scoped_identifier
+  scope: (identifier) @type)
+ (#match? @type "^[a-zA-Z]"))
+ 
 ((scoped_identifier
   scope: (identifier) @type
   name: (identifier) @type)
-  (#lua-match? @type "^[%u%l]"))
+ (#match? @type "^[a-zA-Z]"))
 
-(type_identifier) @type
-
-(type_alias
-  (type_identifier) @type.definition)
-
-(type_arguments
-  [
-    "<"
-    ">"
-  ] @punctuation.bracket)
+; the DisabledDrawerButtons in : const DisabledDrawerButtons(history: true),
+(type_identifier) @type.builtin
 
 ; Variables
 ; --------------------
-; var keyword
-(inferred_type) @keyword
+; the "File" in var file = File();
+((identifier) @namespace
+ (#match? @namespace "^_?[A-Z].*[a-z]")) ; catch Classes or IClasses not CLASSES
 
-((identifier) @type
-  (#lua-match? @type "^_?[%u].*[%l]")) ; catch Classes or IClasses not CLASSES
-
-"Function" @type
+("Function" @type.builtin)
+(inferred_type) @type.builtin
 
 ; properties
 (unconditional_assignable_selector
-  (identifier) @property)
+  (identifier) @variable.other.member)
 
 (conditional_assignable_selector
-  (identifier) @property)
+  (identifier) @variable.other.member)
+
+; assignments
+; --------------------
+; the "strings" in : strings = "some string"
+(assignment_expression
+  left: (assignable_expression) @variable)
 
 (this) @variable.builtin
 
 ; Parameters
 ; --------------------
 (formal_parameter
-  (identifier) @variable.parameter)
+    name: (identifier) @variable)
 
 (named_argument
-  (label
-    (identifier) @variable.parameter))
+  (label (identifier) @variable))
 
 ; Literals
 ; --------------------
@@ -173,119 +89,101 @@
   (hex_integer_literal)
   (decimal_integer_literal)
   (decimal_floating_point_literal)
-  ; TODO: inaccessible nodes
-  ; (octal_integer_literal)
-  ; (hex_floating_point_literal)
-] @number
+  ;(octal_integer_literal)
+  ;(hex_floating_point_literal)
+] @constant.numeric.integer
 
 (symbol_literal) @string.special.symbol
-
 (string_literal) @string
-
-(true) @boolean
-
-(false) @boolean
-
-(null_literal) @constant.builtin
-
-(comment) @comment @spell
-
-(documentation_comment) @comment.documentation @spell
-
-; Keywords
-; --------------------
-[
-  "import"
-  "library"
-  "export"
-  "as"
-  "show"
-  "hide"
-] @keyword.import
-
-; Reserved words (cannot be used as identifiers)
-[
-  ; TODO:
-  ; "rethrow" cannot be targeted at all and seems to be an invisible node
-  ; TODO:
-  ; the assert keyword cannot be specifically targeted
-  ; because the grammar selects the whole node or the content
-  ; of the assertion not just the keyword
-  ; assert
-  (case_builtin)
-  "late"
-  "required"
-  "on"
-  "extends"
-  "in"
-  "is"
-  "new"
-  "super"
-  "with"
-] @keyword
-
-[
-  "class"
-  "enum"
-  "extension"
-] @keyword.type
-
-"return" @keyword.return
-
-; Built in identifiers:
-; alone these are marked as keywords
-[
-  "deferred"
-  "factory"
-  "get"
-  "implements"
-  "interface"
-  "library"
-  "operator"
-  "mixin"
-  "part"
-  "set"
-  "typedef"
-] @keyword
-
-[
-  "async"
-  "async*"
-  "sync*"
-  "await"
-  "yield"
-] @keyword.coroutine
 
 [
   (const_builtin)
   (final_builtin)
-  "abstract"
-  "covariant"
-  "external"
-  "static"
-  "final"
-  "base"
-  "sealed"
-] @keyword.modifier
-
-; when used as an identifier:
-((identifier) @variable.builtin
-  (#any-of? @variable.builtin
-    "abstract" "as" "covariant" "deferred" "dynamic" "export" "external" "factory" "Function" "get"
-    "implements" "import" "interface" "library" "operator" "mixin" "part" "set" "static" "typedef"))
+] @variable.builtin
 
 [
+  (true)
+  (false)
+] @constant.builtin.boolean
+
+(null_literal) @constant.builtin
+
+(comment) @comment.line
+(documentation_comment) @comment.block.documentation
+
+; Tokens
+; --------------------
+(template_substitution
+  "$" @punctuation.special
+  "{" @punctuation.special
+  "}" @punctuation.special
+) @embedded
+
+(template_substitution
+  "$" @punctuation.special
+  (identifier_dollar_escaped) @variable
+) @embedded
+
+(escape_sequence) @constant.character.escape
+
+; Punctuation
+;---------------------
+[
+  "("
+  ")"
+  "["
+  "]"
+  "{"
+  "}"
+]  @punctuation.bracket
+
+[
+  ";"
+  "."
+  ","
+  ":"
+] @punctuation.delimiter
+  
+; Operators
+;---------------------
+[
+ "@"
+ "?"
+ "=>"
+ ".."
+ "=="
+ "&&"
+ "%"
+ "<"
+ ">"
+ "="
+ ">="
+ "<="
+ "||"
+ (multiplicative_operator)
+ (increment_operator)
+ (is_operator)
+ (prefix_operator)
+ (equality_operator)
+ (additive_operator)
+] @operator
+
+; Keywords
+; --------------------
+["import" "library" "export"] @keyword.control.import
+["do" "while" "continue" "for"] @keyword.control.repeat
+["return" "yield"] @keyword.control.return
+["as" "in" "is"] @keyword.operator
+
+[
+  "?."
+  "??"
   "if"
   "else"
   "switch"
   "default"
-] @keyword.conditional
-
-(conditional_expression
-  [
-    "?"
-    ":"
-  ] @keyword.conditional.ternary)
+  "late"
+] @keyword.control.conditional
 
 [
   "try"
@@ -293,11 +191,45 @@
   "catch"
   "finally"
   (break_statement)
-] @keyword.exception
+] @keyword.control.exception
 
+; Reserved words (cannot be used as identifiers)
 [
-  "do"
-  "while"
-  "continue"
-  "for"
-] @keyword.repeat
+    (case_builtin)
+    "abstract"
+    "async"
+    "async*"
+    "await"
+    "base"
+    "class"
+    "covariant"
+    "deferred"
+    "dynamic"
+    "enum"
+    "extends"
+    "extension"
+    "external"
+    "factory"
+    "Function"
+    "get"
+    "implements"
+    "interface"
+    "mixin"
+    "new"
+    "on"
+    "operator"
+    "part"
+    "required"
+    "sealed"
+    "set"
+    "show"
+    "static"
+    "super"
+    "sync*"
+    "typedef"
+    "with"
+] @keyword
+
+; when used as an identifier:
+((identifier) @variable.builtin
+ (#match? @variable.builtin "^(abstract|as|base|covariant|deferred|dynamic|export|external|factory|Function|get|implements|import|interface|library|operator|mixin|part|sealed|set|static|typedef)$"))

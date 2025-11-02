@@ -9,7 +9,8 @@
   (sparse_switch_directive)
   (subannotation_directive)
   (list)
-] @indent.begin
+  "\{"
+] @indent
 
 [
   ".end annotation"
@@ -21,15 +22,10 @@
   ".end parameter"
   ".end sparse-switch"
   ".end subannotation"
-  "}"
-] @indent.end @indent.branch
-
-[
-  "{"
-  "}"
-] @indent.branch
+  "\}"
+] @outdent
 
 [
   (ERROR)
   (comment)
-] @indent.auto
+] @indent.always

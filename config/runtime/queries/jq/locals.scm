@@ -1,8 +1,10 @@
+;; From nvim-treesitter, contributed by @ObserverOfTime et al.
+
 (funcdef
   (identifier) @local.definition.function)
 
 (funcdefargs
-  (identifier) @local.definition.parameter)
+  (identifier) @local.definition.variable.parameter)
 
 (funcname) @local.reference
 

@@ -1,22 +1,42 @@
-; variable
+; See: https://docs.helix-editor.com/master/themes.html#syntax-highlighting
+; -------------------------------------------------------------------------
+
+; attribute
+; ---------
+
+[
+  "@name"
+  "@interface"
+] @attribute
+
+; operator
 ; --------
-(identifier) @variable
 
-(destruct_bind
-  name: (identifier) @variable.member
-  bind: (identifier) @variable)
+[
+  "-" "-="
+  "+" "+="
+  "*" "*="
+  "/" "/="
+  "%" "%="
+  "=" "=="
+  "!" "!=" "!!"
+  "<" "<=" "<<"
+  ">" ">=" ">>"
+  "&" "|"
+  "&&" "||"
+] @operator
 
-; variable.builtin
-; ----------------
-(self) @variable.builtin
+; punctuation.bracket
+; -------------------
 
-; variable.parameter
-; ------------------
-(parameter
-  name: (identifier) @variable.parameter)
+[
+  "(" ")"
+  "{" "}"
+] @punctuation.bracket
 
 ; punctuation.delimiter
 ; ---------------------
+
 [
   ";"
   ","
@@ -25,254 +45,69 @@
   "?"
 ] @punctuation.delimiter
 
-; punctuation.bracket
-; -------------------
-[
-  "("
-  ")"
-  "{"
-  "}"
-] @punctuation.bracket
-
-; operator
+; variable
 ; --------
-[
-  "-"
-  "-="
-  "+"
-  "+="
-  "*"
-  "*="
-  "/"
-  "/="
-  "%"
-  "%="
-  "="
-  "=="
-  "!"
-  "!="
-  "!!"
-  "<"
-  "<="
-  "<<"
-  "<<="
-  ">"
-  ">="
-  ">>"
-  ">>="
-  "&"
-  "&="
-  "|"
-  "|="
-  "^"
-  "^="
-  "&&"
-  "&&="
-  "||"
-  "||="
-  "->"
-  ".."
-] @operator
 
-; constructor
-; -----------
-(instance_expression
-  name: (identifier) @constructor)
+(identifier) @variable
 
-(initOf
-  name: (identifier) @constructor)
-
-(codeOf
-  name: (identifier) @constructor)
-
-; type
-; ----
-(type_identifier) @type
-
-; type.builtin
-; ------------
-((identifier) @type.builtin
-  (#any-of? @type.builtin "Context" "SendParameters" "StateInit" "StdAddress" "VarAddress"))
-
-(generic_parameter_list
-  "<" @punctuation.bracket
-  ">" @punctuation.bracket)
-
-(bounced_type
-  "bounced" @type.builtin
-  "<" @punctuation.bracket
-  ">" @punctuation.bracket)
-
-(map_type
-  "map" @type.builtin
-  "<" @punctuation.bracket
-  ">" @punctuation.bracket)
-
-((type_identifier) @type.builtin
-  (#any-of? @type.builtin "Address" "Bool" "Builder" "Cell" "Int" "Slice" "String" "StringBuilder"))
-
-(tlb_serialization
-  "as" @keyword
-  type: (identifier) @type)
-
-; string
-; ------
-(string) @string
-
-; string.escape
-; -------------
-(escape_sequence) @string.escape
-
-; string.special.path
-; -------------------
-(import
-  name: (string) @string.special.path)
-
-; boolean
-; -------
-(boolean) @boolean
-
-; constant
-; --------
-(global_constant
-  name: (identifier) @constant)
-
-(storage_constant
-  name: (identifier) @constant)
-
-; constant.builtin
+; variable.builtin
 ; ----------------
-(null) @constant.builtin
 
-((identifier) @constant.builtin
-  (#any-of? @constant.builtin
-    "SendDefaultMode" "SendBounceIfActionFail" "SendPayGasSeparately" "SendIgnoreErrors"
-    "SendDestroyIfZero" "SendRemainingValue" "SendRemainingBalance" "SendOnlyEstimateFee"
-    "ReserveExact" "ReserveAllExcept" "ReserveAtMost" "ReserveAddOriginalBalance"
-    "ReserveInvertSign" "ReserveBounceIfActionFail"))
+(self) @variable.builtin
 
-; property
-; --------
-(instance_argument
-  name: (identifier) @variable.member)
+; variable.parameter
+; ------------------
 
-(field_access_expression
-  name: (identifier) @variable.member)
+(parameter
+  name: (identifier) @variable.parameter)
+
+; variable.other.member
+; ---------------------
 
 (field
-  name: (identifier) @variable.member)
+  name: (identifier) @variable.other.member)
 
-(storage_variable
-  name: (identifier) @variable.member)
+(contract_body
+  (constant
+    name: (identifier) @variable.other.member))
 
-; number
-; ------
-(integer) @number
+(trait_body
+  (constant
+    name: (identifier) @variable.other.member))
 
-; keyword
-; -------
-[
-  "with"
-  "const"
-  "let"
-  ; "public" ; -- not used, but declared in grammar.ohm
-  ; "extend" ; -- not used, but declared in grammar.ohm
-] @keyword
+(field_access_expression
+  name: (identifier) @variable.other.member)
 
-; keyword.type
+(lvalue (_) (_) @variable.other.member)
+
+(instance_argument
+  name: (identifier) @variable.other.member)
+
+; comment.block
+; -------------
+
+(comment) @comment.block
+
+; comment.line
 ; ------------
-[
-  "contract"
-  "trait"
-  "struct"
-  "message"
-] @keyword.type
 
-; keyword.function
-; ----------------
-[
-  "fun"
-  "native"
-  "asm"
-] @keyword.function
-
-; keyword.operator
-; ----------------
-"initOf" @keyword.operator
-
-"codeOf" @keyword.operator
-
-; keyword.import
-; --------------
-"import" @keyword.import
-
-; keyword.modifier
-; ---------------
-[
-  "get"
-  "mutates"
-  "extends"
-  "virtual"
-  "override"
-  "inline"
-  "abstract"
-] @keyword.modifier
-
-; keyword.repeat
-; --------------
-(foreach_statement
-  .
-  (_)
-  .
-  (_)
-  .
-  "in" @keyword.repeat)
-
-[
-  "while"
-  "repeat"
-  "do"
-  "until"
-  "foreach"
-] @keyword.repeat
-
-; keyword.return
-; --------------
-"return" @keyword.return
-
-; keyword.exception
-; -----------------
-[
-  "try"
-  "catch"
-] @keyword.exception
-
-; keyword.conditional
-; -------------------
-[
-  "if"
-  "else"
-] @keyword.conditional
-
-; keyword.directive.define
-; ------------------------
-"primitive" @keyword.directive.define
+((comment) @comment.line
+  (#match? @comment.line "^//"))
 
 ; function
 ; --------
-(native_function
-  name: (identifier) @function)
-
-(asm_function
-  name: (identifier) @function)
-
-(global_function
-  name: (identifier) @function)
 
 (func_identifier) @function
 
-; function.method
-; ---------------
+(native_function
+  name: (identifier) @function)
+
+(static_function
+  name: (identifier) @function)
+
+(static_call_expression
+  name: (identifier) @function)
+
 (init_function
   "init" @function.method)
 
@@ -285,58 +120,179 @@
 (external_function
   "external" @function.method)
 
-(storage_function
+(function
   name: (identifier) @function.method)
 
-; function.call
-; -------------
-(static_call_expression
-  name: (identifier) @function.call)
-
-; function.method.call
+; function.method
 ; ---------------
+
 (method_call_expression
-  name: (identifier) @function.method.call)
+  name: (identifier) @function.method)
 
-; asm-specific
-; ------------
-(tvm_instruction) @function.call
+; function.builtin
+; ----------------
 
-(asm_integer) @number
+((identifier) @function.builtin
+  (#any-of? @function.builtin
+    "send" "sender" "require" "now"
+    "myBalance" "myAddress" "newAddress"
+    "contractAddress" "contractAddressExt"
+    "emit" "cell" "ton"
+    "beginString" "beginComment" "beginTailString" "beginStringFromBuilder" "beginCell" "emptyCell"
+    "randomInt" "random"
+    "checkSignature" "checkDataSignature" "sha256"
+    "min" "max" "abs" "pow"
+    "throw" "dump" "getConfigParam"
+    "nativeThrowWhen" "nativeThrowUnless" "nativeReserve"
+    "nativeRandomize" "nativeRandomizeLt" "nativePrepareRandom" "nativeRandom" "nativeRandomInterval")
+  (#is-not? local))
 
-(asm_string) @string
+; keyword.control.conditional
+; ---------------------------
 
-(asm_control_register) @string.special.symbol
-
-(asm_stack_register) @string.special.symbol
-
-(asm_hex_bitstring) @function.macro
-
-(asm_bin_bitstring) @function.macro
-
-(asm_boc_hex) @function.macro
-
-(asm_cont_name) @variable
-
-; within asm_sequence
 [
-  "<{"
-  "}>"
-  "}>c"
-  "}>s"
-  "}>CONT"
-] @punctuation.bracket
+  "if" "else"
+] @keyword.control.conditional
 
-; attribute
-; ---------
+; keyword.control.repeat
+; ----------------------
+
 [
-  "@name"
-  "@interface"
-] @attribute
+  "while" "repeat" "do" "until"
+] @keyword.control.repeat
 
-; comment
+; keyword.control.import
+; ----------------------
+
+"import" @keyword.control.import
+
+; keyword.control.return
+; ----------------------
+
+"return" @keyword.control.return
+
+; keyword.operator
+; ----------------
+
+"initOf" @keyword.operator
+
+; keyword.directive
+; -----------------
+
+"primitive" @keyword.directive
+
+; keyword.function
+; ----------------
+
+[
+  "fun"
+  "native"
+] @keyword.function
+
+; keyword.storage.type
+; --------------------
+
+[
+  "contract" "trait" "struct" "message" "with"
+  "const" "let"
+] @keyword.storage.type
+
+; keyword.storage.modifier
+; ------------------------
+
+[
+  "get" "mutates" "extends" "virtual" "override" "inline" "abstract"
+] @keyword.storage.modifier
+
+; keyword
 ; -------
-(comment) @comment @spell
 
-((comment) @comment.documentation
-  (#lua-match? @comment.documentation "^/[*][*][^*].*[*]/$"))
+[
+  "with"
+  ; "public" ; -- not used, but declared in grammar.ohm
+  ; "extend" ; -- not used, but declared in grammar.ohm
+] @keyword
+
+; constant.builtin.boolean
+; ------------------------
+
+(boolean) @constant.builtin.boolean
+
+; constant.builtin
+; ----------------
+
+((identifier) @constant.builtin
+  (#any-of? @constant.builtin
+    "SendPayGasSeparately"
+    "SendIgnoreErrors"
+    "SendDestroyIfZero"
+    "SendRemainingValue"
+    "SendRemainingBalance")
+  (#is-not? local))
+
+(null) @constant.builtin
+
+; constant.numeric.integer
+; ------------------------
+
+(integer) @constant.numeric.integer
+
+; constant
+; --------
+
+(constant
+  name: (identifier) @constant)
+
+; string
+; ------
+
+(string) @string
+
+; string.special.path
+; -------------------
+
+(import_statement
+  library: (string) @string.special.path)
+
+; type
+; ----
+
+(type_identifier) @type
+
+; type.builtin
+; ------------
+
+(tlb_serialization
+  "as" @keyword
+  type: (identifier) @type.builtin
+  (#any-of? @type.builtin
+    "int8" "int16" "int32" "int64" "int128" "int256" "int257"
+    "uint8" "uint16" "uint32" "uint64" "uint128" "uint256"
+    "coins" "remaining" "bytes32" "bytes64"))
+
+((type_identifier) @type.builtin
+  (#any-of? @type.builtin
+    "Address" "Bool" "Builder" "Cell" "Int" "Slice" "String" "StringBuilder"))
+
+(map_type
+  "map" @type.builtin
+  "<" @punctuation.bracket
+  ">" @punctuation.bracket)
+
+(bounced_type
+  "bounced" @type.builtin
+  "<" @punctuation.bracket
+  ">" @punctuation.bracket)
+
+((identifier) @type.builtin
+  (#eq? @type.builtin "SendParameters")
+  (#is-not? local))
+
+; constructor
+; -----------
+
+(instance_expression
+  name: (identifier) @constructor)
+
+(initOf
+  name: (identifier) @constructor)

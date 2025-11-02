@@ -1,91 +1,80 @@
 (heading) @markup.heading
 
 ((heading
-  (marker) @_heading.marker) @markup.heading.1
-  (#eq? @_heading.marker "# "))
+  (marker) @markup.heading.marker) @markup.heading.1
+  (#eq? @markup.heading.marker "# "))
 
 ((heading
-  (marker) @_heading.marker) @markup.heading.2
-  (#eq? @_heading.marker "## "))
+  (marker) @markup.heading.marker) @markup.heading.2
+  (#eq? @markup.heading.marker "## "))
 
 ((heading
-  (marker) @_heading.marker) @markup.heading.3
-  (#eq? @_heading.marker "### "))
+  (marker) @markup.heading.marker) @markup.heading.3
+  (#eq? @markup.heading.marker "### "))
 
 ((heading
-  (marker) @_heading.marker) @markup.heading.4
-  (#eq? @_heading.marker "##### "))
+  (marker) @markup.heading.marker) @markup.heading.4
+  (#eq? @markup.heading.marker "##### "))
 
 ((heading
-  (marker) @_heading.marker) @markup.heading.5
-  (#eq? @_heading.marker "###### "))
+  (marker) @markup.heading.marker) @markup.heading.5
+  (#eq? @markup.heading.marker "###### "))
 
 ((heading
-  (marker) @_heading.marker) @markup.heading.6
-  (#eq? @_heading.marker "####### "))
+  (marker) @markup.heading.marker) @markup.heading.6
+  (#eq? @markup.heading.marker "####### "))
 
-(thematic_break) @string.special
+(thematic_break) @special
 
 [
   (div_marker_begin)
   (div_marker_end)
-] @punctuation.delimiter
+] @tag
 
-([
+[
   (code_block)
   (raw_block)
   (frontmatter)
 ] @markup.raw.block
-  (#set! priority 90))
-
-; Remove @markup.raw for code with a language spec
-(code_block
-  .
-  (code_block_marker_begin)
-  (language)
-  (code) @none
-  (#set! priority 90))
 
 [
   (code_block_marker_begin)
   (code_block_marker_end)
   (raw_block_marker_begin)
   (raw_block_marker_end)
-] @punctuation.delimiter
+] @punctuation.bracket
 
-(language) @attribute
+(language) @type.enum.variant
 
-(inline_attribute
-  _ @conceal
-  (#set! conceal ""))
+(inline_attribute _ @attribute)
 
-((language_marker) @punctuation.delimiter
-  (#set! conceal ""))
+(language_marker) @punctuation.delimiter
 
-(block_quote) @markup.quote
-
-(block_quote_marker) @punctuation.special
+[
+  (block_quote)
+  (block_quote_marker)
+] @markup.quote
 
 (table_header) @markup.heading
 
-(table_header
-  "|" @punctuation.special)
+(table_header "|" @punctuation.special)
 
-(table_row
-  "|" @punctuation.special)
+(table_row "|" @punctuation.special)
 
 (table_separator) @punctuation.special
 
-(table_caption
-  (marker) @punctuation.special)
+(table_caption (marker) @punctuation.special)
 
-(table_caption) @markup.italic
+(table_caption) @label
 
 [
   (list_marker_dash)
   (list_marker_plus)
   (list_marker_star)
   (list_marker_definition)
+] @markup.list.unnumbered
+
+[
   (list_marker_decimal_period)
   (list_marker_decimal_paren)
   (list_marker_decimal_parens)
@@ -101,7 +90,7 @@
   (list_marker_upper_roman_period)
   (list_marker_upper_roman_paren)
   (list_marker_upper_roman_parens)
-] @markup.list
+] @markup.list.numbered
 
 (list_marker_task
   (unchecked)) @markup.list.unchecked
@@ -109,60 +98,48 @@
 (list_marker_task
   (checked)) @markup.list.checked
 
-; Colorize `x` in `[x]`
-((checked) @constant.builtin
-  (#offset! @constant.builtin 0 1 0 -1))
+(checked
+  [
+    "x"
+    "X"
+  ] @constant.builtin.boolean) @markup.list.checked
 
 [
   (ellipsis)
   (en_dash)
   (em_dash)
   (quotation_marks)
-] @string.special
+] @punctuation.special
 
-(list_item
-  (term) @type.definition)
+(list_item (term) @constructor)
 
-; Conceal { and } but leave " and '
-((quotation_marks) @string.special
-  (#any-of? @string.special "\"}" "'}")
-  (#offset! @string.special 0 1 0 0)
-  (#set! conceal ""))
+(quotation_marks) @markup.quote
 
-((quotation_marks) @string.special
-  (#any-of? @string.special "\\\"" "\\'" "{'" "{\"")
-  (#offset! @string.special 0 0 0 -1)
-  (#set! conceal ""))
+((quotation_marks) @constant.character.escape
+  (#any-of? @constant.character.escape "\\\"" "\\'"))
 
 [
   (hard_line_break)
   (backslash_escape)
-] @string.escape
-
-; Only conceal \ but leave escaped character.
-((backslash_escape) @string.escape
-  (#offset! @string.escape 0 0 0 -1)
-  (#set! conceal ""))
-
-(frontmatter_marker) @punctuation.delimiter
+] @constant.character.escape
 
 (emphasis) @markup.italic
 
-(strong) @markup.strong
+(strong) @markup.bold
 
 (symbol) @string.special.symbol
 
-(insert) @markup.underline
-
 (delete) @markup.strikethrough
 
-[
-  (highlighted)
-  (superscript)
-  (subscript)
-] @string.special
+(insert) @markup.italic
 
-([
+(highlighted) @markup.bold
+
+(superscript) @string.special.superscript
+
+(subscript) @string.special.subscript
+
+[
   (emphasis_begin)
   (emphasis_end)
   (strong_begin)
@@ -185,21 +162,17 @@
   (raw_inline_attribute)
   (raw_inline_marker_begin)
   (raw_inline_marker_end)
-] @punctuation.delimiter
-  (#set! conceal ""))
+] @punctuation.bracket
 
-((math) @markup.math
-  (#set! priority 90))
+(math) @markup.raw
 
 (verbatim) @markup.raw
 
-((raw_inline) @markup.raw
-  (#set! priority 90))
+(raw_inline) @markup.raw
 
-[
-  (comment)
-  (inline_comment)
-] @comment
+(comment) @comment.block
+
+(inline_comment) @comment.line
 
 (span
   [
@@ -224,67 +197,48 @@
   (class_name)
 ] @type
 
-(identifier) @tag
+; NOTE: Not perfectly semantically accurate, but a fair approximation.
+(identifier) @string.special.symbol
 
-(key_value
-  "=" @operator)
+(key_value "=" @operator)
 
-(key_value
-  (key) @property)
+(key_value (key) @attribute)
 
-(key_value
-  (value) @string)
+(key_value (value) @string)
 
 (link_text
   [
     "["
     "]"
-  ] @punctuation.bracket
-  (#set! conceal ""))
+  ] @punctuation.bracket)
 
 (autolink
   [
     "<"
     ">"
-  ] @punctuation.bracket
-  (#set! conceal ""))
+  ] @punctuation.bracket)
 
-(inline_link
-  (inline_link_destination) @markup.link.url
-  (#set! conceal ""))
+(inline_link (inline_link_destination) @markup.link.url)
 
-(link_reference_definition
-  ":" @punctuation.special)
+(link_reference_definition ":" @punctuation.delimiter)
 
-(full_reference_link
-  (link_text) @markup.link)
+(full_reference_link (link_text) @markup.link.text)
 
-(full_reference_link
-  (link_label) @markup.link.label
-  (#set! conceal ""))
+(full_reference_link (link_label) @markup.link.label)
 
-(collapsed_reference_link
-  "[]" @punctuation.bracket
-  (#set! conceal ""))
+(collapsed_reference_link "[]" @punctuation.bracket)
 
 (full_reference_link
   [
     "["
     "]"
-  ] @punctuation.bracket
-  (#set! conceal ""))
+  ] @punctuation.bracket)
 
-(collapsed_reference_link
-  (link_text) @markup.link)
+(collapsed_reference_link (link_text) @markup.link.text)
 
-(collapsed_reference_link
-  (link_text) @markup.link.label)
+(inline_link (link_text) @markup.link.text)
 
-(inline_link
-  (link_text) @markup.link)
-
-(full_reference_image
-  (link_label) @markup.link.label)
+(full_reference_image (link_label) @markup.link.label)
 
 (full_reference_image
   [
@@ -292,8 +246,7 @@
     "]"
   ] @punctuation.bracket)
 
-(collapsed_reference_image
-  "[]" @punctuation.bracket)
+(collapsed_reference_image "[]" @punctuation.bracket)
 
 (image_description
   [
@@ -301,7 +254,7 @@
     "]"
   ] @punctuation.bracket)
 
-(image_description) @markup.italic
+(image_description) @label
 
 (link_reference_definition
   [
@@ -309,8 +262,7 @@
     "]"
   ] @punctuation.bracket)
 
-(link_reference_definition
-  (link_label) @markup.link.label)
+(link_reference_definition (link_label) @markup.link.label)
 
 (inline_link_destination
   [
@@ -322,51 +274,13 @@
   (autolink)
   (inline_link_destination)
   (link_destination)
-  (link_reference_definition)
 ] @markup.link.url
 
-(footnote
-  (reference_label) @markup.link.label)
+(footnote (reference_label) @markup.link.label)
 
-(footnote_reference
-  (reference_label) @markup.link.label)
+(footnote_reference (reference_label) @markup.link.label)
 
 [
   (footnote_marker_begin)
   (footnote_marker_end)
 ] @punctuation.bracket
-
-(todo) @comment.todo
-
-(note) @comment.note
-
-(fixme) @comment.error
-
-[
-  (paragraph)
-  (comment)
-  (table_cell)
-] @spell
-
-[
-  (autolink)
-  (inline_link_destination)
-  (link_destination)
-  (code_block)
-  (raw_block)
-  (math)
-  (raw_inline)
-  (verbatim)
-  (reference_label)
-  (class)
-  (class_name)
-  (identifier)
-  (key_value)
-  (frontmatter)
-] @nospell
-
-(full_reference_link
-  (link_label) @nospell)
-
-(full_reference_image
-  (link_label) @nospell)

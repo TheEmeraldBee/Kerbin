@@ -1,166 +1,67 @@
-(comment) @comment @spell
+(line_comment) @comment.line
+(block_comment) @comment.block
+(ty (ident) @type)
 
-(ty
-  (id)) @type
+(item_type name: (ident) @type)
+(item_record name: (ident) @type)
+(item_variant name: (ident) @type)
+(item_flags name: (ident) @type)
+(item_enum name: (ident) @type)
+(item_union name: (ident) @type)
+(item_resource name: (ident) @type)
 
-(package_decl
-  (id) @module)
-
-(valid_semver) @string.special
-
-(world_item
-  name: (id) @module)
-
-(interface_item
-  name: (id) @module)
-
-(import_item
-  name: (id) @module
-  (extern_type
-    (interface_body)))
-
-(import_item
-  name: (id) @function
-  (extern_type
-    (func_type)))
-
-(export_item
-  name: (id) @module
-  (extern_type
-    (interface_body)))
-
-(export_item
-  name: (id) @function
-  (extern_type
-    (func_type)))
-
-(type_item
-  alias: (id) @type.definition)
-
-(func_item
-  name: (id) @function.method)
-
-(handle
-  (id) @type)
-
-(named_type
-  name: (id) @variable.parameter)
-
-(record_item
-  name: (id) @type)
-
-(record_field
-  name: (id) @variable.member)
-
-(flags_items
-  name: (id) @type)
-
-(flags_body
-  (id) @variable.member)
-
-(variant_items
-  name: (id) @type)
-
-(variant_case
-  name: (id) @constant)
-
-(enum_items
-  name: (id) @type)
-
-(enum_case
-  name: (id) @constant)
-
-(resource_item
-  name: (id) @type)
-
-(resource_method
-  (id) @function.method)
-
-(resource_method
-  "constructor" @constructor)
-
-(toplevel_use_item
-  "use" @keyword.import)
-
-(toplevel_use_item
-  alias: (id) @module)
-
-(use_item
-  "use" @keyword.import)
-
-(use_path
-  (id) @module)
-
-(use_names_item
-  (id) @module)
-
-"func" @keyword.function
+(item_use from: (ident) @namespace)
+(use_item name: (ident) @type)
+(item_func name: (ident) @function)
+(method name: (ident) @function.method)
+(fields (named_ty name: (ident) @variable.other.member))
+(input (args (named_ty name: (ident) @variable.parameter)))
+(output (args (named_ty name: (ident) @variable.other.member)))
+(flags (ident) @constant)
+(enum_items (ident) @constant)
+(variant_item tag: (ident) @type.enum.variant)
 
 [
-  "type"
-  "interface"
-  "world"
-  "package"
-  "resource"
-  "record"
-  "enum"
-  "flags"
-  "variant"
-] @keyword.type
+  (unit)
 
-"static" @keyword.modifier
-
-[
-  "include"
-  "import"
-  "export"
-  "as"
-] @keyword.import
-
-[
-  "u8"
-  "u16"
-  "u32"
-  "u64"
-  "s8"
-  "s16"
-  "s32"
-  "s64"
-  "f32"
-  "f64"
-  "float32" ; deprecated
-  "float64" ; deprecated
-  "char"
-  "bool"
-  "string"
-  "tuple"
-  "list"
-  "option"
-  "result"
-  "borrow"
+  "u8" "u16" "u32" "u64"
+  "s8" "s16" "s32" "s64"
+  "float32" "float64"
+  "char" "bool" "string"
 ] @type.builtin
 
 [
-  "@"
-  "_"
-] @punctuation.special
+  "list"
+  "option"
+  "result"
+  "tuple"
+  "future"
+  "stream"
+] @function.macro
+
+[ "," ":" ] @punctuation.delimiter
+[ "(" ")" "{" "}" "<" ">" ] @punctuation.bracket
+[ "=" "->" ] @operator
 
 [
-  "/"
-  ";"
-  ":"
-  ","
-  "."
-  "->"
-] @punctuation.delimiter
+  "record"
+  "flags"
+  "variant"
+  "enum"
+  "union"
+  "type"
+  "resource"
+] @keyword.storage.type
+
+"func" @keyword
 
 [
-  "{"
-  "}"
-  "("
-  ")"
-  ">"
-  "<"
-] @punctuation.bracket
+  "static"
+] @keyword.storage.modifier
 
-"=" @operator
+[
+  (star)
+  "use"
+  "as"
+  "from"
+] @keyword.control.import

@@ -1,25 +1,14 @@
-[
-  (local_var)
-  (global_var)
-] @variable
-
 (type) @type
-
 (type_keyword) @type.builtin
 
-(type
-  [
+(type [
     (local_var)
     (global_var)
   ] @type)
 
-(global_type
-  (local_var) @type.definition)
-
 (argument) @variable.parameter
 
-(_
-  inst_name: _ @keyword.operator)
+(_ inst_name: _ @keyword.operator)
 
 [
   "catch"
@@ -28,9 +17,11 @@
 
 [
   "to"
+  "nneg"
   "nuw"
   "nsw"
   "exact"
+  "disjoint"
   "unwind"
   "from"
   "cleanup"
@@ -38,26 +29,19 @@
   "volatile"
   "inbounds"
   "inrange"
-] @keyword
+  (icmp_cond)
+  (fcmp_cond)
+  (fast_math)
+] @keyword.control
 
-(icmp_cond) @keyword
-
-(fcmp_cond) @keyword
-
-(fast_math) @keyword
-
-(_
-  callee: _ @function)
-
-(function_header
-  name: _ @function)
+(_ callee: _ @function)
+(function_header name: _ @function)
 
 [
   "declare"
   "define"
+  (calling_conv)
 ] @keyword.function
-
-(calling_conv) @keyword.function
 
 [
   "target"
@@ -85,6 +69,10 @@
   "ifunc"
   "section"
   "comdat"
+  "thread_local"
+  "localdynamic"
+  "initialexec"
+  "localexec"
   "any"
   "exactmatch"
   "largest"
@@ -93,47 +81,37 @@
   "distinct"
   "attributes"
   "vscale"
+  "no_cfi"
+  (linkage_aux)
+  (dso_local)
+  (visibility)
+  (dll_storage_class)
+  (unnamed_addr)
+  (attribute_name)
 ] @keyword
 
-[
-  "no_cfi"
-  (dso_local)
-  (linkage_aux)
-  (visibility)
-] @keyword.modifier
 
-[
-  "thread_local"
-  "localdynamic"
-  "initialexec"
-  "localexec"
-  (unnamed_addr)
-  (dll_storage_class)
-] @keyword.modifier
-
-(attribute_name) @attribute
-
-(function_header
-  [
+(function_header [
     (linkage)
     (calling_conv)
     (unnamed_addr)
   ] @keyword.function)
 
-(number) @number
+[
+  (string)
+  (cstring)
+] @string
 
-(comment) @comment @spell
-
-(string) @string
-
-(cstring) @string
-
+(number) @constant.numeric.integer
+(comment) @comment
 (label) @label
+(_ inst_name: "ret" @keyword.control.return)
+(float) @constant.numeric.float
 
-(_
-  inst_name: "ret" @keyword.return)
-
-(float) @number.float
+[
+  (local_var)
+  (global_var)
+] @variable
 
 [
   (struct_value)
@@ -169,7 +147,7 @@
 [
   "true"
   "false"
-] @boolean
+] @constant.builtin.boolean
 
 [
   "undef"

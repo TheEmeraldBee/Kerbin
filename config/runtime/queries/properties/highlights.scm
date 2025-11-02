@@ -1,50 +1,40 @@
-(comment) @comment @spell
+(comment) @comment
 
-(key) @property
+(key) @attribute
 
 (value) @string
 
-(value
-  (escape) @string.escape)
+(value (escape) @constant.character.escape)
 
-((value) @boolean
-  (#any-of? @boolean "true" "false"))
+((index) @constant.numeric.integer
+  (#match? @constant.numeric.integer "^[0-9]+$"))
 
-((value) @number
-  (#lua-match? @number "^%d+$"))
+((substitution (key) @constant)
+  (#match? @constant "^[A-Z0-9_]+"))
 
-((index) @number
-  (#lua-match? @number "^%d+$"))
+((value) @constant.builtin.boolean
+  (#any-of? @constant.builtin.boolean "true" "false" "enabled" "disabled"))
 
-((substitution
-  (key) @constant)
-  (#lua-match? @constant "^[A-Z_][A-Z0-9_]*$"))
+((value) @constant.numeric.integer
+  (#match? @constant.numeric.integer "^-?[0-9]+$"))
+
+((value) @constant.numeric.float
+  (#match? @constant.numeric.float "^-?[0-9]+\.[0-9]$"))
+
+((value) @string.special.path
+  (#match? @string.special.path "^(\.{1,2})?/"))
 
 (substitution
   (key) @function
   "::" @punctuation.special
-  (secret) @constant.macro)
+  (secret) @string.special.symbol)
 
-(property
-  [
-    "="
-    ":"
-  ] @operator)
+(property [ "=" ":" ] @keyword.operator)
 
-[
-  "${"
-  "}"
-] @punctuation.special
+[ "${" "}" ] @punctuation.special
 
-(substitution
-  ":" @punctuation.special)
+(substitution ":" @punctuation.special)
 
-[
-  "["
-  "]"
-] @punctuation.bracket
+[ "[" "]" ] @punctuation.bracket
 
-[
-  "."
-  "\\"
-] @punctuation.delimiter
+[ "." "\\" ] @punctuation.delimiter

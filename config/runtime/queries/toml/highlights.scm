@@ -1,39 +1,48 @@
-(bare_key) @property
+; Properties
+;-----------
 
-[
-  (string)
+(table [
+  (bare_key)
+  (dotted_key)
   (quoted_key)
-] @string
+] @type)
 
-(boolean) @boolean
+(table_array_element [
+  (bare_key)
+  (dotted_key)
+  (quoted_key)
+] @type)
 
-(comment) @comment @spell
+(pair [
+  (bare_key)
+  (dotted_key)
+  (quoted_key)
+] @variable.other.member)
 
-(escape_sequence) @string.escape
+; Literals
+;---------
 
-(integer) @number
+(boolean) @constant.builtin.boolean
+(comment) @comment
+(string) @string
+(integer) @constant.numeric.integer
+(float) @constant.numeric.float
+(offset_date_time) @string.special
+(local_date_time) @string.special
+(local_date) @string.special
+(local_time) @string.special
 
-(float) @number.float
+; Punctuation
+;------------
 
-[
-  (local_date)
-  (local_date_time)
-  (local_time)
-  (offset_date_time)
-] @string.special
+"." @punctuation.delimiter
+"," @punctuation.delimiter
 
 "=" @operator
 
-[
-  "."
-  ","
-] @punctuation.delimiter
-
-[
-  "["
-  "]"
-  "[["
-  "]]"
-  "{"
-  "}"
-] @punctuation.bracket
+"[" @punctuation.bracket
+"]" @punctuation.bracket
+"[[" @punctuation.bracket
+"]]" @punctuation.bracket
+"{" @punctuation.bracket
+"}" @punctuation.bracket

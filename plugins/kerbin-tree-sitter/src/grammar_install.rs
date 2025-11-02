@@ -5,7 +5,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::grammar::GrammarDefinition;
+use crate::grammar::{GrammarDefinition, normalize_lang_name};
 
 #[derive(thiserror::Error, Debug)]
 pub enum GrammarInstallError {
@@ -34,11 +34,11 @@ pub enum GrammarInstallError {
 
 /// Cleans up the grammar directory after a successful build, keeping only the
 /// compiled library and query files.
-fn cleanup_grammar_directory(dir: &Path, lang_name: &str) -> io::Result<()> {
+fn cleanup_grammar_directory(dir: &Path, normalized_name: &str) -> io::Result<()> {
     let essential_files: Vec<String> = vec![
-        format!("{}.so", lang_name),
-        format!("{}.dll", lang_name),
-        format!("{}.dylib", lang_name),
+        format!("{}.so", normalized_name),
+        format!("{}.dll", normalized_name),
+        format!("{}.dylib", normalized_name),
     ];
 
     let query_dir_name = "queries";
@@ -68,6 +68,28 @@ fn cleanup_grammar_directory(dir: &Path, lang_name: &str) -> io::Result<()> {
     }
 
     Ok(())
+}
+
+/// Gets all possible variants of a name with -, _, and .
+fn get_name_variants(name: &str) -> Vec<String> {
+    let mut variants = vec![name.to_string()];
+
+    if name.contains('-') {
+        variants.push(name.replace('-', "_"));
+        variants.push(name.replace('-', "."));
+    }
+    if name.contains('_') {
+        variants.push(name.replace('_', "-"));
+        variants.push(name.replace('_', "."));
+    }
+    if name.contains('.') {
+        variants.push(name.replace('.', "-"));
+        variants.push(name.replace('.', "_"));
+    }
+
+    variants.sort();
+    variants.dedup();
+    variants
 }
 
 /// Installs a language based on the install config
@@ -102,6 +124,8 @@ pub fn install_language(
         .map(|sub| repo_clone_dir.join(sub))
         .unwrap_or_else(|| repo_clone_dir.clone());
 
+    // Use original name for directory, but normalized name for the .so file
+    let normalized_name = normalize_lang_name(&def.name);
     let final_grammar_dir = base_path.join(format!("tree-sitter-{}", def.name));
     let temp_final_dir = base_path.join(format!("tree-sitter-{}-{}", def.name, now_nanos));
 
@@ -144,32 +168,33 @@ pub fn install_language(
             });
         }
 
-        let initial_filename_so = format!(
-            "{}.so",
-            install_def.build_name.clone().unwrap_or(def.name.clone())
-        );
-        let initial_filename_dll = format!(
-            "{}.dll",
-            install_def.build_name.clone().unwrap_or(def.name.clone())
-        );
-        let initial_filename_dylib = format!(
-            "{}.dylib",
-            install_def.build_name.clone().unwrap_or(def.name.clone())
-        );
+        // Get the build name (might have -, _, or .)
+        let build_name = install_def.build_name.clone().unwrap_or(def.name.clone());
 
-        let lib_filename_so = format!("{}.so", def.name);
-        let lib_filename_dll = format!("{}.dll", def.name);
-        let lib_filename_dylib = format!("{}.dylib", def.name);
+        // Try all variants of the build name
+        let build_name_variants = get_name_variants(&build_name);
 
-        let (initial_compiled_lib_name, compiled_lib_name) = [
-            (initial_filename_so.clone(), lib_filename_so.clone()),
-            (initial_filename_dll.clone(), lib_filename_dll.clone()),
-            (initial_filename_dylib.clone(), lib_filename_dylib.clone()),
-        ]
-        .iter()
-        .find(|name| build_dir.join(&name.0).exists())
-        .ok_or_else(|| GrammarInstallError::NoSharedLibrary)?
-        .clone();
+        let mut found_lib = None;
+
+        for variant in &build_name_variants {
+            for ext in &["so", "dll", "dylib"] {
+                let filename = format!("{}.{}", variant, ext);
+                let path = build_dir.join(&filename);
+                if path.exists() {
+                    found_lib = Some((filename, ext.to_string()));
+                    break;
+                }
+            }
+            if found_lib.is_some() {
+                break;
+            }
+        }
+
+        let (initial_compiled_lib_name, ext) =
+            found_lib.ok_or_else(|| GrammarInstallError::NoSharedLibrary)?;
+
+        // Always use normalized name for the final library
+        let compiled_lib_name = format!("{}.{}", normalized_name, ext);
 
         fs::create_dir_all(&temp_final_dir)?;
 
@@ -193,7 +218,7 @@ pub fn install_language(
             }
         });
 
-        cleanup_grammar_directory(&temp_final_dir, &def.name)?;
+        cleanup_grammar_directory(&temp_final_dir, &normalized_name)?;
 
         // Atomic rename to final location
         if final_grammar_dir.exists() {

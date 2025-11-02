@@ -1,9 +1,12 @@
-(comment) @comment @spell
+(comment) @comment
 
 ; Different types:
-(string_value) @string @spell
+(string_value) @string
+(bool_value) @constant.builtin.boolean
 
-(escape_sequence) @string.escape
+; Constants
+
+(escape_sequence) @constant.character.escape
 
 (color_value) @constant
 
@@ -12,27 +15,25 @@
   (easing_kind_identifier)
 ] @constant.builtin
 
-(bool_value) @boolean
-
 [
   (int_value)
   (physical_length_value)
-] @number
+] @constant.numeric.integer
 
 [
-  (angle_value)
-  (duration_value)
   (float_value)
-  (length_value)
   (percent_value)
+  (length_value)
+  (duration_value)
+  (angle_value)
   (relative_font_size_value)
-] @number.float
+] @constant.numeric.float
 
-(purity) @keyword.modifier
+(purity) @keyword.storage.modifier
 
-(function_visibility) @keyword.modifier
+(function_visibility) @keyword.storage.modifier
 
-(property_visibility) @keyword.modifier
+(property_visibility) @keyword.storage.modifier
 
 (builtin_type_identifier) @type.builtin
 
@@ -46,9 +47,6 @@
   ]) @type
 
 (user_type_identifier) @type
-
-(enum_block
-  (user_type_identifier) @constant)
 
 ; Functions and callbacks
 (argument) @variable.parameter
@@ -66,11 +64,8 @@
 (callback_event
   name: (simple_identifier) @function.call)
 
-(component
-  id: (_) @variable)
-
 (enum_definition
-  name: (_) @type)
+  name: (_) @type.enum)
 
 (function_definition
   name: (_) @function)
@@ -103,12 +98,10 @@
   "<=>"
 ] @operator
 
-; Punctuation
 [
   ";"
   "."
   ","
-  ":"
 ] @punctuation.delimiter
 
 [
@@ -126,27 +119,27 @@
     ">"
   ] @punctuation.bracket)
 
-; Properties, Variables and Constants:
+; Properties, constants and variables
 (component
   id: (simple_identifier) @constant)
 
 (property
-  name: (simple_identifier) @property)
+  name: (simple_identifier) @variable)
 
 (binding_alias
-  name: (simple_identifier) @property)
+  name: (simple_identifier) @variable)
 
 (binding
-  name: (simple_identifier) @property)
+  name: (simple_identifier) @variable)
 
 (struct_block
-  (simple_identifier) @variable.member)
+  (simple_identifier) @variable.other.member)
 
 (anon_struct_block
-  (simple_identifier) @variable.member)
+  (simple_identifier) @variable.other.member)
 
 (property_assignment
-  property: (simple_identifier) @property)
+  property: (simple_identifier) @variable)
 
 (states_definition
   name: (simple_identifier) @variable)
@@ -158,20 +151,12 @@
   name: (_) @variable)
 
 (simple_indexed_identifier
-  name: (simple_identifier) @variable
-  index_var: (simple_identifier) @variable)
+  (simple_identifier) @variable)
 
 (expression
   (simple_identifier) @variable)
 
-(member_access
-  member: (expression
-    (simple_identifier) @property))
-
-(states_definition
-  name: (simple_identifier) @constant)
-
-; Attributes:
+; Attributes
 [
   (linear_gradient_identifier)
   (radial_gradient_identifier)
@@ -184,67 +169,67 @@
 (tr
   "@tr" @attribute)
 
-; Keywords:
+; Keywords
 (animate_option_identifier) @keyword
 
-(export) @keyword.import
+(export) @keyword.control.import
 
 (if_statement
-  "if" @keyword.conditional)
+  "if" @keyword.control.conditional)
 
 (if_expr
   [
     "if"
     "else"
-  ] @keyword.conditional)
+  ] @keyword.control.conditional)
 
 (ternary_expression
   [
     "?"
     ":"
-  ] @keyword.conditional.ternary)
+  ] @keyword.control.conditional)
 
 (animate_statement
   "animate" @keyword)
 
 (callback
-  "callback" @keyword)
+  "callback" @keyword.function)
 
 (component_definition
   [
     "component"
     "inherits"
-  ] @keyword)
+  ] @keyword.storage.type)
 
 (enum_definition
-  "enum" @keyword.type)
+  "enum" @keyword.storage.type)
 
 (for_loop
   [
     "for"
     "in"
-  ] @keyword.repeat)
+  ] @keyword.control.repeat)
 
 (function_definition
   "function" @keyword.function)
 
 (global_definition
-  "global" @keyword)
+  "global" @keyword.storage.type)
 
 (imperative_block
-  "return" @keyword.return)
+  "return" @keyword.control.return)
 
 (import_statement
   [
     "import"
     "from"
-  ] @keyword.import)
+  ] @keyword.control.import)
 
 (import_type
-  "as" @keyword.import)
+  "as" @keyword.control.import)
 
 (property
-  "property" @keyword)
+  "property" @keyword.storage.type)
 
 (states_definition
   [
@@ -253,7 +238,7 @@
   ] @keyword)
 
 (struct_definition
-  "struct" @keyword.type)
+  "struct" @keyword.storage.type)
 
 (transitions_definition
   [

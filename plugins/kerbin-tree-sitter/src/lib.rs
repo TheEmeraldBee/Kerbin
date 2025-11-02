@@ -2,6 +2,7 @@ use kerbin_core::*;
 
 use crate::{
     grammar::GrammarEntry, grammar_manager::GrammarManager, install_command::InstallCommand,
+    scope_info::ScopeInfoCommand,
 };
 
 pub mod grammar;
@@ -17,6 +18,8 @@ pub mod query_walker;
 pub mod highlighter;
 
 pub mod install_command;
+
+pub mod scope_info;
 
 pub async fn init(state: &mut State) {
     // Load grammars
@@ -52,6 +55,8 @@ pub async fn init(state: &mut State) {
 
         // Register command to install all grammars
         commands.register::<InstallCommand>();
+
+        commands.register::<ScopeInfoCommand>();
     }
 
     manager.register_extension_handlers(state).await;

@@ -1,157 +1,76 @@
-(comment) @comment @spell
+;; SPDX-License-Identifier: 0BSD
+;; SPDX-FileCopyrightText: 2022 Tobias Frilling
 
-[
-  "if"
-  "elif"
-] @keyword.conditional
+(comment) @comment
 
-(if
-  (else
-    "else" @keyword.conditional))
+(if "if" @keyword.control.conditional)
+(if (elif "elif" @keyword.control.conditional))
+(if (else "else" @keyword.control.conditional))
 
-[
-  "while"
-  "for"
-] @keyword.repeat
+(while "while" @keyword.control.repeat)
+(while (else "else" @keyword.control.repeat))
+(for "for" @keyword.control.repeat)
+(for (else "else" @keyword.control.repeat))
 
-(while
-  (else
-    "else" @keyword.repeat))
+(try "try" @keyword.control.exception)
+(try (catch "catch" @keyword.control.exception))
+(try (else "else" @keyword.control.exception))
+(try (finally "finally" @keyword.control.exception))
 
-(for
-  (else
-    "else" @keyword.repeat))
+(import "use" @keyword.control.import)
+(import (bareword) @string.special)
 
-[
-  "try"
-  "catch"
-  "finally"
-] @keyword.exception
+(wildcard ["*" "**" "?"] @string.special)
 
-(try
-  (else
-    "else" @keyword.exception))
+(command argument: (bareword) @variable.parameter)
+(command head: (identifier) @function)
+((command head: (identifier) @keyword.control.return)
+ (#eq? @keyword.control.return "return"))
+((command (identifier) @keyword.operator)
+ (#match? @keyword.operator "(and|or|coalesce)"))
+((command head: _ @function)
+ (#match? @function "([+]|[-]|[*]|[/]|[%]|[<]|[<][=]|[=][=]|[!][=]|[>]|[>][=]|[<][s]|[<][=][s]|[=][=][s]|[!][=][s]|[>][s]|[>][=][s])"))
 
-"use" @keyword.import
+(pipeline "|" @operator)
+(redirection [">" "<" ">>" "<>"] @operator)
 
-(import
-  (bareword) @string.special.path)
-
-(wildcard
-  [
-    "*"
-    "**"
-    "?"
-  ] @character.special)
-
-(command
-  argument: (bareword) @variable.parameter)
-
-(command
-  head: (identifier) @function.call)
-
-((command
-  head: (identifier) @keyword.return)
-  (#eq? @keyword.return "return"))
-
-((command
-  (identifier) @keyword.operator)
-  (#any-of? @keyword.operator "and" "or" "coalesce"))
-
-[
-  "+"
-  "-"
-  "*"
-  "/"
-  "%"
-  "<"
-  "<="
-  "=="
-  "!="
-  ">"
-  ">="
-  "<s"
-  "<=s"
-  "==s"
-  "!=s"
-  ">s"
-  ">=s"
-] @function.builtin
-
-[
-  ">"
-  "<"
-  ">>"
-  "<>"
-  "|"
-] @operator
-
-(io_port) @number
+(io_port) @constant.numeric
 
 (function_definition
   "fn" @keyword.function
   (identifier) @function)
 
 (parameter_list) @variable.parameter
-
-(parameter_list
-  "|" @punctuation.bracket)
-
-[
-  "var"
-  "set"
-  "tmp"
-  "del"
-] @keyword
+(parameter_list "|" @punctuation.bracket)
 
 (variable_declaration
-  (lhs
-    (identifier) @variable))
+  "var" @keyword
+  (lhs (identifier) @variable))
 
 (variable_assignment
-  (lhs
-    (identifier) @variable))
+  "set" @keyword
+  (lhs (identifier) @variable))
 
 (temporary_assignment
-  (lhs
-    (identifier) @variable))
+  "tmp" @keyword
+  (lhs (identifier) @variable))
 
 (variable_deletion
+  "del" @keyword
   (identifier) @variable)
 
-(number) @number
 
+(number) @constant.numeric
 (string) @string
 
-(variable
-  (identifier) @variable)
+(variable (identifier) @variable)
+((variable (identifier) @function)
+  (#match? @function ".+\\~$"))
+((variable (identifier) @constant.builtin.boolean)
+ (#match? @constant.builtin.boolean "(true|false)"))
+((variable (identifier) @constant.builtin)
+ (#match? @constant.builtin "(_|after-chdir|args|before-chdir|buildinfo|nil|notify-bg-job-success|num-bg-jobs|ok|paths|pid|pwd|value-out-indicator|version)"))
 
-((variable
-  (identifier) @function)
-  (#lua-match? @function ".+[~]$"))
-
-((variable
-  (identifier) @boolean)
-  (#any-of? @boolean "true" "false"))
-
-((variable
-  (identifier) @constant.builtin)
-  (#any-of? @constant.builtin
-    "_" "after-chdir" "args" "before-chdir" "buildinfo" "nil" "notify-bg-job-success" "num-bg-jobs"
-    "ok" "paths" "pid" "pwd" "value-out-indicator" "version"))
-
-[
-  "$"
-  "@"
-] @punctuation.special
-
-[
-  "("
-  ")"
-  "["
-  "]"
-  "{"
-  "}"
-] @punctuation.bracket
-
+["$" "@"] @punctuation.special
+["(" ")" "[" "]" "{" "}"] @punctuation.bracket
 ";" @punctuation.delimiter

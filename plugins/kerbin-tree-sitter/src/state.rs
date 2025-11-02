@@ -3,7 +3,7 @@ use tree_sitter::{Parser, Tree};
 
 use crate::{
     grammar_manager::GrammarManager,
-    highlighter::{HighlightEvent, Highlighter},
+    highlighter::{Highlighter, merge_overlapping_spans},
     query_walker::QueryWalker,
 };
 
@@ -27,6 +27,7 @@ fn translate_name_to_style(theme: &Theme, mut name: &str) -> ContentStyle {
 pub struct InjectedTree {
     pub lang: String,
     pub tree: Tree,
+    pub byte_range: std::ops::Range<usize>,
 }
 
 /// A state stored in each buffer with the state of tree-sitter
@@ -231,38 +232,20 @@ pub async fn open_files(
         return;
     };
 
-    let events = highlighter.events();
+    let spans = highlighter.collect_spans();
 
     let renderer = &mut buf.renderer;
     renderer.clear_extmark_ns("tree-sitter::highlights");
 
-    // Stack tracks (capture_name, start_byte_pos)
-    let mut style_stack: Vec<(String, usize)> = Vec::new();
+    for span in merge_overlapping_spans(spans) {
+        let hl_style = translate_name_to_style(&theme, &span.capture_name);
 
-    for event in events {
-        match event {
-            HighlightEvent::Push {
-                byte_pos,
-                capture_name,
-            } => {
-                // Push the new highlight onto the stack with its start position
-                style_stack.push((capture_name, byte_pos));
-            }
-            HighlightEvent::Pop { byte_pos } => {
-                // Pop and create the extmark with the complete range
-                if let Some((capture_name, start_pos)) = style_stack.pop() {
-                    // Get the style for this capture name
-                    let hl_style = translate_name_to_style(&theme, &capture_name);
-
-                    renderer.add_extmark_range(
-                        "tree-sitter::highlights",
-                        start_pos..byte_pos,
-                        1,
-                        vec![ExtmarkDecoration::Highlight { hl: hl_style }],
-                    );
-                }
-            }
-        }
+        renderer.add_extmark_range(
+            "tree-sitter::highlights",
+            span.byte_range.clone(),
+            span.priority as i32,
+            vec![ExtmarkDecoration::Highlight { hl: hl_style }],
+        );
     }
 }
 
@@ -282,7 +265,7 @@ fn load_injected_trees(
         return injected_trees;
     };
 
-    // Find capture indices for injection.language and injection.content
+    // Capture indices for injection.language and injection.content
     let lang_capture_idx = injections_query
         .capture_names()
         .iter()
@@ -294,27 +277,37 @@ fn load_injected_trees(
         .position(|name| *name == "injection.content");
 
     // Use QueryWalker to find all injection matches
-    let mut walker = QueryWalker::new(state, rope, injections_query);
+    let mut walker = QueryWalker::new(state, rope, injections_query.clone());
 
     walker.walk(|entry| {
-        let mut injection_lang = None;
+        let mut injection_lang: Option<String> = None;
         let mut content_nodes = Vec::new();
 
-        // Extract language and content from captures
         for capture in entry.query_match.captures {
             if Some(capture.index as usize) == lang_capture_idx {
-                // Get the language name from the node text
+                // Try to extract the language name from the node text
                 let start_byte = capture.node.start_byte();
                 let end_byte = capture.node.end_byte();
-                if let Some(lang_text) = rope.slice(start_byte..end_byte).as_str() {
-                    injection_lang = Some(lang_text.to_string());
-                }
+                let text = rope.slice(start_byte..end_byte).to_string();
+                injection_lang = Some(text.trim_matches('"').to_string());
             } else if Some(capture.index as usize) == content_capture_idx {
                 content_nodes.push(capture.node);
             }
         }
 
-        // If we have both language and content, try to parse the injection
+        if injection_lang.is_none() {
+            for prop in injections_query.property_settings(entry.query_match.pattern_index) {
+                if prop.key.as_ref() == "injection.language" {
+                    injection_lang = Some(
+                        prop.value
+                            .as_ref()
+                            .map(|x| x.to_string())
+                            .unwrap_or_default(),
+                    );
+                }
+            }
+        }
+
         if let Some(inj_lang) = injection_lang {
             for content_node in content_nodes {
                 match parse_injection(grammars, config_path, &inj_lang, content_node, rope) {
@@ -382,5 +375,6 @@ fn parse_injection(
     Ok(InjectedTree {
         lang: lang.to_string(),
         tree,
+        byte_range: start_byte..end_byte,
     })
 }

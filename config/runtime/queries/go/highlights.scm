@@ -1,23 +1,24 @@
-; Forked from tree-sitter-go
-; Copyright (c) 2014 Max Brunsfeld (The MIT License)
-;
+
 ; Identifiers
-(type_identifier) @type
 
-(type_spec
-  name: (type_identifier) @type.definition)
-
-(field_identifier) @property
+(field_identifier) @variable.other.member
 
 (identifier) @variable
 
-(package_identifier) @module
+(package_identifier) @namespace
 
-(parameter_declaration
-  (identifier) @variable.parameter)
+(const_spec
+  name: (identifier) @constant)
 
-(variadic_parameter_declaration
-  (identifier) @variable.parameter)
+(type_spec
+  name: (type_identifier) @constructor)
+
+(keyed_element . (literal_element (identifier) @variable.other.member))
+(field_declaration
+  name: (field_identifier) @variable.other.member)
+
+(parameter_declaration (identifier) @variable.parameter)
+(variadic_parameter_declaration (identifier) @variable.parameter)
 
 (label_name) @label
 
@@ -25,14 +26,31 @@
   name: (identifier) @constant)
 
 ; Function calls
+
 (call_expression
-  function: (identifier) @function.call)
+  function: (identifier) @function)
 
 (call_expression
   function: (selector_expression
-    field: (field_identifier) @function.method.call))
+    field: (field_identifier) @function.method))
+
+(call_expression
+  function: (identifier) @function.builtin
+  (#match? @function.builtin "^(append|cap|close|complex|copy|delete|imag|len|make|new|panic|print|println|real|recover|min|max|clear)$"))
+
+; Types
+
+(type_identifier) @type
+
+(type_parameter_list
+  (type_parameter_declaration
+    name: (identifier) @type.parameter))
+
+((type_identifier) @type.builtin
+  (#match? @type.builtin "^(any|bool|byte|comparable|complex128|complex64|error|float32|float64|int|int16|int32|int64|int8|rune|string|uint|uint16|uint32|uint64|uint8|uintptr)$"))
 
 ; Function definitions
+
 (function_declaration
   name: (identifier) @function)
 
@@ -42,16 +60,8 @@
 (method_elem
   name: (field_identifier) @function.method)
 
-; Constructors
-((call_expression
-  (identifier) @constructor)
-  (#lua-match? @constructor "^[nN]ew.+$"))
-
-((call_expression
-  (identifier) @constructor)
-  (#lua-match? @constructor "^[mM]ake.+$"))
-
 ; Operators
+
 [
   "--"
   "-"
@@ -68,8 +78,6 @@
   "&"
   "&&"
   "&="
-  "&^"
-  "&^="
   "%"
   "%="
   "^"
@@ -91,164 +99,138 @@
   "|"
   "|="
   "||"
+  "&^"
+  "&^="
   "~"
 ] @operator
 
 ; Keywords
+
 [
-  "break"
-  "const"
-  "continue"
   "default"
-  "defer"
-  "goto"
-  "range"
-  "select"
-  "var"
-  "fallthrough"
+  "type"
 ] @keyword
 
 [
-  "type"
-  "struct"
-  "interface"
-] @keyword.type
+  "defer"
+  "go"
+  "goto"
+] @keyword.control
 
-"func" @keyword.function
+[
+  "if"
+  "else"
+  "switch"
+  "select"
+  "case"
+] @keyword.control.conditional
 
-"return" @keyword.return
-
-"go" @keyword.coroutine
-
-"for" @keyword.repeat
+[
+  "for"
+  "range"
+] @keyword.control.repeat
 
 [
   "import"
   "package"
-] @keyword.import
+] @keyword.control.import
 
 [
-  "else"
-  "case"
-  "switch"
-  "if"
-] @keyword.conditional
+  "return"
+  "continue"
+  "break"
+  "fallthrough"
+] @keyword.control.return
 
-; Builtin types
 [
+  "func"
+] @keyword.function
+
+[
+  "var"
   "chan"
+  "interface"
   "map"
-] @type.builtin
+  "struct"
+] @keyword.storage.type
 
-((type_identifier) @type.builtin
-  (#any-of? @type.builtin
-    "any" "bool" "byte" "comparable" "complex128" "complex64" "error" "float32" "float64" "int"
-    "int16" "int32" "int64" "int8" "rune" "string" "uint" "uint16" "uint32" "uint64" "uint8"
-    "uintptr"))
-
-; Builtin functions
-((identifier) @function.builtin
-  (#any-of? @function.builtin
-    "append" "cap" "clear" "close" "complex" "copy" "delete" "imag" "len" "make" "max" "min" "new"
-    "panic" "print" "println" "real" "recover"))
+[
+  "const"
+] @keyword.storage.modifier
 
 ; Delimiters
-"." @punctuation.delimiter
 
-"," @punctuation.delimiter
+[
+  ":"
+  "."
+  ","
+  ";"
+] @punctuation.delimiter
 
-":" @punctuation.delimiter
-
-";" @punctuation.delimiter
-
-"(" @punctuation.bracket
-
-")" @punctuation.bracket
-
-"{" @punctuation.bracket
-
-"}" @punctuation.bracket
-
-"[" @punctuation.bracket
-
-"]" @punctuation.bracket
+[
+  "("
+  ")"
+  "["
+  "]"
+  "{"
+  "}"
+] @punctuation.bracket
 
 ; Literals
-(interpreted_string_literal) @string
 
-(raw_string_literal) @string
+[
+  (interpreted_string_literal)
+  (raw_string_literal)
+] @string
 
-(rune_literal) @string
+(rune_literal) @constant.character
 
-(escape_sequence) @string.escape
+(escape_sequence) @constant.character.escape
 
-(int_literal) @number
+[
+  (int_literal)
+] @constant.numeric.integer
 
-(float_literal) @number.float
-
-(imaginary_literal) @number
+[
+  (float_literal)
+  (imaginary_literal)
+] @constant.numeric.float
 
 [
   (true)
   (false)
-] @boolean
+] @constant.builtin.boolean
 
 [
   (nil)
   (iota)
 ] @constant.builtin
 
-(keyed_element
-  .
-  (literal_element
-    (identifier) @variable.member))
-
-(field_declaration
-  name: (field_identifier) @variable.member)
-
 ; Comments
-(comment) @comment @spell
+
+(comment) @comment
 
 ; Doc Comments
 (source_file
   .
-  (comment)+ @comment.documentation)
+  (comment)+ @comment.block.documentation)
 
 (source_file
-  (comment)+ @comment.documentation
+  (comment)+ @comment.block.documentation
   .
   (const_declaration))
 
 (source_file
-  (comment)+ @comment.documentation
+  (comment)+ @comment.block.documentation
   .
   (function_declaration))
 
 (source_file
-  (comment)+ @comment.documentation
+  (comment)+ @comment.block.documentation
   .
   (type_declaration))
 
 (source_file
-  (comment)+ @comment.documentation
+  (comment)+ @comment.block.documentation
   .
   (var_declaration))
-
-; Spell
-((interpreted_string_literal) @spell
-  (#not-has-parent? @spell import_spec))
-
-; Regex
-(call_expression
-  (selector_expression) @_function
-  (#any-of? @_function
-    "regexp.Match" "regexp.MatchReader" "regexp.MatchString" "regexp.Compile" "regexp.CompilePOSIX"
-    "regexp.MustCompile" "regexp.MustCompilePOSIX")
-  (argument_list
-    .
-    [
-      (raw_string_literal
-        (raw_string_literal_content) @string.regexp)
-      (interpreted_string_literal
-        (interpreted_string_literal_content) @string.regexp)
-    ]))

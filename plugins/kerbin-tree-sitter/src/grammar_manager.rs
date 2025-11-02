@@ -4,7 +4,10 @@ use kerbin_core::{kerbin_macros::State, *};
 use tree_sitter::Query;
 
 use crate::{
-    grammar::{Grammar, GrammarDefinition, GrammarEntry, GrammarLoadError, find_library},
+    grammar::{
+        Grammar, GrammarDefinition, GrammarEntry, GrammarLoadError, find_library,
+        normalize_lang_name,
+    },
     grammar_install::install_language,
     state::TreeSitterState,
 };
@@ -20,13 +23,13 @@ pub enum GrammarManagerError {
 
 #[derive(State, Default)]
 pub struct GrammarManager {
-    /// A list of extensions that map to language names (Case-Insensitive)
+    /// A list of extensions that map to normalized language names (Case-Insensitive)
     pub ext_map: HashMap<String, String>,
 
-    /// A map of languages to their definitions
+    /// A map of normalized languages to their definitions
     pub lang_map: HashMap<String, GrammarDefinition>,
 
-    /// A map of languages to their **possibly** loaded grammars
+    /// A map of normalized languages to their **possibly** loaded grammars
     pub loaded_grammars: HashMap<String, Arc<Grammar>>,
 
     pub query_map: HashMap<String, HashMap<String, Arc<Query>>>,
@@ -54,9 +57,9 @@ impl GrammarManager {
         let mut to_load = vec![];
 
         for grammar in self.lang_map.values() {
-            let lib_path = grammar.get_file_path(&config_path);
+            let lib_paths = grammar.get_file_paths(&config_path);
 
-            if find_library(&lib_path).is_none() {
+            if find_library(&lib_paths).is_none() {
                 // Clone to allow for threading
                 to_load.push(grammar.clone());
             }
@@ -110,11 +113,13 @@ impl GrammarManager {
         for entry in entries {
             match entry {
                 GrammarEntry::Definition(def) => {
+                    let normalized = normalize_lang_name(&def.name);
+
                     for ext in &def.exts {
-                        ret.ext_map.insert(ext.to_lowercase(), def.name.clone());
+                        ret.ext_map.insert(ext.to_lowercase(), normalized.clone());
                     }
 
-                    ret.lang_map.insert(def.name.clone(), def);
+                    ret.lang_map.insert(normalized, def);
                 }
                 GrammarEntry::Alias {
                     base_lang,
@@ -126,7 +131,10 @@ impl GrammarManager {
 
         // all entries are created, lets build the aliases now
         for (lang, new, exts) in aliases {
-            let Some(mut new_grammar) = ret.lang_map.get(&lang).cloned() else {
+            let normalized_lang = normalize_lang_name(&lang);
+            let normalized_new = normalize_lang_name(&new);
+
+            let Some(mut new_grammar) = ret.lang_map.get(&normalized_lang).cloned() else {
                 return Err((
                     ret,
                     GrammarManagerError::MissingDefinition { lang: lang.clone() },
@@ -135,31 +143,35 @@ impl GrammarManager {
 
             new_grammar.exts = exts.clone();
 
-            ret.lang_map.insert(new, new_grammar);
+            ret.lang_map.insert(normalized_new.clone(), new_grammar);
 
             for ext in exts {
-                ret.ext_map.insert(ext.to_lowercase(), lang.clone());
+                ret.ext_map
+                    .insert(ext.to_lowercase(), normalized_new.clone());
             }
         }
 
         Ok(ret)
     }
 
-    /// Translates an extension into a language string, returning None if non-existant
+    /// Translates an extension into a normalized language string, returning None if non-existent
     pub fn ext_to_lang(&self, ext: &str) -> Option<&str> {
         self.ext_map.get(ext).map(|x| x.as_str())
     }
 
     /// Attempts to return a grammar, attempting to load it if it isn't already
+    /// Accepts any variant of the language name (with -, _, or .)
     pub fn get_grammar(
         &mut self,
         config_path: &str,
         lang: &str,
     ) -> Result<Arc<Grammar>, GrammarManagerError> {
-        if self.loaded_grammars.contains_key(lang) {
+        let normalized = normalize_lang_name(lang);
+
+        if self.loaded_grammars.contains_key(&normalized) {
             return Ok(self
                 .loaded_grammars
-                .get(lang)
+                .get(&normalized)
                 .cloned()
                 .expect("Grammar just checked for existing"));
         }
@@ -167,7 +179,7 @@ impl GrammarManager {
         // Not found, load it here
         let def = self
             .lang_map
-            .get(lang)
+            .get(&normalized)
             .ok_or(GrammarManagerError::MissingDefinition {
                 lang: lang.to_string(),
             })?;
@@ -175,10 +187,10 @@ impl GrammarManager {
         let grammar = Grammar::from_def(config_path, def)?;
 
         self.loaded_grammars
-            .insert(lang.to_string(), Arc::new(grammar));
+            .insert(normalized.clone(), Arc::new(grammar));
         Ok(self
             .loaded_grammars
-            .get(lang)
+            .get(&normalized)
             .cloned()
             .expect("Just inserted language"))
     }
@@ -202,24 +214,53 @@ impl GrammarManager {
         Some((query, injected_queries))
     }
 
+    /// Gets all possible query file paths for a language, trying all variants
+    fn get_query_paths(
+        &self,
+        config_path: &str,
+        normalized_lang: &str,
+        query_name: &str,
+    ) -> Vec<String> {
+        let mut paths = Vec::new();
+
+        // Get all name variants (with -, _, .)
+        let variants = get_name_variants(normalized_lang);
+
+        for variant in variants {
+            paths.push(format!(
+                "{}/runtime/grammars/tree-sitter-{}/queries/{}.scm",
+                config_path, variant, query_name
+            ));
+            paths.push(format!(
+                "{}/runtime/queries/{}/{}.scm",
+                config_path, variant, query_name
+            ));
+        }
+
+        paths
+    }
+
     /// Gets or loads a query for a specific language
+    /// Accepts any variant of the language name (with -, _, or .)
     pub fn get_query(
         &mut self,
         config_path: &str,
         lang: &str,
         query_name: &str,
     ) -> Option<Arc<Query>> {
+        let normalized = normalize_lang_name(lang);
+
         // Check if query already exists for this language
-        if self.query_map.contains_key(lang)
+        if self.query_map.contains_key(&normalized)
             && self
                 .query_map
-                .get(lang)
+                .get(&normalized)
                 .expect("Lang was just checked to exist")
                 .contains_key(query_name)
         {
             return Some(
                 self.query_map
-                    .get(lang)
+                    .get(&normalized)
                     .expect("Lang was just checked to exist")
                     .get(query_name)
                     .cloned()
@@ -228,19 +269,10 @@ impl GrammarManager {
         }
 
         // Get the grammar (may need to load it)
-        let grammar = self.get_grammar(config_path, lang).ok()?;
+        let grammar = self.get_grammar(config_path, &normalized).ok()?;
 
-        // Try to load the query from filesystem
-        let query_paths = [
-            format!(
-                "{}/runtime/grammars/{}/queries/{}.scm",
-                config_path, grammar.name, query_name
-            ),
-            format!(
-                "{}/runtime/queries/{}/{}.scm",
-                config_path, grammar.name, query_name
-            ),
-        ];
+        // Try to load the query from filesystem, checking all variants
+        let query_paths = self.get_query_paths(config_path, &normalized, query_name);
 
         let query_source = query_paths
             .iter()
@@ -248,13 +280,27 @@ impl GrammarManager {
 
         let query = Query::new(&grammar.lang, &query_source).ok()?;
 
-        // Insert into query_map
+        // Insert into query_map using normalized name
         self.query_map
-            .entry(lang.to_string())
+            .entry(normalized.clone())
             .or_insert_with(HashMap::new)
             .insert(query_name.to_string(), Arc::new(query));
 
         // Return reference to the inserted query
-        self.query_map.get(lang)?.get(query_name).cloned()
+        self.query_map.get(&normalized)?.get(query_name).cloned()
     }
+}
+
+/// Gets all possible variants of a name with -, _, and .
+fn get_name_variants(name: &str) -> Vec<String> {
+    let mut variants = vec![name.to_string()];
+
+    if name.contains('_') {
+        variants.push(name.replace('_', "-"));
+        variants.push(name.replace('_', "."));
+    }
+
+    variants.sort();
+    variants.dedup();
+    variants
 }

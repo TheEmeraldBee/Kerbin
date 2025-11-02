@@ -1,19 +1,19 @@
 [[keybind]]
 modes = []
 keys = ["o"]
-commands = ["start_change", "sle false", "gse", "sc", "ts_nl", "gse", "sc", "pm i"]
+commands = ["start_change", "sle false", "gse", "sc", "a '\n' false", "gse", "sc", "pm i"]
 desc = "Start insert at new line"
 
 [[keybind]]
 modes = []
 keys = ["shift-o"]
-commands = ["start_change", "ml -1", "sle false", "gse", "sc", "ts_nl", "gse", "sc", "pm i"]
+commands = ["start_change", "ml -1", "sle false", "gse", "sc", "a '\n' false", "gse", "sc", "pm i"]
 desc = "Start insert at new line before"
 
 [[keybind]]
 modes = ["i"]
 keys = ["enter"]
-commands = ["ts_nl", "gse", "sc"]
+commands = ["a '\n' false"]
 desc = "Insert Newline"
 
 [[keybind]]

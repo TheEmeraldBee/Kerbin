@@ -1,12 +1,7 @@
-[
-  "BEGIN"
-  "END"
-] @keyword
+(label) @constant
 
-(dashes) @punctuation.delimiter
+(preeb) @keyword
+(posteb) @keyword
 
-(label) @label
-
-(data) @none
-
-(comment) @comment @spell
+(base64pad) @string.special.symbol
+(laxbase64text) @string

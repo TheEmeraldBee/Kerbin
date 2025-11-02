@@ -1,87 +1,105 @@
-; inherits: css
+[(comment) (single_line_comment)] @comment
 
 [
+ "~"
+ ">"
+ "+"
+ "-"
+ "*"
+ "/"
+ "="
+ "^="
+ "|="
+ "~="
+ "$="
+ "*="
+] @operator
+
+[
+  "in"
+  "and"
+  "or"
+  "not"
+  "only"
+] @operator.control
+
+[
+  "@apply"
   "@at-root"
+  "@charset"
   "@debug"
   "@error"
   "@extend"
-  "@forward"
+  "@keyframes"
+  "@media"
   "@mixin"
-  "@use"
+  "@supports"
   "@warn"
-] @keyword
-
-"@function" @keyword.function
-
-"@return" @keyword.return
-
-"@include" @keyword.import
+] @constant.builtin
 
 [
-  "@while"
+  "@import"
+  "@include"
+  "@forward"
+  "@use"
+] @keyword.control.import
+
+[
+  "@if"
+  "@else"
+] @keyword.control.conditional
+
+[
   "@each"
   "@for"
-  "from"
-  "through"
-  "in"
-] @keyword.repeat
+  "@while"
+] @keyword.control.repeat
 
-(single_line_comment) @comment @spell
+"@return" @keyword.control.return
+
+"@function" @function.method
+"@namespace" @namespace
+
+(property_name) @variable.other.member
+
+((property_name) @variable
+ (#match? @variable "^--"))
+((plain_value) @variable
+ (#match? @variable "^--"))
+
+(tag_name) @tag
+(universal_selector) @tag
+(attribute_selector (plain_value) @string)
+(nesting_selector) @variable.other.member
+(pseudo_element_selector) @attribute
+(pseudo_class_selector) @attribute
+
+(identifier) @variable
+(class_name) @label
+(id_name) @label
+(namespace_name) @namespace
+
+(feature_name) @variable.other.member
+(variable) @variable
+(variable_name) @variable.other.member
+(variable_value) @variable.other.member
+(argument_name) @variable.parameter
+(selectors) @variable.other.member
+
+(attribute_name) @attribute
 
 (function_name) @function
 
-[
-  ">="
-  "<="
-] @operator
+(to) @keyword
+(from) @keyword
+(important) @keyword
 
-(mixin_statement
-  (name) @function)
+(string_value) @string
+(color_value) @string.special
 
-(mixin_statement
-  (parameters
-    (parameter) @variable.parameter))
+(integer_value) @constant.numeric.integer
+(float_value) @constant.numeric.float
+(unit) @type
 
-(function_statement
-  (name) @function)
-
-(function_statement
-  (parameters
-    (parameter) @variable.parameter))
-
-(plain_value) @string
-
-(keyword_query) @function
-
-(identifier) @variable
-
-(variable_name) @variable
-
-(each_statement
-  (key) @variable.parameter)
-
-(each_statement
-  (value) @variable.parameter)
-
-(each_statement
-  (variable_value) @variable.parameter)
-
-(for_statement
-  (variable) @variable.parameter)
-
-(for_statement
-  (_
-    (variable_value) @variable.parameter))
-
-(argument) @variable.parameter
-
-(arguments
-  (variable_value) @variable.parameter)
-
-[
-  "["
-  "]"
-] @punctuation.bracket
-
-(include_statement
-  (identifier) @function)
+"#" @punctuation.delimiter
+"," @punctuation.delimiter

@@ -1,38 +1,10 @@
-[
-  "@media"
-  "@charset"
-  "@namespace"
-  "@supports"
-  "@keyframes"
-  (at_keyword)
-] @keyword.directive
-
-"@import" @keyword.import
+(comment) @comment
 
 [
-  (to)
-  (from)
-] @keyword
-
-(comment) @comment @spell
-
-(tag_name) @tag
-
-(class_name) @type
-
-(id_name) @constant
-
-[
-  (property_name)
-  (feature_name)
-] @property
-
-[
+  (tag_name)
   (nesting_selector)
   (universal_selector)
-] @character.special
-
-(function_name) @function
+] @tag
 
 [
   "~"
@@ -51,59 +23,77 @@
 
 [
   "and"
-  "or"
   "not"
   "only"
+  "or"
 ] @keyword.operator
 
-(important) @keyword.modifier
+(attribute_selector (plain_value) @string)
 
-(attribute_selector
-  (plain_value) @string)
-
-(pseudo_element_selector
-  "::"
-  (tag_name) @attribute)
-
-(pseudo_class_selector
-  (class_name) @attribute)
-
-(attribute_name) @tag.attribute
-
-(namespace_name) @module
-
-(keyframes_name) @variable
+(property_name) @variable.other.member
+(plain_value) @constant
 
 ((property_name) @variable
-  (#lua-match? @variable "^[-][-]"))
-
+  (#match? @variable "^--"))
 ((plain_value) @variable
-  (#lua-match? @variable "^[-][-]"))
+  (#match? @variable "^--"))
+
+(class_name) @label
+(feature_name) @variable.other.member
+(function_name) @function
+(id_name) @label
+(namespace_name) @namespace
+
+(attribute_name) @attribute
+(pseudo_element_selector (tag_name) @attribute)
+(pseudo_class_selector (class_name) @attribute)
 
 [
-  (string_value)
-  (color_value)
+  "@charset"
+  "@import"
+  "@keyframes"
+  "@media"
+  "@namespace"
+  "@supports"
+  (at_keyword)
+  (from)
+  (important)
+  (to)
+  (keyword_query)
+  (keyframes_name)
   (unit)
-] @string
+] @keyword
 
-(integer_value) @number
-
-(float_value) @number.float
+; @apply something;
+(at_rule
+  . (at_keyword) @keyword
+  . (keyword_query) @constant
+  (#eq? @keyword "@apply"))
 
 [
   "#"
-  ","
   "."
-  ":"
-  "::"
-  ";"
-] @punctuation.delimiter
+] @punctuation
+
+(string_value) @string
+(color_value "#" @string.special)
+(color_value) @string.special
+
+(integer_value) @constant.numeric.integer
+(float_value) @constant.numeric.float
 
 [
-  "{"
   ")"
   "("
-  "}"
   "["
   "]"
+  "{"
+  "}"
 ] @punctuation.bracket
+
+[
+  ","
+  ";"
+  ":"
+  "::"
+] @punctuation.delimiter

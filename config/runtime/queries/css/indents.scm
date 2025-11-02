@@ -1,11 +1,7 @@
 [
   (block)
-  (declaration)
-] @indent.begin
+] @indent
 
-(block
-  "}" @indent.branch)
-
-"}" @indent.dedent
-
-(comment) @indent.ignore
+[
+ "}"
+] @outdent

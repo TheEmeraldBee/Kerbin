@@ -1,31 +1,10 @@
-; Let Binding Definition
-(let
-  pattern: (identifier) @local.definition)
+; Scopes
+(function) @local.scope
 
-; List Pattern Definitions
-(list_pattern
-  (identifier) @local.definition)
+(case_clause) @local.scope
 
-(list_pattern
-  assign: (identifier) @local.definition)
-
-; Tuple Pattern Definition
-(tuple_pattern
-  (identifier) @local.definition)
-
-; Record Pattern Definition
-(record_pattern_argument
-  pattern: (identifier) @local.definition)
-
-; Function Parameter Definition
-(function_parameter
-  name: (identifier) @local.definition)
+; Definitions
+(function_parameter name: (identifier) @local.definition.variable.parameter)
 
 ; References
 (identifier) @local.reference
-
-; Block Scope
-(block) @local.scope
-
-; Case Scope
-(case_clause) @local.scope

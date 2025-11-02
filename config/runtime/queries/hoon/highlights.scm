@@ -1,4 +1,4 @@
-(number) @number
+(number) @constant.numeric
 
 (string) @string
 
@@ -7,29 +7,26 @@
   ")"
   "["
   "]"
-] @punctuation.bracket
+]  @punctuation.bracket
 
 [
   (coreTerminator)
   (seriesTerminator)
 ] @punctuation.delimiter
 
-(rune) @operator
+
+(rune) @keyword
 
 (term) @constant
 
 (aura) @constant.builtin
 
-(lineComment) @comment
+(Gap) @comment
 
 (boolean) @constant.builtin
 
-(date) @string.special
-
-(mold) @string.special.symbol
-
-(specialIndex) @number
-
+(date) @constant.builtin
+(mold) @constant.builtin
+(specialIndex) @constant.builtin
 (lark) @operator
-
-(fullContext) @string.special.symbol
+(fullContext) @constant.builtin

@@ -1,76 +1,97 @@
 ; A highlight file for nvim-treesitter to use
-[
-  (pod_command)
-  (command)
-  (cut_command)
-] @keyword
 
-((command_paragraph
-  (command) @keyword
-  (content) @string)
-  (#set! priority 99))
+[(pod_command)
+ (command)
+ (cut_command)] @keyword
 
 (command_paragraph
   (command) @keyword
-  (#lua-match? @keyword "^=head")
-  (content) @markup.heading)
+  (#eq? @keyword "=head1")
+  (content) @markup.heading.1)
 
 (command_paragraph
   (command) @keyword
-  (#lua-match? @keyword "^=over")
-  (content) @number)
+  (#eq? @keyword "=head2")
+  (content) @markup.heading.2)
 
 (command_paragraph
   (command) @keyword
-  (#lua-match? @keyword "^=item")
-  (content) @none)
+  (#eq? @keyword "=head3")
+  (content) @markup.heading.3)
 
 (command_paragraph
   (command) @keyword
-  (#lua-match? @keyword "^=encoding")
+  (#eq? @keyword "=head4")
+  (content) @markup.heading.4)
+
+(command_paragraph
+  (command) @keyword
+  (#eq? @keyword "=head5")
+  (content) @markup.heading.5)
+
+(command_paragraph
+  (command) @keyword
+  (#eq? @keyword "=head6")
+  (content) @markup.heading.6)
+
+(command_paragraph
+  (command) @keyword
+  (#match? @keyword "^=over")
+  (content) @constant.numeric)
+
+(command_paragraph
+  (command) @keyword
+  (#match? @keyword "^=item")
+  (content) @markup)
+
+(command_paragraph
+  (command) @keyword
+  (#match? @keyword "^=encoding")
   (content) @string.special)
 
-(verbatim_paragraph
-  (content) @markup.raw)
+(command_paragraph
+  (command) @keyword
+  (#not-match? @keyword "^=(head|over|item|encoding)")
+  (content) @string)
+
+(verbatim_paragraph (content) @markup.raw)
 
 (interior_sequence
-  (sequence_letter) @character
-  [
-    "<"
-    ">"
-  ] @punctuation.delimiter)
+  (sequence_letter) @constant.character
+  ["<" ">"] @punctuation.delimiter
+)
 
 (interior_sequence
   (sequence_letter) @character
   (#eq? @character "B")
-  (content) @markup.strong)
+  (content) @markup.bold)
 
 (interior_sequence
   (sequence_letter) @character
   (#eq? @character "C")
-  (content) @markup.raw)
+  (content) @markup.literal)
 
 (interior_sequence
   (sequence_letter) @character
   (#eq? @character "F")
-  (content) @string.special.path)
+  (content) @markup.underline @string.special)
 
 (interior_sequence
   (sequence_letter) @character
   (#eq? @character "I")
-  (content) @markup.italic)
+  (content) @markup.bold)
 
 (interior_sequence
   (sequence_letter) @character
   (#eq? @character "L")
-  (content) @string.special.url)
+  (content) @markup.link.url)
 
 (interior_sequence
   (sequence_letter) @character
   (#eq? @character "X")
-  (content) @markup.link)
+  (content) @markup.reference)
 
 (interior_sequence
   (sequence_letter) @character
   (#eq? @character "E")
-  (content) @string.escape)
+  (content) @string.special.escape)
