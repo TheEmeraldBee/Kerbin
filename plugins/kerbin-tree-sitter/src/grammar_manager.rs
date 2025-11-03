@@ -228,11 +228,11 @@ impl GrammarManager {
 
         for variant in variants {
             paths.push(format!(
-                "{}/runtime/grammars/tree-sitter-{}/queries/{}.scm",
+                "{}/runtime/queries/{}/{}.scm",
                 config_path, variant, query_name
             ));
             paths.push(format!(
-                "{}/runtime/queries/{}/{}.scm",
+                "{}/runtime/grammars/tree-sitter-{}/queries/{}.scm",
                 config_path, variant, query_name
             ));
         }

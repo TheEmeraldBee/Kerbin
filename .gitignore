@@ -13,3 +13,7 @@ devenv.local.nix
 
 /target
 /config/runtime/grammars/
+
+# Cargo flamegraph
+perf.data
+flamegraph.svg

@@ -24,6 +24,12 @@ build_name = "rust-format-args"
 
 [[plugin.tree-sitter-grammars]]
 type = "alias"
+base_lang = "rust"
+new_name = "rust_format_args_macro"
+exts = []
+
+[[plugin.tree-sitter-grammars]]
+type = "alias"
 base_lang = "markdown"
 new_name = "markdown_rustdoc"
 exts = []
