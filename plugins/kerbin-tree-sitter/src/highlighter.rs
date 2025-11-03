@@ -47,6 +47,8 @@ pub struct HighlightSpan {
     pub byte_range: Range<usize>,
     pub capture_name: String,
     pub priority: i64,
+    pub depth: u32,
+    pub capture_index: u32,
 }
 
 pub struct Highlighter<'tree, 'rope> {
@@ -79,10 +81,20 @@ impl<'tree, 'rope> Highlighter<'tree, 'rope> {
                 let specificity = capture_specificity(capture_name);
                 let priority = base_priority * 10 + specificity as i64;
 
+                // Calculate node depth efficiently by walking up the tree
+                let mut depth = 0u32;
+                let mut node = capture.node;
+                while let Some(parent) = node.parent() {
+                    depth += 1;
+                    node = parent;
+                }
+
                 spans.push(HighlightSpan {
                     byte_range: range,
                     capture_name: capture_name.to_string(),
                     priority,
+                    depth,
+                    capture_index: capture.index,
                 });
             }
             true
@@ -107,24 +119,37 @@ pub fn merge_overlapping_spans(spans: Vec<HighlightSpan>) -> Vec<HighlightSpan> 
     let split_points: Vec<usize> = split_points.into_iter().collect();
 
     // For each segment between split points, find the highest priority span
-    let mut segments: Vec<Option<(String, i64)>> = Vec::new();
+    let mut segments: Vec<Option<(String, i64, u32, u32)>> = Vec::new();
 
     for i in 0..split_points.len().saturating_sub(1) {
         let seg_start = split_points[i];
         let seg_end = split_points[i + 1];
 
         // Find all spans that cover this segment
-        let mut best_span: Option<(String, i64)> = None;
+        let mut best_span: Option<(String, i64, u32, u32)> = None;
 
         for span in &spans {
             // Check if this span covers the segment
             if span.byte_range.start <= seg_start && span.byte_range.end >= seg_end {
-                if let Some((_, best_priority)) = &best_span {
-                    if span.priority > *best_priority {
-                        best_span = Some((span.capture_name.clone(), span.priority));
-                    }
+                let is_better = if let Some((_, best_priority, best_depth, best_index)) = &best_span
+                {
+                    // Compare: priority first, then depth, then capture_index
+                    span.priority > *best_priority
+                        || (span.priority == *best_priority && span.depth > *best_depth)
+                        || (span.priority == *best_priority
+                            && span.depth == *best_depth
+                            && span.capture_index > *best_index)
                 } else {
-                    best_span = Some((span.capture_name.clone(), span.priority));
+                    true
+                };
+
+                if is_better {
+                    best_span = Some((
+                        span.capture_name.clone(),
+                        span.priority,
+                        span.depth,
+                        span.capture_index,
+                    ));
                 }
             }
         }
@@ -135,24 +160,31 @@ pub fn merge_overlapping_spans(spans: Vec<HighlightSpan>) -> Vec<HighlightSpan> 
     // Merge consecutive segments with the same style into spans
     let mut result = Vec::new();
     let mut current_start = None;
-    let mut current_style: Option<(String, i64)> = None;
+    let mut current_style: Option<(String, i64, u32, u32)> = None;
 
     for (i, segment_style) in segments.iter().enumerate() {
         let seg_start = split_points[i];
 
         match (&current_style, segment_style) {
-            (Some((cur_name, cur_pri)), Some((seg_name, seg_pri)))
-                if cur_name == seg_name && cur_pri == seg_pri =>
+            (
+                Some((cur_name, cur_pri, cur_depth, cur_index)),
+                Some((seg_name, seg_pri, seg_depth, seg_index)),
+            ) if cur_name == seg_name
+                && cur_pri == seg_pri
+                && cur_depth == seg_depth
+                && cur_index == seg_index =>
             {
                 // Continue current span
             }
-            (Some((name, priority)), _) => {
+            (Some((name, priority, depth, index)), _) => {
                 // End current span and start new one
                 if let Some(start) = current_start {
                     result.push(HighlightSpan {
                         byte_range: start..seg_start,
                         capture_name: name.clone(),
                         priority: *priority,
+                        depth: *depth,
+                        capture_index: *index,
                     });
                 }
                 current_start = segment_style.as_ref().map(|_| seg_start);
@@ -170,11 +202,13 @@ pub fn merge_overlapping_spans(spans: Vec<HighlightSpan>) -> Vec<HighlightSpan> 
     }
 
     // Don't forget the last span
-    if let (Some(start), Some((name, priority))) = (current_start, current_style) {
+    if let (Some(start), Some((name, priority, depth, index))) = (current_start, current_style) {
         result.push(HighlightSpan {
             byte_range: start..*split_points.last().unwrap(),
             capture_name: name,
             priority,
+            depth,
+            capture_index: index,
         });
     }
 
