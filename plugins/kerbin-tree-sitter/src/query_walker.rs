@@ -47,72 +47,6 @@ pub struct QueryWalker<'tree, 'rope> {
 }
 
 impl<'tree, 'rope> QueryWalker<'tree, 'rope> {
-    /// Creates a new QueryWalker with a single query for all trees
-    pub fn new(state: &'tree TreeSitterState, rope: &'rope Rope, query: Arc<Query>) -> Self {
-        Self {
-            state,
-            rope,
-            main_query: query,
-            injected_queries: HashMap::new(),
-            cursor: QueryCursor::new(),
-        }
-    }
-
-    /// Creates a QueryWalker with separate queries for injected languages
-    pub fn new_with_injected_queries(
-        state: &'tree TreeSitterState,
-        rope: &'rope Rope,
-        main_query: Arc<Query>,
-        injected_queries: HashMap<String, Arc<Query>>,
-    ) -> Self {
-        Self {
-            state,
-            rope,
-            main_query,
-            injected_queries,
-            cursor: QueryCursor::new(),
-        }
-    }
-
-    /// Creates a QueryWalker with a custom QueryCursor configuration
-    pub fn new_with_cursor(
-        state: &'tree TreeSitterState,
-        rope: &'rope Rope,
-        query: Arc<Query>,
-        mut cursor_config: impl FnMut(&mut QueryCursor),
-    ) -> Self {
-        let mut cursor = QueryCursor::new();
-        cursor_config(&mut cursor);
-
-        Self {
-            state,
-            rope,
-            main_query: query,
-            injected_queries: HashMap::new(),
-            cursor,
-        }
-    }
-
-    /// Creates a QueryWalker with injected queries and custom cursor configuration
-    pub fn new_with_injected_queries_and_cursor(
-        state: &'tree TreeSitterState,
-        rope: &'rope Rope,
-        main_query: Arc<Query>,
-        injected_queries: HashMap<String, Arc<Query>>,
-        mut cursor_config: impl FnMut(&mut QueryCursor),
-    ) -> Self {
-        let mut cursor = QueryCursor::new();
-        cursor_config(&mut cursor);
-
-        Self {
-            state,
-            rope,
-            main_query,
-            injected_queries,
-            cursor,
-        }
-    }
-
     /// Walk through all matches, calling the callback for each one
     /// Returns early if the callback returns false
     pub fn walk<F>(&mut self, mut callback: F)
@@ -134,7 +68,7 @@ impl<'tree, 'rope> QueryWalker<'tree, 'rope> {
 
         while let Some(query_match) = matches.next() {
             let entry = QueryMatchEntry {
-                query_match: query_match,
+                query_match,
                 query: self.main_query.clone(),
                 lang: self.state.lang.clone(),
                 is_injected: false,
@@ -161,7 +95,7 @@ impl<'tree, 'rope> QueryWalker<'tree, 'rope> {
 
             while let Some(query_match) = matches.next() {
                 let entry = QueryMatchEntry {
-                    query_match: query_match,
+                    query_match,
                     query: query.clone(),
                     lang: injected.lang.clone(),
                     is_injected: true,
@@ -268,27 +202,15 @@ impl<'tree, 'rope> QueryWalkerBuilder<'tree, 'rope> {
         }
     }
 
-    /// Creates a new builder with separate queries for main and injected trees
-    pub fn new_with_injected_queries(
-        state: &'tree TreeSitterState,
-        rope: &'rope Rope,
-        main_query: Arc<Query>,
-        injected_queries: HashMap<String, Arc<Query>>,
-    ) -> Self {
-        Self {
-            state,
-            rope,
-            main_query,
-            injected_queries,
-            byte_range: None,
-            point_range: None,
-            match_limit: None,
-        }
-    }
-
     /// Adds a query for a specific injected language
     pub fn with_injected_query(mut self, lang: String, query: Arc<Query>) -> Self {
         self.injected_queries.insert(lang, query);
+        self
+    }
+
+    /// Adds a set of queries, replacing old ones
+    pub fn with_injected_queries(mut self, injected_queries: HashMap<String, Arc<Query>>) -> Self {
+        self.injected_queries.extend(injected_queries);
         self
     }
 
@@ -312,22 +234,24 @@ impl<'tree, 'rope> QueryWalkerBuilder<'tree, 'rope> {
 
     /// Builds the QueryWalker with the configured settings
     pub fn build(self) -> QueryWalker<'tree, 'rope> {
-        QueryWalker::new_with_injected_queries_and_cursor(
-            self.state,
-            self.rope,
-            self.main_query,
-            self.injected_queries,
-            |cursor| {
-                if let Some(range) = self.byte_range.clone() {
-                    cursor.set_byte_range(range);
-                }
-                if let Some(range) = self.point_range.clone() {
-                    cursor.set_point_range(range);
-                }
-                if let Some(limit) = self.match_limit {
-                    cursor.set_match_limit(limit);
-                }
-            },
-        )
+        let mut cursor = QueryCursor::new();
+
+        if let Some(range) = self.byte_range.clone() {
+            cursor.set_byte_range(range);
+        }
+        if let Some(range) = self.point_range.clone() {
+            cursor.set_point_range(range);
+        }
+        if let Some(limit) = self.match_limit {
+            cursor.set_match_limit(limit);
+        }
+
+        QueryWalker {
+            state: self.state,
+            rope: self.rope,
+            main_query: self.main_query,
+            injected_queries: self.injected_queries,
+            cursor,
+        }
     }
 }

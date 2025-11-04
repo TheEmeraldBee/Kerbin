@@ -109,6 +109,7 @@ impl BufferAction for Insert {
 
         let end = buf.get_edit_part(actual_byte + self.content.len());
         buf.register_input_edit(start, start, end);
+        buf.version += 1;
 
         let inverse = Box::new(Delete {
             byte: self.byte,
@@ -196,6 +197,7 @@ impl BufferAction for Delete {
 
         // Register the edit for syntax highlighting updates
         buf.register_input_edit(start, old_end, start);
+        buf.version += 1;
 
         // The inverse of Delete is Insert
         let inverse = Box::new(Insert {

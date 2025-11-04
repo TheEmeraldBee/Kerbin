@@ -50,6 +50,11 @@ pub struct TextBuffer {
     /// where the content matches the last file save on disk.
     pub save_point: usize,
 
+    /// A number representing the "version" of an edit,
+    /// is incremented for any action applied,
+    /// including undo and redo
+    pub version: u128,
+
     /// The last stored time that the file was changed. None if the file didn't exist, or if
     /// reading it failed. Used for commands that write to file, to check if external changes exist
     pub changed: Option<SystemTime>,
@@ -102,10 +107,6 @@ pub struct TextBuffer {
 
     /// Stores the current render state of the buffer
     /// used for handling the rendering of the buffer
-    ///
-    /// # Uses
-    /// - Stores Extmarks, which are used for applying highlights and rendering inline elements in the buffer
-    /// - Stores Scroll information which is used to update and handle the viewport of the buffer
     pub renderer: BufferRenderer,
 }
 
@@ -114,6 +115,7 @@ impl Default for TextBuffer {
         Self {
             dirty: false,
             save_point: 0,
+            version: 0,
             changed: None,
 
             rope: Rope::new(),
@@ -193,6 +195,18 @@ impl TextBuffer {
 
             ..Default::default()
         })
+    }
+
+    /// Returns the current version of the buffer
+    pub fn version(&self) -> &u128 {
+        &self.version
+    }
+
+    /// Adds an extmark to the renderer, handling file version for you
+    pub fn add_extmark(&mut self, builder: ExtmarkBuilder) -> u64 {
+        let file_ver = self.version;
+
+        self.renderer.add_extmark(file_ver, builder)
     }
 
     /// Inserts a state into the buffer, replacing the value if it exists
@@ -673,13 +687,14 @@ impl TextBuffer {
         }
     }
 
-    /// Applies the major update functions all in one convenient function.
-    ///
-    /// This method is typically called once per frame and performs necessary
-    /// housekeeping tasks, such as merging overlapping cursors and clearing
-    /// the `byte_changes` list for the next frame.
-    pub fn update(&mut self) {
+    pub fn post_update(&mut self) {
+        self.renderer
+            .process_byte_changes(*self.version(), &self.byte_changes);
+    }
+
+    pub fn update_cleanup(&mut self) {
         self.merge_overlapping_cursors();
+
         self.byte_changes.clear();
     }
 }

@@ -61,29 +61,27 @@ pub async fn render_cursors_and_selections(
                 _ => SetCursorStyle::SteadyBlock,
             };
 
-            buf.renderer.add_extmark(
-                "inner::cursor",
-                caret_byte,
-                0,
-                vec![ExtmarkDecoration::Cursor {
-                    style: cursor_style,
-                }],
+            buf.add_extmark(
+                ExtmarkBuilder::new("inner::cursor", caret_byte).with_decoration(
+                    ExtmarkDecoration::Cursor {
+                        style: cursor_style,
+                    },
+                ),
             );
         } else {
-            buf.renderer.add_extmark(
-                "inner::cursor",
-                caret_byte,
-                0,
-                vec![ExtmarkDecoration::Highlight { hl: cursor_style }],
+            buf.add_extmark(
+                ExtmarkBuilder::new("inner::cursor", caret_byte)
+                    .with_decoration(ExtmarkDecoration::Highlight { hl: cursor_style }),
             );
         }
 
         if cursor.sel().start() != cursor.sel().end() {
-            buf.renderer.add_extmark_range(
-                "inner::selection",
-                *cursor.sel().start()..*cursor.sel().end(),
-                1,
-                vec![ExtmarkDecoration::Highlight { hl: sel_style }],
+            buf.add_extmark(
+                ExtmarkBuilder::new_range(
+                    "inner::selection",
+                    *cursor.sel().start()..*cursor.sel().end(),
+                )
+                .with_decoration(ExtmarkDecoration::Highlight { hl: sel_style }),
             );
         }
     }
@@ -160,17 +158,25 @@ pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<Wind
     }
 }
 
+pub async fn post_update_buffer(buffers: ResMut<Buffers>) {
+    get!(mut buffers);
+
+    let mut buf = buffers.cur_buffer_mut().await;
+
+    buf.post_update();
+}
+
 /// System that updates the active buffer's state, including its content,
 /// and handles horizontal and vertical scrolling to keep the primary cursor in view.
 ///
 /// This system is crucial for ensuring the displayed buffer content is up-to-date
 /// and the user's cursor remains visible as they navigate and edit.
-pub async fn update_buffer(buffers: ResMut<Buffers>) {
+pub async fn cleanup_buffers(buffers: ResMut<Buffers>) {
     get!(mut buffers);
 
     buffers.update_paths().await;
 
     let mut buffer = buffers.cur_buffer_mut().await;
 
-    buffer.update();
+    buffer.update_cleanup();
 }

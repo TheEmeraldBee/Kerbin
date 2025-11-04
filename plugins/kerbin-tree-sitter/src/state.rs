@@ -4,7 +4,7 @@ use tree_sitter::{Parser, Tree};
 use crate::{
     grammar_manager::GrammarManager,
     highlighter::{Highlighter, merge_overlapping_spans},
-    query_walker::QueryWalker,
+    query_walker::QueryWalkerBuilder,
 };
 
 fn translate_name_to_style(theme: &Theme, mut name: &str) -> ContentStyle {
@@ -234,17 +234,15 @@ pub async fn open_files(
 
     let spans = highlighter.collect_spans();
 
-    let renderer = &mut buf.renderer;
-    renderer.clear_extmark_ns("tree-sitter::highlights");
+    buf.renderer.clear_extmark_ns("tree-sitter::highlights");
 
     for span in merge_overlapping_spans(spans) {
         let hl_style = translate_name_to_style(&theme, &span.capture_name);
 
-        renderer.add_extmark_range(
-            "tree-sitter::highlights",
-            span.byte_range.clone(),
-            span.priority as i32,
-            vec![ExtmarkDecoration::Highlight { hl: hl_style }],
+        buf.add_extmark(
+            ExtmarkBuilder::new_range("tree-sitter::highlights", span.byte_range.clone())
+                .with_priority(span.priority as i32)
+                .with_decoration(ExtmarkDecoration::Highlight { hl: hl_style }),
         );
     }
 }
@@ -277,7 +275,7 @@ fn load_injected_trees(
         .position(|name| *name == "injection.content");
 
     // Use QueryWalker to find all injection matches
-    let mut walker = QueryWalker::new(state, rope, injections_query.clone());
+    let mut walker = QueryWalkerBuilder::new(state, rope, injections_query.clone()).build();
 
     walker.walk(|entry| {
         let mut injection_lang: Option<String> = None;

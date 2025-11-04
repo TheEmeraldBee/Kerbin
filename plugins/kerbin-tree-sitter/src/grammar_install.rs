@@ -191,7 +191,7 @@ pub fn install_language(
         }
 
         let (initial_compiled_lib_name, ext) =
-            found_lib.ok_or_else(|| GrammarInstallError::NoSharedLibrary)?;
+            found_lib.ok_or(GrammarInstallError::NoSharedLibrary)?;
 
         // Always use normalized name for the final library
         let compiled_lib_name = format!("{}.{}", normalized_name, ext);

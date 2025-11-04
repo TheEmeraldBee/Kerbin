@@ -15,7 +15,7 @@ pub enum GrammarLoadError {
 /// Normalizes a language name by replacing -, ., and _ with a single underscore
 /// This is used for internal storage and lookups
 pub fn normalize_lang_name(name: &str) -> String {
-    name.replace('-', "_").replace('.', "_")
+    name.replace(['-', '.'], "_")
 }
 
 /// Helps to define a Grammar using a default definition as well as aliases

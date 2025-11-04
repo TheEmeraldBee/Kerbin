@@ -280,7 +280,7 @@ async fn main() {
         .system(update_palette_suggestions)
         .system(render_cursors_and_selections);
 
-    state.on_hook(hooks::UpdateCleanup).system(update_buffer);
+    state.on_hook(hooks::PostUpdate).system(post_update_buffer);
 
     state
         .on_hook(hooks::CreateRenderLines)
@@ -299,6 +299,8 @@ async fn main() {
         .system(render_bufferline)
         .system(render_log)
         .system(render_buffer_default);
+
+    state.on_hook(hooks::UpdateCleanup).system(cleanup_buffers);
 
     state.on_hook(hooks::RenderChunks).system(render_chunks);
 

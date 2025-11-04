@@ -1,8 +1,7 @@
 use kerbin_core::{kerbin_macros::Command, *};
 
 use crate::{
-    grammar_manager::GrammarManager, query_walker::QueryWalker, state::TreeSitterState,
-    text_provider::TextProviderRope,
+    grammar_manager::GrammarManager, query_walker::QueryWalkerBuilder, state::TreeSitterState,
 };
 
 #[derive(Command)]
@@ -54,18 +53,13 @@ async fn tree_sitter_scope_info(state: &mut State) {
         return;
     };
 
-    let text_provider = TextProviderRope(&buf.rope);
-
     // Collect all captures at cursor position
     let mut captures_at_cursor: Vec<CaptureInfo> = Vec::new();
 
     // Create a walker with the highlights query
-    let mut walker = QueryWalker::new_with_injected_queries(
-        &ts_state,
-        &buf.rope,
-        highlights_query,
-        injected_queries,
-    );
+    let mut walker = QueryWalkerBuilder::new(&ts_state, &buf.rope, highlights_query)
+        .with_injected_queries(injected_queries)
+        .build();
 
     walker.walk(|entry| {
         for capture in entry.query_match.captures {

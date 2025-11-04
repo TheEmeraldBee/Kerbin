@@ -103,6 +103,7 @@ impl GrammarManager {
 
     /// Creates the Manager by loading in a list of grammar entries
     /// When it fails, it returns what it got valid still, allowing for a recoverable state
+    #[allow(clippy::result_large_err)]
     pub fn from_definitions(
         entries: Vec<GrammarEntry>,
     ) -> Result<Self, (Self, GrammarManagerError)> {
@@ -196,6 +197,7 @@ impl GrammarManager {
     }
 
     /// Gets a query set (main query + injected queries) for all queries in a language
+    #[allow(clippy::type_complexity)]
     pub fn get_query_set(
         &mut self,
         config_path: &str,
@@ -283,7 +285,7 @@ impl GrammarManager {
         // Insert into query_map using normalized name
         self.query_map
             .entry(normalized.clone())
-            .or_insert_with(HashMap::new)
+            .or_default()
             .insert(query_name.to_string(), Arc::new(query));
 
         // Return reference to the inserted query
