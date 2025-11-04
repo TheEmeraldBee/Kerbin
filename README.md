@@ -174,7 +174,7 @@ file communication systems
           keys = ["\"", "%used_registers", "p"]
           commands = ["paste %1"] # Paste the single value from %used_registers
           desc = "Pase used register"
-          
+
           [[keybind]]
           modes = ["n"]
           keys = ["\"", "%used_registers", "p"]

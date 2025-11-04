@@ -84,7 +84,12 @@ impl<'tree, 'rope> Highlighter<'tree, 'rope> {
 
                 let base_priority = get_capture_priority(query, entry.query_match.pattern_index);
                 let specificity = capture_specificity(capture_name);
-                let priority = base_priority * 10 + specificity as i64;
+                let priority = base_priority * 10
+                    + specificity as i64
+                    + match entry.is_injected {
+                        true => 500,
+                        false => 0,
+                    };
 
                 spans.push(HighlightSpan {
                     byte_range: range,

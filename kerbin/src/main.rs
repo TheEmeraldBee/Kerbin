@@ -40,6 +40,7 @@ pub enum KerbinSubcommand {
 #[command(version, about, long_about = None)]
 /// Kerbin: The Space-Age Text Editor
 pub struct KerbinArgs {
+    /// Defines a path to the config, using default if not provided
     #[clap(short, long)]
     config: Option<String>,
     #[clap(subcommand)]

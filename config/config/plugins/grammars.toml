@@ -76,3 +76,10 @@ url = "https://github.com/tree-sitter-grammars/tree-sitter-markdown.git"
 sub_dir = "tree-sitter-markdown-inline"
 build_name = "markdown-inline"
 
+# Nushell
+[[plugin.tree-sitter-grammars]]
+type = "def"
+name = "nu"
+exts = ["nu"]
+
+url = "https://github.com/nushell/tree-sitter-nu.git"
