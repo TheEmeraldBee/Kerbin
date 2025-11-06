@@ -129,10 +129,14 @@ file communication systems
     - This also needs a way of running the editor, passing commands, then wrapping the system back.
     Basically this should allow for sending commands to an existing editor, or start an editor with the commands
     - Also have a flag, `-q` that will run the commands, but append a ForceQuit command to the end
-- [ ] Lsp Support using plugin system
-    - Diagnostics
-    - Hover
-    - Autocompletions
+- [ ] Reimplement tree-sitter and lsp systems to work better
+    - [x] Tree-Sitter Highlighting
+    - [ ] Tree-Sitter locals (new)
+    - [ ] Tree-Sitter indent
+
+    - [ ] Lsp Hover
+    - [ ] Lsp Diagnostics
+    - [ ] Lsp Hover
 - [ ] Copy/Paste Support (Registers)
     - [x] Ctrl-Shift-V / Cmd-V Paste Event Support
     - [ ] Clipboard Copy & Paste Commands
