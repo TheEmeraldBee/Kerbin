@@ -1,0 +1,14 @@
+[[keybind]]
+sequence = ["x", "%digits"]
+action = "quit"
+desc = "Quit"
+
+[[keybind]]
+sequence = ["x", "ctrl-c"]
+action = "hi"
+desc = "hello, world :)"
+
+[[keybind]]
+sequence = ["q"]
+action = "quit"
+desc = "Quit"

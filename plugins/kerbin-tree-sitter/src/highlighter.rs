@@ -154,18 +154,17 @@ pub fn merge_overlapping_spans(mut spans: Vec<HighlightSpan>) -> Vec<HighlightSp
     let mut prev_pos: Option<usize> = None;
 
     for (pos, is_start, span) in points {
-        if let Some(start) = prev_pos {
-            if pos > start {
-                if let Some(top) = active.peek() {
-                    // Emit a segment with the currently active top span
-                    result.push(HighlightSpan {
-                        byte_range: start..pos,
-                        capture_name: top.span.capture_name.clone(),
-                        priority: top.span.priority,
-                        capture_index: top.span.capture_index,
-                    });
-                }
-            }
+        if let Some(start) = prev_pos
+            && pos > start
+            && let Some(top) = active.peek()
+        {
+            // Emit a segment with the currently active top span
+            result.push(HighlightSpan {
+                byte_range: start..pos,
+                capture_name: top.span.capture_name.clone(),
+                priority: top.span.priority,
+                capture_index: top.span.capture_index,
+            });
         }
 
         // Update active spans
@@ -173,10 +172,7 @@ pub fn merge_overlapping_spans(mut spans: Vec<HighlightSpan>) -> Vec<HighlightSp
             active.push(Active { span });
         } else {
             // Remove finished span (lazy removal)
-            active = active
-                .into_iter()
-                .filter(|a| a.span as *const _ != span as *const _)
-                .collect();
+            active.retain(|a| !std::ptr::eq(a.span, span));
         }
 
         prev_pos = Some(pos);
