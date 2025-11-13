@@ -1,12 +1,21 @@
+[[group]]
+sequence = ["x"]
+desc = "Group A"
+
+[[keybind]]
+sequence = ["x", "ctrl-shift-x"]
+action = "hi"
+desc = "hello, world :)"
+
+[[keybind]]
+sequence = ["x", "9"]
+action = "hello, world"
+desc = "Cool keybind"
+
 [[keybind]]
 sequence = ["x", "%digits"]
 action = "quit"
 desc = "Quit"
-
-[[keybind]]
-sequence = ["x", "ctrl-c"]
-action = "hi"
-desc = "hello, world :)"
 
 [[keybind]]
 sequence = ["q"]

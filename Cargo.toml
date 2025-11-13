@@ -9,6 +9,7 @@ edition = "2024"
 [workspace.dependencies]
 kerbin-macros = { path = "./kerbin-macros" }
 kerbin-core = { path = "./kerbin-core" }
+kerbin-input = { path = "./kerbin-input", features = ["serde"] }
 
 thiserror = "2.0.17"
 

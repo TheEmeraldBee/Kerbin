@@ -1,5 +1,5 @@
 use ascii_forge::prelude::*;
-use kerbin_input::{KeyTree, ParseError, Resolver, StepResult, UnresolvedKeyBind};
+use kerbin_input::{KeyTree, ParseError, ResolvedKeyBind, Resolver, StepResult, UnresolvedKeyBind};
 use std::{collections::HashMap, error::Error, fmt::Display, time::Duration};
 
 use serde::*;
@@ -8,8 +8,18 @@ const CONFIG: &str = include_str!("keybindings.toml");
 
 #[derive(Deserialize, Serialize)]
 pub struct Config {
+    #[serde(rename = "group")]
+    groups: Vec<Group>,
     #[serde(rename = "keybind")]
     keybindings: Vec<Keybinding>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct Group {
+    sequence: Vec<UnresolvedKeyBind>,
+
+    #[serde(flatten)]
+    metadata: Metadata,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -18,15 +28,15 @@ pub struct Keybinding {
     action: String,
 
     #[serde(flatten)]
-    metadata: KeyInfo,
+    metadata: Metadata,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
-pub struct KeyInfo {
+pub struct Metadata {
     desc: String,
 }
 
-impl Display for KeyInfo {
+impl Display for Metadata {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.desc)
     }
@@ -35,11 +45,11 @@ impl Display for KeyInfo {
 pub fn keybindings_to_tree(
     binds: Vec<Keybinding>,
     resolver: &Resolver,
-) -> Result<KeyTree<String, KeyInfo>, ParseError> {
+) -> Result<KeyTree<String, Metadata>, ParseError> {
     let mut tree = KeyTree::default();
 
     for item in binds {
-        tree.register(resolver, item.sequence, item.action, item.metadata)?;
+        tree.register(resolver, item.sequence, item.action, Some(item.metadata))?;
     }
 
     Ok(tree)
@@ -74,21 +84,32 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut sub_status = String::new();
     let mut status = String::new();
 
+    let mut key_string = String::new();
+
     let mut window = Window::init()?;
     handle_panics();
 
     loop {
         window.update(Duration::from_millis(500))?;
+        window.keyboard().ok();
 
         for event in window.events() {
             let Event::Key(event) = event else { continue };
 
+            key_string = format!("{event:?}");
+
             match tree.step(&resolver, event.code, event.modifiers)? {
-                StepResult::Success(a) => {
+                StepResult::Success(seq, a) => {
                     sub_status = "Finished".to_string();
                     if &a == "quit" {
                         return Ok(());
                     }
+
+                    key_string = seq
+                        .iter()
+                        .map(|x| x.to_string())
+                        .collect::<Vec<_>>()
+                        .join(" -> ");
 
                     status = a;
                 }
@@ -101,10 +122,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             };
         }
 
-        render!(window, (0, 0) => [status.as_str().green(), " ".repeat(10), sub_status.as_str().green()]);
+        render!(window, (0, 0) => [status.as_str().green(), " ".repeat(10), sub_status.as_str().green(), " ".repeat(10), key_string.as_str().blue()]);
 
-        for (i, metadata) in tree.collect_layer_metadata() {
-            render!(window, (0, i as u16 + 2) => [ metadata.key_sequence.iter().map(|x| x.to_string()).collect::<Vec<_>>().join("+").cyan(), "  :  ", metadata.metadata.desc.green() ]);
+        for (i, (key, meta)) in tree.collect_layer_metadata().unwrap().iter().enumerate() {
+            render!(window, (0, i as u16 + 5) => [ key.to_string().cyan(), " : ", meta.as_ref().map(|x| x.to_string()).unwrap_or_default().green() ]);
         }
     }
 }

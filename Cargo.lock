@@ -787,6 +787,7 @@ name = "kerbin-input"
 version = "0.1.0"
 dependencies = [
  "ascii-forge",
+ "indexmap",
  "serde",
  "serde_json",
  "shellwords",

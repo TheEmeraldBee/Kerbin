@@ -1,4 +1,4 @@
-use std::{fmt::Display, str::FromStr};
+use std::str::FromStr;
 
 use ascii_forge::window::{KeyCode, KeyModifiers};
 use thiserror::Error;
@@ -38,7 +38,6 @@ impl ParsableKey for KeyModifiers {
         match text {
             "ctrl" | "control" => Ok(Self::CONTROL),
             "alt" => Ok(Self::ALT),
-            "super" | "mod" | "meta" => Ok(Self::META),
             "shift" => Ok(Self::SHIFT),
             _ => Err(ParseError::UnknownElement {
                 elem_type: "modifier",
@@ -113,50 +112,6 @@ impl FromStr for UnresolvedKeyBind {
         }
 
         Ok(UnresolvedKeyBind { mods, code })
-    }
-}
-
-impl Display for UnresolvedKeyBind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut parts = Vec::new();
-
-        for m in &self.mods {
-            parts.push(m.to_string());
-        }
-
-        parts.push(self.code.to_string());
-
-        write!(f, "{}", parts.join("-"))
-    }
-}
-
-impl<T: ParsableKey<Output = T>> Display for UnresolvedKeyElement<T>
-where
-    T: std::fmt::Display,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            UnresolvedKeyElement::Literal(val) => {
-                // Format debug output and extract the inner value
-                write!(f, "{}", val.to_string().to_lowercase())
-            }
-            UnresolvedKeyElement::OneOf(options) => {
-                let opts = options
-                    .iter()
-                    .map(|o| o.to_string().to_lowercase())
-                    .collect::<Vec<_>>()
-                    .join("|");
-                write!(f, "({})", opts)
-            }
-            UnresolvedKeyElement::Template(name) => write!(f, "%{}", name),
-            UnresolvedKeyElement::Command(cmd, args) => {
-                if args.is_empty() {
-                    write!(f, "$({})", cmd)
-                } else {
-                    write!(f, "$({} {})", cmd, args.join(" "))
-                }
-            }
-        }
     }
 }
 
