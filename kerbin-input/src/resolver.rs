@@ -4,15 +4,16 @@ use ascii_forge::window::KeyModifiers;
 
 use crate::{ParsableKey, ParseError, ResolvedKeyBind, UnresolvedKeyBind, UnresolvedKeyElement};
 
-pub type CommandExecutor<'a> = &'a dyn Fn(&str, &[String]) -> Result<Vec<String>, ParseError>;
+pub type CommandExecutor =
+    dyn Fn(&str, &[String]) -> Result<Vec<String>, ParseError> + Send + Sync + 'static;
 
 pub struct Resolver<'a> {
     templates: &'a HashMap<String, Vec<String>>,
-    command_executor: CommandExecutor<'a>,
+    command_executor: &'a CommandExecutor,
 }
 
 impl<'a> Resolver<'a> {
-    pub fn new(templates: &'a HashMap<String, Vec<String>>, executor: CommandExecutor<'a>) -> Self {
+    pub fn new(templates: &'a HashMap<String, Vec<String>>, executor: &'a CommandExecutor) -> Self {
         Self {
             templates,
             command_executor: executor,

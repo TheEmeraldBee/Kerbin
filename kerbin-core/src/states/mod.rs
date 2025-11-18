@@ -25,20 +25,6 @@ pub mod registers;
 pub use registers::*;
 
 /// Initializes the editor's core state with essential components.
-///
-/// This function sets up the initial `State` object by registering various
-/// critical components required for the editor's operation, such as window,
-/// command handling, buffers, input, theming, and chunk management.
-///
-/// # Arguments
-///
-/// * `window`: The `ascii_forge` window instance that the editor will render to.
-/// * `cmd_sender`: An `UnboundedSender` used to send commands to the editor's
-///   main command processing loop.
-///
-/// # Returns
-///
-/// An initialized `State` object, ready to be used by the editor's main loop.
 pub fn init_state(
     window: Window,
     cmd_sender: UnboundedSender<Box<dyn Command>>,
@@ -70,7 +56,6 @@ pub fn init_state(
             buffers
         })
         // Input configuration and state
-        .state(InputConfig::default())
         .state(InputState::default())
         // Theming
         .state(Theme::default())

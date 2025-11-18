@@ -767,6 +767,7 @@ version = "0.1.0"
 dependencies = [
  "ascii-forge",
  "async-trait",
+ "kerbin-input",
  "kerbin-macros",
  "kerbin-state-machine",
  "regex-cursor",

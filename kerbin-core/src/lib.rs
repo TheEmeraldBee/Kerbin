@@ -101,6 +101,8 @@ pub use kerbin_state_machine::*;
 
 pub use ascii_forge;
 
+pub use kerbin_input::*;
+
 /// Module for regular expression utilities, including a `ropey`-compatible cursor.
 pub mod regex;
 pub use regex::*;

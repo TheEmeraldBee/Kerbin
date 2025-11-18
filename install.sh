@@ -1,15 +1,6 @@
-#!/usr/bin/env bash
-# ======================================
-# Install/Rebuild script for Kerbin
-#
-# Automatically requests install paths and builds the editor
-# Can rebuild using saved settings with --rebuild flag
-# Uses persistent build directory for faster rebuilds
-# Everything centralized in ~/.kerbin/
-# ======================================
+#!/bin/bash
 set -e
 
-# --- Styles ---
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 GREEN='\033[0;32m'
@@ -17,7 +8,6 @@ YELLOW='\033[0;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# --- Helpers ---
 print_step() { echo -e "\n${CYAN}>>> $1${NC}"; }
 print_info() { echo -e "${BLUE}  • $1${NC}"; }
 print_success() { echo -e "${GREEN}  ✔ $1${NC}"; }
@@ -41,31 +31,27 @@ check_command() {
     print_success "$1 is installed."
 }
 
-# --- Centralized Kerbin Directory ---
 KERBIN_ROOT="${HOME}/.kerbin"
 KERBIN_INSTALL_CONFIG="${KERBIN_ROOT}/install_config"
 KERBIN_BIN_DIR="${KERBIN_ROOT}/bin"
 KERBIN_BUILD_DIR="${KERBIN_ROOT}/build"
 
-# --- Variables ---
 SELECTED_VERSION=""
 CONFIG_PATH=""
 
-# --- Dynamic Default Config Path (XDG Compliance) ---
 if [ -n "${XDG_CONFIG_HOME}" ]; then
     DEFAULT_CONFIG_PATH="${XDG_CONFIG_HOME}/kerbin/"
 else
     DEFAULT_CONFIG_PATH="${HOME}/.config/kerbin/"
 fi
 
-# --- Version Selection ---
 select_version() {
     print_step "Setting up repository for version selection"
     local current_dir=$(pwd)
 
     if [ ! -d "${KERBIN_BUILD_DIR}" ]; then
         print_info "Cloning repository for the first time..."
-        git clone https://github.com/TheEmeraldBee/Kerbin.git "${KERBIN_BUILD_DIR}"
+        git clone https://github.com/EmeraldPandaTurtle/Kerbin.git "${KERBIN_BUILD_DIR}"
     fi
 
     cd "${KERBIN_BUILD_DIR}"
@@ -100,7 +86,6 @@ select_version() {
     cd "${current_dir}"
 }
 
-# --- Copy Default Config ---
 copy_default_config() {
     local source_config_dir="${KERBIN_BUILD_DIR}/config"
     local target_config_dir="$1"
@@ -135,12 +120,10 @@ copy_default_config() {
     fi
 }
 
-# --- Main Script ---
 echo -e "${CYAN}====================================================${NC}"
 echo -e "${CYAN}== Kerbin: The Space-Age Text Editor Installation ==${NC}"
 echo -e "${CYAN}====================================================${NC}"
 
-# --- Parse Flags ---
 REBUILD_MODE=false
 SKIP_CONFIRM=false
 CLEAN_BUILD=false
@@ -176,20 +159,17 @@ for arg in "$@"; do
     esac
 done
 
-# --- Requirements ---
 print_step "Checking Requirements"
 check_command "cargo"
 check_command "git"
 check_command "fzf"
 print_info "All required packages are installed"
 
-# --- Directory Setup ---
 print_step "Setting up Kerbin directory structure"
 mkdir -p "${KERBIN_ROOT}"
 mkdir -p "${KERBIN_BIN_DIR}"
 print_success "Directory structure created at ${KERBIN_ROOT}"
 
-# --- Handle Config Clearing (ignores --yes) ---
 if [ "$CLEAR_CONFIG" = true ]; then
     print_step "Configuration clearing requested"
     echo ""
@@ -222,7 +202,6 @@ if [ "$CLEAR_CONFIG" = true ]; then
     fi
 fi
 
-# --- Install / Rebuild Logic ---
 if [ "$REBUILD_MODE" = true ]; then
     print_step "Rebuild mode: Loading saved configuration"
     if [ ! -f "${KERBIN_INSTALL_CONFIG}" ]; then
@@ -305,20 +284,17 @@ EOF
     print_success "Configuration saved to ${KERBIN_INSTALL_CONFIG}"
 fi
 
-# --- Build Confirmation ---
 if [ "$SKIP_CONFIRM" = false ]; then
     confirm "Ready to start building Kerbin version ${SELECTED_VERSION}?"
 else
     print_info "Skipping confirmation (--yes flag provided)"
 fi
 
-# --- Clean Build Option ---
 if [ "$CLEAN_BUILD" = true ]; then
     print_step "Clean build requested"
     [ -d "${KERBIN_BUILD_DIR}" ] && rm -rf "${KERBIN_BUILD_DIR}" && print_success "Build directory cleaned"
 fi
 
-# --- Clone & Checkout ---
 if [ ! -d "${KERBIN_BUILD_DIR}" ]; then
     print_step "Cloning repository"
     git clone https://github.com/TheEmeraldBee/Kerbin.git "${KERBIN_BUILD_DIR}"
@@ -335,7 +311,6 @@ git pull --force
 git checkout "${SELECTED_VERSION}"
 print_success "Repository is now at version: ${SELECTED_VERSION}"
 
-# --- Build Process ---
 print_step "Clearing old installation"
 rm -f "${KERBIN_BIN_DIR}/kerbin" 2>/dev/null || true
 
@@ -358,7 +333,6 @@ if [ -f "${INSTALL_SCRIPT_SOURCE}" ]; then
     print_success "Install script copied to ${KERBIN_BIN_DIR}/kerbin-install"
 fi
 
-# --- PATH Check ---
 print_step "Checking PATH configuration"
 if [[ ":$PATH:" != *":${KERBIN_BIN_DIR}:"* ]]; then
     echo ""
@@ -368,7 +342,6 @@ else
     print_success "${KERBIN_BIN_DIR} is already in your PATH"
 fi
 
-# --- Final Summary ---
 print_success "Kerbin (${SELECTED_VERSION}) built successfully!"
 print_info "Root: ${KERBIN_ROOT}"
 print_info "Binary: ${KERBIN_BIN_DIR}/kerbin"

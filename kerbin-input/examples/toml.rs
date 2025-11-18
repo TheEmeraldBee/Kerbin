@@ -1,5 +1,5 @@
 use ascii_forge::prelude::*;
-use kerbin_input::{KeyTree, ParseError, ResolvedKeyBind, Resolver, StepResult, UnresolvedKeyBind};
+use kerbin_input::{KeyTree, ParseError, Resolver, StepResult, UnresolvedKeyBind};
 use std::{collections::HashMap, error::Error, fmt::Display, time::Duration};
 
 use serde::*;
