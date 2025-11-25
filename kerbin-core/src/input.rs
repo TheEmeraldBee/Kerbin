@@ -7,22 +7,23 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Keybinding {
-    pub modes: Vec<char>,
-
-    #[serde(default)]
-    pub invalid_modes: Vec<char>,
-
     pub keys: Vec<UnresolvedKeyBind>,
     pub commands: Vec<String>,
 
     #[serde(flatten)]
-    pub metadata: Option<Metadata>,
+    pub metadata: Metadata,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct Metadata {
     #[serde(default)]
-    desc: String,
+    pub modes: Vec<char>,
+
+    #[serde(default)]
+    pub invalid_modes: Vec<char>,
+
+    #[serde(default)]
+    pub desc: String,
 }
 
 #[derive(State, Default)]
@@ -195,7 +196,16 @@ pub async fn handle_inputs(
         let Event::Key(event) = event else {
             continue;
         };
-        match input.tree.step(&resolver, event.code, event.modifiers) {
+        match input
+            .tree
+            .step(&resolver, event.code, event.modifiers, |data| {
+                let Some(data) = data else {
+                    return true;
+                };
+
+                (data.modes.is_empty() || data.modes.iter().any(|x| modes.mode_on_stack(*x)))
+                    && !data.invalid_modes.iter().any(|x| modes.mode_on_stack(*x))
+            }) {
             Ok(StepResult::Success(_, commands)) => {
                 'outer: for _ in 0..input.repeat_count.parse::<i32>().unwrap_or(1) {
                     for command in &commands {

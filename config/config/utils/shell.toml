@@ -1,3 +1,7 @@
+[[category]]
+keys = ["space", "f"]
+desc = "File findings"
+
 [[keybind]]
 modes = ["n"]
 keys = ["space", "f", "f"]

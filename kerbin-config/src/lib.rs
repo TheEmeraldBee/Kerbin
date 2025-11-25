@@ -1,5 +1,7 @@
 use ascii_forge::prelude::*;
-use kerbin_core::{CommandPrefix, CommandPrefixRegistry, InputState, Resolver, Theme};
+use kerbin_core::{
+    CommandPrefix, CommandPrefixRegistry, InputState, Metadata, Resolver, Theme, UnresolvedKeyBind,
+};
 use kerbin_core::{Keybinding, PluginConfig};
 use kerbin_state_machine::State;
 use serde::Deserialize;
@@ -10,6 +12,14 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 use toml::{Table, Value};
+
+#[derive(Debug, Deserialize)]
+pub struct Category {
+    pub keys: Vec<UnresolvedKeyBind>,
+
+    #[serde(flatten)]
+    pub metadata: Metadata,
+}
 
 #[derive(Debug, Deserialize, Default)]
 #[serde(default)]
@@ -210,6 +220,7 @@ pub struct Config {
     pub core: CoreConfig,
 
     keybindings: Vec<Keybinding>,
+    categories: Vec<Category>,
     prefixes: Vec<Prefix>,
 
     palette: HashMap<String, String>,
@@ -271,6 +282,23 @@ impl Config {
                         for keybind_val in keybinds_array {
                             if let Ok(input) = keybind_val.try_into::<Keybinding>() {
                                 final_config.keybindings.push(input);
+                            } else {
+                                return Err(format!("Invalid keybind entry in {:?}", path).into());
+                            }
+                        }
+                    } else {
+                        return Err(format!(
+                            "`keybind` section in {:?} must be an array of tables",
+                            path
+                        )
+                        .into());
+                    }
+                }
+                "category" => {
+                    if let Value::Array(category_array) = value {
+                        for category_val in category_array {
+                            if let Ok(cat) = category_val.try_into::<Category>() {
+                                final_config.categories.push(cat);
                             } else {
                                 return Err(format!("Invalid keybind entry in {:?}", path).into());
                             }
@@ -350,9 +378,13 @@ impl Config {
 
     fn merge(&mut self, other: Config) {
         self.keybindings.extend(other.keybindings);
+        self.categories.extend(other.categories);
+
         self.prefixes.extend(other.prefixes);
+
         self.palette.extend(other.palette);
         self.theme.extend(other.theme);
+
         self.plugin_config.extend(other.plugin_config);
     }
 
@@ -415,7 +447,14 @@ impl Config {
         for input in self.keybindings {
             inputs
                 .tree
-                .register(&resolver, input.keys, input.commands, input.metadata)
+                .register(&resolver, input.keys, input.commands, Some(input.metadata))
+                .unwrap();
+        }
+
+        for cat in self.categories {
+            inputs
+                .tree
+                .set_metadata(&resolver, cat.keys, cat.metadata)
                 .unwrap();
         }
 

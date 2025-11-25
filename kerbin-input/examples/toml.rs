@@ -98,7 +98,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             key_string = format!("{event:?}");
 
-            match tree.step(&resolver, event.code, event.modifiers)? {
+            match tree.step(&resolver, event.code, event.modifiers, |_| true)? {
                 StepResult::Success(seq, a) => {
                     sub_status = "Finished".to_string();
                     if &a == "quit" {
