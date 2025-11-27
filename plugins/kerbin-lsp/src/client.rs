@@ -51,6 +51,11 @@ impl LspClient<ChildStdin> {
 
         let stdin = Arc::new(Mutex::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
+        let stderr = process.stderr.take().unwrap();
+
+        tokio::spawn(async move {
+            Self::log_errors(stderr).await;
+        });
 
         Self::new(lang.to_string(), stdin, stdout)
     }
@@ -92,6 +97,19 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
 
     pub fn is_flag_set(&mut self, flag: &'static str) -> bool {
         self.flags.contains(flag)
+    }
+
+    async fn log_errors(stderr: impl AsyncRead + std::marker::Unpin) {
+        let mut reader = BufReader::new(stderr);
+
+        loop {
+            let mut text = String::new();
+            if reader.read_line(&mut text).await.unwrap_or(0) == 0 {
+                return;
+            }
+
+            tracing::error!("LSP Error: {text}");
+        }
     }
 
     async fn read_messages(
