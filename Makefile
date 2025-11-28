@@ -1,2 +1,5 @@
 run:
 	cargo run -p kerbin -- -c ./config
+
+release:
+	cargo run -p kerbin --release -- -c ./config
