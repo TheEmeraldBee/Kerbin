@@ -48,7 +48,7 @@ pub async fn update_trees(
 ) {
     get!(mut buffers, mut grammars, config_path, log);
 
-    let buf = buffers.cur_buffer_mut().await;
+    let mut buf = buffers.cur_buffer_mut().await;
 
     // Only process if buffer has tree-sitter state and byte changes
     if !buf.has_state::<TreeSitterState>() || buf.byte_changes.is_empty() {

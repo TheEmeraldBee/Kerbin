@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{Theme, get_canonical_path_with_non_existent};
+use crate::{CloseEvent, EVENT_BUS, Theme, get_canonical_path_with_non_existent};
 
 use super::TextBuffer;
 use ascii_forge::prelude::*;
@@ -43,13 +43,31 @@ impl Buffers {
             .await
     }
 
+    /// Locates the file and get's it immutably
+    pub async fn get_path(&self, path: &str) -> Option<OwnedRwLockReadGuard<TextBuffer>> {
+        for buf in &self.buffers {
+            if buf.read().await.path.as_str() == path {
+                return Some(buf.clone().read_owned().await);
+            }
+        }
+
+        None
+    }
+
+    /// Locates the file and get's it mutably
+    pub async fn get_mut_path(&mut self, path: &str) -> Option<OwnedRwLockWriteGuard<TextBuffer>> {
+        for buf in &self.buffers {
+            if buf.read().await.path.as_str() == path {
+                return Some(buf.clone().write_owned().await);
+            }
+        }
+
+        None
+    }
+
     /// Changes the selected buffer by a given signed distance.
     ///
     /// The selection will not wrap around the ends of the buffer list.
-    ///
-    /// # Arguments
-    ///
-    /// * `dist`: The signed distance to move the selection (e.g., `1` for next, `-1` for previous).
     pub fn change_buffer(&mut self, dist: isize) {
         self.selected_buffer = self
             .selected_buffer
@@ -61,10 +79,6 @@ impl Buffers {
     ///
     /// The provided index will be clamped to ensure it's within the valid range
     /// of available buffers.
-    ///
-    /// # Arguments
-    ///
-    /// * `id`: The index of the buffer to select.
     pub fn set_selected_buffer(&mut self, id: usize) {
         self.selected_buffer = id.clamp(0, self.buffers.len() - 1);
     }
@@ -74,11 +88,19 @@ impl Buffers {
     /// If closing the buffer results in no open buffers, a new scratch buffer
     /// is automatically created to ensure there's always at least one buffer.
     /// The `selected_buffer` is adjusted accordingly if the closed buffer was active.
-    ///
-    /// # Arguments
-    ///
-    /// * `idx`: The index of the buffer to close.
-    pub fn close_buffer(&mut self, idx: usize) {
+    pub async fn close_buffer(&mut self, idx: usize) {
+        let Some(buf) = self.buffers.get(idx) else {
+            return;
+        };
+
+        let buf = buf.read().await;
+
+        let path = buf.path.clone();
+
+        EVENT_BUS.emit(CloseEvent { path }).await;
+
+        drop(buf);
+
         self.buffers.remove(idx);
         if self.buffers.is_empty() {
             self.buffers
@@ -93,14 +115,6 @@ impl Buffers {
     /// If a buffer with the canonicalized version of the provided `path` is already
     /// open, that existing buffer is selected instead of opening a duplicate.
     /// Otherwise, a new `TextBuffer` is created, opened, and set as the selected buffer.
-    ///
-    /// # Arguments
-    ///
-    /// * `path`: The file path `String` to open.
-    ///
-    /// # Returns
-    ///
-    /// The index of the newly opened or selected buffer.
     pub async fn open(&mut self, path: String) -> std::io::Result<usize> {
         let check_path = get_canonical_path_with_non_existent(&path)
             .to_str()
@@ -135,11 +149,6 @@ impl Buffers {
     ///
     /// This method displays the unique paths of all open buffers, highlighting
     /// the currently selected one and handling horizontal scrolling.
-    ///
-    /// # Arguments
-    ///
-    /// * `buffer`: A mutable reference to the `Buffer` where the bufferline should be drawn.
-    /// * `theme`: A reference to the `Theme` for styling the bufferline elements.
     pub async fn render_bufferline(&self, buffer: &mut Buffer, theme: &Theme) {
         let mut current_char_offset = 0;
 
@@ -206,15 +215,6 @@ impl Buffers {
     }
 
     /// Returns the unique (shortened) path of the buffer at the given index.
-    ///
-    /// # Arguments
-    ///
-    /// * `idx`: The index of the buffer whose unique path is requested.
-    ///
-    /// # Returns
-    ///
-    /// An `Option<String>` containing the unique path if the index is valid,
-    /// otherwise `None`.
     pub fn unique_path_of(&self, idx: usize) -> Option<String> {
         self.buffer_paths.get(idx).cloned()
     }
@@ -225,15 +225,6 @@ impl Buffers {
 ///
 /// If paths share common prefixes, it will attempt to truncate them to the shortest
 /// possible unique representation.
-///
-/// # Arguments
-///
-/// * `paths`: An iterator yielding `String` representations of full file paths.
-/// * `len`: The total number of paths (expected length of the output vector).
-///
-/// # Returns
-///
-/// A `Vec<String>` containing the unique, shortened paths.
 fn get_unique_paths(paths: impl Iterator<Item = String>, len: usize) -> Vec<String> {
     if len == 0 {
         return vec![];

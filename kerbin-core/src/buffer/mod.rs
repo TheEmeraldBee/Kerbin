@@ -226,7 +226,9 @@ impl TextBuffer {
     }
 
     /// Retrieves a state from the internal storage, returning None if non-existent
-    pub async fn get_state<T: StateName + StaticState>(&self) -> Option<OwnedRwLockWriteGuard<T>> {
+    pub async fn get_state<T: StateName + StaticState>(
+        &mut self,
+    ) -> Option<OwnedRwLockWriteGuard<T>> {
         if let Some(s) = self
             .states
             .get(&T::static_name())

@@ -29,7 +29,7 @@ async fn tree_sitter_scope_info(state: &mut State) {
     let config_path = state.lock_state::<ConfigFolder>().await.0.clone();
     let log = state.lock_state::<LogSender>().await.clone();
 
-    let buf = buffers.cur_buffer_mut().await;
+    let mut buf = buffers.cur_buffer_mut().await;
 
     let Some(ts_state) = buf.get_state::<TreeSitterState>().await else {
         log.low(

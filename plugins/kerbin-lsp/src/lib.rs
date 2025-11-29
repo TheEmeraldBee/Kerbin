@@ -1,4 +1,4 @@
-use kerbin_core::{LogSender, State};
+use kerbin_core::{EVENT_BUS, LogSender, State};
 
 pub mod jsonrpc;
 pub use jsonrpc::*;
@@ -56,6 +56,12 @@ pub async fn init(state: &mut State) {
         .state(LspHandlerManager::default())
         .state(LspManager::default());
 
+    // Setup reaction to file save event
+    EVENT_BUS
+        .subscribe::<FileEvent>()
+        .await
+        .system(file_save::file_saved);
+
     // {
     //     let mut command_registry = state.lock_state::<CommandRegistry>().await;
 
@@ -64,7 +70,7 @@ pub async fn init(state: &mut State) {
 
     // Setup global state handlers
     {
-        let mut handler_manager = state.lock_state::<crate::LspHandlerManager>().await;
+        let mut handler_manager = state.lock_state::<LspHandlerManager>().await;
 
         handler_manager.on_global_notify("$/progress", |state, msg| Box::pin(log_init(state, msg)));
     }

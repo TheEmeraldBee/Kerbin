@@ -4,7 +4,7 @@ use kerbin_core::*;
 pub async fn apply_changes(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspManager>) {
     get!(mut buffers, mut lsp_manager);
 
-    let buf = buffers.cur_buffer_mut().await;
+    let mut buf = buffers.cur_buffer_mut().await;
 
     let Some(mut file) = buf.get_state::<OpenedFile>().await else {
         // File hasn't been opened yet anyways

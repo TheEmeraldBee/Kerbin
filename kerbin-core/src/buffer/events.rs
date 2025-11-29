@@ -3,3 +3,9 @@ pub struct SaveEvent {
     /// The path the file was saved to
     pub path: String,
 }
+
+/// Is emitted when a buffer is closed
+pub struct CloseEvent {
+    /// The path to the file
+    pub path: String,
+}

@@ -455,7 +455,7 @@ impl Command for BuffersCommand {
                     tracing::error!("Cannot close buffer as it has changes!");
                     false
                 } else {
-                    buffers.close_buffer(buf_idx as usize);
+                    buffers.close_buffer(buf_idx as usize).await;
                     true
                 }
             }
@@ -468,7 +468,7 @@ impl Command for BuffersCommand {
                     return false;
                 }
 
-                buffers.close_buffer(buf_idx as usize);
+                buffers.close_buffer(buf_idx as usize).await;
                 true
             }
         }
