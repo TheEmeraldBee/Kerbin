@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::*;
 use ascii_forge::prelude::*;
 use kerbin_core::{kerbin_macros::State, *};
@@ -34,6 +36,22 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
             let end_byte = buf.rope.line_to_byte_idx(end_line, LineType::LF_CR)
                 + buf.rope.char_to_byte_idx(end_char);
 
+            if (start_byte..end_byte).contains(&buf.primary_cursor().get_cursor_byte()) {
+                let buffer = Buffer::sized_element(diagnostic.message.as_str());
+
+                buf.add_extmark(
+                    ExtmarkBuilder::new("lsp::diagnostics", start_byte)
+                        .with_priority(5)
+                        .with_decoration(ExtmarkDecoration::OverlayElement {
+                            offset: vec2(1, 1),
+                            elem: Arc::new(buffer),
+                            z_index: 0,
+                            clip_to_viewport: true,
+                            positioning: OverlayPositioning::RelativeToLine,
+                        }),
+                );
+            }
+
             // Choose color based on severity
             let style = match diagnostic.severity {
                 Some(DiagnosticSeverity::ERROR) => ContentStyle::new().underline_red().underlined(),
@@ -68,15 +86,6 @@ pub async fn publish_diagnostics(state: &State, msg: &JsonRpcMessage) {
         else {
             return;
         };
-
-        let log = state.lock_state::<LogSender>().await;
-        log.high(
-            "lsp::diagnostics",
-            format!(
-                "Registered: {} items to diagnostics",
-                params.diagnostics.len()
-            ),
-        );
 
         buf.set_state(Diagnostics(params.diagnostics));
     }
