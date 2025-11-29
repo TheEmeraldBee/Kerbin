@@ -50,8 +50,20 @@ macro_rules! get {
         let mut $name = $name.get().await;
         get!(@inner $($($t)*)?)
     };
+    (@inner Some($name:ident) $(, $($t:tt)+)?) => {
+        let Some($name) = $name.get().await else {
+            return;
+        };
+        get!(@inner $($($t)+)?)
+    };
+    (@inner Some(mut $name:ident) $(, $($t:tt)+)?) => {
+        let Some(mut $name) = $name.get().await else {
+            return;
+        };
+        get!(@inner $($($t)+)?)
+    };
     (@inner $($t:tt)+) => {
-        compile_error!("Expected comma-separated list of (mut item) or (item), but got an error while parsing. Make sure you don't have a trailing `,`");
+        compile_error!("Expected comma-separated list of (mut item), (item), Some(item), or Some(mut item), but got an error while parsing. Make sure you don't have a trailing `,`");
     };
     (@inner) => {};
     ($($t:tt)*) => {
@@ -156,3 +168,6 @@ pub use style_exts::*;
 
 pub mod logging;
 pub use logging::*;
+
+pub mod signal;
+pub use signal::*;

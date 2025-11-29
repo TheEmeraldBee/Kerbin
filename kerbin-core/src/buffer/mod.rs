@@ -6,6 +6,9 @@ use std::{
     time::SystemTime,
 };
 
+pub mod events;
+pub use events::*;
+
 pub mod action;
 pub use action::*;
 
@@ -27,6 +30,8 @@ pub use render::*;
 
 use ropey::{LineType, Rope};
 use tokio::sync::{OwnedRwLockWriteGuard, RwLock};
+
+use crate::EVENT_BUS;
 
 /// Used internally for defining a set of actions that were applied together as a single undo/redo unit.
 ///
@@ -426,13 +431,9 @@ impl TextBuffer {
 
     /// Writes the buffer's content to a file on disk.
     ///
-    /// If `path` is `Some(String)`, the buffer's internal `path` is updated,
-    /// and the file is written to the new path. If `path` is `None`, the file
-    /// is written to the buffer's currently stored `path`.
-    ///
     /// Handles directory creation and ensures the file exists.
     /// A scratch file (`<scratch>`) cannot be written without providing a new path.
-    pub fn write_file(&mut self, path: Option<String>) {
+    pub async fn write_file(&mut self, path: Option<String>) {
         if let Some(new_path) = path {
             let path = Path::new(&new_path);
 
@@ -451,6 +452,12 @@ impl TextBuffer {
             tracing::error!("Unable to write to scratch file without setting a path");
             return;
         }
+
+        EVENT_BUS
+            .emit(SaveEvent {
+                path: self.path.clone(),
+            })
+            .await;
 
         if !std::fs::exists(&self.path).unwrap() {
             if let Some(dir_path) = Path::new(&self.path).parent() {

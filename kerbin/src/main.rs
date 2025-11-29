@@ -142,6 +142,9 @@ async fn update(state: &mut State) {
 
     // Render all chunks to the window
     state.hook(hooks::RenderChunks).call().await;
+
+    // Call out to recently emited events
+    EVENT_BUS.resolve(state).await;
 }
 
 #[tokio::main]

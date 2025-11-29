@@ -36,6 +36,7 @@ pub fn init_state(
     let (log_state, log_sender) = LogState::new_with_channel();
 
     state
+        .state(EventStorage::default())
         .state(Registers::default())
         .state(ConfigFolder(config_path))
         .state(SessionUuid(uuid))

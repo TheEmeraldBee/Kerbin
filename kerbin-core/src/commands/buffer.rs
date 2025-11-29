@@ -212,12 +212,12 @@ impl Command for BufferCommand {
                     }
                 }
 
-                cur_buffer.write_file(path.clone());
+                cur_buffer.write_file(path.clone()).await;
                 true
             }
 
             BufferCommand::WriteFileForce { path } => {
-                cur_buffer.write_file(path.clone());
+                cur_buffer.write_file(path.clone()).await;
                 true
             }
 

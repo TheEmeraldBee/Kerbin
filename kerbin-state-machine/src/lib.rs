@@ -207,22 +207,25 @@ impl<'a> HookCallBuilder<'a> {
                 continue;
             };
 
-            let indices = group_concurrent_system_indices(hooks);
+            run_system_groups(hooks, &self.state.storage).await;
+        }
+    }
+}
 
-            for group in indices {
-                let (_, res) = async_scoped::TokioScope::scope_and_block(|s| {
-                    for indice in group {
-                        let system_future = hooks[indice].call(&self.state.storage);
+pub async fn run_system_groups(systems: &[Box<dyn System + Send + Sync>], storage: &StateStorage) {
+    let indices = group_concurrent_system_indices(systems);
 
-                        s.spawn(system_future);
-                    }
-                });
+    for group in indices {
+        let (_, res) = async_scoped::TokioScope::scope_and_block(|s| {
+            for indice in group {
+                let system_future = systems[indice].call(storage);
+                s.spawn(system_future);
+            }
+        });
 
-                for res in res {
-                    if let Err(e) = res {
-                        panic!("{e}");
-                    }
-                }
+        for res in res {
+            if let Err(e) = res {
+                panic!("{e}");
             }
         }
     }
@@ -257,7 +260,9 @@ impl<'a, H: Hook> HookBuilder<'a, H> {
     }
 }
 
-fn group_concurrent_system_indices(systems: &[Box<dyn System + Send + Sync>]) -> Vec<Vec<usize>> {
+pub fn group_concurrent_system_indices(
+    systems: &[Box<dyn System + Send + Sync>],
+) -> Vec<Vec<usize>> {
     let mut remaining_indices: Vec<usize> = (0..systems.len()).collect();
     let mut groups: Vec<Vec<usize>> = Vec::new();
 
@@ -336,7 +341,7 @@ fn group_concurrent_system_indices(systems: &[Box<dyn System + Send + Sync>]) ->
     groups
 }
 
-fn guarentee_params<S: System>(system: &S) {
+pub fn guarentee_params<S: System>(system: &S) {
     let params = system.params();
     let param_count = params.len();
     let mut param_types = HashSet::new();
