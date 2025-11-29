@@ -113,8 +113,13 @@ pub async fn build_buffer_lines(
 
         let mut render = RenderLine::default();
 
-        let line_str = (line_idx + 1).to_string();
-        let line_width = line_str.width();
+        let mut line_str = (line_idx + 1).to_string();
+        let mut line_width = line_str.width();
+
+        while line_width > 5 {
+            line_str.pop();
+            line_width = line_str.width()
+        }
         render!(render.gutter_mut(), vec2(0, 0) => [ line_style.apply(format!("{}{line_str}", " ".repeat(5 - line_width))) ]);
 
         let mut line_chars: Vec<(usize, char)> = line.char_indices().collect();

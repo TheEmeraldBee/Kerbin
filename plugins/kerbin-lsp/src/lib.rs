@@ -1,4 +1,4 @@
-use kerbin_core::{EVENT_BUS, LogSender, State};
+use kerbin_core::{EVENT_BUS, LogSender, SaveEvent, State};
 
 pub mod jsonrpc;
 pub use jsonrpc::*;
@@ -17,6 +17,9 @@ pub use events::*;
 
 pub mod manager;
 pub use manager::*;
+
+pub mod diagnostics;
+pub use diagnostics::*;
 
 // Re-Exports
 pub use lsp_types::*;
@@ -42,6 +45,7 @@ pub async fn register_lang(
             .on_hook(kerbin_core::hooks::UpdateFiletype::new(ext))
             .system(open_files)
             .system(apply_changes)
+            .system(render_diagnostic_highlights)
             .system(process_lsp_events);
     }
 
@@ -58,7 +62,7 @@ pub async fn init(state: &mut State) {
 
     // Setup reaction to file save event
     EVENT_BUS
-        .subscribe::<FileEvent>()
+        .subscribe::<SaveEvent>()
         .await
         .system(file_save::file_saved);
 
@@ -71,6 +75,10 @@ pub async fn init(state: &mut State) {
     // Setup global state handlers
     {
         let mut handler_manager = state.lock_state::<LspHandlerManager>().await;
+
+        handler_manager.on_global_notify("textDocument/publishDiagnostics", |state, msg| {
+            Box::pin(publish_diagnostics(state, msg))
+        });
 
         handler_manager.on_global_notify("$/progress", |state, msg| Box::pin(log_init(state, msg)));
     }
