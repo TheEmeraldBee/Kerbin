@@ -196,7 +196,7 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
                 // Add to the vector of items for this key
                 self.tree
                     .entry(resolved_key)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(Arc::new(KeyItem::Leaf(metadata_index, action.clone())));
             } else {
                 self.register_sequence(
@@ -222,7 +222,7 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
             return Err(ParseError::Custom("Empty remaining sequence".into()));
         }
 
-        let items = self.tree.entry(first_key.clone()).or_insert_with(Vec::new);
+        let items = self.tree.entry(first_key.clone()).or_default();
 
         // Try to find an existing tree node we can add to
         let mut added_to_existing = false;
@@ -355,37 +355,35 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
             return Ok(StepResult::Reset);
         }
 
-        if let Some(cache) = &self.resolved_cache {
-            if let Some(candidates) = cache.get(&pressed_key) {
-                // Check candidates in reverse order
-                for &(vec_idx, child_idx) in candidates.iter().rev() {
-                    if let Some(active) = &self.active_tree {
-                        if let KeyItem::Tree(_, children, _) = active.1.as_ref() {
-                            if let Some(child) = children.get(child_idx) {
-                                let meta = match child.as_ref() {
-                                    KeyItem::Leaf(meta_idx, _) | KeyItem::Tree(_, _, meta_idx) => {
-                                        meta_idx.and_then(|idx| self.metadata.get(idx))
-                                    }
-                                };
+        if let Some(cache) = &self.resolved_cache
+            && let Some(candidates) = cache.get(&pressed_key)
+        {
+            // Check candidates in reverse order
+            for &(vec_idx, child_idx) in candidates.iter().rev() {
+                if let Some(active) = &self.active_tree
+                    && let KeyItem::Tree(_, children, _) = active.1.as_ref()
+                    && let Some(child) = children.get(child_idx)
+                {
+                    let meta = match child.as_ref() {
+                        KeyItem::Leaf(meta_idx, _) | KeyItem::Tree(_, _, meta_idx) => {
+                            meta_idx.and_then(|idx| self.metadata.get(idx))
+                        }
+                    };
 
-                                if check(meta) {
-                                    self.current_sequence.push(pressed_key.clone());
+                    if check(meta) {
+                        self.current_sequence.push(pressed_key.clone());
 
-                                    match child.as_ref() {
-                                        KeyItem::Leaf(_, action) => {
-                                            let action = action.clone();
-                                            let seq = self.current_sequence.clone();
-                                            self.reset();
-                                            return Ok(StepResult::Success(seq, action));
-                                        }
-                                        KeyItem::Tree(_, _, _) => {
-                                            self.active_tree =
-                                                Some((active.0 + 1, Arc::clone(child), vec_idx));
-                                            self.resolve_current_layer(resolver)?;
-                                            return Ok(StepResult::Step);
-                                        }
-                                    }
-                                }
+                        match child.as_ref() {
+                            KeyItem::Leaf(_, action) => {
+                                let action = action.clone();
+                                let seq = self.current_sequence.clone();
+                                self.reset();
+                                return Ok(StepResult::Success(seq, action));
+                            }
+                            KeyItem::Tree(_, _, _) => {
+                                self.active_tree = Some((active.0 + 1, Arc::clone(child), vec_idx));
+                                self.resolve_current_layer(resolver)?;
+                                return Ok(StepResult::Step);
                             }
                         }
                     }
@@ -400,17 +398,14 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
     fn resolve_current_layer(&mut self, resolver: &Resolver) -> Result<(), ParseError> {
         let mut cache: IndexMap<ResolvedKeyBind, Vec<(usize, usize)>> = IndexMap::new();
 
-        if let Some((_, active, _)) = &self.active_tree {
-            if let KeyItem::Tree(unresolved_binds, _, _) = active.as_ref() {
-                for (child_idx, unresolved_bind) in unresolved_binds.iter().enumerate() {
-                    let resolved_binds = resolver.resolve(unresolved_bind.clone())?;
-                    for resolved_bind in resolved_binds {
-                        // For nested trees, we use vec_idx=0 since children don't have multiple versions
-                        cache
-                            .entry(resolved_bind)
-                            .or_insert_with(Vec::new)
-                            .push((0, child_idx));
-                    }
+        if let Some((_, active, _)) = &self.active_tree
+            && let KeyItem::Tree(unresolved_binds, _, _) = active.as_ref()
+        {
+            for (child_idx, unresolved_bind) in unresolved_binds.iter().enumerate() {
+                let resolved_binds = resolver.resolve(unresolved_bind.clone())?;
+                for resolved_bind in resolved_binds {
+                    // For nested trees, we use vec_idx=0 since children don't have multiple versions
+                    cache.entry(resolved_bind).or_default().push((0, child_idx));
                 }
             }
         }
@@ -436,19 +431,19 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
             if let KeyItem::Tree(_, children, _) = active.as_ref() {
                 for (resolved_key, candidates) in cache {
                     // Only show the first valid candidate (most recent)
-                    if let Some(&(_, child_idx)) = candidates.first() {
-                        if let Some(child) = children.get(child_idx) {
-                            let meta = match child.as_ref() {
-                                KeyItem::Leaf(meta_idx, _) => {
-                                    meta_idx.and_then(|i| self.metadata.get(i).cloned())
-                                }
-                                KeyItem::Tree(_, _, meta_idx) => {
-                                    meta_idx.and_then(|i| self.metadata.get(i).cloned())
-                                }
-                            };
+                    if let Some(&(_, child_idx)) = candidates.first()
+                        && let Some(child) = children.get(child_idx)
+                    {
+                        let meta = match child.as_ref() {
+                            KeyItem::Leaf(meta_idx, _) => {
+                                meta_idx.and_then(|i| self.metadata.get(i).cloned())
+                            }
+                            KeyItem::Tree(_, _, meta_idx) => {
+                                meta_idx.and_then(|i| self.metadata.get(i).cloned())
+                            }
+                        };
 
-                            result.push((resolved_key.clone(), meta));
-                        }
+                        result.push((resolved_key.clone(), meta));
                     }
                 }
             }

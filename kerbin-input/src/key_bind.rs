@@ -33,12 +33,11 @@ impl Display for UnresolvedKeyBind {
         for m in &self.mods {
             let mut include = true;
 
-            if let UnresolvedKeyElement::Literal(mods) = m {
-                if mods.contains(M::SHIFT) {
-                    if let UnresolvedKeyElement::Literal(Char(_)) = &self.code {
-                        include = false;
-                    }
-                }
+            if let UnresolvedKeyElement::Literal(mods) = m
+                && mods.contains(M::SHIFT)
+                && let UnresolvedKeyElement::Literal(Char(_)) = &self.code
+            {
+                include = false;
             }
 
             if include {

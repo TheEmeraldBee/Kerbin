@@ -186,7 +186,7 @@ fn parse_segments(s: &str) -> Result<Vec<String>, String> {
                 current.push_str("$(");
 
                 let mut depth = 1;
-                while let Some(c) = chars.next() {
+                for c in chars.by_ref() {
                     current.push(c);
                     if c == '(' {
                         depth += 1;
@@ -208,7 +208,7 @@ fn parse_segments(s: &str) -> Result<Vec<String>, String> {
                 current.push('(');
                 let mut depth = 1;
 
-                while let Some(c) = chars.next() {
+                for c in chars.by_ref() {
                     current.push(c);
                     if c == '(' {
                         depth += 1;

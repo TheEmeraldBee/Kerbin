@@ -79,8 +79,12 @@ pub async fn render_help_menu(chunk: Chunk<HelpChunk>, input: Res<InputState>) {
     let metadata = input.tree.collect_layer_metadata().unwrap();
 
     // Render up to the chunk's height (-2 on size for border)
-    for i in 0..metadata.len().min(chunk.size().y as usize - 2) {
-        render!(&mut chunk, vec2(1, 1 + i as u16) => [ metadata[i].0.to_string(), "   ", metadata[i].1.as_ref().map(|x| x.desc.as_str()).unwrap_or_default() ]);
+    for (i, data) in metadata
+        .iter()
+        .enumerate()
+        .take(metadata.len().min(chunk.size().y as usize - 2))
+    {
+        render!(&mut chunk, vec2(1, 1 + i as u16) => [ data.0.to_string(), "   ", data.1.as_ref().map(|x| x.desc.as_str()).unwrap_or_default() ]);
     }
 }
 
@@ -180,7 +184,7 @@ pub async fn handle_inputs(
     }
 
     let res_map = HashMap::default();
-    let res_resolver = |x: &str, y: &[String]| {
+    let res_resolver = |_x: &str, _y: &[String]| {
         Ok(vec![
             "h".to_string(),
             "j".to_string(),

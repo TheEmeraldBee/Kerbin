@@ -8,7 +8,7 @@ use std::{
     marker::PhantomData,
     sync::{Arc, LazyLock},
 };
-use tokio::sync::{OwnedRwLockWriteGuard, RwLock, RwLockWriteGuard};
+use tokio::sync::{RwLock, RwLockWriteGuard};
 
 use crate::*;
 
@@ -19,18 +19,12 @@ struct EventEntry {
     data: Option<Box<dyn Any + Send + Sync>>,
 }
 
-/// Global typed registry
+#[derive(Default)]
 pub struct TypedBus {
     map: RwLock<HashMap<TypeId, EventEntry>>,
 }
 
 impl TypedBus {
-    pub fn new() -> Self {
-        Self {
-            map: RwLock::new(HashMap::new()),
-        }
-    }
-
     /// Emit an event with data
     pub async fn emit<T: 'static + Send + Sync>(&self, data: T) {
         let type_id = TypeId::of::<T>();
@@ -100,7 +94,7 @@ impl<'a> SubscriberBuilder<'a> {
         system: impl IntoSystem<I, D, System = S>,
     ) {
         self.bus_map
-            .entry(self.entry_type.clone())
+            .entry(self.entry_type)
             .or_insert(EventEntry {
                 active: false,
                 subscribers: vec![],
@@ -163,4 +157,4 @@ impl<T: Send + Sync + 'static> SystemParam for EventData<T> {
     }
 }
 
-pub static EVENT_BUS: LazyLock<Arc<TypedBus>> = LazyLock::new(|| Arc::new(TypedBus::new()));
+pub static EVENT_BUS: LazyLock<Arc<TypedBus>> = LazyLock::new(|| Arc::new(TypedBus::default()));

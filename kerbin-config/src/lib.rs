@@ -432,7 +432,7 @@ impl Config {
         };
 
         let res_map = HashMap::default();
-        let res_resolver = |x: &str, y: &[String]| {
+        let res_resolver = |_x: &str, _y: &[String]| {
             Ok(vec![
                 "h".to_string(),
                 "j".to_string(),
