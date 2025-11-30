@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::ascii_forge::prelude::*;
 use crate::*;
 use ascii_forge::widgets::Border;
@@ -110,8 +108,10 @@ pub async fn handle_inputs(
         if let Event::Paste(text) = event {
             let registry = prefix_registry.get().await;
             let command = command_registry.get().await.parse_command(
-                CommandRegistry::split_command(&format!("a '{text}' false")),
+                vec!["a".to_string(), text.to_string(), "false".to_string()],
                 true,
+                false,
+                None,
                 false,
                 &registry,
                 &modes,
@@ -141,8 +141,10 @@ pub async fn handle_inputs(
                 // Existing character handling
                 let registry = prefix_registry.get().await;
                 let command = command_registry.get().await.parse_command(
-                    CommandRegistry::split_command(&format!("a '{chr}' false")),
+                    vec!["a".to_string(), chr.to_string(), "false".to_string()],
                     true,
+                    false,
+                    None,
                     false,
                     &registry,
                     &modes,
@@ -183,17 +185,8 @@ pub async fn handle_inputs(
         return;
     }
 
-    let res_map = HashMap::default();
-    let res_resolver = |_x: &str, _y: &[String]| {
-        Ok(vec![
-            "h".to_string(),
-            "j".to_string(),
-            "k".to_string(),
-            "l".to_string(),
-        ])
-    };
-
-    let resolver = Resolver::new(&res_map, &res_resolver);
+    let resolver = resolver_engine().await;
+    let resolver = resolver.as_resolver();
 
     // Update the tree
     for event in window.events() {
@@ -215,9 +208,11 @@ pub async fn handle_inputs(
                     for command in &commands {
                         let registry = prefix_registry.get().await;
                         let command = command_registry.get().await.parse_command(
-                            CommandRegistry::split_command(command),
+                            word_split(command),
                             true,
                             false,
+                            Some(&resolver),
+                            true,
                             &registry,
                             &modes,
                         );

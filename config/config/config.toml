@@ -12,3 +12,6 @@ paths = ["./plugins/init.toml"]
 
 [core]
 framerate = 60
+
+[template]
+cfg_folder = [ "/home/brightonlcox/programming/tools/Kerbin/config/" ]

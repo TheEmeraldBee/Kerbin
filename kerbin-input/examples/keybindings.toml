@@ -18,6 +18,11 @@ action = "quit"
 desc = "Quit"
 
 [[keybind]]
+sequence = ["space", "$(echo \"h\")"]
+action = "quit"
+desc = "Shell Quit"
+
+[[keybind]]
 sequence = ["q"]
 action = "quit"
 desc = "Quit"

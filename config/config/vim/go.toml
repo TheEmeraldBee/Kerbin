@@ -9,3 +9,15 @@ modes = []
 keys = ["shift-g"]
 commands = ["ml 32000"]
 desc = "Goto Bottom Line"
+
+[[keybind]]
+modes = []
+keys = ["g", "h"]
+commands = ["sfw false", "sc"]
+desc = "Goto first Non-Whitespace"
+
+[[keybind]]
+modes = []
+keys = ["g", "l"]
+commands = ["sle false", "gse", "sc"]
+desc = "Goto line end"

@@ -214,6 +214,9 @@ async fn main() {
     let (command_sender, mut command_reciever) = unbounded_channel();
 
     let mut state = init_state(window, command_sender, config_path.clone(), command_session);
+    resolver_engine_mut()
+        .await
+        .set_template("session", [command_session]);
 
     let mut framerate = 60;
 
@@ -262,9 +265,16 @@ async fn main() {
         let modes = state.lock_state::<ModeStack>().await;
 
         for string in command_strings {
-            let words = CommandRegistry::split_command(&string);
-            if let Some(cmd) = commands.parse_command(words, true, false, &prefix_registry, &modes)
-            {
+            let words = word_split(&string);
+            if let Some(cmd) = commands.parse_command(
+                words,
+                true,
+                false,
+                Some(&resolver_engine().await.as_resolver()),
+                true,
+                &prefix_registry,
+                &modes,
+            ) {
                 command_sender.send(cmd).unwrap();
             }
         }
@@ -318,10 +328,16 @@ async fn main() {
             let modes = state.lock_state::<ModeStack>().await;
 
             while let Some(item) = queue.try_recv::<String>().unwrap() {
-                let words = CommandRegistry::split_command(&item);
-                if let Some(cmd) =
-                    commands.parse_command(words, true, false, &prefix_registry, &modes)
-                {
+                let words = word_split(&item);
+                if let Some(cmd) = commands.parse_command(
+                    words,
+                    true,
+                    false,
+                    Some(&resolver_engine().await.as_resolver()),
+                    true,
+                    &prefix_registry,
+                    &modes,
+                ) {
                     command_sender.send(cmd).unwrap();
                 }
             }

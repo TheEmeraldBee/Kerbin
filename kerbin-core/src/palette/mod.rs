@@ -45,11 +45,17 @@ pub async fn update_palette_suggestions(
 
     if palette.old_input != palette.input {
         palette.old_input = palette.input.clone();
-        (palette.suggestions, palette.completion, palette.desc) =
-            commands.get_command_suggestions(&palette.input, &theme);
+        (palette.suggestions, palette.completion, palette.desc) = commands
+            .get_command_suggestions(&palette.input, &theme)
+            .await;
     }
 
-    palette.input_valid = commands.validate_command(&palette.input, &prefix_registry, &modes);
+    palette.input_valid = commands.validate_command(
+        &palette.input,
+        Some(&resolver_engine().await.as_resolver()),
+        &prefix_registry,
+        &modes,
+    );
 }
 
 /// Handles keyboard input specific to the command palette ('c' mode).
@@ -80,8 +86,10 @@ pub async fn handle_command_palette_input(
 
                     let registry = prefix_registry.get().await;
                     let command = command_registry.get().await.parse_command(
-                        CommandRegistry::split_command(&palette.input),
+                        word_split(&palette.input),
                         true,
+                        true,
+                        Some(&resolver_engine().await.as_resolver()),
                         true,
                         &registry,
                         &modes,

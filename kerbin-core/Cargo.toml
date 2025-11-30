@@ -21,10 +21,11 @@ tracing-subscriber = "0.3.19"
 
 ropey.workspace = true
 
-shellwords = "1.1.0"
 serde.workspace = true
-tree-sitter = "0.25.8"
+
 toml = { version = "0.9.5", default-features = false, features = ["display", "fast_hash", "serde"] }
+
+regex = "1.12.2"
 regex-cursor = { version = "0.1.5", default-features = false, features = ["perf-inline"] }
 
 unicode-width = "0.2.1"

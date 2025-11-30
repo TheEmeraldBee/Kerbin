@@ -41,6 +41,8 @@ impl Command for CommitCommand {
                         after.clone(),
                         true,
                         false,
+                        Some(&resolver_engine().await.as_resolver()),
+                        true,
                         &*state.lock_state::<CommandPrefixRegistry>().await,
                         &*state.lock_state::<ModeStack>().await,
                     );

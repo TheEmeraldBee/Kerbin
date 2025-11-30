@@ -1,6 +1,6 @@
 use ascii_forge::prelude::*;
 use kerbin_input::{KeyTree, ParseError, Resolver, StepResult, UnresolvedKeyBind};
-use std::{collections::HashMap, error::Error, fmt::Display, time::Duration};
+use std::{collections::HashMap, error::Error, fmt::Display, sync::Arc, time::Duration};
 
 use serde::*;
 
@@ -78,7 +78,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         ],
     )]);
 
-    let resolver = Resolver::new(&templates, &execute_command);
+    let resolver = Resolver::new(&templates, Arc::new(execute_command));
     let mut tree = keybindings_to_tree(config.keybindings, &resolver).unwrap();
 
     let mut sub_status = String::new();

@@ -53,8 +53,8 @@ pub struct CommandPrefix {
     /// A list of character codes representing the modes in which this prefix should be active.
     /// If any of these modes are on the `ModeStack`, the prefix logic will be applied.
     pub modes: Vec<char>,
+
     /// The command string that will be prepended to the user's input. This string
-    /// is split into words using `shellwords::split` before prepending.
     pub prefix_cmd: String,
 
     /// A boolean indicating whether the `list` acts as an `include` filter (`true`)

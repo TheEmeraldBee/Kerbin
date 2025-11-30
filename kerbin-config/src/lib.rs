@@ -1,6 +1,7 @@
 use ascii_forge::prelude::*;
 use kerbin_core::{
-    CommandPrefix, CommandPrefixRegistry, InputState, Metadata, Resolver, Theme, UnresolvedKeyBind,
+    CommandPrefix, CommandPrefixRegistry, InputState, Metadata, Theme, UnresolvedKeyBind,
+    resolver_engine, resolver_engine_mut,
 };
 use kerbin_core::{Keybinding, PluginConfig};
 use kerbin_state_machine::State;
@@ -226,6 +227,8 @@ pub struct Config {
     palette: HashMap<String, String>,
     theme: HashMap<String, UnresolvedStyle>,
     plugin_config: HashMap<String, Value>,
+
+    templates: HashMap<String, Vec<String>>,
 }
 
 impl Config {
@@ -349,6 +352,17 @@ impl Config {
                         return Err(format!("`theme` section in {:?} must be a table", path).into());
                     }
                 }
+                "template" => {
+                    if let Value::Table(tpl_table) = value {
+                        let current_templates: HashMap<String, Vec<String>> =
+                            tpl_table.try_into()?;
+                        final_config.templates.extend(current_templates);
+                    } else {
+                        return Err(
+                            format!("`templates` section in {:?} must be a table", path).into()
+                        );
+                    }
+                }
                 "plugin" => {
                     if let Value::Table(value_table) = value {
                         let current_plugin_data: HashMap<String, Value> = value_table.try_into()?;
@@ -386,6 +400,8 @@ impl Config {
         self.theme.extend(other.theme);
 
         self.plugin_config.extend(other.plugin_config);
+
+        self.templates.extend(other.templates);
     }
 
     fn resolve_palette(&self) -> Result<HashMap<String, Color>, ThemeError> {
@@ -431,17 +447,10 @@ impl Config {
             }
         };
 
-        let res_map = HashMap::default();
-        let res_resolver = |_x: &str, _y: &[String]| {
-            Ok(vec![
-                "h".to_string(),
-                "j".to_string(),
-                "k".to_string(),
-                "l".to_string(),
-            ])
-        };
+        resolver_engine_mut().await.extend_map(self.templates);
 
-        let resolver = Resolver::new(&res_map, &res_resolver);
+        let resolver = resolver_engine().await;
+        let resolver = resolver.as_resolver();
 
         let mut inputs = state.lock_state::<InputState>().await;
         for input in self.keybindings {

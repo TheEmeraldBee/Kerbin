@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use ascii_forge::window::KeyModifiers;
 
@@ -9,11 +9,14 @@ pub type CommandExecutor =
 
 pub struct Resolver<'a> {
     templates: &'a HashMap<String, Vec<String>>,
-    command_executor: &'a CommandExecutor,
+    command_executor: Arc<CommandExecutor>,
 }
 
 impl<'a> Resolver<'a> {
-    pub fn new(templates: &'a HashMap<String, Vec<String>>, executor: &'a CommandExecutor) -> Self {
+    pub fn new(
+        templates: &'a HashMap<String, Vec<String>>,
+        executor: Arc<CommandExecutor>,
+    ) -> Self {
         Self {
             templates,
             command_executor: executor,
@@ -54,6 +57,108 @@ impl<'a> Resolver<'a> {
         }
 
         Ok(results)
+    }
+
+    pub fn expand_str(&self, input: &str, allow_run: bool) -> String {
+        let mut result = String::new();
+        let mut chars = input.chars().peekable();
+
+        while let Some(ch) = chars.next() {
+            match ch {
+                '\\' => {
+                    if let Some(&next) = chars.peek() {
+                        if next == '$' {
+                            chars.next();
+                            result.push('$');
+                        } else {
+                            result.push('\\');
+                        }
+                    } else {
+                        result.push('\\');
+                    }
+                }
+                '%' => {
+                    if chars.peek() == Some(&'%') {
+                        chars.next();
+                        result.push('%');
+                    } else {
+                        let template_name: String = chars
+                            .by_ref()
+                            .take_while(|c| c.is_alphanumeric() || *c == '_')
+                            .collect();
+
+                        if !template_name.is_empty() {
+                            if let Some(values) = self.templates.get(&template_name) {
+                                if values.len() == 1 {
+                                    result.push_str(&values[0]);
+                                } else {
+                                    result.push_str(&values.join(" "));
+                                }
+                            } else {
+                                result.push('%');
+                                result.push_str(&template_name);
+                            }
+                        } else {
+                            result.push('%');
+                        }
+                    }
+                }
+                '$' if chars.peek() == Some(&'(') => {
+                    chars.next();
+
+                    let mut cmd_string = String::new();
+                    let mut depth = 1;
+
+                    for ch in chars.by_ref() {
+                        if ch == '(' {
+                            depth += 1;
+                            cmd_string.push(ch);
+                        } else if ch == ')' {
+                            depth -= 1;
+                            if depth == 0 {
+                                break;
+                            }
+                            cmd_string.push(ch);
+                        } else {
+                            cmd_string.push(ch);
+                        }
+                    }
+
+                    if allow_run {
+                        tracing::info!("{cmd_string}, {allow_run}");
+
+                        // Execute command regardless of whether closing paren was found
+                        let cmd_parts =
+                            shellwords::split(&cmd_string).unwrap_or(vec![cmd_string.clone()]);
+
+                        if let Some((cmd, args)) = cmd_parts.split_first() {
+                            if let Ok(output) = (self.command_executor)(cmd, args) {
+                                if output.len() == 1 {
+                                    result.push_str(&output[0]);
+                                } else {
+                                    result.push_str(&output.join(" "));
+                                }
+                            } else {
+                                result.push_str("$(");
+                                result.push_str(&cmd_string);
+                                if depth == 0 {
+                                    result.push(')');
+                                }
+                            }
+                        } else {
+                            result.push_str("$()");
+                        }
+                    } else {
+                        result.push_str("FAIL");
+                    }
+                }
+                _ => {
+                    result.push(ch);
+                }
+            }
+        }
+
+        result
     }
 
     /// Resolve a single UnresolvedKeyElement into a list of possible values
@@ -127,7 +232,7 @@ mod tests {
         let templates = HashMap::new();
         let executor = |_: &str, _: &[String]| -> Result<Vec<String>, ParseError> { Ok(vec![]) };
 
-        let resolver = Resolver::new(&templates, &executor);
+        let resolver = Resolver::new(&templates, Arc::new(executor));
 
         let bind = UnresolvedKeyBind {
             mods: vec![UnresolvedKeyElement::Literal(KeyModifiers::CONTROL)],
@@ -143,7 +248,7 @@ mod tests {
         let templates = HashMap::new();
         let executor = |_: &str, _: &[String]| -> Result<Vec<String>, ParseError> { Ok(vec![]) };
 
-        let resolver = Resolver::new(&templates, &executor);
+        let resolver = Resolver::new(&templates, Arc::new(executor));
 
         let bind = UnresolvedKeyBind {
             mods: vec![UnresolvedKeyElement::OneOf(vec![

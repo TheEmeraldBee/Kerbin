@@ -112,8 +112,8 @@ pub async fn render_hover(buffers: ResMut<Buffers>) {
     let text = match &hover.contents {
         HoverContents::Scalar(t) => extract_hover_markup(t),
         HoverContents::Array(a) => a
-            .into_iter()
-            .map(|x| extract_hover_markup(x))
+            .iter()
+            .map(extract_hover_markup)
             .collect::<Vec<String>>()
             .join("\n\n"),
         HoverContents::Markup(m) => m.value.clone(),

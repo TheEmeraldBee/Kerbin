@@ -32,9 +32,11 @@ impl Command for PaletteCommand {
                 let content = palette.input.clone();
                 drop(palette);
                 let command = state.lock_state::<CommandRegistry>().await.parse_command(
-                    CommandRegistry::split_command(&content),
+                    word_split(&content),
                     true,
                     false,
+                    Some(&resolver_engine().await.as_resolver()),
+                    true,
                     &*state.lock_state::<CommandPrefixRegistry>().await,
                     &*state.lock_state::<ModeStack>().await,
                 );

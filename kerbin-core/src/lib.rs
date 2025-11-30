@@ -169,3 +169,9 @@ pub use logging::*;
 
 pub mod signal;
 pub use signal::*;
+
+pub mod resolver;
+pub use resolver::*;
+
+pub mod word_split;
+pub use word_split::*;
