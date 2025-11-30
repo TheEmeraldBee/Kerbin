@@ -1,8 +1,5 @@
 use crate::*;
-use kerbin_macros::Command;
-use kerbin_state_machine::State;
 use regex_cursor::engines::meta::Regex;
-use ropey::LineType;
 
 #[derive(Debug, Clone, Command)]
 pub enum MotionCommand {

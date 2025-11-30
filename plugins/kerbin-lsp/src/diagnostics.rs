@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::*;
 use ascii_forge::prelude::*;
-use kerbin_core::{kerbin_macros::State, *};
+use kerbin_core::*;
 use lsp_types::*;
 
 #[derive(Default, State)]

@@ -1,4 +1,4 @@
-use kerbin_core::{kerbin_macros::Command, *};
+use kerbin_core::*;
 
 use crate::{
     grammar_manager::GrammarManager, query_walker::QueryWalkerBuilder, state::TreeSitterState,

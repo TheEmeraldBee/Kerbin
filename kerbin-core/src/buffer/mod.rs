@@ -225,6 +225,31 @@ impl TextBuffer {
         self.states.contains_key(&T::static_name())
     }
 
+    /// Given a function, will do nothing if state exists, or inserts it if it doesn't
+    pub fn maybe_insert_state<T: StateName + StaticState>(&mut self, func: impl FnOnce() -> T) {
+        if !self.has_state::<T>() {
+            self.set_state(func());
+        }
+    }
+
+    /// Retrieves state from buffer or inserts if non-existent
+    pub async fn get_or_insert_state<T: StateName + StaticState>(
+        &mut self,
+        func: impl FnOnce() -> T,
+    ) -> OwnedRwLockReadGuard<T> {
+        self.maybe_insert_state(func);
+        self.get_state::<T>().await.unwrap()
+    }
+
+    /// Retrieves state mutably from buffer or inserts if non-existent
+    pub async fn get_or_insert_state_mut<T: StateName + StaticState>(
+        &mut self,
+        func: impl FnOnce() -> T,
+    ) -> OwnedRwLockWriteGuard<T> {
+        self.maybe_insert_state(func);
+        self.get_state_mut::<T>().await.unwrap()
+    }
+
     /// Retrieves a state from the internal storage, returning None if non-existent
     pub async fn get_state_mut<T: StateName + StaticState>(
         &mut self,

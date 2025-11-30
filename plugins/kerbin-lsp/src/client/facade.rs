@@ -37,7 +37,7 @@ impl<W: AsyncWrite + Unpin + Send + 'static> ClientFacade for LspClient<W> {
                     }),
                     hover: Some(HoverClientCapabilities {
                         dynamic_registration: None,
-                        content_format: None,
+                        content_format: Some(vec![MarkupKind::Markdown]),
                     }),
                     completion: Some(CompletionClientCapabilities {
                         dynamic_registration: None,

@@ -152,7 +152,6 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
             if let Ok(value) = serde_json::from_slice::<Value>(&content) {
                 let message = Self::parse_message(value, &writer).await;
                 if let Some(msg) = message {
-                    tracing::info!("Recieved message: {:#?}", msg);
                     let _ = tx.send(msg);
                 }
             }

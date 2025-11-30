@@ -101,11 +101,9 @@ pub fn init_log() {
         .init();
 }
 
-// Export useful types and modules from Kerbin's ecosystem.
-#[macro_use]
-pub extern crate kerbin_macros;
-
 pub extern crate async_trait;
+
+pub use kerbin_macros::*;
 
 use std::{env::home_dir, fs::File, sync::Mutex};
 
