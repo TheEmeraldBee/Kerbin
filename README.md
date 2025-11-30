@@ -134,9 +134,9 @@ file communication systems
     - [ ] Tree-Sitter locals (new)
     - [ ] Tree-Sitter indent
 
-    - [ ] Lsp Hover
-    - [ ] Lsp Diagnostics
-    - [ ] Lsp Hover
+    - [x] Lsp Hover
+    - [x] Lsp Diagnostics
+    - [ ] Lsp Autocompletions
 - [ ] Copy/Paste Support (Registers)
     - [x] Ctrl-Shift-V / Cmd-V Paste Event Support
     - [ ] Clipboard Copy & Paste Commands
@@ -200,10 +200,11 @@ file communication systems
 - [x] Go through systems and refactor code (More of this will need to be done)
     - Make everything more readable, and stop being afraid of adding more files :)
 - [x] Write out Nix & Linux/Mac install scripts for making installation and updating easy
-- [ ] Simplify acessing parts of the editor by adding more types that retrieve directly from states (like Chunk)
-    - Add this for accessing the Current Buffer
-    - Look into having this for something like CurrentBufferClient for LSP
-        - Same for Tree-Sitter Grammars
+- [ ] Write out basic `tutor` plugin for first install users to remove from their config
+    - Basically, add it to a new kerbin instance by default
+    - Open a buffer automatically with commands that will open files and do things
+    - Should teach user how to use config, toml files, etc.
+    - Also go through first installation steps
 - [ ] Write out main wiki for writing configuration and plugins
 
 ## Stability

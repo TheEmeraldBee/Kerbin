@@ -3,3 +3,8 @@ run:
 
 release:
 	cargo run -p kerbin --release -- -c ./config
+
+jj:
+	jj bookmark move master class --to @ &&\
+	jj git push &&\
+	jj git push --remote class
