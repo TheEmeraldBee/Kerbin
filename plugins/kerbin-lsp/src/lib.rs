@@ -1,4 +1,4 @@
-use kerbin_core::{EVENT_BUS, LogSender, SaveEvent, State};
+use kerbin_core::{CloseEvent, EVENT_BUS, LogSender, SaveEvent, State};
 
 pub mod jsonrpc;
 pub use jsonrpc::*;
@@ -65,6 +65,11 @@ pub async fn init(state: &mut State) {
         .subscribe::<SaveEvent>()
         .await
         .system(file_save::file_saved);
+
+    EVENT_BUS
+        .subscribe::<CloseEvent>()
+        .await
+        .system(file_close::file_close);
 
     // {
     //     let mut command_registry = state.lock_state::<CommandRegistry>().await;

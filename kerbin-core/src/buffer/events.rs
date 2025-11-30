@@ -1,3 +1,5 @@
+use crate::TextBuffer;
+
 /// Is emitted when a buffer is saved
 pub struct SaveEvent {
     /// The path the file was saved to
@@ -6,6 +8,6 @@ pub struct SaveEvent {
 
 /// Is emitted when a buffer is closed
 pub struct CloseEvent {
-    /// The path to the file
-    pub path: String,
+    /// The contained buffer
+    pub buffer: TextBuffer,
 }

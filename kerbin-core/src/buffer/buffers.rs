@@ -89,19 +89,14 @@ impl Buffers {
     /// is automatically created to ensure there's always at least one buffer.
     /// The `selected_buffer` is adjusted accordingly if the closed buffer was active.
     pub async fn close_buffer(&mut self, idx: usize) {
-        let Some(buf) = self.buffers.get(idx) else {
-            return;
-        };
+        let buf = self.buffers.remove(idx);
 
-        let buf = buf.read().await;
+        let buf = Arc::into_inner(buf)
+            .expect("One strong reference should exist as self is mutable")
+            .into_inner();
 
-        let path = buf.path.clone();
+        EVENT_BUS.emit(CloseEvent { buffer: buf }).await;
 
-        EVENT_BUS.emit(CloseEvent { path }).await;
-
-        drop(buf);
-
-        self.buffers.remove(idx);
         if self.buffers.is_empty() {
             self.buffers
                 .push(Arc::new(RwLock::new(TextBuffer::scratch())));

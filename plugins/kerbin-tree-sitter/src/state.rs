@@ -56,7 +56,7 @@ pub async fn update_trees(
     }
 
     // Get mutable state reference
-    let mut state = buf.get_state::<TreeSitterState>().await.unwrap();
+    let mut state = buf.get_state_mut::<TreeSitterState>().await.unwrap();
 
     // Convert byte changes to tree-sitter InputEdit format
     for change in &buf.byte_changes {
@@ -223,7 +223,7 @@ pub async fn open_files(
     });
 
     let state = buf
-        .get_state::<TreeSitterState>()
+        .get_state_mut::<TreeSitterState>()
         .await
         .expect("State just inserted");
 

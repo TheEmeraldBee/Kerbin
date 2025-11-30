@@ -31,7 +31,7 @@ async fn tree_sitter_scope_info(state: &mut State) {
 
     let mut buf = buffers.cur_buffer_mut().await;
 
-    let Some(ts_state) = buf.get_state::<TreeSitterState>().await else {
+    let Some(ts_state) = buf.get_state_mut::<TreeSitterState>().await else {
         log.low(
             "tree-sitter::scope_info",
             "No tree-sitter state available for this buffer",

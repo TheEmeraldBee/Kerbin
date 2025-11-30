@@ -6,7 +6,7 @@ pub async fn apply_changes(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspMana
 
     let mut buf = buffers.cur_buffer_mut().await;
 
-    let Some(mut file) = buf.get_state::<OpenedFile>().await else {
+    let Some(mut file) = buf.get_state_mut::<OpenedFile>().await else {
         // File hasn't been opened yet anyways
         return;
     };

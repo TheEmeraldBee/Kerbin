@@ -13,7 +13,7 @@ pub async fn file_saved(
         return;
     };
 
-    let Some(client_info) = cur_buf.get_state::<OpenedFile>().await else {
+    let Some(client_info) = cur_buf.get_state_mut::<OpenedFile>().await else {
         return;
     };
 

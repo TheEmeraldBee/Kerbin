@@ -14,7 +14,12 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
 
     let mut buf = buffers.cur_buffer_mut().await;
 
-    if let Some(diagnostics) = buf.get_state::<Diagnostics>().await.as_ref().map(|x| &x.0) {
+    if let Some(diagnostics) = buf
+        .get_state_mut::<Diagnostics>()
+        .await
+        .as_ref()
+        .map(|x| &x.0)
+    {
         if !diagnostics.is_empty() {
             tracing::error!("{diagnostics:#?}");
         }

@@ -237,7 +237,7 @@ pub async fn highlight_file(
         return;
     }
 
-    let Some(state) = buf.get_state::<TreeSitterState>().await else {
+    let Some(state) = buf.get_state_mut::<TreeSitterState>().await else {
         return;
     };
 

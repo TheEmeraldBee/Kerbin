@@ -29,7 +29,7 @@ pub mod render;
 pub use render::*;
 
 use ropey::{LineType, Rope};
-use tokio::sync::{OwnedRwLockWriteGuard, RwLock};
+use tokio::sync::{OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
 
 use crate::EVENT_BUS;
 
@@ -226,7 +226,7 @@ impl TextBuffer {
     }
 
     /// Retrieves a state from the internal storage, returning None if non-existent
-    pub async fn get_state<T: StateName + StaticState>(
+    pub async fn get_state_mut<T: StateName + StaticState>(
         &mut self,
     ) -> Option<OwnedRwLockWriteGuard<T>> {
         if let Some(s) = self
@@ -235,6 +235,19 @@ impl TextBuffer {
             .and_then(|x| x.downcast())
         {
             Some(s.clone().write_owned().await)
+        } else {
+            None
+        }
+    }
+
+    /// Retrieves a state from the internal storage, returning None if non-existent
+    pub async fn get_state<T: StateName + StaticState>(&self) -> Option<OwnedRwLockReadGuard<T>> {
+        if let Some(s) = self
+            .states
+            .get(&T::static_name())
+            .and_then(|x| x.downcast())
+        {
+            Some(s.clone().read_owned().await)
         } else {
             None
         }
