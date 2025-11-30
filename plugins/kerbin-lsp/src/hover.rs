@@ -5,8 +5,8 @@ use kerbin_core::{
     *,
 };
 use lsp_types::{
-    Hover, HoverContents, HoverParams, LanguageString, MarkedString, MarkupContent, MarkupKind,
-    Position, TextDocumentIdentifier, TextDocumentPositionParams, WorkDoneProgressParams,
+    Hover, HoverContents, HoverParams, LanguageString, MarkedString, Position,
+    TextDocumentIdentifier, TextDocumentPositionParams, WorkDoneProgressParams,
 };
 
 use crate::{JsonRpcMessage, LspManager, OpenedFile};
