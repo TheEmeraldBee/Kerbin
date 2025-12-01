@@ -1,3 +1,4 @@
+use kerbin_core::SafeRopeAccess;
 use kerbin_core::{ascii_forge::window::ContentStyle, *};
 use tree_sitter::{Parser, Tree};
 
@@ -98,7 +99,10 @@ pub async fn update_trees(
     // Reparse main tree
     let new_tree = state.parser.parse_with_options(
         &mut |byte, _| {
-            let (chunk, start_byte) = buf.rope.chunk(byte);
+            let (chunk, start_byte, _, _) = buf.chunk_at_byte(byte).unwrap_or(("", 0, 0, 0));
+            if chunk.is_empty() {
+                return &[] as &[u8];
+            }
             &chunk.as_bytes()[(byte - start_byte)..]
         },
         tree.as_ref(),
@@ -126,8 +130,13 @@ pub async fn update_trees(
         injected_trees: vec![],
     };
 
-    let injected_trees =
-        load_injected_trees(&temp_state, &mut grammars, &config_path.0, &buf.rope, &log);
+    let injected_trees = load_injected_trees(
+        &temp_state,
+        &mut grammars,
+        &config_path.0,
+        buf.get_rope(),
+        &log,
+    );
 
     // Update the injected trees
     state.injected_trees = injected_trees;
@@ -182,7 +191,10 @@ pub async fn open_files(
 
     let tree = parser.parse_with_options(
         &mut |byte, _| {
-            let (chunk, start_byte) = buf.rope.chunk(byte);
+            let (chunk, start_byte, _, _) = buf.chunk_at_byte(byte).unwrap_or(("", 0, 0, 0));
+            if chunk.is_empty() {
+                return &[] as &[u8];
+            }
             &chunk.as_bytes()[(byte - start_byte)..]
         },
         None,
@@ -210,7 +222,7 @@ pub async fn open_files(
         &initial_state,
         &mut grammars,
         &config_path.0,
-        &buf.rope,
+        buf.get_rope(),
         &log,
     );
 
@@ -227,7 +239,7 @@ pub async fn open_files(
         .await
         .expect("State just inserted");
 
-    let Some(highlighter) = Highlighter::new(&config_path.0, &mut grammars, &state, &buf.rope)
+    let Some(highlighter) = Highlighter::new(&config_path.0, &mut grammars, &state, buf.get_rope())
     else {
         return;
     };

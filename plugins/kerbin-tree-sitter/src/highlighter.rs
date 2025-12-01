@@ -246,7 +246,7 @@ pub async fn highlight_file(
     };
 
     // Calculate the affected range
-    let affected_range = calculate_affected_range(&buf.byte_changes, &buf.rope);
+    let affected_range = calculate_affected_range(&buf.byte_changes, buf.get_rope());
 
     let namespace = "tree-sitter::highlights";
 
@@ -263,7 +263,7 @@ pub async fn highlight_file(
             return;
         };
 
-        let mut walker = QueryWalkerBuilder::new(&state, &buf.rope, query)
+        let mut walker = QueryWalkerBuilder::new(&state, buf.get_rope(), query)
             .with_injected_queries(injected)
             .build();
 
@@ -307,7 +307,7 @@ pub async fn highlight_file(
         // Full re-highlight (fallback for complex changes or first highlight)
         buf.renderer.clear_extmark_ns(namespace);
 
-        let Some(highlighter) = Highlighter::new(&config_path.0, &mut grammars, &state, &buf.rope)
+        let Some(highlighter) = Highlighter::new(&config_path.0, &mut grammars, &state, buf.get_rope())
         else {
             return;
         };

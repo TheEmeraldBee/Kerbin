@@ -15,3 +15,5 @@ framerate = 60
 
 [template]
 cfg_folder = [ "/home/brightonlcox/programming/tools/Kerbin/config/" ]
+
+shell = [ "nu" ]

@@ -32,22 +32,22 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
 
             // Helper to safe-convert (line, col) -> byte index
             let to_byte = |line: usize, col: usize| -> usize {
-                let total_lines = buf.rope.len_lines(LineType::LF_CR);
+                let total_lines = buf.len_lines();
                 let line = line.min(total_lines.saturating_sub(1));
                 
-                let line_start_byte = buf.rope.line_to_byte_idx(line, LineType::LF_CR);
-                let line_start_char = buf.rope.byte_to_char_idx(line_start_byte);
+                let line_start_byte = buf.line_to_byte_clamped(line);
+                let line_start_char = buf.byte_to_char_clamped(line_start_byte);
                 
-                let line_len_chars = buf.rope.line(line, LineType::LF_CR).len_chars();
+                let line_len_chars = buf.line_clamped(line).len_chars();
                 
                 // Clamp col to line length to avoid crossing into next line
                 let col = col.min(line_len_chars);
                 
                 let global_char = line_start_char + col;
                 // Clamp to total chars
-                let global_char = global_char.min(buf.rope.len_chars());
+                let global_char = global_char.min(buf.len_chars());
                 
-                buf.rope.char_to_byte_idx(global_char)
+                buf.char_to_byte_clamped(global_char)
             };
 
             let start_byte = to_byte(start_line, start_char);

@@ -28,7 +28,10 @@ pub use extmark::*;
 pub mod render;
 pub use render::*;
 
-use ropey::{LineType, Rope};
+pub mod text_rope_handlers;
+pub use text_rope_handlers::*;
+
+use ropey::Rope;
 use tokio::sync::{OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
 
 use crate::EVENT_BUS;
@@ -68,7 +71,7 @@ pub struct TextBuffer {
     ///
     /// Changes to the `Rope` should primarily be made through `BufferAction`s
     /// to correctly integrate with undo/redo and syntax highlighting systems.
-    pub rope: Rope,
+    pub(crate) rope: Rope,
 
     /// The absolute, canonical path of the file associated with this buffer.
     /// Used for saving and identifying the file.
@@ -283,8 +286,8 @@ impl TextBuffer {
     /// This format is convenient for registering edits within the `byte_changes` vector,
     /// particularly for external tools like Tree-sitter.
     pub fn get_edit_part(&self, byte: usize) -> ((usize, usize), usize) {
-        let line_idx = self.rope.byte_to_line_idx(byte, LineType::LF_CR);
-        let col = byte - self.rope.line_to_byte_idx(line_idx, LineType::LF_CR);
+        let line_idx = self.byte_to_line_clamped(byte);
+        let col = byte - self.line_to_byte_clamped(line_idx);
 
         ((line_idx, col), byte)
     }
@@ -562,7 +565,7 @@ impl TextBuffer {
         let current_caret_byte = current_cursor.get_cursor_byte();
 
         let new_caret_byte =
-            (current_caret_byte as isize + bytes).clamp(0, self.rope.len() as isize) as usize;
+            (current_caret_byte as isize + bytes).clamp(0, self.len_bytes() as isize) as usize;
 
         let cursor_mut = self.primary_cursor_mut();
 
@@ -597,20 +600,16 @@ impl TextBuffer {
         let current_cursor = self.primary_cursor();
         let current_caret_byte = current_cursor.get_cursor_byte();
 
-        let current_line_idx = self
-            .rope
-            .byte_to_line_idx(current_caret_byte, LineType::LF_CR);
-        let line_start_byte = self
-            .rope
-            .line_to_byte_idx(current_line_idx, LineType::LF_CR);
-        let current_col_char_idx = self.rope.byte_to_char_idx(current_caret_byte)
-            - self.rope.byte_to_char_idx(line_start_byte);
+        let current_line_idx = self.byte_to_line_clamped(current_caret_byte);
+        let line_start_byte = self.line_to_byte_clamped(current_line_idx);
+        let current_col_char_idx = self.byte_to_char_clamped(current_caret_byte)
+            - self.byte_to_char_clamped(line_start_byte);
 
-        let total_lines = self.rope.len_lines(LineType::LF_CR);
+        let total_lines = self.len_lines();
         let mut target_line_idx = current_line_idx.saturating_add_signed(rows);
         target_line_idx = target_line_idx.clamp(0, total_lines.saturating_sub(1));
 
-        let line_slice = self.rope.line(target_line_idx, LineType::LF_CR);
+        let line_slice = self.line_clamped(target_line_idx);
         let line_len_with_ending = line_slice.len_chars();
         let endline_text = line_slice
             .chars_at(line_slice.char_to_byte_idx(line_len_with_ending.saturating_sub(2)))
@@ -627,10 +626,9 @@ impl TextBuffer {
 
         let final_col_char_idx = current_col_char_idx.min(line_len_without_ending);
 
-        let new_caret_byte = self.rope.line_to_byte_idx(target_line_idx, LineType::LF_CR)
+        let new_caret_byte = self.line_to_byte_clamped(target_line_idx)
             + self
-                .rope
-                .line(target_line_idx, LineType::LF_CR)
+                .line_clamped(target_line_idx)
                 .char_to_byte_idx(final_col_char_idx);
 
         let cursor_mut = self.primary_cursor_mut();
@@ -664,12 +662,12 @@ impl TextBuffer {
         }
 
         let current_cursor = self.primary_cursor().clone();
-        let current_caret_char_idx = self.rope.byte_to_char_idx(current_cursor.get_cursor_byte());
+        let current_caret_char_idx = self.byte_to_char_clamped(current_cursor.get_cursor_byte());
 
-        let new_caret_char_idx = (current_caret_char_idx as isize + chars)
-            .clamp(0, self.rope.len_chars() as isize) as usize;
+        let new_caret_char_idx =
+            (current_caret_char_idx as isize + chars).clamp(0, self.len_chars() as isize) as usize;
 
-        let new_caret_byte = self.rope.char_to_byte_idx(new_caret_char_idx);
+        let new_caret_byte = self.char_to_byte_clamped(new_caret_char_idx);
 
         let cursor_mut = self.primary_cursor_mut();
 
@@ -743,6 +741,25 @@ impl TextBuffer {
         self.merge_overlapping_cursors();
 
         self.byte_changes.clear();
+    }
+
+    /// Inserts text at the specified byte offset.
+    /// Converts byte offset to char index for internal storage.
+    pub fn insert_at_byte(&mut self, byte: usize, text: &str) {
+        let char_idx = self.rope.byte_to_char_idx(byte);
+        self.rope.insert(char_idx, text);
+    }
+
+    /// Removes text within the specified byte range.
+    /// Converts byte range to char range for internal storage.
+    pub fn remove_byte_range(&mut self, range: std::ops::Range<usize>) {
+        let start_char = self.rope.byte_to_char_idx(range.start);
+        let end_char = self.rope.byte_to_char_idx(range.end);
+        self.rope.remove(start_char..end_char);
+    }
+
+    pub fn get_rope(&self) -> &Rope {
+        &self.rope
     }
 }
 

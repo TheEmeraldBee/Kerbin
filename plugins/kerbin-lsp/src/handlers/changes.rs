@@ -24,7 +24,7 @@ pub async fn apply_changes(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspMana
     let changes = vec![TextDocumentContentChangeEvent {
         range: None,
         range_length: None,
-        text: buf.rope.to_string(),
+        text: buf.to_string(),
     }];
 
     let change = DidChangeTextDocumentParams {

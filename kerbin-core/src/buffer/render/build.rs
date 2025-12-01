@@ -1,6 +1,5 @@
 use crate::*;
 use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
-use unicode_width::UnicodeWidthStr;
 
 /// Process extmark decorations for a given byte position
 fn process_extmarks(
@@ -84,6 +83,7 @@ pub async fn build_buffer_lines(
         return;
     };
     let height = chunk.size().y;
+    let viewport_height = height as usize;
 
     get!(mut bufs, theme);
     let mut buf = bufs.cur_buffer_mut().await;
@@ -98,38 +98,40 @@ pub async fn build_buffer_lines(
 
     let mut line_idx = buf.renderer.byte_scroll;
 
-    let mut byte_offset = buf
-        .rope
-        .line_to_byte_idx(buf.renderer.byte_scroll, LineType::LF_CR);
+    let mut byte_offset = buf.line_to_byte_clamped(buf.renderer.byte_scroll);
 
     let mut cursor = None;
 
-    let total_lines = buf.rope.len_lines(LineType::LF_CR);
+    let total_lines = buf.len_lines();
+    let mut visual_lines = 0;
 
-    for line in buf.rope.lines_at(buf.renderer.byte_scroll, LineType::LF_CR) {
-        if lines.len() >= height as usize {
+    // Iterate through lines starting from the scroll position
+    for line in buf.lines_at_clamped(buf.renderer.byte_scroll) {
+        if visual_lines >= viewport_height {
             break;
         }
 
         let mut render = RenderLine::default();
+        render.element(RenderLineElement::Text(
+            format!(" {:<3} ", line_idx + 1),
+            line_style,
+        ));
 
-        let mut line_str = (line_idx + 1).to_string();
-        let mut line_width = line_str.width();
+        // Calculate byte range for the current line
+        let line_start_byte = buf.line_to_byte_clamped(line_idx);
+        let line_end_byte = buf.line_to_byte_clamped(line_idx + 1);
 
-        while line_width > 5 {
-            line_str.pop();
-            line_width = line_str.width()
-        }
-        render!(render.gutter_mut(), vec2(0, 0) => [ line_style.apply(format!("{}{line_str}", " ".repeat(5 - line_width))) ]);
-
-        let mut line_chars: Vec<(usize, char)> = line.char_indices().collect();
-        let line_start_byte = buf.rope.line_to_byte_idx(line_idx, LineType::LF_CR);
-        let line_end_byte = buf.rope.line_to_byte_idx(line_idx + 1, LineType::LF_CR);
+        let mut line_chars: Vec<(usize, char)> = line.chars().enumerate().collect();
 
         if let Some((_, ch)) = line_chars.last()
             && (*ch == '\n' || *ch == '\r')
         {
             line_chars.pop();
+            if let Some((_, ch)) = line_chars.last()
+                && (*ch == '\r')
+            {
+                line_chars.pop();
+            }
         }
 
         let is_last_line = line_idx == total_lines.saturating_sub(1);
@@ -138,9 +140,9 @@ pub async fn build_buffer_lines(
             line_chars.push((0, ' '));
         } else if is_last_line {
             // For the last line, add space at the actual end (EOF position)
-            line_chars.push((line.len(), ' '));
+            line_chars.push((line.len_chars(), ' '));
         } else {
-            line_chars.push((line.len().saturating_sub(1).max(1), ' '));
+            line_chars.push((line.len_chars().saturating_sub(1).max(1), ' '));
         }
 
         let exts = buf
@@ -150,7 +152,7 @@ pub async fn build_buffer_lines(
         let mut post_line_elems = vec![];
 
         for (byte, ch) in line_chars.into_iter() {
-            let absolute_byte_idx = byte_offset + byte;
+            let absolute_byte_idx = byte_offset + buf.char_to_byte_clamped(byte);
 
             let (style, after_elems, mut post_elems) =
                 process_extmarks(&exts, absolute_byte_idx, default_style, &mut cursor);
@@ -166,9 +168,12 @@ pub async fn build_buffer_lines(
         }
 
         line_idx += 1;
-        byte_offset += line.len();
+        // line.len_bytes() on RopeSlice gives byte length
+        byte_offset += line.chunks().map(|c| c.len()).sum::<usize>();
         lines.push(render);
+        visual_lines += 1;
 
+        visual_lines += post_line_elems.len();
         lines.extend(post_line_elems);
     }
 

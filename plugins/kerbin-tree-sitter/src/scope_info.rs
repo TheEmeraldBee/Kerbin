@@ -57,7 +57,7 @@ async fn tree_sitter_scope_info(state: &mut State) {
     let mut captures_at_cursor: Vec<CaptureInfo> = Vec::new();
 
     // Create a walker with the highlights query
-    let mut walker = QueryWalkerBuilder::new(&ts_state, &buf.rope, highlights_query)
+    let mut walker = QueryWalkerBuilder::new(&ts_state, buf.get_rope(), highlights_query)
         .with_injected_queries(injected_queries)
         .build();
 
@@ -74,9 +74,8 @@ async fn tree_sitter_scope_info(state: &mut State) {
                 // Get node information
                 let node_kind = capture.node.kind();
                 let node_text = buf
-                    .rope
-                    .slice(adjusted_range.start..adjusted_range.end)
-                    .to_string();
+                    .slice_to_string(adjusted_range.start, adjusted_range.end)
+                    .unwrap_or_default();
 
                 // Truncate text if too long
                 let display_text = if node_text.len() > 50 {

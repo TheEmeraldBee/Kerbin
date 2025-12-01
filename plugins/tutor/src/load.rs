@@ -1,6 +1,6 @@
 use kerbin_core::*;
 
-pub static STEPS: &[&str] = &[include_str!("./tutor/0.md"), include_str!("./tutor/1.md")];
+pub static STEPS: &[&str] = &[include_str!("./tutor/0.md"), include_str!("./tutor/1.md"), include_str!("./tutor/2.md")];
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BufferExpectation {
@@ -57,8 +57,11 @@ pub async fn open_default_buffer(bufs: ResMut<Buffers>, log: Res<LogSender>) {
     buffer.path = "<tutor>".to_string();
     buffer.ext = "md".to_string();
 
-    let mut state = TutorState::default();
-    state.expectations = expectations;
+    let state = TutorState {
+        step: 0,
+        expectations,
+    };
+
     buffer.set_state(state);
 
     log.critical(
@@ -66,7 +69,7 @@ pub async fn open_default_buffer(bufs: ResMut<Buffers>, log: Res<LogSender>) {
         "Welcome to tutor! This is a tutor that will step you through using your default config, as well as helping you to remove me!",
     );
 
-    bufs.new(buffer).await;
+    bufs.push_new(buffer).await;
     bufs.close_buffer(0).await;
 }
 
@@ -81,7 +84,7 @@ pub async fn update_buffer(bufs: ResMut<Buffers>, log: Res<LogSender>) {
     }
 
     // Get all bracket contents in order
-    let content = buf.rope.to_string();
+    let content = buf.to_string();
     let bracket_contents = extract_brackets(&content);
 
     let should_load_next = {
@@ -118,7 +121,7 @@ pub async fn set_tutor_text(buf: &mut TextBuffer, new_text: &str) {
     };
 
     // Delete old text
-    let len = buf.rope.len();
+    let len = buf.len_bytes();
     if len > 0 {
         buf.action(Delete { byte: 0, len });
     }
@@ -163,7 +166,7 @@ pub async fn load_next_step(buffer: &mut TextBuffer) -> bool {
     tutor_state.expectations = expectations;
 
     // Clear current buffer content
-    let len = buffer.rope.len();
+    let len = buffer.len_bytes();
     if len > 0 {
         buffer.action(Delete { byte: 0, len });
     }

@@ -1,6 +1,5 @@
-use crate::RopeExts;
-
 use super::TextBuffer;
+use crate::buffer::text_rope_handlers::SafeRopeAccess;
 
 /// A result of an action that stores whether the action was applied
 /// and returns the inverse of the action for applying undo and redo.
@@ -80,15 +79,15 @@ pub struct Insert {
 
 impl BufferAction for Insert {
     fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
-        if self.byte > buf.rope.len() {
+        if self.byte > buf.len_bytes() {
             return ActionResult::none(false);
         }
 
-        let actual_byte = buf.rope.byte_to_char_boundary_byte(self.byte);
+        let actual_byte = buf.byte_to_char_boundary(self.byte);
         let start = buf.get_edit_part(actual_byte);
 
         // This already handles newlines correctly
-        buf.rope.insert(actual_byte, &self.content);
+        buf.insert_at_byte(actual_byte, &self.content);
 
         let content_len = self.content.len();
 
@@ -135,24 +134,24 @@ pub struct Delete {
 
 impl BufferAction for Delete {
     fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
-        if self.byte > buf.rope.len() {
+        if self.byte > buf.len_bytes() {
             return ActionResult::none(false);
         }
 
-        let char_idx = buf.rope.byte_to_char_idx(self.byte);
+        let char_idx = buf.byte_to_char_clamped(self.byte);
 
-        let del_start_byte = buf.rope.char_to_byte_idx(char_idx);
+        let del_start_byte = buf.char_to_byte_clamped(char_idx);
 
-        let del_end_byte = if buf.rope.len_chars() < char_idx + self.len {
-            buf.rope.char_to_byte_idx(buf.rope.len())
+        let del_end_byte = if buf.len_chars() < char_idx + self.len {
+            buf.char_to_byte_clamped(buf.len_chars())
         } else {
-            buf.rope.char_to_byte_idx(char_idx + self.len)
+            buf.char_to_byte_clamped(char_idx + self.len)
         };
 
         let start = buf.get_edit_part(del_start_byte);
         let old_end = buf.get_edit_part(del_end_byte);
 
-        if del_end_byte > buf.rope.len() {
+        if del_end_byte > buf.len_bytes() {
             return ActionResult::none(false);
         }
 
@@ -161,10 +160,12 @@ impl BufferAction for Delete {
         }
 
         // Store the removed content for the inverse (Insert) action
-        let removed = buf.rope.slice(del_start_byte..del_end_byte).to_string();
+        let removed = buf
+            .slice_to_string(del_start_byte, del_end_byte)
+            .unwrap_or_default();
         let bytes_removed = del_end_byte - del_start_byte;
 
-        buf.rope.remove(del_start_byte..del_end_byte);
+        buf.remove_byte_range(del_start_byte..del_end_byte);
 
         // Adjust other cursors to account for the deleted text
         for (i, cursor) in buf.cursors.iter_mut().enumerate() {

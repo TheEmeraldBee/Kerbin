@@ -17,6 +17,6 @@ desc = "Run Yazi file picker"
 [[keybind]]
 modes = ["n"]
 keys = [";", "s"]
-commands = ['ship sh -c "sh"']
+commands = ['ship sh -c "%shell"']
 desc = "Run sh shell session"
 

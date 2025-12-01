@@ -361,8 +361,8 @@ impl Command for BufferCommand {
                 let start = *range.start();
                 let end = *range.end();
 
-                let char_idx_start = cur_buffer.rope.byte_to_char_idx(start);
-                let char_idx_end = cur_buffer.rope.byte_to_char_idx(end);
+                let char_idx_start = cur_buffer.byte_to_char_clamped(start);
+                let char_idx_end = cur_buffer.byte_to_char_clamped(end);
 
                 let chars_count = char_idx_end + 1 - char_idx_start;
 

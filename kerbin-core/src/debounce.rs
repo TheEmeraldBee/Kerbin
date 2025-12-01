@@ -66,7 +66,7 @@ pub async fn update_debounce(
     );
 
     let mut buf = buffers.cur_buffer_mut().await;
-    let mut debounce = buf.get_or_insert_state_mut(|| Debounce::default()).await;
+    let mut debounce = buf.get_or_insert_state_mut(Debounce::default).await;
     let current_mode = modes.get_mode();
 
     // Handle state transitions

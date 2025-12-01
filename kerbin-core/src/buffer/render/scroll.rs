@@ -75,10 +75,10 @@ pub async fn update_buffer_vertical_scroll(chunk: Chunk<BufferChunk>, buffers: R
 
     // Get the primary cursor's byte position
     let cursor_byte = buf.primary_cursor().get_cursor_byte();
-    let cursor_byte = cursor_byte.min(buf.rope.len());
+    let cursor_byte = cursor_byte.min(buf.len_bytes());
 
     // Find which line (in byte terms) the cursor is on
-    let cursor_line_idx = buf.rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
+    let cursor_line_idx = buf.byte_to_line_clamped(cursor_byte);
 
     // Find which visual line (in the built lines) the cursor appears on
     let mut cursor_visual_line = None;
@@ -147,6 +147,6 @@ pub async fn update_buffer_vertical_scroll(chunk: Chunk<BufferChunk>, buffers: R
     }
 
     // Clamp byte_scroll to valid range
-    let max_byte_scroll = buf.rope.len_lines(LineType::LF_CR).saturating_sub(1);
+    let max_byte_scroll = buf.len_lines().saturating_sub(1);
     buf.renderer.byte_scroll = buf.renderer.byte_scroll.min(max_byte_scroll);
 }

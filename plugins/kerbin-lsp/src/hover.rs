@@ -52,10 +52,10 @@ impl Command for HoverCommand {
                     .expect("Lsp should exist");
 
                 let cursor = buf.primary_cursor();
-                let cursor_byte = cursor.get_cursor_byte().min(buf.rope.len());
+                let cursor_byte = cursor.get_cursor_byte().min(buf.len_bytes());
 
-                let line = buf.rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
-                let character = cursor_byte - buf.rope.line_to_byte_idx(line, LineType::LF_CR);
+                let line = buf.byte_to_line_clamped(cursor_byte);
+                let character = cursor_byte - buf.line_to_byte_clamped(line);
 
                 // Create hover request parameters
                 let params = HoverParams {

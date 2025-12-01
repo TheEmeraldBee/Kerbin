@@ -141,7 +141,7 @@ impl Buffers {
     }
 
     /// Inserts the text buffer safely into the buffers
-    pub async fn new(&mut self, buffer: TextBuffer) -> usize {
+    pub async fn push_new(&mut self, buffer: TextBuffer) -> usize {
         let mut found_buffer_id: Option<usize> = None;
 
         for (i, buffer_arc) in self.buffers.iter().enumerate() {
