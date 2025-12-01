@@ -38,6 +38,8 @@ pub async fn init(state: &mut State) {
     After doing this, type `:w`, then subsequently `:q!` in order to write this file,
     then force quit out of the editor, ignoring changes that occurred in the tutor file.
 
+    Finally, run in your shell, `kerbin-install -r -y`. This will reinstall your config into the right place, but without the tutor!
+
     This will then allow you to use you're editor with everything you've learned
 
     Good luck on your journey, and of course, if you have any questions,
