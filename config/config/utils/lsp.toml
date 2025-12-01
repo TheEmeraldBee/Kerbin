@@ -6,13 +6,13 @@ desc = "Show Hover"
 
 [[keybind]]
 modes = ["i"]
-keys = ["alt-space"]
-commands = ['start_request']
+keys = ["ctrl-space"]
+commands = ['sla', 'sla']
 desc = "Start LSP request"
 
 [[keybind]]
 modes = ["i"]
 keys = ["tab"]
-commands = ['accept']
+commands = ['ala']
 desc = "Accept LSP change"
 required_templates = ['lsp_items']

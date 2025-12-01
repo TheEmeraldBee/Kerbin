@@ -141,29 +141,30 @@ impl BufferAction for Delete {
 
         let char_idx = buf.rope.byte_to_char_idx(self.byte);
 
-        let start_byte = buf.rope.char_to_byte_idx(char_idx);
+        let del_start_byte = buf.rope.char_to_byte_idx(char_idx);
 
-        let end_byte = if buf.rope.len_chars() < char_idx + self.len {
+        let del_end_byte = if buf.rope.len_chars() < char_idx + self.len {
             buf.rope.char_to_byte_idx(buf.rope.len())
         } else {
             buf.rope.char_to_byte_idx(char_idx + self.len)
         };
 
-        let start = buf.get_edit_part(start_byte);
-        let old_end = buf.get_edit_part(end_byte);
+        let start = buf.get_edit_part(del_start_byte);
+        let old_end = buf.get_edit_part(del_end_byte);
 
-        if end_byte > buf.rope.len() {
+        if del_end_byte > buf.rope.len() {
             return ActionResult::none(false);
         }
 
-        if start_byte == end_byte {
+        if del_start_byte == del_end_byte {
             return ActionResult::none(false);
         }
 
         // Store the removed content for the inverse (Insert) action
-        let removed = buf.rope.slice(start_byte..end_byte).to_string();
+        let removed = buf.rope.slice(del_start_byte..del_end_byte).to_string();
+        let bytes_removed = del_end_byte - del_start_byte;
 
-        buf.rope.remove(start_byte..end_byte);
+        buf.rope.remove(del_start_byte..del_end_byte);
 
         // Adjust other cursors to account for the deleted text
         for (i, cursor) in buf.cursors.iter_mut().enumerate() {
@@ -177,19 +178,19 @@ impl BufferAction for Delete {
             let mut new_end = end_byte;
 
             // If a cursor's selection is entirely after the deleted region, shift it left
-            if start_byte >= self.byte + self.len {
-                new_start = start_byte.saturating_sub(self.len);
-            } else if start_byte >= self.byte {
+            if start_byte >= del_end_byte {
+                new_start = start_byte.saturating_sub(bytes_removed);
+            } else if start_byte >= del_start_byte {
                 // If a cursor's selection starts within or before the deleted region
                 // and extends beyond, collapse its start to the deletion point
-                new_start = self.byte;
+                new_start = del_start_byte;
             }
 
             // Similarly for the end of the selection
-            if end_byte >= self.byte + self.len {
-                new_end = end_byte.saturating_sub(self.len);
-            } else if end_byte >= self.byte {
-                new_end = self.byte;
+            if end_byte >= del_end_byte {
+                new_end = end_byte.saturating_sub(bytes_removed);
+            } else if end_byte >= del_start_byte {
+                new_end = del_start_byte;
             }
 
             cursor.sel = new_start..=new_end;

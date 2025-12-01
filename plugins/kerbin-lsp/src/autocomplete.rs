@@ -25,13 +25,13 @@ pub struct CompletionState {
 
 #[derive(Command)]
 pub enum CompletionCommand {
-    #[command]
+    #[command(drop_ident, name = "start_lsp_autocomplete", name = "sla")]
     /// Start requesting completions
     StartRequest,
-    #[command]
+    #[command(drop_ident, name = "accept_lsp_autocomplete", name = "ala")]
     /// Accept the currently selected completion
     Accept,
-    #[command]
+    #[command(drop_ident, name = "trash_lsp_autocomplete", name = "tla")]
     /// Trash the current completion request
     Trash,
 }
@@ -75,12 +75,28 @@ impl Command for CompletionCommand {
                 let cursor_byte = buf.primary_cursor().get_cursor_byte();
 
                 if let Some(id) = trigger_completion_request(&mut buf, &mut lsps).await {
+                    let mut start_pos = cursor_byte;
+                    let cursor_char_idx = buf.rope.byte_to_char_idx(cursor_byte);
+
+                    let mut current_char_idx = cursor_char_idx;
+                    while current_char_idx > 0 {
+                        let prev_char = buf.rope.char(current_char_idx - 1);
+                        if !prev_char.is_alphanumeric() && prev_char != '_' {
+                            break;
+                        }
+                        current_char_idx -= 1;
+                    }
+
+                    if current_char_idx < cursor_char_idx {
+                        start_pos = buf.rope.char_to_byte_idx(current_char_idx);
+                    }
+
                     let mut state = buf.get_or_insert_state_mut(CompletionState::default).await;
 
                     state.info = Some(CompletionInfo {
                         pending_request: id,
                         items: vec![],
-                        position: cursor_byte,
+                        position: start_pos,
                     });
                 }
             }
@@ -103,13 +119,7 @@ impl Command for CompletionCommand {
                     }
 
                     let query = if cursor_byte >= info.position {
-                        let line = buf.rope.byte_to_line_idx(info.position, LineType::LF_CR);
-                        let col = info.position - buf.rope.line_to_byte_idx(line, LineType::LF_CR);
-                        let len = cursor_byte - info.position;
-                        buf.rope
-                            .line(line, LineType::LF_CR)
-                            .slice(col..col + len)
-                            .to_string()
+                        buf.rope.slice(info.position..cursor_byte).to_string()
                     } else {
                         String::new()
                     };
@@ -138,19 +148,51 @@ impl Command for CompletionCommand {
                                     let end_line = e.range.end.line as usize;
                                     let end_char = e.range.end.character as usize;
 
+                                    let max_line =
+                                        buf.rope.len_lines(LineType::LF_CR).saturating_sub(1);
+                                    let start_line = start_line.min(max_line);
+                                    let end_line = end_line.min(max_line);
+
+                                    let start_line_slice =
+                                        buf.rope.line(start_line, LineType::LF_CR);
+                                    let mut start_len = start_line_slice.len_chars();
+                                    if start_len > 0 {
+                                        let last = start_line_slice.char(start_len - 1);
+                                        if last == '\n' {
+                                            start_len -= 1;
+                                            if start_len > 0
+                                                && start_line_slice.char(start_len - 1) == '\r'
+                                            {
+                                                start_len -= 1;
+                                            }
+                                        } else if last == '\r' {
+                                            start_len -= 1;
+                                        }
+                                    }
+                                    let start_char = start_char.min(start_len);
                                     let start_byte =
                                         buf.rope.line_to_byte_idx(start_line, LineType::LF_CR)
-                                            + buf
-                                                .rope
-                                                .line(start_line, LineType::LF_CR)
-                                                .char_to_byte_idx(start_char);
+                                            + start_line_slice.char_to_byte_idx(start_char);
 
+                                    let end_line_slice = buf.rope.line(end_line, LineType::LF_CR);
+                                    let mut end_len = end_line_slice.len_chars();
+                                    if end_len > 0 {
+                                        let last = end_line_slice.char(end_len - 1);
+                                        if last == '\n' {
+                                            end_len -= 1;
+                                            if end_len > 0
+                                                && end_line_slice.char(end_len - 1) == '\r'
+                                            {
+                                                end_len -= 1;
+                                            }
+                                        } else if last == '\r' {
+                                            end_len -= 1;
+                                        }
+                                    }
+                                    let end_char = end_char.min(end_len);
                                     let end_byte =
                                         buf.rope.line_to_byte_idx(end_line, LineType::LF_CR)
-                                            + buf
-                                                .rope
-                                                .line(end_line, LineType::LF_CR)
-                                                .char_to_byte_idx(end_char);
+                                            + end_line_slice.char_to_byte_idx(end_char);
 
                                     // Delete old text
                                     if end_byte > start_byte {
@@ -170,6 +212,15 @@ impl Command for CompletionCommand {
                                 }
                                 lsp_types::CompletionTextEdit::InsertAndReplace(_) => {
                                     // Fallback to simple insert if complex edit
+                                    if cursor_byte > info.position {
+                                        let len_chars = buf.rope.byte_to_char_idx(cursor_byte)
+                                            - buf.rope.byte_to_char_idx(info.position);
+                                        buf.action(kerbin_core::buffer::action::Delete {
+                                            byte: info.position,
+                                            len: len_chars,
+                                        });
+                                    }
+
                                     buf.action(kerbin_core::buffer::action::Insert {
                                         byte: info.position,
                                         content: text_to_insert,
@@ -178,6 +229,15 @@ impl Command for CompletionCommand {
                             }
                         } else {
                             // Simple insert at cursor
+                            if cursor_byte > info.position {
+                                let len_chars = buf.rope.byte_to_char_idx(cursor_byte)
+                                    - buf.rope.byte_to_char_idx(info.position);
+                                buf.action(kerbin_core::buffer::action::Delete {
+                                    byte: info.position,
+                                    len: len_chars,
+                                });
+                            }
+
                             buf.action(kerbin_core::buffer::action::Insert {
                                 byte: info.position,
                                 content: text_to_insert,
@@ -248,13 +308,7 @@ pub async fn handle_completion(state: &State, msg: &JsonRpcMessage) {
         let cursor_byte = buf.primary_cursor().get_cursor_byte();
 
         let query = if cursor_byte >= info.position {
-            let line = buf.rope.byte_to_line_idx(info.position, LineType::LF_CR);
-            let col = info.position - buf.rope.line_to_byte_idx(line, LineType::LF_CR);
-            let len = cursor_byte - info.position;
-            buf.rope
-                .line(line, LineType::LF_CR)
-                .slice(col..col + len)
-                .to_string()
+            buf.rope.slice(info.position..cursor_byte).to_string()
         } else {
             String::new()
         };
@@ -348,15 +402,8 @@ pub async fn render_completions(buffers: ResMut<Buffers>) {
         return;
     }
 
-    // Calculate query
     let query = if cursor_byte > info.position {
-        let line = buf.rope.byte_to_line_idx(info.position, LineType::LF_CR);
-        let col = info.position - buf.rope.line_to_byte_idx(line, LineType::LF_CR);
-        let len = cursor_byte - info.position;
-        buf.rope
-            .line(line, LineType::LF_CR)
-            .slice(col..col + len)
-            .to_string()
+        buf.rope.slice(info.position..cursor_byte).to_string()
     } else {
         String::new()
     };
