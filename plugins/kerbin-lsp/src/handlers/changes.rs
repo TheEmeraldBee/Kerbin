@@ -6,6 +6,10 @@ pub async fn apply_changes(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspMana
 
     let mut buf = buffers.cur_buffer_mut().await;
 
+    if buf.byte_changes.is_empty() {
+        return;
+    }
+
     let Some(mut file) = buf.get_state_mut::<OpenedFile>().await else {
         // File hasn't been opened yet anyways
         return;
@@ -13,25 +17,15 @@ pub async fn apply_changes(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspMana
 
     let client = lsp_manager.get_or_create_client(&file.lang).await.unwrap();
 
-    let mut changes = vec![];
-
-    for change in &buf.byte_changes {
-        changes.push(TextDocumentContentChangeEvent {
-            range: Some(Range {
-                start: Position::new(change[0].0.0 as u32, change[0].0.1 as u32),
-                end: Position::new(change[2].0.0 as u32, change[2].0.1 as u32),
-            }),
-            range_length: None,
-            text: buf.rope.slice(change[0].1..change[2].1).to_string(),
-        })
-    }
-
-    if changes.is_empty() {
-        // No changes to send
-        return;
-    }
-
     file.change_id += 1;
+
+    // Send full document content to ensure correct synchronization state
+    // and avoid issues with incremental updates where intermediate text is unavailable.
+    let changes = vec![TextDocumentContentChangeEvent {
+        range: None,
+        range_length: None,
+        text: buf.rope.to_string(),
+    }];
 
     let change = DidChangeTextDocumentParams {
         text_document: VersionedTextDocumentIdentifier {

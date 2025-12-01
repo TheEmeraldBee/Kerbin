@@ -203,6 +203,10 @@ fn calculate_affected_range(
         max_end = max_end.max(new_end);
     }
 
+    // Clamp to rope length to avoid panics
+    min_start = min_start.min(rope.len());
+    max_end = max_end.min(rope.len());
+
     // Expand the range to include complete lines for better context
     // This helps catch cases where syntax depends on line boundaries
     let start_line = rope.byte_to_line_idx(min_start, ropey::LineType::LF_CR);
@@ -319,5 +323,62 @@ pub async fn highlight_file(
                     .with_decoration(ExtmarkDecoration::Highlight { hl: hl_style }),
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_calculate_affected_range_crash() {
+        // Create a rope.
+        let text = "Hello\nWorld";
+        let _rope = ropey::Rope::from_str(text);
+
+        // len is 11.
+        // lines: "Hello\n" (0..6), "World" (6..11).
+
+        // Simulate an insertion at the very end.        // Inserting "!" at 11.
+        // New rope: "Hello\nWorld!"
+        let rope = ropey::Rope::from_str("Hello\nWorld!");
+
+        // change: start 11, new_end 12.
+        let change = [((1, 5), 11), ((1, 5), 11), ((1, 6), 12)];
+        let byte_changes = vec![change];
+
+        let range = calculate_affected_range(&byte_changes, &rope);
+        assert!(range.is_some());
+    }
+
+    #[test]
+    fn test_calculate_affected_range_crash_with_newline_at_end() {
+        // "Hello\n" -> 2 lines.
+        let _rope = ropey::Rope::from_str("Hello\n");
+        // len 6.
+
+        // Insert "World" at 6.
+        // New rope: "Hello\nWorld"
+        let rope = ropey::Rope::from_str("Hello\nWorld");
+
+        // change: start 6, new_end 11.
+        let change = [((1, 0), 6), ((1, 0), 6), ((1, 5), 11)];
+        let byte_changes = vec![change];
+
+        let range = calculate_affected_range(&byte_changes, &rope);
+        assert!(range.is_some());
+    }
+
+    #[test]
+    fn test_calculate_affected_range_deletion_at_end() {
+        // "Hello World" -> "Hello"
+        let rope = ropey::Rope::from_str("Hello");
+
+        // change: start 5, new_end 5. (Deleted " World")
+        let change = [((0, 5), 5), ((0, 11), 11), ((0, 5), 5)];
+        let byte_changes = vec![change];
+
+        let range = calculate_affected_range(&byte_changes, &rope);
+        assert!(range.is_some());
     }
 }

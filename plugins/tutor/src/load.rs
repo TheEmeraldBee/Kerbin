@@ -67,6 +67,7 @@ pub async fn open_default_buffer(bufs: ResMut<Buffers>, log: Res<LogSender>) {
     );
 
     bufs.new(buffer).await;
+    bufs.close_buffer(0).await;
 }
 
 pub async fn update_buffer(bufs: ResMut<Buffers>, log: Res<LogSender>) {
@@ -172,6 +173,9 @@ pub async fn load_next_step(buffer: &mut TextBuffer) -> bool {
         byte: 0,
         content: clean_text,
     });
+
+    buffer.drop_other_cursors();
+    buffer.primary_cursor_mut().set_sel(0..=0);
 
     false
 }

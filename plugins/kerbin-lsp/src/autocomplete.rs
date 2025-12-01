@@ -43,7 +43,7 @@ async fn trigger_completion_request(buf: &mut TextBuffer, lsps: &mut LspManager)
     let client = lsps.get_or_create_client(&file.lang).await?;
 
     let cursor = buf.primary_cursor();
-    let cursor_byte = cursor.get_cursor_byte();
+    let cursor_byte = cursor.get_cursor_byte().min(buf.rope.len());
 
     let line = buf.rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
     let character = cursor_byte - buf.rope.line_to_byte_idx(line, LineType::LF_CR);
@@ -88,19 +88,20 @@ impl Command for CompletionCommand {
 
                 let mut buf = bufs.cur_buffer_mut().await;
 
-                let cursor_byte = buf.primary_cursor().get_cursor_byte();
+                let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.rope.len());
 
                 // Check if there's already an active completion
                 let mut state = buf.get_or_insert_state_mut(CompletionState::default).await;
 
                 if let Some(existing_info) = &state.info {
+                    let pos = existing_info.position.min(buf.rope.len());
                     // Check if cursor is out of range of current completion
                     let start_line = buf
                         .rope
-                        .byte_to_line_idx(existing_info.position, LineType::LF_CR);
+                        .byte_to_line_idx(pos, LineType::LF_CR);
                     let current_line = buf.rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
 
-                    if cursor_byte < existing_info.position || start_line != current_line {
+                    if cursor_byte < pos || start_line != current_line {
                         // Cancel the old completion if cursor moved out of range
                         state.info = None;
                     } else {
@@ -141,13 +142,15 @@ impl Command for CompletionCommand {
                     buf.get_or_insert_state_mut(CompletionState::default).await;
 
                 if let Some(info) = &completion_state.info {
-                    let cursor_byte = buf.primary_cursor().get_cursor_byte();
-                    let start_line = buf.rope.byte_to_line_idx(info.position, LineType::LF_CR);
+                    let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.rope.len());
+                    let pos = info.position.min(buf.rope.len());
+                    
+                    let start_line = buf.rope.byte_to_line_idx(pos, LineType::LF_CR);
                     let current_line = buf.rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
 
                     if start_line == current_line {
-                        let query = if cursor_byte >= info.position {
-                            buf.rope.slice(info.position..cursor_byte).to_string()
+                        let query = if cursor_byte >= pos {
+                            buf.rope.slice(pos..cursor_byte).to_string()
                         } else {
                             String::new()
                         };
@@ -288,10 +291,11 @@ pub async fn handle_completion(state: &State, msg: &JsonRpcMessage) {
             info.items = vec![];
         }
 
-        let cursor_byte = buf.primary_cursor().get_cursor_byte();
+        let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.rope.len());
+        let pos = info.position.min(buf.rope.len());
 
-        let query = if cursor_byte >= info.position {
-            buf.rope.slice(info.position..cursor_byte).to_string()
+        let query = if cursor_byte >= pos {
+            buf.rope.slice(pos..cursor_byte).to_string()
         } else {
             String::new()
         };
@@ -376,17 +380,19 @@ pub async fn render_completions(buffers: ResMut<Buffers>) {
     };
 
     // Check if cursor moved before start position (cancelled)
-    let cursor_byte = buf.primary_cursor().get_cursor_byte();
-    let start_line = buf.rope.byte_to_line_idx(info.position, LineType::LF_CR);
+    let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.rope.len());
+    let pos = info.position.min(buf.rope.len());
+    
+    let start_line = buf.rope.byte_to_line_idx(pos, LineType::LF_CR);
     let current_line = buf.rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
 
-    if cursor_byte < info.position || start_line != current_line {
+    if cursor_byte < pos || start_line != current_line {
         state.info = None;
         return;
     }
 
-    let query = if cursor_byte > info.position {
-        buf.rope.slice(info.position..cursor_byte).to_string()
+    let query = if cursor_byte > pos {
+        buf.rope.slice(pos..cursor_byte).to_string()
     } else {
         String::new()
     };

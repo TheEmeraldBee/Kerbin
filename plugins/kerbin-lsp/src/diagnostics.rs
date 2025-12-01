@@ -30,12 +30,28 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
             let end_line = diagnostic.range.end.line as usize;
             let end_char = diagnostic.range.end.character as usize;
 
-            // Convert line/char positions to byte offsets
-            let start_byte = buf.rope.line_to_byte_idx(start_line, LineType::LF_CR)
-                + buf.rope.char_to_byte_idx(start_char);
+            // Helper to safe-convert (line, col) -> byte index
+            let to_byte = |line: usize, col: usize| -> usize {
+                let total_lines = buf.rope.len_lines(LineType::LF_CR);
+                let line = line.min(total_lines.saturating_sub(1));
+                
+                let line_start_byte = buf.rope.line_to_byte_idx(line, LineType::LF_CR);
+                let line_start_char = buf.rope.byte_to_char_idx(line_start_byte);
+                
+                let line_len_chars = buf.rope.line(line, LineType::LF_CR).len_chars();
+                
+                // Clamp col to line length to avoid crossing into next line
+                let col = col.min(line_len_chars);
+                
+                let global_char = line_start_char + col;
+                // Clamp to total chars
+                let global_char = global_char.min(buf.rope.len_chars());
+                
+                buf.rope.char_to_byte_idx(global_char)
+            };
 
-            let end_byte = buf.rope.line_to_byte_idx(end_line, LineType::LF_CR)
-                + buf.rope.char_to_byte_idx(end_char);
+            let start_byte = to_byte(start_line, start_char);
+            let end_byte = to_byte(end_line, end_char);
 
             // Choose color based on severity
             let (style, priority) = match diagnostic.severity {
