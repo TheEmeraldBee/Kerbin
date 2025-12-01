@@ -472,7 +472,7 @@ impl TextBuffer {
     /// Writes the buffer's content to a file on disk.
     ///
     /// Handles directory creation and ensures the file exists.
-    /// A scratch file (`<scratch>`) cannot be written without providing a new path.
+    /// A special buffer (starts with `<` and ends with `>`) cannot be written without providing a new path.
     pub async fn write_file(&mut self, path: Option<String>) {
         if let Some(new_path) = path {
             let path = Path::new(&new_path);
@@ -488,8 +488,8 @@ impl TextBuffer {
             self.path = path.canonicalize().unwrap().to_str().unwrap().to_string();
         }
 
-        if self.path == "<scratch>" {
-            tracing::error!("Unable to write to scratch file without setting a path");
+        if self.path.starts_with("<") && self.path.ends_with(">") {
+            tracing::error!("Cannot write to special buffer without setting new path");
             return;
         }
 

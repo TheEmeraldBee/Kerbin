@@ -180,37 +180,43 @@ impl Command for BufferCommand {
                     cur_buffer.path.clone()
                 };
 
-                if current_path != "<scratch>" {
-                    match std::fs::metadata(&current_path) {
-                        Ok(metadata) => {
-                            let disk_modified = metadata.modified().ok();
-                            let buffer_changed = cur_buffer.changed;
+                if current_path.starts_with("<") && current_path.ends_with(">") {
+                    log.high(
+                        "command::write_file",
+                        "Cannot write special file without setting new path",
+                    );
+                    return false;
+                }
 
-                            if let Some(disk_time) = disk_modified
-                                && let Some(buffer_time) = buffer_changed
-                                && disk_time != buffer_time
-                            {
-                                let message = format!(
-                                    "File has been modified externally since last read/save: {}. Disk time: {:?}, Buffer time: {:?}",
-                                    current_path, disk_time, buffer_time
-                                );
+                match std::fs::metadata(&current_path) {
+                    Ok(metadata) => {
+                        let disk_modified = metadata.modified().ok();
+                        let buffer_changed = cur_buffer.changed;
 
-                                tracing::error!(message);
-                                log.high("command::write_file", message);
-                                return false;
-                            }
-                        }
-                        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
-                            let message =
-                                format!("Failed to read metadata for file {}: {}", current_path, e);
+                        if let Some(disk_time) = disk_modified
+                            && let Some(buffer_time) = buffer_changed
+                            && disk_time != buffer_time
+                        {
+                            let message = format!(
+                                "File has been modified externally since last read/save: {}. Disk time: {:?}, Buffer time: {:?}",
+                                current_path, disk_time, buffer_time
+                            );
+
                             tracing::error!(message);
                             log.high("command::write_file", message);
-                            // Treat as if external file changes if the metadata isn't found
                             return false;
                         }
-                        _ => {
-                            // File not found on disk, so no conflict check needed.
-                        }
+                    }
+                    Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                        let message =
+                            format!("Failed to read metadata for file {}: {}", current_path, e);
+                        tracing::error!(message);
+                        log.high("command::write_file", message);
+                        // Treat as if external file changes if the metadata isn't found
+                        return false;
+                    }
+                    _ => {
+                        // File not found on disk, so no conflict check needed.
                     }
                 }
 

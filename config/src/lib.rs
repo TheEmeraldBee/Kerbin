@@ -1,5 +1,3 @@
-#![allow(improper_ctypes_definitions)]
-
 // Sample config file for basic plugin systems
 
 use kerbin_core::*;
@@ -31,6 +29,8 @@ pub async fn init(state: &mut State) {
             .with_root("Cargo.lock"),
     )
     .await;
+
+    tutor::init(state).await;
 
     EVENT_BUS
         .subscribe::<SaveEvent>()
