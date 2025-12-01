@@ -1,6 +1,14 @@
 use kerbin_core::*;
 
-pub static STEPS: &[&str] = &[include_str!("./tutor/0.md"), include_str!("./tutor/1.md"), include_str!("./tutor/2.md")];
+pub static STEPS: &[&str] = &[
+    include_str!("./tutor/1.md"),
+    include_str!("./tutor/2.md"),
+    include_str!("./tutor/3.md"),
+    include_str!("./tutor/4.md"),
+    include_str!("./tutor/5.md"),
+    include_str!("./tutor/6.md"),
+    include_str!("./tutor/7.md"),
+];
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BufferExpectation {
@@ -45,14 +53,25 @@ pub struct TutorState {
 pub async fn open_default_buffer(bufs: ResMut<Buffers>, log: Res<LogSender>) {
     get!(mut bufs, log);
 
-    let text = include_str!("tutor.md");
+    let text = include_str!("./tutor/0.md");
     let (expectations, _) = parse_tutor_text(text);
 
     let mut buffer = TextBuffer::scratch();
+
+    buffer.start_change_group();
+
     buffer.action(Insert {
         byte: 0,
         content: text.to_string(),
     });
+
+    buffer.commit_change_group();
+
+    buffer.drop_other_cursors();
+    buffer.primary_cursor_mut().set_sel(0..=0);
+
+    buffer.undo_stack.clear();
+    buffer.redo_stack.clear();
 
     buffer.path = "<tutor>".to_string();
     buffer.ext = "md".to_string();
@@ -115,28 +134,6 @@ pub async fn update_buffer(bufs: ResMut<Buffers>, log: Res<LogSender>) {
     }
 }
 
-pub async fn set_tutor_text(buf: &mut TextBuffer, new_text: &str) {
-    let Some(mut tutor_state) = buf.get_state_mut::<TutorState>().await else {
-        panic!("Called set_tutor_text on non-tutor file")
-    };
-
-    // Delete old text
-    let len = buf.len_bytes();
-    if len > 0 {
-        buf.action(Delete { byte: 0, len });
-    }
-
-    // Parse new text for expectations
-    let (expectations, clean_text) = parse_tutor_text(new_text);
-    tutor_state.expectations = expectations;
-
-    // Insert new text
-    buf.action(Insert {
-        byte: 0,
-        content: clean_text,
-    });
-}
-
 pub fn parse_tutor_text(text: &str) -> (Vec<BufferExpectation>, String) {
     let mut expectations = Vec::new();
 
@@ -165,6 +162,8 @@ pub async fn load_next_step(buffer: &mut TextBuffer) -> bool {
     let (expectations, clean_text) = parse_tutor_text(step_text);
     tutor_state.expectations = expectations;
 
+    buffer.start_change_group();
+
     // Clear current buffer content
     let len = buffer.len_bytes();
     if len > 0 {
@@ -177,8 +176,13 @@ pub async fn load_next_step(buffer: &mut TextBuffer) -> bool {
         content: clean_text,
     });
 
+    buffer.commit_change_group();
+
     buffer.drop_other_cursors();
     buffer.primary_cursor_mut().set_sel(0..=0);
+
+    buffer.undo_stack.clear();
+    buffer.redo_stack.clear();
 
     false
 }
