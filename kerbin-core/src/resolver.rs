@@ -52,6 +52,14 @@ impl ResolverEngine {
     pub fn trash_template(&mut self, template: impl AsRef<str>) {
         self.map.remove(template.as_ref());
     }
+
+    pub fn get_template(&self, template: impl AsRef<str>) -> Option<&[String]> {
+        self.map.get(template.as_ref()).map(|x| &**x)
+    }
+
+    pub fn has_template(&self, template: impl AsRef<str>) -> bool {
+        self.map.contains_key(template.as_ref())
+    }
 }
 
 pub async fn resolver_engine() -> OwnedRwLockReadGuard<ResolverEngine> {

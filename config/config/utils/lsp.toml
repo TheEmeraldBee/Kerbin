@@ -5,13 +5,14 @@ commands = ['hover']
 desc = "Show Hover"
 
 [[keybind]]
-modes = []
-keys = ['ctrl-j']
-commands = ['hsd']
-desc = "Scroll Hover Down"
+modes = ["i"]
+keys = ["alt-space"]
+commands = ['start_request']
+desc = "Start LSP request"
 
 [[keybind]]
-modes = []
-keys = ['ctrl-k']
-commands = ['hsu']
-desc = "Scroll Hover Up"
+modes = ["i"]
+keys = ["tab"]
+commands = ['accept']
+desc = "Accept LSP change"
+required_templates = ['lsp_items']

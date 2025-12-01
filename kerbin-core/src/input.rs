@@ -21,6 +21,9 @@ pub struct Metadata {
     pub invalid_modes: Vec<char>,
 
     #[serde(default)]
+    pub required_templates: Vec<String>,
+
+    #[serde(default)]
     pub desc: String,
 }
 
@@ -185,8 +188,8 @@ pub async fn handle_inputs(
         return;
     }
 
-    let resolver = resolver_engine().await;
-    let resolver = resolver.as_resolver();
+    let resolver_engine = resolver_engine().await;
+    let resolver = resolver_engine.as_resolver();
 
     // Update the tree
     for event in window.events() {
@@ -201,7 +204,13 @@ pub async fn handle_inputs(
                 };
 
                 (data.modes.is_empty() || data.modes.iter().any(|x| modes.mode_on_stack(*x)))
-                    && !data.invalid_modes.iter().any(|x| modes.mode_on_stack(*x))
+                    && !data.invalid_modes.iter().any(|x| {
+                        modes.mode_on_stack(*x)
+                            && data
+                                .required_templates
+                                .iter()
+                                .all(|x| resolver_engine.has_template(x))
+                    })
             }) {
             Ok(StepResult::Success(_, commands)) => {
                 'outer: for _ in 0..input.repeat_count.parse::<i32>().unwrap_or(1) {

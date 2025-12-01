@@ -53,7 +53,9 @@ pub async fn register_lang(
             .system(apply_changes)
             .system(render_diagnostic_highlights)
             .system(process_lsp_events)
-            .system(render_hover);
+            .system(render_hover)
+            .system(update_completions)
+            .system(render_completions);
     }
 }
 
@@ -77,6 +79,7 @@ pub async fn init(state: &mut State) {
         let mut command_registry = state.lock_state::<CommandRegistry>().await;
 
         command_registry.register::<HoverCommand>();
+        command_registry.register::<CompletionCommand>();
     }
 
     // Setup global state handlers
@@ -91,6 +94,10 @@ pub async fn init(state: &mut State) {
 
         handler_manager.on_global_response("textDocument/hover", |state, msg| {
             Box::pin(handle_hover(state, msg))
+        });
+
+        handler_manager.on_global_response("textDocument/completion", |state, msg| {
+            Box::pin(handle_completion(state, msg))
         });
     }
 }
