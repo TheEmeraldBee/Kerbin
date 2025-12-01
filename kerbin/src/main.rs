@@ -289,6 +289,7 @@ async fn main() {
 
     state
         .on_hook(hooks::Update)
+        .system(update_debounce)
         .system(handle_inputs)
         .system(handle_command_palette_input)
         .system(update_palette_suggestions)

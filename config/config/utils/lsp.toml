@@ -6,13 +6,14 @@ desc = "Show Hover"
 
 [[keybind]]
 modes = ["i"]
-keys = ["ctrl-space"]
-commands = ['sla', 'sla']
-desc = "Start LSP request"
-
-[[keybind]]
-modes = ["i"]
 keys = ["tab"]
 commands = ['ala']
 desc = "Accept LSP change"
 required_templates = ['lsp_items']
+
+# Make lsp start autocompletion on debounce of 100ms
+[[plugin.debounce_event]]
+modes = ["i"]
+
+min_ms = 100
+events = ['sla']

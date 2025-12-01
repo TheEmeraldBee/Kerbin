@@ -30,6 +30,10 @@ pub fn word_split(input: &str) -> Vec<String> {
             (ParseState::InDoubleQuotes, '"') => ParseState::Normal,
             (ParseState::InSingleQuotes, '\'') => ParseState::Normal,
 
+            // Handle dollar sign for command substitution
+            (ParseState::Normal, '$') => ParseState::DollarSeen,
+            (ParseState::InDoubleQuotes, '$') => ParseState::DollarSeen,
+
             // Inside single quotes - everything is literal, including backslashes
             (ParseState::InSingleQuotes, _) => {
                 current.push(ch);
@@ -41,10 +45,6 @@ pub fn word_split(input: &str) -> Vec<String> {
                 current.push(ch);
                 ParseState::InDoubleQuotes
             }
-
-            // Handle dollar sign for command substitution
-            (ParseState::Normal, '$') => ParseState::DollarSeen,
-            (ParseState::InDoubleQuotes, '$') => ParseState::DollarSeen,
 
             // Start command substitution
             (ParseState::DollarSeen, '(') => {

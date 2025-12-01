@@ -175,3 +175,6 @@ pub use resolver::*;
 
 pub mod word_split;
 pub use word_split::*;
+
+pub mod debounce;
+pub use debounce::*;

@@ -42,12 +42,26 @@ impl<W: AsyncWrite + Unpin + Send + 'static> ClientFacade for LspClient<W> {
                     completion: Some(CompletionClientCapabilities {
                         dynamic_registration: None,
 
-                        completion_item: None,
+                        completion_item: Some(CompletionItemCapability {
+                            snippet_support: Some(false),
+                            commit_characters_support: Some(true),
+                            documentation_format: Some(vec![
+                                MarkupKind::Markdown,
+                                MarkupKind::PlainText,
+                            ]),
+                            deprecated_support: Some(true),
+                            preselect_support: Some(true),
+                            tag_support: None,
+                            insert_replace_support: Some(true),
+                            resolve_support: None,
+                            insert_text_mode_support: None,
+                            label_details_support: Some(true),
+                        }),
                         completion_list: None,
                         completion_item_kind: None,
 
                         insert_text_mode: None,
-                        context_support: None,
+                        context_support: Some(true),
                     }),
                     ..Default::default()
                 }),

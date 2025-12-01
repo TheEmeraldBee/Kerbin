@@ -74,6 +74,25 @@ impl Command for CompletionCommand {
 
                 let cursor_byte = buf.primary_cursor().get_cursor_byte();
 
+                // Check if there's already an active completion
+                let mut state = buf.get_or_insert_state_mut(CompletionState::default).await;
+
+                if let Some(existing_info) = &state.info {
+                    // Check if cursor is out of range of current completion
+                    let start_line = buf
+                        .rope
+                        .byte_to_line_idx(existing_info.position, LineType::LF_CR);
+                    let current_line = buf.rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
+
+                    if cursor_byte < existing_info.position || start_line != current_line {
+                        // Cancel the old completion if cursor moved out of range
+                        state.info = None;
+                    } else {
+                        // There's already an active completion in valid range, don't start a new one
+                        return true;
+                    }
+                }
+
                 if let Some(id) = trigger_completion_request(&mut buf, &mut lsps).await {
                     let mut start_pos = cursor_byte;
                     let cursor_char_idx = buf.rope.byte_to_char_idx(cursor_byte);
@@ -90,8 +109,6 @@ impl Command for CompletionCommand {
                     if current_char_idx < cursor_char_idx {
                         start_pos = buf.rope.char_to_byte_idx(current_char_idx);
                     }
-
-                    let mut state = buf.get_or_insert_state_mut(CompletionState::default).await;
 
                     state.info = Some(CompletionInfo {
                         pending_request: id,
