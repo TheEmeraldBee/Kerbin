@@ -83,3 +83,11 @@ name = "nu"
 exts = ["nu"]
 
 url = "https://github.com/nushell/tree-sitter-nu.git"
+
+# Html
+[[plugin.tree-sitter-grammars]]
+type = "def"
+name = "html"
+exts = ["html"]
+
+url = "https://github.com/tree-sitter/tree-sitter-html.git"
