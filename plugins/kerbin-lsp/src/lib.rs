@@ -24,6 +24,9 @@ pub use diagnostics::*;
 pub mod hover;
 pub use hover::*;
 
+pub mod autocomplete;
+pub use autocomplete::*;
+
 // Re-Exports
 pub use lsp_types::*;
 

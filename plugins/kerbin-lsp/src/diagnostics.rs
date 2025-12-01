@@ -37,6 +37,21 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
             let end_byte = buf.rope.line_to_byte_idx(end_line, LineType::LF_CR)
                 + buf.rope.char_to_byte_idx(end_char);
 
+            // Choose color based on severity
+            let (style, priority) = match diagnostic.severity {
+                Some(DiagnosticSeverity::ERROR) => {
+                    (ContentStyle::new().underline_red().underlined(), 3)
+                }
+                Some(DiagnosticSeverity::WARNING) => {
+                    (ContentStyle::new().underline_yellow().underlined(), 2)
+                }
+                Some(DiagnosticSeverity::INFORMATION) => {
+                    (ContentStyle::new().underline_blue().underlined(), 1)
+                }
+                Some(DiagnosticSeverity::HINT) => (ContentStyle::new().underline_dark_green(), 0),
+                _ => (ContentStyle::new().underline_red().underlined(), 3),
+            };
+
             if (start_byte..end_byte).contains(&buf.primary_cursor().get_cursor_byte()) {
                 let buffer = Buffer::sized_element(diagnostic.message.as_str().red());
                 let mut render = Buffer::new(buffer.size() + vec2(2, 2));
@@ -48,33 +63,20 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
 
                 buf.add_extmark(
                     ExtmarkBuilder::new("lsp::diagnostics", start_byte)
-                        .with_priority(5)
+                        .with_priority(priority)
                         .with_decoration(ExtmarkDecoration::OverlayElement {
                             offset: vec2(1, 1),
                             elem: Arc::new(render),
-                            z_index: 0,
+                            z_index: priority,
                             clip_to_viewport: true,
                             positioning: OverlayPositioning::RelativeToLine,
                         }),
                 );
             }
 
-            // Choose color based on severity
-            let style = match diagnostic.severity {
-                Some(DiagnosticSeverity::ERROR) => ContentStyle::new().underline_red().underlined(),
-                Some(DiagnosticSeverity::WARNING) => {
-                    ContentStyle::new().underline_yellow().underlined()
-                }
-                Some(DiagnosticSeverity::INFORMATION) => {
-                    ContentStyle::new().underline_blue().underlined()
-                }
-                Some(DiagnosticSeverity::HINT) => ContentStyle::new().underline_dark_green(),
-                _ => ContentStyle::new().underline_red().underlined(),
-            };
-
             buf.add_extmark(
                 ExtmarkBuilder::new_range("lsp::diagnostics", start_byte..end_byte)
-                    .with_priority(3)
+                    .with_priority(priority)
                     .with_decoration(ExtmarkDecoration::Highlight { hl: style }),
             );
         }
