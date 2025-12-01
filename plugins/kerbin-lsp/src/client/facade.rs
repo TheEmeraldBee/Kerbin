@@ -31,8 +31,6 @@ impl<W: AsyncWrite + Unpin + Send + 'static> ClientFacade for LspClient<W> {
                         related_document_support: None,
                     }),
                     publish_diagnostics: Some(PublishDiagnosticsClientCapabilities {
-                        version_support: Some(false),
-                        code_description_support: Some(true),
                         ..Default::default()
                     }),
                     hover: Some(HoverClientCapabilities {
@@ -60,7 +58,7 @@ impl<W: AsyncWrite + Unpin + Send + 'static> ClientFacade for LspClient<W> {
                         completion_list: None,
                         completion_item_kind: None,
 
-                        insert_text_mode: None,
+                        insert_text_mode: Some(InsertTextMode::ADJUST_INDENTATION),
                         context_support: Some(true),
                     }),
                     ..Default::default()

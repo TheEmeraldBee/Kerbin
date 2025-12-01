@@ -1,0 +1,7 @@
+[package]
+name = "tutor"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+kerbin-core = { path = "../../kerbin-core" }

@@ -7,9 +7,15 @@ use crate::{ParseError, ResolvedKeyBind, Resolver, UnresolvedKeyBind};
 
 #[derive(Debug, Clone)]
 pub enum KeyItem<A: Clone> {
-    /// Stores indices into a Vec of unresolved bindings
-    Tree(Vec<UnresolvedKeyBind>, Vec<Arc<KeyItem<A>>>, Option<usize>),
-    Leaf(Option<usize>, A),
+    /// Tree nodes now also have multiple actions (for partial matches)
+    /// Actions are stored in reverse order - last added is first checked
+    Tree(
+        Vec<UnresolvedKeyBind>,
+        Vec<Arc<KeyItem<A>>>,
+        Vec<(Option<usize>, A)>,
+    ),
+    /// Leaf nodes have multiple actions - last added is first checked
+    Leaf(Vec<(Option<usize>, A)>),
 }
 
 pub struct KeyTree<A: Clone, M: Clone> {
@@ -66,11 +72,17 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
                     // Update the most recent (last) item
                     if let Some(item) = items.last_mut() {
                         match Arc::make_mut(item) {
-                            KeyItem::Leaf(meta_idx, _) => {
-                                *meta_idx = Some(metadata_index);
+                            KeyItem::Leaf(actions) => {
+                                // Update the most recent action's metadata
+                                if let Some((meta_idx, _)) = actions.last_mut() {
+                                    *meta_idx = Some(metadata_index);
+                                }
                             }
-                            KeyItem::Tree(_, _, meta_idx) => {
-                                *meta_idx = Some(metadata_index);
+                            KeyItem::Tree(_, _, actions) => {
+                                // Update the most recent action's metadata
+                                if let Some((meta_idx, _)) = actions.last_mut() {
+                                    *meta_idx = Some(metadata_index);
+                                }
                             }
                         }
                     }
@@ -118,11 +130,15 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
         if remaining.len() == 1 {
             let child = Arc::make_mut(&mut children[child_idx]);
             match child {
-                KeyItem::Leaf(meta_idx, _) => {
-                    *meta_idx = Some(metadata_index);
+                KeyItem::Leaf(actions) => {
+                    if let Some((meta_idx, _)) = actions.last_mut() {
+                        *meta_idx = Some(metadata_index);
+                    }
                 }
-                KeyItem::Tree(_, _, meta_idx) => {
-                    *meta_idx = Some(metadata_index);
+                KeyItem::Tree(_, _, actions) => {
+                    if let Some((meta_idx, _)) = actions.last_mut() {
+                        *meta_idx = Some(metadata_index);
+                    }
                 }
             }
             Ok(())
@@ -155,11 +171,15 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
         if remaining.len() == 1 {
             let next_child = Arc::make_mut(&mut children[next_child_idx]);
             match next_child {
-                KeyItem::Leaf(meta_idx, _) => {
-                    *meta_idx = Some(metadata_index);
+                KeyItem::Leaf(actions) => {
+                    if let Some((meta_idx, _)) = actions.last_mut() {
+                        *meta_idx = Some(metadata_index);
+                    }
                 }
-                KeyItem::Tree(_, _, meta_idx) => {
-                    *meta_idx = Some(metadata_index);
+                KeyItem::Tree(_, _, actions) => {
+                    if let Some((meta_idx, _)) = actions.last_mut() {
+                        *meta_idx = Some(metadata_index);
+                    }
                 }
             }
             Ok(())
@@ -193,11 +213,27 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
 
         for resolved_key in first_resolved {
             if bind_sequence.len() == 1 {
-                // Add to the vector of items for this key
-                self.tree
-                    .entry(resolved_key)
-                    .or_default()
-                    .push(Arc::new(KeyItem::Leaf(metadata_index, action.clone())));
+                // Try to add to existing leaf or create new one
+                let items = self.tree.entry(resolved_key).or_default();
+
+                let mut added_to_existing = false;
+                // Try to find an existing Leaf to add to
+                for item in items.iter_mut() {
+                    if let KeyItem::Leaf(actions) = Arc::make_mut(item) {
+                        // Push to existing leaf (last added = first checked)
+                        actions.push((metadata_index, action.clone()));
+                        added_to_existing = true;
+                        break;
+                    }
+                }
+
+                if !added_to_existing {
+                    // Create new Leaf
+                    items.push(Arc::new(KeyItem::Leaf(vec![(
+                        metadata_index,
+                        action.clone(),
+                    )])));
+                }
             } else {
                 self.register_sequence(
                     resolved_key,
@@ -231,9 +267,6 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
                 // Check if this binding already exists in this tree
                 if let Some(idx) = bindings.iter().position(|b| b == &remaining[0]) {
                     // Path already exists, recurse into it
-                    if remaining.len() == 1 {
-                        return Err(ParseError::Custom("Duplicate keybind".into()));
-                    }
                     Self::add_to_child(
                         &mut children[idx],
                         &remaining[1..],
@@ -256,8 +289,11 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
         if !added_to_existing {
             // No existing tree node, create a new one
             let new_child = Self::build_child(remaining, action, metadata_index)?;
-            let tree_node =
-                KeyItem::Tree(vec![remaining[0].clone()], vec![Arc::new(new_child)], None);
+            let tree_node = KeyItem::Tree(
+                vec![remaining[0].clone()],
+                vec![Arc::new(new_child)],
+                vec![],
+            );
             items.push(Arc::new(tree_node));
         }
 
@@ -280,9 +316,6 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
             KeyItem::Tree(bindings, children, _) => {
                 // Check if this binding already exists
                 if let Some(idx) = bindings.iter().position(|b| b == &remaining[0]) {
-                    if remaining.len() == 1 {
-                        return Err(ParseError::Custom("Duplicate keybind".into()));
-                    }
                     Self::add_to_child(&mut children[idx], &remaining[1..], action, metadata_index)
                 } else {
                     // Add new child to this tree
@@ -292,7 +325,17 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
                     Ok(())
                 }
             }
-            KeyItem::Leaf(_, _) => Err(ParseError::Custom("Cannot add child to leaf node".into())),
+            KeyItem::Leaf(actions) => {
+                if remaining.len() == 1 {
+                    // Add action to existing leaf (last added = first checked)
+                    actions.push((metadata_index, action));
+                    Ok(())
+                } else {
+                    Err(ParseError::Custom(
+                        "Cannot add multi-key sequence to leaf node".into(),
+                    ))
+                }
+            }
         }
     }
 
@@ -306,13 +349,13 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
         }
 
         if bind_sequence.len() == 1 {
-            Ok(KeyItem::Leaf(metadata_index, action))
+            Ok(KeyItem::Leaf(vec![(metadata_index, action)]))
         } else {
             let child = Self::build_child(&bind_sequence[1..], action, metadata_index)?;
             Ok(KeyItem::Tree(
                 vec![bind_sequence[0].clone()],
                 vec![Arc::new(child)],
-                None,
+                vec![],
             ))
         }
     }
@@ -330,19 +373,33 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
             if let Some(items) = self.tree.get(&pressed_key) {
                 // Check items in reverse order (most recently added first)
                 for (vec_idx, item) in items.iter().enumerate().rev() {
-                    let meta = match item.as_ref() {
-                        KeyItem::Leaf(meta_idx, _) | KeyItem::Tree(_, _, meta_idx) => {
-                            meta_idx.and_then(|idx| self.metadata.get(idx))
-                        }
-                    };
-
-                    if check(meta) {
-                        match item.as_ref() {
-                            KeyItem::Leaf(_, action) => {
-                                self.current_sequence.clear();
-                                return Ok(StepResult::Success(vec![pressed_key], action.clone()));
+                    match item.as_ref() {
+                        KeyItem::Leaf(actions) => {
+                            // Check actions in reverse order (last added = first checked)
+                            for (meta_idx, action) in actions.iter().rev() {
+                                let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
+                                if check(meta) {
+                                    self.current_sequence.clear();
+                                    return Ok(StepResult::Success(
+                                        vec![pressed_key],
+                                        action.clone(),
+                                    ));
+                                }
                             }
-                            KeyItem::Tree(_, _, _) => {
+                        }
+                        KeyItem::Tree(_, _, actions) => {
+                            // For tree nodes, check if any action passes (for partial match handling)
+                            let mut has_valid_action = false;
+                            for (meta_idx, _) in actions.iter().rev() {
+                                let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
+                                if check(meta) {
+                                    has_valid_action = true;
+                                    break;
+                                }
+                            }
+
+                            // If we have valid actions or no actions (pure tree), descend
+                            if has_valid_action || actions.is_empty() {
                                 self.active_tree = Some((0, Arc::clone(item), vec_idx));
                                 self.current_sequence.push(pressed_key);
                                 self.resolve_current_layer(resolver)?;
@@ -364,23 +421,33 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
                     && let KeyItem::Tree(_, children, _) = active.1.as_ref()
                     && let Some(child) = children.get(child_idx)
                 {
-                    let meta = match child.as_ref() {
-                        KeyItem::Leaf(meta_idx, _) | KeyItem::Tree(_, _, meta_idx) => {
-                            meta_idx.and_then(|idx| self.metadata.get(idx))
-                        }
-                    };
-
-                    if check(meta) {
-                        self.current_sequence.push(pressed_key.clone());
-
-                        match child.as_ref() {
-                            KeyItem::Leaf(_, action) => {
-                                let action = action.clone();
-                                let seq = self.current_sequence.clone();
-                                self.reset();
-                                return Ok(StepResult::Success(seq, action));
+                    match child.as_ref() {
+                        KeyItem::Leaf(actions) => {
+                            // Check actions in reverse order (last added = first checked)
+                            for (meta_idx, action) in actions.iter().rev() {
+                                let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
+                                if check(meta) {
+                                    self.current_sequence.push(pressed_key.clone());
+                                    let action = action.clone();
+                                    let seq = self.current_sequence.clone();
+                                    self.reset();
+                                    return Ok(StepResult::Success(seq, action));
+                                }
                             }
-                            KeyItem::Tree(_, _, _) => {
+                        }
+                        KeyItem::Tree(_, _, actions) => {
+                            // For tree nodes, check if any action passes
+                            let mut has_valid_action = false;
+                            for (meta_idx, _) in actions.iter().rev() {
+                                let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
+                                if check(meta) {
+                                    has_valid_action = true;
+                                    break;
+                                }
+                            }
+
+                            if has_valid_action || actions.is_empty() {
+                                self.current_sequence.push(pressed_key.clone());
                                 self.active_tree = Some((active.0 + 1, Arc::clone(child), vec_idx));
                                 self.resolve_current_layer(resolver)?;
                                 return Ok(StepResult::Step);
@@ -435,11 +502,17 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
                         && let Some(child) = children.get(child_idx)
                     {
                         let meta = match child.as_ref() {
-                            KeyItem::Leaf(meta_idx, _) => {
-                                meta_idx.and_then(|i| self.metadata.get(i).cloned())
+                            KeyItem::Leaf(actions) => {
+                                // Get metadata from most recent action
+                                actions.last().and_then(|(meta_idx, _)| {
+                                    meta_idx.and_then(|i| self.metadata.get(i).cloned())
+                                })
                             }
-                            KeyItem::Tree(_, _, meta_idx) => {
-                                meta_idx.and_then(|i| self.metadata.get(i).cloned())
+                            KeyItem::Tree(_, _, actions) => {
+                                // Get metadata from most recent action
+                                actions.last().and_then(|(meta_idx, _)| {
+                                    meta_idx.and_then(|i| self.metadata.get(i).cloned())
+                                })
                             }
                         };
 
@@ -452,11 +525,17 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
                 // Only show the most recent item
                 if let Some(item) = items.last() {
                     let meta = match item.as_ref() {
-                        KeyItem::Leaf(meta_idx, _) => {
-                            meta_idx.and_then(|i| self.metadata.get(i).cloned())
+                        KeyItem::Leaf(actions) => {
+                            // Get metadata from most recent action
+                            actions.last().and_then(|(meta_idx, _)| {
+                                meta_idx.and_then(|i| self.metadata.get(i).cloned())
+                            })
                         }
-                        KeyItem::Tree(_, _, meta_idx) => {
-                            meta_idx.and_then(|i| self.metadata.get(i).cloned())
+                        KeyItem::Tree(_, _, actions) => {
+                            // Get metadata from most recent action
+                            actions.last().and_then(|(meta_idx, _)| {
+                                meta_idx.and_then(|i| self.metadata.get(i).cloned())
+                            })
                         }
                     };
 

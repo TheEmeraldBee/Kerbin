@@ -140,6 +140,32 @@ impl Buffers {
         }
     }
 
+    /// Inserts the text buffer safely into the buffers
+    pub async fn new(&mut self, buffer: TextBuffer) -> usize {
+        let mut found_buffer_id: Option<usize> = None;
+
+        for (i, buffer_arc) in self.buffers.iter().enumerate() {
+            let buffer_read = buffer_arc.read().await;
+
+            if buffer_read.path == buffer.path {
+                found_buffer_id = Some(i);
+                break;
+            }
+        }
+
+        if let Some(buffer_id) = found_buffer_id {
+            self.set_selected_buffer(buffer_id);
+            buffer_id
+        } else {
+            let new_buffer = Arc::new(RwLock::new(buffer));
+            self.buffers.push(new_buffer);
+            let new_buffer_id = self.buffers.len() - 1;
+            self.set_selected_buffer(new_buffer_id);
+
+            new_buffer_id
+        }
+    }
+
     /// Renders the bufferline (tab bar) into the provided `Buffer`.
     ///
     /// This method displays the unique paths of all open buffers, highlighting

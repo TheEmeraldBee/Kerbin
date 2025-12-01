@@ -203,14 +203,22 @@ pub async fn handle_inputs(
                     return true;
                 };
 
-                (data.modes.is_empty() || data.modes.iter().any(|x| modes.mode_on_stack(*x)))
-                    && !data.invalid_modes.iter().any(|x| {
-                        modes.mode_on_stack(*x)
-                            && data
-                                .required_templates
-                                .iter()
-                                .all(|x| resolver_engine.has_template(x))
-                    })
+                // Check if modes are satisfied
+                let mode_ok =
+                    data.modes.is_empty() || data.modes.iter().any(|x| modes.mode_on_stack(*x));
+
+                // Check if invalid modes are present
+                let invalid_mode_present =
+                    data.invalid_modes.iter().any(|x| modes.mode_on_stack(*x));
+
+                // Check if required templates are present
+                let templates_ok = data.required_templates.is_empty()
+                    || data
+                        .required_templates
+                        .iter()
+                        .all(|x| resolver_engine.has_template(x));
+
+                mode_ok && !invalid_mode_present && templates_ok
             }) {
             Ok(StepResult::Success(_, commands)) => {
                 'outer: for _ in 0..input.repeat_count.parse::<i32>().unwrap_or(1) {
