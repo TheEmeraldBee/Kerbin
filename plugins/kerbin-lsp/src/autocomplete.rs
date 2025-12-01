@@ -9,6 +9,7 @@ use lsp_types::{
     CompletionItem, CompletionParams, CompletionResponse, Position, TextDocumentIdentifier,
     TextDocumentPositionParams, WorkDoneProgressParams,
 };
+use ropey::RopeSlice;
 
 use crate::{JsonRpcMessage, LspManager, OpenedFile};
 
@@ -60,6 +61,21 @@ async fn trigger_completion_request(buf: &mut TextBuffer, lsps: &mut LspManager)
     };
 
     client.request("textDocument/completion", params).await.ok()
+}
+
+fn get_ranked_items<'a>(
+    items: &'a [CompletionItem],
+    query: &str,
+) -> Vec<(&'a CompletionItem, i32)> {
+    let mut ranked_items: Vec<(&CompletionItem, i32)> = items
+        .iter()
+        .filter_map(|item| {
+            kerbin_core::palette::ranking::rank(query, &item.label).map(|score| (item, score))
+        })
+        .collect();
+
+    ranked_items.sort_by_key(|(_, score)| *score);
+    ranked_items
 }
 
 #[async_trait::async_trait]
@@ -126,144 +142,94 @@ impl Command for CompletionCommand {
 
                 if let Some(info) = &completion_state.info {
                     let cursor_byte = buf.primary_cursor().get_cursor_byte();
-
                     let start_line = buf.rope.byte_to_line_idx(info.position, LineType::LF_CR);
                     let current_line = buf.rope.byte_to_line_idx(cursor_byte, LineType::LF_CR);
 
-                    if start_line != current_line {
-                        completion_state.info = None;
-                        return true;
-                    }
+                    if start_line == current_line {
+                        let query = if cursor_byte >= info.position {
+                            buf.rope.slice(info.position..cursor_byte).to_string()
+                        } else {
+                            String::new()
+                        };
 
-                    let query = if cursor_byte >= info.position {
-                        buf.rope.slice(info.position..cursor_byte).to_string()
-                    } else {
-                        String::new()
-                    };
+                        // Use the exact same ranking logic as render
+                        let ranked_items = get_ranked_items(&info.items, &query);
 
-                    let mut ranked_items: Vec<(&CompletionItem, i32)> = info
-                        .items
-                        .iter()
-                        .filter_map(|item| {
-                            kerbin_core::palette::ranking::rank(&query, &item.label)
-                                .map(|score| (item, score))
-                        })
-                        .collect();
-
-                    ranked_items.sort_by_key(|(_, score)| *score);
-
-                    if let Some((item, _)) = ranked_items.first() {
-                        let text_to_insert =
-                            item.insert_text.as_ref().unwrap_or(&item.label).clone();
-
-                        // Use text edit if available for better precision
-                        if let Some(edit) = &item.text_edit {
-                            match edit {
-                                lsp_types::CompletionTextEdit::Edit(e) => {
-                                    let start_line = e.range.start.line as usize;
-                                    let start_char = e.range.start.character as usize;
-                                    let end_line = e.range.end.line as usize;
-                                    let end_char = e.range.end.character as usize;
+                        // Get the first item from ranked items (what's visually first)
+                        if let Some((item, _)) = ranked_items.first() {
+                            let (start_byte, end_byte, text) =
+                                if let Some(lsp_types::CompletionTextEdit::Edit(e)) =
+                                    &item.text_edit
+                                {
+                                    // Helper to calculate line content length excluding line endings
+                                    let line_content_len = |line_slice: &RopeSlice| {
+                                        let mut len = line_slice.len_chars();
+                                        if len > 0 {
+                                            match line_slice.char(len - 1) {
+                                                '\n' => {
+                                                    len -= 1;
+                                                    if len > 0 && line_slice.char(len - 1) == '\r' {
+                                                        len -= 1;
+                                                    }
+                                                }
+                                                '\r' => len -= 1,
+                                                _ => {}
+                                            }
+                                        }
+                                        len
+                                    };
 
                                     let max_line =
                                         buf.rope.len_lines(LineType::LF_CR).saturating_sub(1);
-                                    let start_line = start_line.min(max_line);
-                                    let end_line = end_line.min(max_line);
+                                    let start_line = (e.range.start.line as usize).min(max_line);
+                                    let end_line = (e.range.end.line as usize).min(max_line);
 
                                     let start_line_slice =
                                         buf.rope.line(start_line, LineType::LF_CR);
-                                    let mut start_len = start_line_slice.len_chars();
-                                    if start_len > 0 {
-                                        let last = start_line_slice.char(start_len - 1);
-                                        if last == '\n' {
-                                            start_len -= 1;
-                                            if start_len > 0
-                                                && start_line_slice.char(start_len - 1) == '\r'
-                                            {
-                                                start_len -= 1;
-                                            }
-                                        } else if last == '\r' {
-                                            start_len -= 1;
-                                        }
-                                    }
-                                    let start_char = start_char.min(start_len);
-                                    let start_byte =
+                                    let start_char = (e.range.start.character as usize)
+                                        .min(line_content_len(&start_line_slice));
+                                    let start =
                                         buf.rope.line_to_byte_idx(start_line, LineType::LF_CR)
                                             + start_line_slice.char_to_byte_idx(start_char);
 
                                     let end_line_slice = buf.rope.line(end_line, LineType::LF_CR);
-                                    let mut end_len = end_line_slice.len_chars();
-                                    if end_len > 0 {
-                                        let last = end_line_slice.char(end_len - 1);
-                                        if last == '\n' {
-                                            end_len -= 1;
-                                            if end_len > 0
-                                                && end_line_slice.char(end_len - 1) == '\r'
-                                            {
-                                                end_len -= 1;
-                                            }
-                                        } else if last == '\r' {
-                                            end_len -= 1;
-                                        }
-                                    }
-                                    let end_char = end_char.min(end_len);
-                                    let end_byte =
-                                        buf.rope.line_to_byte_idx(end_line, LineType::LF_CR)
-                                            + end_line_slice.char_to_byte_idx(end_char);
+                                    let end_char = (e.range.end.character as usize)
+                                        .min(line_content_len(&end_line_slice));
+                                    let end = buf.rope.line_to_byte_idx(end_line, LineType::LF_CR)
+                                        + end_line_slice.char_to_byte_idx(end_char);
 
-                                    // Delete old text
-                                    if end_byte > start_byte {
-                                        let len_chars = buf.rope.byte_to_char_idx(end_byte)
-                                            - buf.rope.byte_to_char_idx(start_byte);
-                                        buf.action(kerbin_core::buffer::action::Delete {
-                                            byte: start_byte,
-                                            len: len_chars,
-                                        });
-                                    }
+                                    (start, end, e.new_text.clone())
+                                } else {
+                                    (
+                                        info.position,
+                                        cursor_byte,
+                                        item.insert_text.as_ref().unwrap_or(&item.label).clone(),
+                                    )
+                                };
 
-                                    // Insert new text
-                                    buf.action(kerbin_core::buffer::action::Insert {
-                                        byte: start_byte,
-                                        content: e.new_text.clone(),
-                                    });
-                                }
-                                lsp_types::CompletionTextEdit::InsertAndReplace(_) => {
-                                    // Fallback to simple insert if complex edit
-                                    if cursor_byte > info.position {
-                                        let len_chars = buf.rope.byte_to_char_idx(cursor_byte)
-                                            - buf.rope.byte_to_char_idx(info.position);
-                                        buf.action(kerbin_core::buffer::action::Delete {
-                                            byte: info.position,
-                                            len: len_chars,
-                                        });
-                                    }
-
-                                    buf.action(kerbin_core::buffer::action::Insert {
-                                        byte: info.position,
-                                        content: text_to_insert,
-                                    });
-                                }
-                            }
-                        } else {
-                            // Simple insert at cursor
-                            if cursor_byte > info.position {
-                                let len_chars = buf.rope.byte_to_char_idx(cursor_byte)
-                                    - buf.rope.byte_to_char_idx(info.position);
+                            // Delete old text if needed
+                            if end_byte > start_byte {
+                                let len_chars = buf.rope.byte_to_char_idx(end_byte)
+                                    - buf.rope.byte_to_char_idx(start_byte);
                                 buf.action(kerbin_core::buffer::action::Delete {
-                                    byte: info.position,
+                                    byte: start_byte,
                                     len: len_chars,
                                 });
                             }
 
+                            // Insert new text
                             buf.action(kerbin_core::buffer::action::Insert {
-                                byte: info.position,
-                                content: text_to_insert,
+                                byte: start_byte,
+                                content: text.clone(),
                             });
+
+                            // Move cursor to end of inserted text
+                            buf.primary_cursor_mut()
+                                .set_sel(start_byte + text.len()..=start_byte + text.len());
                         }
                     }
                 }
 
-                // Clear completion state after accepting
                 completion_state.info = None;
             }
             Self::Trash => {
@@ -399,11 +365,11 @@ pub async fn render_completions(buffers: ResMut<Buffers>) {
 
     let mut buf = buffers.cur_buffer_mut().await;
 
+    buf.renderer.clear_extmark_ns("lsp::completion");
+
     let Some(mut state) = buf.get_state_mut::<CompletionState>().await else {
         return;
     };
-
-    buf.renderer.clear_extmark_ns("lsp::completion");
 
     let Some(info) = state.info.as_ref() else {
         return;
@@ -429,16 +395,8 @@ pub async fn render_completions(buffers: ResMut<Buffers>) {
         return;
     }
 
-    // Rank and filter
-    let mut ranked_items: Vec<(&CompletionItem, i32)> = info
-        .items
-        .iter()
-        .filter_map(|item| {
-            kerbin_core::palette::ranking::rank(&query, &item.label).map(|score| (item, score))
-        })
-        .collect();
-
-    ranked_items.sort_by_key(|(_, score)| *score);
+    // Rank and filter using the shared function
+    let ranked_items = get_ranked_items(&info.items, &query);
 
     let items_to_show = ranked_items
         .iter()
@@ -447,6 +405,7 @@ pub async fn render_completions(buffers: ResMut<Buffers>) {
         .collect::<Vec<_>>();
 
     if items_to_show.is_empty() {
+        state.info = None;
         return;
     }
 

@@ -812,6 +812,7 @@ dependencies = [
  "kerbin-core",
  "kerbin-tree-sitter",
  "lsp-types",
+ "ropey",
  "serde",
  "serde_json",
  "tokio",
