@@ -68,6 +68,7 @@ pub enum MotionCommand {
 #[async_trait::async_trait]
 impl Command for MotionCommand {
     async fn apply(&self, state: &mut State) -> bool {
+        let log = state.lock_state::<LogSender>().await;
         let mut buffers = state.lock_state::<Buffers>().await;
         let mut cur_buffer = buffers.cur_buffer_mut().await;
 
@@ -97,8 +98,7 @@ impl Command for MotionCommand {
                 let old_at_start = cur_buffer.primary_cursor().at_start();
 
                 // Get the line containing the cursor
-                let line_idx = cur_buffer
-                    .byte_to_line_clamped(current_caret_byte);
+                let line_idx = cur_buffer.byte_to_line_clamped(current_caret_byte);
 
                 // Get start of the line
                 let line_start = cur_buffer.line_to_byte_clamped(line_idx);
@@ -107,9 +107,7 @@ impl Command for MotionCommand {
                 let line_end = if line_idx + 1 >= rope_len_lines {
                     rope_len_bytes
                 } else {
-                    cur_buffer
-                        .line_to_byte_clamped(line_idx + 1)
-                        - 1
+                    cur_buffer.line_to_byte_clamped(line_idx + 1) - 1
                 };
 
                 if *extend {
@@ -144,8 +142,7 @@ impl Command for MotionCommand {
                 let old_sel = cur_buffer.primary_cursor().sel().clone();
                 let old_at_start = cur_buffer.primary_cursor().at_start();
 
-                let line_idx = cur_buffer
-                    .byte_to_line_clamped(current_caret_byte);
+                let line_idx = cur_buffer.byte_to_line_clamped(current_caret_byte);
                 let line_end_byte = cur_buffer
                     .line_to_byte_clamped(line_idx + 1)
                     .saturating_sub(1);
@@ -173,8 +170,7 @@ impl Command for MotionCommand {
                 let old_sel = cur_buffer.primary_cursor().sel().clone();
                 let old_at_start = cur_buffer.primary_cursor().at_start();
 
-                let line_idx = cur_buffer
-                    .byte_to_line_clamped(current_caret_byte);
+                let line_idx = cur_buffer.byte_to_line_clamped(current_caret_byte);
                 let line_start_byte = cur_buffer.line_to_byte_clamped(line_idx);
 
                 let new_caret_byte = line_start_byte;
@@ -200,10 +196,8 @@ impl Command for MotionCommand {
                 let old_sel = cur_buffer.primary_cursor().sel().clone();
                 let old_at_start = cur_buffer.primary_cursor().at_start();
 
-                let line_idx = cur_buffer
-                    .byte_to_line_clamped(current_caret_byte);
-                let line_start_byte_idx =
-                    cur_buffer.line_to_byte_clamped(line_idx);
+                let line_idx = cur_buffer.byte_to_line_clamped(current_caret_byte);
+                let line_start_byte_idx = cur_buffer.line_to_byte_clamped(line_idx);
 
                 let line_start_char_idx = cur_buffer.byte_to_char_clamped(line_start_byte_idx);
 
@@ -243,19 +237,25 @@ impl Command for MotionCommand {
             }
 
             Self::Regex { pattern, extend } => {
-                let regex = Regex::new(pattern).unwrap();
+                let regex = match Regex::new(pattern) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        log.high("command::motion", format!("Invalid regex: {}", e));
+                        return false;
+                    }
+                };
 
                 let len = cur_buffer.len_bytes();
                 if let Some(slice) = cur_buffer.slice(0, len) {
-                    let searcher =
-                        regex_cursor::Input::new(RopeyCursor::new(slice));
+                    let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
                     let x = regex.search(searcher);
 
                     if let Some(x) = x {
                         if extend.unwrap_or(false) {
                             let existing_selection = cur_buffer.primary_cursor().sel().clone();
                             let new_start = (*existing_selection.start()).min(x.start());
-                            let new_end = (*existing_selection.end()).max(x.end().saturating_sub(1));
+                            let new_end =
+                                (*existing_selection.end()).max(x.end().saturating_sub(1));
                             cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
                         } else {
                             cur_buffer
@@ -276,7 +276,13 @@ impl Command for MotionCommand {
                 offset,
                 extend,
             } => {
-                let regex = Regex::new(pattern).unwrap();
+                let regex = match Regex::new(pattern) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        log.high("command::motion", format!("Invalid regex: {}", e));
+                        return false;
+                    }
+                };
 
                 let cursor = cur_buffer
                     .primary_cursor()
@@ -289,8 +295,7 @@ impl Command for MotionCommand {
                 }
 
                 if let Some(slice) = cur_buffer.slice(cursor, len) {
-                    let searcher =
-                        regex_cursor::Input::new(RopeyCursor::new(slice));
+                    let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
                     let x = regex.search(searcher);
 
                     if let Some(x) = x {
@@ -321,7 +326,13 @@ impl Command for MotionCommand {
                 offset,
                 extend,
             } => {
-                let regex = Regex::new(pattern).unwrap();
+                let regex = match Regex::new(pattern) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        log.high("command::motion", format!("Invalid regex: {}", e));
+                        return false;
+                    }
+                };
 
                 let cursor = cur_buffer
                     .primary_cursor()
@@ -330,8 +341,7 @@ impl Command for MotionCommand {
                     .min(cur_buffer.len_bytes());
 
                 if let Some(slice) = cur_buffer.slice(0, cursor) {
-                    let searcher =
-                        regex_cursor::Input::new(RopeyCursor::new(slice));
+                    let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
                     let x = regex.find_iter(searcher);
 
                     if let Some(x) = x.last() {
@@ -358,7 +368,13 @@ impl Command for MotionCommand {
             }
 
             Self::RegexSel { pattern } => {
-                let regex = Regex::new(pattern).unwrap();
+                let regex = match Regex::new(pattern) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        log.high("command::motion", format!("Invalid regex: {}", e));
+                        return false;
+                    }
+                };
 
                 let cursor = cur_buffer.primary_cursor().sel();
                 let start_idx = *cursor.start();
@@ -385,7 +401,13 @@ impl Command for MotionCommand {
                 }
             }
             Self::RegexSelAll { pattern } => {
-                let regex = Regex::new(pattern).unwrap();
+                let regex = match Regex::new(pattern) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        log.high("command::motion", format!("Invalid regex: {}", e));
+                        return false;
+                    }
+                };
 
                 let cursor = cur_buffer.primary_cursor().sel();
                 let start_idx = *cursor.start();
