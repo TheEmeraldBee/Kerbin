@@ -83,15 +83,49 @@ fn get_ranked_items<'a>(
         return items.iter().map(|item| (item, 0)).collect();
     }
 
-    let mut ranked_items: Vec<(&CompletionItem, i32)> = items
+    #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+    enum MatchQuality {
+        Fuzzy,
+        Prefix,
+        Exact,
+    }
+
+    let mut matched_items: Vec<(&CompletionItem, MatchQuality, i32)> = items
         .iter()
-        .filter_map(|item| {
-            kerbin_core::palette::ranking::rank(query, &item.label).map(|score| (item, score))
+        .enumerate()
+        .filter_map(|(idx, item)| {
+            let text = item.filter_text.as_deref().unwrap_or(&item.label);
+
+            let quality = if text == query {
+                MatchQuality::Exact
+            } else if text.starts_with(query) {
+                MatchQuality::Prefix
+            } else if kerbin_core::palette::ranking::rank(query, text).is_some() {
+                MatchQuality::Fuzzy
+            } else {
+                return None;
+            };
+
+            Some((item, quality, idx as i32))
         })
         .collect();
 
-    ranked_items.sort_by_key(|(_, score)| *score);
-    ranked_items
+    matched_items.sort_by(|(item_a, quality_a, _), (item_b, quality_b, _)| {
+        match (&item_a.sort_text, &item_b.sort_text) {
+            (Some(a), Some(b)) => a.cmp(b),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => {
+                // Fallback to match quality (Higher is better)
+                quality_b.cmp(quality_a)
+            }
+        }
+    });
+
+    matched_items
+        .into_iter()
+        .map(|(item, _, _)| (item, 0)) // Score is unused by callers
+        .collect()
 }
 
 #[async_trait::async_trait]
@@ -543,8 +577,12 @@ pub async fn render_completions(
                     .max()
                     .unwrap_or(0);
 
-                let total_width =
-                    max_label_width + if max_kind_width > 0 { max_kind_width + 1 } else { 0 };
+                let total_width = max_label_width
+                    + if max_kind_width > 0 {
+                        max_kind_width + 1
+                    } else {
+                        0
+                    };
 
                 let mut list_buf =
                     Buffer::new(vec2(total_width as u16, items_to_show.len() as u16));
