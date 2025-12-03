@@ -7,8 +7,29 @@ desc = "Show Hover"
 [[keybind]]
 modes = ["i"]
 keys = ["tab"]
+commands = ['snlc']
+desc = "Select next LSP change"
+required_templates = ['lsp_items']
+
+[[keybind]]
+modes = ["i"]
+keys = ["down"]
+commands = ['snlc']
+desc = "Select next LSP change"
+required_templates = ['lsp_items']
+
+[[keybind]]
+modes = ["i"]
+keys = ["up"]
+commands = ['splc']
+desc = "Select previous LSP change"
+required_templates = ['lsp_items']
+
+[[keybind]]
+modes = ["i"]
+keys = ["enter"]
 commands = ['ala']
-desc = "Accept LSP change"
+desc = "Select previous LSP change"
 required_templates = ['lsp_items']
 
 [[keybind]]

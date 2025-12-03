@@ -26,3 +26,8 @@ uuid = { version = "1.18.1", features = ["v4"] }
 
 ropey = { version = "=2.0.0-beta.1", features = ["metric_chars", "metric_lines_lf"] }
 
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev]
+opt-level = 1

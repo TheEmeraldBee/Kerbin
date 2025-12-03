@@ -117,6 +117,9 @@
 "statusline.mode.x" = { fg = "mantle", bg = "lavender", attrs = ["bold"] }
 "statusline.mode.v" = { fg = "mantle", bg = "pink", attrs = ["bold"] }
 
+"lsp.autocomplete.selected" = { fg = "sky", bg = "mantle", attrs = ["italic"] }
+"lsp.autocomplete.window" = { fg = "text" }
+
 [plugin.statusline.modes]
 n = { long_name = " NORMAL " }
 i = { long_name = " INSERT " }
