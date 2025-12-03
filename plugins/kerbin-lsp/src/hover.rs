@@ -132,16 +132,20 @@ pub async fn render_hover(
     };
 
     let text = match &hover.contents {
-        HoverContents::Scalar(t) => extract_hover_markup(t),
+        HoverContents::Scalar(t) => extract_hover_markup(t, &mut grammars, &config.0, &theme, &log),
         HoverContents::Array(a) => a
             .iter()
-            .map(extract_hover_markup)
-            .collect::<Vec<String>>()
-            .join("\n\n"),
-        HoverContents::Markup(m) => m.value.clone(),
-    };
+            .map(|x| extract_hover_markup(x, &mut grammars, &config.0, &theme, &log))
+            .fold(vec![], |mut l, r| {
+                l.push(("\n\n".to_string(), ContentStyle::default()));
+                l.extend(r);
 
-    let highlighted = highlight_text(&text, "markdown", &mut grammars, &config.0, &theme, &log);
+                l
+            }),
+        HoverContents::Markup(m) => {
+            highlight_text(&m.value, "markdown", &mut grammars, &config.0, &theme, &log)
+        }
+    };
 
     const MAX_WIDTH: usize = 80;
     const MAX_HEIGHT: usize = 20;
@@ -152,7 +156,7 @@ pub async fn render_hover(
     }
 
     let mut chars: Vec<StyledChar> = Vec::new();
-    for (part, style) in highlighted {
+    for (part, style) in text {
         for char in part.chars() {
             chars.push(StyledChar { char, style: style });
         }
@@ -192,9 +196,7 @@ pub async fn render_hover(
 
     let visible_lines: Vec<&Vec<StyledChar>> = lines.iter().skip(scroll_y).take(height).collect();
 
-    let display_width = visible_lines.iter().map(|l| l.len()).max().unwrap_or(0);
-
-    let mut text_buf = Buffer::new(vec2(display_width as u16, height as u16));
+    let mut text_buf = Buffer::new(vec2(MAX_WIDTH as u16, height as u16));
 
     for (y, line) in visible_lines.iter().enumerate() {
         for (x, sc) in line.iter().enumerate() {
@@ -225,11 +227,17 @@ pub async fn render_hover(
     );
 }
 
-fn extract_hover_markup(markup: &MarkedString) -> String {
+fn extract_hover_markup(
+    markup: &MarkedString,
+    grammars: &mut GrammarManager,
+    config_path: &str,
+    theme: &Theme,
+    log: &LogSender,
+) -> Vec<(String, ContentStyle)> {
     match markup {
-        MarkedString::String(s) => s.clone(),
+        MarkedString::String(s) => highlight_text(s, "markdown", grammars, config_path, theme, log),
         MarkedString::LanguageString(LanguageString { language, value }) => {
-            format!("```{language}\n{value}\n```")
+            highlight_text(value, language, grammars, config_path, theme, log)
         }
     }
 }
