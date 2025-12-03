@@ -13,6 +13,7 @@ use lsp_types::{
 use ropey::RopeSlice;
 
 use crate::{JsonRpcMessage, LspManager, OpenedFile};
+use kerbin_tree_sitter::{grammar_manager::GrammarManager, state::highlight_text};
 
 pub struct CompletionInfo {
     pub pending_request: i32,
@@ -289,10 +290,10 @@ impl Command for CompletionCommand {
                 let mut completion_state =
                     buf.get_or_insert_state_mut(CompletionState::default).await;
 
-                if let Some(info) = &mut completion_state.info {
-                    if info.selected_index > 0 {
-                        info.selected_index -= 1;
-                    }
+                if let Some(info) = &mut completion_state.info
+                    && info.selected_index > 0
+                {
+                    info.selected_index -= 1;
                 }
             }
         }
@@ -372,14 +373,14 @@ pub async fn update_completions(bufs: ResMut<Buffers>, lsps: ResMut<LspManager>)
         return;
     }
 
-    if let Some(mut state) = buf.get_state_mut::<CompletionState>().await {
-        if state.just_accepted {
-            state.just_accepted = false;
-            // Clear info on acceptance update to be safe
-            state.info = None;
-            resolver_engine_mut().await.trash_template("lsp_items");
-            return;
-        }
+    if let Some(mut state) = buf.get_state_mut::<CompletionState>().await
+        && state.just_accepted
+    {
+        state.just_accepted = false;
+        // Clear info on acceptance update to be safe
+        state.info = None;
+        resolver_engine_mut().await.trash_template("lsp_items");
+        return;
     }
 
     // Check criteria: at least 1 real non-whitespace character before cursor
@@ -448,8 +449,14 @@ fn get_match_indices(ranker: &str, text: &str) -> Vec<usize> {
     }
 }
 
-pub async fn render_completions(buffers: ResMut<Buffers>, theme: Res<Theme>) {
-    get!(mut buffers, theme);
+pub async fn render_completions(
+    buffers: ResMut<Buffers>,
+    grammars: ResMut<GrammarManager>,
+    config: Res<ConfigFolder>,
+    theme: Res<Theme>,
+    log: Res<LogSender>,
+) {
+    get!(mut buffers, mut grammars, config, theme, log);
 
     let mut buf = buffers.cur_buffer_mut().await;
 
@@ -478,13 +485,6 @@ pub async fn render_completions(buffers: ResMut<Buffers>, theme: Res<Theme>) {
             return;
         }
 
-        if cursor_byte < pos || start_line != current_line {
-            state.info = None;
-            resolver_engine_mut().await.trash_template("lsp_items");
-
-            return;
-        }
-
         let query = if cursor_byte > pos {
             buf.slice_to_string(pos, cursor_byte).unwrap_or_default()
         } else {
@@ -503,11 +503,11 @@ pub async fn render_completions(buffers: ResMut<Buffers>, theme: Res<Theme>) {
             } else {
                 // Styles
                 let window_style =
-                    theme.get_fallback_default(&["lsp.autocomplete.window", "ui.window"]);
+                    theme.get_fallback_default(["lsp.autocomplete.window", "ui.window"]);
                 let selected_style =
-                    theme.get_fallback_default(&["lsp.autocomplete.selected", "ui.selection"]);
+                    theme.get_fallback_default(["lsp.autocomplete.selected", "ui.selection"]);
                 let match_style =
-                    theme.get_fallback_default(&["lsp.autocomplete.match", "ui.match"]);
+                    theme.get_fallback_default(["lsp.autocomplete.match", "ui.match"]);
 
                 // Calculate window
                 let window_height = 5;
@@ -515,9 +515,7 @@ pub async fn render_completions(buffers: ResMut<Buffers>, theme: Res<Theme>) {
                 let selected_idx = info.selected_index % total_items;
 
                 let half_window = window_height / 2;
-                let start_index = if total_items <= window_height {
-                    0
-                } else if selected_idx <= half_window {
+                let start_index = if total_items <= window_height || selected_idx <= half_window {
                     0
                 } else if selected_idx + half_window >= total_items {
                     total_items - window_height
@@ -579,10 +577,10 @@ pub async fn render_completions(buffers: ResMut<Buffers>, theme: Res<Theme>) {
                 let mut new_cache_entry = None;
 
                 if let Some((selected_item, _)) = ranked_items.get(selected_idx) {
-                    if let Some((idx, buffer)) = &info.cached_doc_buffer {
-                        if *idx == selected_idx {
-                            doc_rendered = Some(buffer.clone());
-                        }
+                    if let Some((idx, buffer)) = &info.cached_doc_buffer
+                        && *idx == selected_idx
+                    {
+                        doc_rendered = Some(buffer.clone());
                     }
 
                     if doc_rendered.is_none() {
@@ -594,70 +592,82 @@ pub async fn render_completions(buffers: ResMut<Buffers>, theme: Res<Theme>) {
                         // Format kind
                         let kind_str = selected_item.kind.map(|k| format!("{:?}", k));
 
-                        if doc.is_some() || kind_str.is_some() {
-                            let doc_max_width = 40;
-                            let mut lines = Vec::new();
+                        let doc_max_width = 40;
+                        let mut lines = Vec::new();
 
-                            if let Some(k) = kind_str {
-                                lines.push(format!("Type: {}", k));
-                                lines.push("".to_string()); // Separator
-                            }
+                        if let Some(k) = kind_str {
+                            lines.push(vec![(format!("Type: {}", k), window_style)]);
+                            lines.push(vec![]); // Separator
+                        }
 
-                            if let Some(doc_text) = doc {
-                                if !doc_text.is_empty() {
-                                    for line in doc_text.lines() {
-                                        let mut current_line = String::new();
-                                        for word in line.split_whitespace() {
-                                            if current_line.len() + word.len() + 1 > doc_max_width {
-                                                lines.push(current_line);
-                                                current_line = String::new();
-                                            }
-                                            if !current_line.is_empty() {
-                                                current_line.push(' ');
-                                            }
-                                            current_line.push_str(word);
-                                        }
-                                        if !current_line.is_empty() {
-                                            lines.push(current_line);
-                                        }
+                        if let Some(doc_text) = doc
+                            && !doc_text.is_empty()
+                        {
+                            let highlighted = highlight_text(
+                                &doc_text,
+                                "markdown",
+                                &mut grammars,
+                                &config.0,
+                                &theme,
+                                &log,
+                            );
+
+                            let mut current_line = Vec::new();
+                            let mut current_width = 0;
+
+                            for (text, style) in highlighted {
+                                for char in text.chars() {
+                                    if char == '\n' {
+                                        lines.push(current_line);
+                                        current_line = Vec::new();
+                                        current_width = 0;
+                                        continue;
                                     }
+
+                                    if current_width >= doc_max_width {
+                                        lines.push(current_line);
+                                        current_line = Vec::new();
+                                        current_width = 0;
+                                    }
+
+                                    current_line.push((char.to_string(), style));
+                                    current_width += 1;
                                 }
                             }
-
-                            let doc_height = lines.len().min(15);
-                            let doc_width = lines
-                                .iter()
-                                .take(doc_height)
-                                .map(|l| l.len())
-                                .max()
-                                .unwrap_or(0);
-
-                            if doc_width > 0 {
-                                let mut doc_buf =
-                                    Buffer::new(vec2(doc_width as u16, doc_height as u16));
-                                for (y, line) in lines.iter().take(doc_height).enumerate() {
-                                    for (x, ch) in line.chars().enumerate() {
-                                        doc_buf.set(
-                                            vec2(x as u16, y as u16),
-                                            Cell::new(ch.to_string(), window_style),
-                                        );
-                                    }
-                                }
-
-                                let mut doc_box = Buffer::new(doc_buf.size() + vec2(2, 2));
-                                let mut doc_border =
-                                    Border::rounded(doc_buf.size().x + 2, doc_buf.size().y + 2);
-                                doc_border.style = window_style;
-                                render!(doc_box,
-                                   (0, 0) => [ doc_border ],
-                                   (1, 1) => [ doc_buf ]
-                                );
-
-                                let rendered = Arc::new(doc_box);
-                                doc_rendered = Some(rendered.clone());
-                                new_cache_entry = Some((selected_idx, rendered));
+                            if !current_line.is_empty() {
+                                lines.push(current_line);
                             }
                         }
+
+                        let doc_height = lines.len().min(15);
+                        let doc_width = lines
+                            .iter()
+                            .take(doc_height)
+                            .map(|l| l.iter().map(|x| x.0.width()).sum())
+                            .max()
+                            .unwrap_or(0);
+
+                        // Always create the doc_buf and doc_box with a border
+                        let mut doc_buf = Buffer::new(vec2(doc_width as u16, doc_height as u16));
+                        for (y, line) in lines.iter().take(doc_height).enumerate() {
+                            for (x, (ch, style)) in line.iter().enumerate() {
+                                doc_buf
+                                    .set(vec2(x as u16, y as u16), Cell::new(ch.clone(), *style));
+                            }
+                        }
+
+                        let mut doc_box = Buffer::new(doc_buf.size() + vec2(2, 2));
+                        let mut doc_border =
+                            Border::rounded(doc_buf.size().x + 2, doc_buf.size().y + 2);
+                        doc_border.style = window_style;
+                        render!(doc_box,
+                           (0, 0) => [ doc_border ],
+                           (1, 1) => [ doc_buf ]
+                        );
+
+                        let rendered = Arc::new(doc_box);
+                        doc_rendered = Some(rendered.clone());
+                        new_cache_entry = Some((selected_idx, rendered));
                     }
                 }
 
@@ -693,10 +703,10 @@ pub async fn render_completions(buffers: ResMut<Buffers>, theme: Res<Theme>) {
         }
     }
 
-    if let Some((idx, buffer)) = cache_update {
-        if let Some(info) = &mut state.info {
-            info.cached_doc_buffer = Some((idx, buffer));
-        }
+    if let Some((idx, buffer)) = cache_update
+        && let Some(info) = &mut state.info
+    {
+        info.cached_doc_buffer = Some((idx, buffer));
     }
 
     if let Some(rendered) = final_render {

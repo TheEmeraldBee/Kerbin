@@ -388,3 +388,105 @@ fn parse_injection(
         byte_range: start_byte..end_byte,
     })
 }
+
+/// Highlights a given text string using the specified language
+pub fn highlight_text(
+    text: &str,
+    lang: &str,
+    grammars: &mut GrammarManager,
+    config_path: &str,
+    theme: &Theme,
+    log: &LogSender,
+) -> Vec<(String, ContentStyle)> {
+    let rope = ropey::Rope::from_str(text);
+
+    // Load the grammar
+    let grammar = match grammars.get_grammar(config_path, lang) {
+        Ok(g) => g,
+        Err(e) => {
+            log.low(
+                "tree-sitter::highlight_text",
+                format!("Failed to load grammar for {lang}: {e}"),
+            );
+            return vec![(text.to_string(), theme.get("ui.text").unwrap_or_default())];
+        }
+    };
+
+    let mut parser = Parser::new();
+    if let Err(e) = parser.set_language(&grammar.lang) {
+        log.low(
+            "tree-sitter::highlight_text",
+            format!("Failed to set language for {lang}: {e}"),
+        );
+        return vec![(text.to_string(), theme.get("ui.text").unwrap_or_default())];
+    }
+
+    // Parse the text
+    let tree = parser.parse_with_options(
+        &mut |byte, _| {
+            if byte >= text.len() {
+                return &[] as &[u8];
+            }
+            &text.as_bytes()[byte..]
+        },
+        None,
+        None,
+    );
+
+    let Some(tree) = tree else {
+        return vec![(text.to_string(), theme.get("ui.text").unwrap_or_default())];
+    };
+
+    // Create state
+    let state = TreeSitterState {
+        lang: lang.to_string(),
+        parser,
+        tree: Some(tree),
+        injected_trees: vec![],
+    };
+
+    // Load injected trees (using the existing private function)
+    let injected_trees = load_injected_trees(&state, grammars, config_path, &rope, log);
+    
+    // Update state with injections
+    let state = TreeSitterState {
+        injected_trees,
+        ..state
+    };
+
+    // Create highlighter
+    let Some(highlighter) = Highlighter::new(config_path, grammars, &state, &rope) else {
+        return vec![(text.to_string(), theme.get("ui.text").unwrap_or_default())];
+    };
+
+    let spans = highlighter.collect_spans();
+    let merged = merge_overlapping_spans(spans);
+
+    let mut result = Vec::new();
+    let mut last_idx = 0;
+
+    for span in merged {
+        if span.byte_range.start > last_idx {
+            result.push((
+                text[last_idx..span.byte_range.start].to_string(),
+                theme.get("ui.text").unwrap_or_default(),
+            ));
+        }
+
+        result.push((
+            text[span.byte_range.clone()].to_string(),
+            translate_name_to_style(theme, &span.capture_name),
+        ));
+
+        last_idx = span.byte_range.end;
+    }
+
+    if last_idx < text.len() {
+        result.push((
+            text[last_idx..].to_string(),
+            theme.get("ui.text").unwrap_or_default(),
+        ));
+    }
+
+    result
+}

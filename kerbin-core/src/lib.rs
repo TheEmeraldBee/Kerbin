@@ -113,6 +113,8 @@ pub use ascii_forge;
 
 pub use kerbin_input::*;
 
+pub use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+
 /// Module for regular expression utilities, including a `ropey`-compatible cursor.
 pub mod regex;
 pub use regex::*;

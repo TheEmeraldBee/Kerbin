@@ -166,10 +166,8 @@ fn check_predicates(entry: &QueryMatchEntry) -> bool {
     let pattern_idx = entry.query_match.pattern_index;
 
     for predicate in query.general_predicates(pattern_idx) {
-        if predicate.operator.as_ref() == "not-same-line?" {
-            if !check_not_same_line(predicate, entry) {
-                return false;
-            }
+        if predicate.operator.as_ref() == "not-same-line?" && !check_not_same_line(predicate, entry) {
+            return false;
         }
     }
     true
@@ -179,16 +177,13 @@ fn check_not_same_line(predicate: &QueryPredicate, entry: &QueryMatchEntry) -> b
     let mut lines = Vec::new();
 
     for arg in &predicate.args {
-        match arg {
-            QueryPredicateArg::Capture(idx) => {
-                // Find the node for this capture in the current match
-                for cap in entry.query_match.captures {
-                    if cap.index == *idx {
-                        lines.push(cap.node.start_position().row);
-                    }
+        if let QueryPredicateArg::Capture(idx) = arg {
+            // Find the node for this capture in the current match
+            for cap in entry.query_match.captures {
+                if cap.index == *idx {
+                    lines.push(cap.node.start_position().row);
                 }
             }
-            _ => {}
         }
     }
 

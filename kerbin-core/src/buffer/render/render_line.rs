@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use crate::*;
 use ascii_forge::prelude::*;
-use unicode_width::*;
 
 /// Information about an overlay that needs to be rendered
 #[derive(Clone)]

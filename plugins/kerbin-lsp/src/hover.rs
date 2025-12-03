@@ -10,6 +10,7 @@ use lsp_types::{
 };
 
 use crate::{JsonRpcMessage, LspManager, OpenedFile};
+use kerbin_tree_sitter::{grammar_manager::GrammarManager, state::highlight_text};
 
 pub struct HoverInfo {
     pub pending_request: i32,
@@ -85,8 +86,14 @@ impl Command for HoverCommand {
     }
 }
 
-pub async fn render_hover(buffers: ResMut<Buffers>) {
-    get!(mut buffers);
+pub async fn render_hover(
+    buffers: ResMut<Buffers>,
+    grammars: ResMut<GrammarManager>,
+    config: Res<ConfigFolder>,
+    theme: Res<Theme>,
+    log: Res<LogSender>,
+) {
+    get!(mut buffers, mut grammars, config, theme, log);
 
     let mut buf = buffers.cur_buffer_mut().await;
 
@@ -119,13 +126,54 @@ pub async fn render_hover(buffers: ResMut<Buffers>) {
         HoverContents::Markup(m) => m.value.clone(),
     };
 
-    let text = Buffer::sized_element(text);
+    let highlighted = highlight_text(
+        &text,
+        "markdown",
+        &mut grammars,
+        &config.0,
+        &theme,
+        &log,
+    );
 
-    let mut render = Buffer::new(text.size() + vec2(2, 2));
+    // Calculate dimensions
+    let mut width = 0;
+    let mut height = 1;
+    let mut current_line_width = 0;
+
+    for (part, _) in &highlighted {
+        for char in part.chars() {
+            if char == '\n' {
+                width = width.max(current_line_width);
+                current_line_width = 0;
+                height += 1;
+            } else {
+                current_line_width += 1;
+            }
+        }
+    }
+    width = width.max(current_line_width);
+
+    let mut text_buf = Buffer::new(vec2(width as u16, height as u16));
+    let mut x = 0;
+    let mut y = 0;
+
+    for (part, style) in highlighted {
+        for char in part.chars() {
+            if char == '\n' {
+                x = 0;
+                y += 1;
+                continue;
+            }
+            text_buf.set(vec2(x, y), Cell::new(char.to_string(), style));
+            x += 1;
+        }
+    }
+
+    let mut render = Buffer::new(text_buf.size() + vec2(2, 2));
 
     render!(render,
-        (0, 0) => [ Border::rounded(text.size().x + 2, text.size().y + 2) ],
-        (1, 1) => [ text ]
+        (0, 0) => [ Border::rounded(text_buf.size().x + 2, text_buf.size().y + 2) ],
+        (1, 1) => [ text_buf ]
     );
 
     buf.add_extmark(
