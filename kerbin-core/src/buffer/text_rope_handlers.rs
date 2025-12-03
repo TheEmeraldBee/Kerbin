@@ -58,7 +58,7 @@ pub trait SafeRopeAccess {
     fn lines_at_clamped(&self, byte: usize) -> Lines<'_>;
 
     /// Safely gets the chunk at the specified byte.
-    fn chunk_at_byte(&self, byte: usize) -> Option<(&str, usize, usize, usize)>;
+    fn chunk_at(&self, byte: usize) -> Option<(&str, usize, usize, usize)>;
 
     /// Gets the byte offset of the char boundary at or before the given byte, clamping input.
     fn byte_to_char_boundary(&self, byte: usize) -> usize;
@@ -74,7 +74,7 @@ pub trait SafeRopeAccess {
     fn to_string(&self) -> String;
 
     /// Returns the length of the buffer in bytes.
-    fn len_bytes(&self) -> usize;
+    fn len(&self) -> usize;
 
     /// Returns the length of the buffer in chars.
     fn len_chars(&self) -> usize;
@@ -189,7 +189,7 @@ impl SafeRopeAccess for TextBuffer {
         self.rope.lines_at(byte, LineType::LF_CR)
     }
 
-    fn chunk_at_byte(&self, byte: usize) -> Option<(&str, usize, usize, usize)> {
+    fn chunk_at(&self, byte: usize) -> Option<(&str, usize, usize, usize)> {
         if byte > self.rope.len() {
             None
         } else {
@@ -227,7 +227,7 @@ impl SafeRopeAccess for TextBuffer {
         self.rope.to_string()
     }
 
-    fn len_bytes(&self) -> usize {
+    fn len(&self) -> usize {
         self.rope.len()
     }
 

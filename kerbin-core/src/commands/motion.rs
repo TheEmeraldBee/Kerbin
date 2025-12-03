@@ -72,7 +72,7 @@ impl Command for MotionCommand {
         let mut buffers = state.lock_state::<Buffers>().await;
         let mut cur_buffer = buffers.cur_buffer_mut().await;
 
-        let rope_len_bytes = cur_buffer.len_bytes();
+        let rope_len_bytes = cur_buffer.len();
         let rope_len_lines = cur_buffer.len_lines();
 
         match self {
@@ -245,7 +245,7 @@ impl Command for MotionCommand {
                     }
                 };
 
-                let len = cur_buffer.len_bytes();
+                let len = cur_buffer.len();
                 if let Some(slice) = cur_buffer.slice(0, len) {
                     let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
                     let x = regex.search(searcher);
@@ -289,7 +289,7 @@ impl Command for MotionCommand {
                     .get_cursor_byte()
                     .saturating_add_signed(offset.unwrap_or(0));
 
-                let len = cur_buffer.len_bytes();
+                let len = cur_buffer.len();
                 if cursor >= len {
                     return false;
                 }
@@ -338,7 +338,7 @@ impl Command for MotionCommand {
                     .primary_cursor()
                     .get_cursor_byte()
                     .saturating_add_signed(offset.unwrap_or(0))
-                    .min(cur_buffer.len_bytes());
+                    .min(cur_buffer.len());
 
                 if let Some(slice) = cur_buffer.slice(0, cursor) {
                     let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));

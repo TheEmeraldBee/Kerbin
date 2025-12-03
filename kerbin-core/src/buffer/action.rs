@@ -51,7 +51,7 @@ pub struct Insert {
 
 impl BufferAction for Insert {
     fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
-        if self.byte > buf.len_bytes() {
+        if self.byte > buf.len() {
             return ActionResult::none(false);
         }
 
@@ -105,7 +105,7 @@ pub struct Delete {
 
 impl BufferAction for Delete {
     fn apply(&self, buf: &mut TextBuffer) -> ActionResult {
-        if self.byte > buf.len_bytes() {
+        if self.byte > buf.len() {
             return ActionResult::none(false);
         }
 
@@ -122,7 +122,7 @@ impl BufferAction for Delete {
         let start = buf.get_edit_part(del_start_byte);
         let old_end = buf.get_edit_part(del_end_byte);
 
-        if del_end_byte > buf.len_bytes() {
+        if del_end_byte > buf.len() {
             return ActionResult::none(false);
         }
 

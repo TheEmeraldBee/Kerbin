@@ -565,7 +565,7 @@ impl TextBuffer {
         let current_caret_byte = current_cursor.get_cursor_byte();
 
         let new_caret_byte =
-            (current_caret_byte as isize + bytes).clamp(0, self.len_bytes() as isize) as usize;
+            (current_caret_byte as isize + bytes).clamp(0, self.len() as isize) as usize;
 
         let cursor_mut = self.primary_cursor_mut();
 

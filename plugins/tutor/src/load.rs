@@ -165,7 +165,7 @@ pub async fn load_next_step(buffer: &mut TextBuffer) -> bool {
     buffer.start_change_group();
 
     // Clear current buffer content
-    let len = buffer.len_bytes();
+    let len = buffer.len();
     if len > 0 {
         buffer.action(Delete { byte: 0, len });
     }

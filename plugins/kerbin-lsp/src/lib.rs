@@ -18,8 +18,6 @@ pub use events::*;
 pub mod manager;
 pub use manager::*;
 
-mod safe_ops_test;
-
 pub mod diagnostics;
 pub use diagnostics::*;
 

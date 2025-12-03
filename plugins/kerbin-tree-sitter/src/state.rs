@@ -99,7 +99,7 @@ pub async fn update_trees(
     // Reparse main tree
     let new_tree = state.parser.parse_with_options(
         &mut |byte, _| {
-            let (chunk, start_byte, _, _) = buf.chunk_at_byte(byte).unwrap_or(("", 0, 0, 0));
+            let (chunk, start_byte, _, _) = buf.chunk_at(byte).unwrap_or(("", 0, 0, 0));
             if chunk.is_empty() {
                 return &[] as &[u8];
             }
@@ -130,13 +130,8 @@ pub async fn update_trees(
         injected_trees: vec![],
     };
 
-    let injected_trees = load_injected_trees(
-        &temp_state,
-        &mut grammars,
-        &config_path.0,
-        buf.get_rope(),
-        &log,
-    );
+    let injected_trees =
+        load_injected_trees(&temp_state, &mut grammars, &config_path.0, buf.get_rope());
 
     // Update the injected trees
     state.injected_trees = injected_trees;
@@ -191,7 +186,7 @@ pub async fn open_files(
 
     let tree = parser.parse_with_options(
         &mut |byte, _| {
-            let (chunk, start_byte, _, _) = buf.chunk_at_byte(byte).unwrap_or(("", 0, 0, 0));
+            let (chunk, start_byte, _, _) = buf.chunk_at(byte).unwrap_or(("", 0, 0, 0));
             if chunk.is_empty() {
                 return &[] as &[u8];
             }
@@ -223,7 +218,6 @@ pub async fn open_files(
         &mut grammars,
         &config_path.0,
         buf.get_rope(),
-        &log,
     );
 
     // Update state with injected trees
@@ -265,7 +259,6 @@ fn load_injected_trees(
     grammars: &mut GrammarManager,
     config_path: &str,
     rope: &ropey::Rope,
-    log: &LogSender,
 ) -> Vec<InjectedTree> {
     let mut injected_trees = Vec::new();
 
@@ -325,10 +318,7 @@ fn load_injected_trees(
                         injected_trees.push(injected_tree);
                     }
                     Err(e) => {
-                        log.critical(
-                            "tree-sitter::load_injections",
-                            format!("Failed to parse {} injection: {}", inj_lang, e),
-                        );
+                        tracing::error!("Failed to parse {} injection: {}", inj_lang, e);
                     }
                 }
             }
@@ -446,8 +436,8 @@ pub fn highlight_text(
     };
 
     // Load injected trees (using the existing private function)
-    let injected_trees = load_injected_trees(&state, grammars, config_path, &rope, log);
-    
+    let injected_trees = load_injected_trees(&state, grammars, config_path, &rope);
+
     // Update state with injections
     let state = TreeSitterState {
         injected_trees,

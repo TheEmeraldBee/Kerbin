@@ -136,13 +136,14 @@ file communication systems
 
     - [x] Lsp Hover
     - [x] Lsp Diagnostics
-    - [ ] Lsp Autocompletions
+    - [x] Lsp Autocompletions
+        - [ ] Fix issue with auto imports not working at all
 - [ ] Copy/Paste Support (Registers)
     - [x] Ctrl-Shift-V / Cmd-V Paste Event Support
     - [ ] Clipboard Copy & Paste Commands
     - [x] Registers
-- [ ] Keybinding System Reimagination **HIGHEST PRIORITY** (This one changes how a lot of systems need to work, better done earlier rather than later.)
-    - [ ] Use similar system to hooks that allow for matching keybindings
+- [x] Keybinding System Reimagination **HIGHEST PRIORITY** (This one changes how a lot of systems need to work, better done earlier rather than later.)
+    - [x] Use similar system to hooks that allow for matching keybindings
         - Examples:
             - ctrl-(a|b) **matches second**
             - ctrl-a **matches first**
@@ -157,7 +158,7 @@ file communication systems
           commands = ["copy %1"] # Copy with the key-name (up, down, a, b, page-up, etc) to that register.
           desc = "Copy to register name"
           ```
-    - [ ] Allow for `$(my-shell-expansion %0)` to use shell commands to translate things
+    - [x] Allow for `$(my-shell-expansion %0)` to use shell commands to translate things
           ```toml
           [[keybind]]
           modes = ["n"]
@@ -167,7 +168,7 @@ file communication systems
           ```
         - This will allow for commands to be drastically more complex, while still being simple when wanted to be
         - Most importantly, these need to be able to fail, IE, when returning a bad return status, log it and don't run the command
-- [ ] Command Templating (% based variables in commands)
+- [x] Command Templating (% based variables in commands)
     - Extend this to keybindings, allowing for keybindings to come from templates
     - Allow keybindings to be registered dynamically (kinda)
         - Lists of items stored in a template item would repeat that keybind system over and over
@@ -200,12 +201,13 @@ file communication systems
 - [x] Go through systems and refactor code (More of this will need to be done)
     - Make everything more readable, and stop being afraid of adding more files :)
 - [x] Write out Nix & Linux/Mac install scripts for making installation and updating easy
-- [ ] Write out basic `tutor` plugin for first install users to remove from their config
+- [x] Write out basic `tutor` plugin for first install users to remove from their config
     - Basically, add it to a new kerbin instance by default
     - Open a buffer automatically with commands that will open files and do things
     - Should teach user how to use config, toml files, etc.
     - Also go through first installation steps
 - [ ] Write out main wiki for writing configuration and plugins
+    - Use `mdbook`
 
 ## Stability
 - [x] Cursors don't render on newline chars

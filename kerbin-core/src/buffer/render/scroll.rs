@@ -75,7 +75,7 @@ pub async fn update_buffer_vertical_scroll(chunk: Chunk<BufferChunk>, buffers: R
 
     // Get the primary cursor's byte position
     let cursor_byte = buf.primary_cursor().get_cursor_byte();
-    let cursor_byte = cursor_byte.min(buf.len_bytes());
+    let cursor_byte = cursor_byte.min(buf.len());
 
     // Find which line (in byte terms) the cursor is on
     let cursor_line_idx = buf.byte_to_line_clamped(cursor_byte);

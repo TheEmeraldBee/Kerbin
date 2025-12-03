@@ -54,7 +54,7 @@ async fn trigger_completion_request(buf: &mut TextBuffer, lsps: &mut LspManager)
     let client = lsps.get_or_create_client(&file.lang).await?;
 
     let cursor = buf.primary_cursor();
-    let cursor_byte = cursor.get_cursor_byte().min(buf.len_bytes());
+    let cursor_byte = cursor.get_cursor_byte().min(buf.len());
 
     let line = buf.byte_to_line_clamped(cursor_byte);
     let character = cursor_byte - buf.line_to_byte_clamped(line);
@@ -103,13 +103,13 @@ impl Command for CompletionCommand {
 
                 let mut buf = bufs.cur_buffer_mut().await;
 
-                let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len_bytes());
+                let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
 
                 // Check if there's already an active completion
                 let mut state = buf.get_or_insert_state_mut(CompletionState::default).await;
 
                 if let Some(existing_info) = &state.info {
-                    let pos = existing_info.position.min(buf.len_bytes());
+                    let pos = existing_info.position.min(buf.len());
                     // Check if cursor is out of range of current completion
                     let start_line = buf.byte_to_line_clamped(pos);
                     let current_line = buf.byte_to_line_clamped(cursor_byte);
@@ -162,8 +162,8 @@ impl Command for CompletionCommand {
                     buf.get_or_insert_state_mut(CompletionState::default).await;
 
                 if let Some(info) = &completion_state.info {
-                    let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len_bytes());
-                    let pos = info.position.min(buf.len_bytes());
+                    let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
+                    let pos = info.position.min(buf.len());
 
                     let start_line = buf.byte_to_line_clamped(pos);
                     let current_line = buf.byte_to_line_clamped(cursor_byte);
@@ -344,8 +344,8 @@ pub async fn handle_completion(state: &State, msg: &JsonRpcMessage) {
 
         info.selected_index = 0;
 
-        let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len_bytes());
-        let pos = info.position.min(buf.len_bytes());
+        let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
+        let pos = info.position.min(buf.len());
 
         let query = if cursor_byte >= pos {
             buf.slice_to_string(pos, cursor_byte).unwrap_or_default()
@@ -384,7 +384,7 @@ pub async fn update_completions(bufs: ResMut<Buffers>, lsps: ResMut<LspManager>)
     }
 
     // Check criteria: at least 1 real non-whitespace character before cursor
-    let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len_bytes());
+    let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
     let cursor_char_idx = buf.byte_to_char_clamped(cursor_byte);
 
     let mut current_char_idx = cursor_char_idx;
@@ -472,8 +472,8 @@ pub async fn render_completions(
         };
 
         // Check if cursor moved before start position (cancelled)
-        let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len_bytes());
-        let pos = info.position.min(buf.len_bytes());
+        let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
+        let pos = info.position.min(buf.len());
 
         let start_line = buf.byte_to_line_clamped(pos);
         let current_line = buf.byte_to_line_clamped(cursor_byte);
@@ -691,8 +691,8 @@ pub async fn render_completions(
 
     // Handle clearing state if invalid (repeated check, but safe)
     if let Some(info) = &state.info {
-        let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len_bytes());
-        let pos = info.position.min(buf.len_bytes());
+        let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
+        let pos = info.position.min(buf.len());
 
         let start_line = buf.byte_to_line_clamped(pos);
         let current_line = buf.byte_to_line_clamped(cursor_byte);
@@ -710,7 +710,7 @@ pub async fn render_completions(
     }
 
     if let Some(rendered) = final_render {
-        let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len_bytes());
+        let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
         buf.add_extmark(
             ExtmarkBuilder::new("lsp::completion", cursor_byte) // Use current cursor position
                 .with_priority(6) // Higher than hover
