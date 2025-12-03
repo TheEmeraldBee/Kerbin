@@ -10,6 +10,7 @@ use lsp_types::{
     CompletionItem, CompletionParams, CompletionResponse, Position, TextDocumentIdentifier,
     TextDocumentPositionParams, WorkDoneProgressParams,
 };
+
 use ropey::RopeSlice;
 
 use crate::{JsonRpcMessage, LspManager, OpenedFile};
@@ -529,14 +530,24 @@ pub async fn render_completions(
                     .take(window_height)
                     .collect::<Vec<_>>();
 
-                let max_width = items_to_show
+                let max_label_width = items_to_show
                     .iter()
                     .map(|(i, _)| i.label.len())
                     .max()
                     .unwrap_or(0)
                     .max(10);
 
-                let mut list_buf = Buffer::new(vec2(max_width as u16, items_to_show.len() as u16));
+                let max_kind_width = items_to_show
+                    .iter()
+                    .map(|(i, _)| i.kind.map(|k| format!("{:?}", k).len()).unwrap_or(0))
+                    .max()
+                    .unwrap_or(0);
+
+                let total_width =
+                    max_label_width + if max_kind_width > 0 { max_kind_width + 1 } else { 0 };
+
+                let mut list_buf =
+                    Buffer::new(vec2(total_width as u16, items_to_show.len() as u16));
 
                 for (i, (item, _)) in items_to_show.iter().enumerate() {
                     let abs_idx = start_index + i;
@@ -547,7 +558,19 @@ pub async fn render_completions(
                         window_style
                     };
 
-                    let line = format!("{:<width$}", item.label, width = max_width);
+                    let kind_str = item.kind.map(|k| format!("{:?}", k)).unwrap_or_default();
+                    let line = if max_kind_width > 0 {
+                        format!(
+                            "{:<width$} {:>kind_width$}",
+                            item.label,
+                            kind_str,
+                            width = max_label_width,
+                            kind_width = max_kind_width
+                        )
+                    } else {
+                        format!("{:<width$}", item.label, width = max_label_width)
+                    };
+
                     for (x, ch) in line.chars().enumerate() {
                         list_buf.set(vec2(x as u16, i as u16), Cell::new(ch.to_string(), style));
                     }
@@ -589,15 +612,14 @@ pub async fn render_completions(
                             lsp_types::Documentation::MarkupContent(m) => m.value.clone(),
                         });
 
-                        // Format kind
-                        let kind_str = selected_item.kind.map(|k| format!("{:?}", k));
-
                         let doc_max_width = 40;
                         let mut lines = Vec::new();
 
-                        if let Some(k) = kind_str {
-                            lines.push(vec![(format!("Type: {}", k), window_style)]);
-                            lines.push(vec![]); // Separator
+                        if let Some(detail) = &selected_item.detail {
+                            if !detail.is_empty() {
+                                lines.push(vec![(detail.clone(), window_style)]);
+                                lines.push(vec![]); // Separator
+                            }
                         }
 
                         if let Some(doc_text) = doc
