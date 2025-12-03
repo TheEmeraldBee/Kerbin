@@ -744,18 +744,13 @@ impl TextBuffer {
     }
 
     /// Inserts text at the specified byte offset.
-    /// Converts byte offset to char index for internal storage.
-    pub fn insert_at_byte(&mut self, byte: usize, text: &str) {
-        let char_idx = self.rope.byte_to_char_idx(byte);
-        self.rope.insert(char_idx, text);
+    pub fn insert(&mut self, byte: usize, text: &str) {
+        self.rope.insert(byte, text);
     }
 
     /// Removes text within the specified byte range.
-    /// Converts byte range to char range for internal storage.
-    pub fn remove_byte_range(&mut self, range: std::ops::Range<usize>) {
-        let start_char = self.rope.byte_to_char_idx(range.start);
-        let end_char = self.rope.byte_to_char_idx(range.end);
-        self.rope.remove(start_char..end_char);
+    pub fn remove_range(&mut self, range: std::ops::Range<usize>) {
+        self.rope.remove(range);
     }
 
     pub fn get_rope(&self) -> &Rope {

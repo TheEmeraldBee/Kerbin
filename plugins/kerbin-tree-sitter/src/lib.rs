@@ -21,6 +21,8 @@ pub mod install_command;
 
 pub mod scope_info;
 
+pub mod indent;
+
 pub async fn init(state: &mut State) {
     // Load grammars
     let grammar_list = match state
@@ -57,6 +59,8 @@ pub async fn init(state: &mut State) {
         commands.register::<InstallCommand>();
 
         commands.register::<ScopeInfoCommand>();
+
+        commands.register::<crate::indent::IndentCommand>();
     }
 
     manager.register_extension_handlers(state).await;

@@ -13,31 +13,11 @@ pub struct ActionResult {
 
 impl ActionResult {
     /// Creates a new `ActionResult`.
-    ///
-    /// # Arguments
-    ///
-    /// * `success`: A boolean indicating if the action was successful.
-    /// * `action`: A `Box<dyn BufferAction>` representing the inverse action.
-    ///
-    /// # Returns
-    ///
-    /// A new `ActionResult` instance.
     pub fn new(success: bool, action: Box<dyn BufferAction>) -> Self {
         Self { success, action }
     }
 
     /// Creates an `ActionResult` with a `NoOp` inverse action.
-    ///
-    /// This is useful for actions that don't have a direct inverse or
-    /// for cases where only the success status matters for undo/redo.
-    ///
-    /// # Arguments
-    ///
-    /// * `success`: A boolean indicating if the action was successful.
-    ///
-    /// # Returns
-    ///
-    /// A new `ActionResult` with a `NoOp` inverse.
     pub fn none(success: bool) -> Self {
         Self::new(success, Box::new(NoOp))
     }
@@ -54,14 +34,6 @@ pub trait BufferAction: Send + Sync {
     /// This method performs the actual modification on the buffer. It should
     /// also return an `ActionResult` which includes a boolean indicating
     /// success and a boxed `BufferAction` representing the inverse operation.
-    ///
-    /// # Arguments
-    ///
-    /// * `buf`: A mutable reference to the `TextBuffer` to which the action should be applied.
-    ///
-    /// # Returns
-    ///
-    /// An `ActionResult` describing the outcome of the application and its inverse.
     fn apply(&self, buf: &mut TextBuffer) -> ActionResult;
 }
 
@@ -86,8 +58,7 @@ impl BufferAction for Insert {
         let actual_byte = buf.byte_to_char_boundary(self.byte);
         let start = buf.get_edit_part(actual_byte);
 
-        // This already handles newlines correctly
-        buf.insert_at_byte(actual_byte, &self.content);
+        buf.insert(actual_byte, &self.content);
 
         let content_len = self.content.len();
 
@@ -165,7 +136,7 @@ impl BufferAction for Delete {
             .unwrap_or_default();
         let bytes_removed = del_end_byte - del_start_byte;
 
-        buf.remove_byte_range(del_start_byte..del_end_byte);
+        buf.remove_range(del_start_byte..del_end_byte);
 
         // Adjust other cursors to account for the deleted text
         for (i, cursor) in buf.cursors.iter_mut().enumerate() {

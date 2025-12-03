@@ -229,6 +229,7 @@ impl Command for CompletionCommand {
                 }
 
                 completion_state.info = None;
+                resolver_engine_mut().await.trash_template("lsp_items");
             }
             Self::Trash => {
                 let mut bufs = state.lock_state::<Buffers>().await;
@@ -239,6 +240,7 @@ impl Command for CompletionCommand {
 
                 // Clear completion state
                 completion_state.info = None;
+                resolver_engine_mut().await.trash_template("lsp_items");
             }
         }
 

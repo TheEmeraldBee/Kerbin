@@ -132,7 +132,7 @@ file communication systems
 - [ ] Reimplement tree-sitter and lsp systems to work better
     - [x] Tree-Sitter Highlighting
     - [ ] Tree-Sitter locals (new)
-    - [ ] Tree-Sitter indent
+    - [x] Tree-Sitter indent
 
     - [x] Lsp Hover
     - [x] Lsp Diagnostics

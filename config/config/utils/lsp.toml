@@ -11,6 +11,13 @@ commands = ['ala']
 desc = "Accept LSP change"
 required_templates = ['lsp_items']
 
+[[keybind]]
+modes = ["i"]
+keys = ["esc"]
+commands = ['tla']
+desc = "Trash LSP change"
+required_templates = ['lsp_items']
+
 # Make lsp start autocompletion on debounce of 100ms
 [[plugin.debounce_event]]
 modes = ["i"]
