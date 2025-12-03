@@ -18,6 +18,7 @@ pub struct HoverInfo {
     pub hover: Option<Hover>,
 
     pub position: usize,
+    pub scroll_y: usize,
 }
 
 /// The hover info stored in each text buffer
@@ -31,6 +32,9 @@ pub enum HoverCommand {
     #[command]
     /// Request the display of a hover at the cursor's position
     Hover,
+    #[command(drop_ident, name = "hover_scroll", name = "hs")]
+    /// Scroll the hover documentation vertically
+    Scroll { amount: isize },
 }
 
 #[async_trait::async_trait]
@@ -78,7 +82,18 @@ impl Command for HoverCommand {
                     pending_request: id,
                     hover: None,
                     position: cursor_byte,
+                    scroll_y: 0,
                 });
+            }
+            Self::Scroll { amount } => {
+                let mut bufs = state.lock_state::<Buffers>().await;
+                let mut buf = bufs.cur_buffer_mut().await;
+
+                if let Some(mut state) = buf.get_state_mut::<HoverState>().await
+                    && let Some(info) = &mut state.info
+                {
+                    info.scroll_y = info.scroll_y.saturating_add_signed(*amount);
+                }
             }
         }
 
@@ -103,7 +118,7 @@ pub async fn render_hover(
 
     buf.renderer.clear_extmark_ns("lsp::hover");
 
-    let Some(info) = state.info.as_ref() else {
+    let Some(info) = state.info.as_mut() else {
         return;
     };
 
@@ -126,46 +141,67 @@ pub async fn render_hover(
         HoverContents::Markup(m) => m.value.clone(),
     };
 
-    let highlighted = highlight_text(
-        &text,
-        "markdown",
-        &mut grammars,
-        &config.0,
-        &theme,
-        &log,
-    );
+    let highlighted = highlight_text(&text, "markdown", &mut grammars, &config.0, &theme, &log);
 
-    // Calculate dimensions
-    let mut width = 0;
-    let mut height = 1;
-    let mut current_line_width = 0;
+    const MAX_WIDTH: usize = 80;
+    const MAX_HEIGHT: usize = 20;
 
-    for (part, _) in &highlighted {
-        for char in part.chars() {
-            if char == '\n' {
-                width = width.max(current_line_width);
-                current_line_width = 0;
-                height += 1;
-            } else {
-                current_line_width += 1;
-            }
-        }
+    struct StyledChar {
+        char: char,
+        style: ContentStyle,
     }
-    width = width.max(current_line_width);
 
-    let mut text_buf = Buffer::new(vec2(width as u16, height as u16));
-    let mut x = 0;
-    let mut y = 0;
-
+    let mut chars: Vec<StyledChar> = Vec::new();
     for (part, style) in highlighted {
         for char in part.chars() {
-            if char == '\n' {
-                x = 0;
-                y += 1;
-                continue;
-            }
-            text_buf.set(vec2(x, y), Cell::new(char.to_string(), style));
-            x += 1;
+            chars.push(StyledChar { char, style: style });
+        }
+    }
+
+    let mut lines: Vec<Vec<StyledChar>> = Vec::new();
+    let mut current_line: Vec<StyledChar> = Vec::new();
+
+    for sc in chars {
+        if sc.char == '\n' {
+            lines.push(current_line);
+            current_line = Vec::new();
+            continue;
+        }
+
+        if current_line.len() >= MAX_WIDTH {
+            lines.push(current_line);
+            current_line = Vec::new();
+        }
+
+        current_line.push(sc);
+    }
+    if !current_line.is_empty() {
+        lines.push(current_line);
+    }
+
+    if lines.is_empty() {
+        return;
+    }
+
+    if info.scroll_y >= lines.len() {
+        info.scroll_y = lines.len().saturating_sub(1);
+    }
+    let scroll_y = info.scroll_y;
+
+    let height = lines.len().min(MAX_HEIGHT);
+
+    let visible_lines: Vec<&Vec<StyledChar>> = lines.iter().skip(scroll_y).take(height).collect();
+
+    let display_width = visible_lines.iter().map(|l| l.len()).max().unwrap_or(0);
+
+    let mut text_buf = Buffer::new(vec2(display_width as u16, height as u16));
+
+    for (y, line) in visible_lines.iter().enumerate() {
+        for (x, sc) in line.iter().enumerate() {
+            text_buf.set(
+                vec2(x as u16, y as u16),
+                Cell::new(sc.char.to_string(), sc.style),
+            );
         }
     }
 

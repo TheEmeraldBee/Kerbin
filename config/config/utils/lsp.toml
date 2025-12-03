@@ -39,6 +39,18 @@ commands = ['tla', "rm"]
 desc = "Trash LSP change and drop move"
 required_templates = ['lsp_items']
 
+[[keybind]]
+modes = []
+keys = ["ctrl-(j|down)"]
+commands = ["hs 1"]
+desc = "Scroll Hover Down 1"
+
+[[keybind]]
+modes = []
+keys = ["ctrl-(k|up)"]
+commands = ["hs -1"]
+desc = "Scroll Hover Up 1"
+
 # Make lsp start autocompletion on debounce of 100ms
 [[plugin.debounce_event]]
 modes = ["i"]
