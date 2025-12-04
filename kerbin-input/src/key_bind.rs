@@ -15,7 +15,7 @@ pub enum UnresolvedKeyElement<T: ParsableKey<Output = T>> {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct UnresolvedKeyBind {
     pub mods: Vec<UnresolvedKeyElement<KeyModifiers>>,
-    pub code: UnresolvedKeyElement<KeyCode>,
+    pub code: UnresolvedKeyElement<ResolvedKeyBind>,
 }
 
 impl Display for UnresolvedKeyBind {
@@ -35,7 +35,11 @@ impl Display for UnresolvedKeyBind {
 
             if let UnresolvedKeyElement::Literal(mods) = m
                 && mods.contains(M::SHIFT)
-                && let UnresolvedKeyElement::Literal(Char(_)) = &self.code
+                && let UnresolvedKeyElement::Literal(ResolvedKeyBind {
+                    code: Char(_),
+                    mods: inner_mods,
+                }) = &self.code
+                && inner_mods.is_empty()
             {
                 include = false;
             }
@@ -46,7 +50,10 @@ impl Display for UnresolvedKeyBind {
         }
 
         let code_str = match &self.code {
-            UnresolvedKeyElement::Literal(Char(ch)) => {
+            UnresolvedKeyElement::Literal(ResolvedKeyBind {
+                code: Char(ch),
+                mods,
+            }) if mods.is_empty() => {
                 if has_shift {
                     ch.to_ascii_uppercase().to_string()
                 } else {

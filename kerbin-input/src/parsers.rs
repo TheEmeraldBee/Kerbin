@@ -3,7 +3,7 @@ use std::str::FromStr;
 use ascii_forge::window::{KeyCode, KeyModifiers};
 use thiserror::Error;
 
-use crate::{UnresolvedKeyBind, UnresolvedKeyElement};
+use crate::{ResolvedKeyBind, UnresolvedKeyBind, UnresolvedKeyElement};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -88,6 +88,26 @@ impl ParsableKey for KeyCode {
     }
 }
 
+impl ParsableKey for ResolvedKeyBind {
+    type Output = Self;
+    fn parse_from_str(text: &str) -> Result<Self::Output, ParseError> {
+        let parts: Vec<&str> = text.split('-').collect();
+        if parts.is_empty() {
+            return Err(ParseError::Custom("Empty keybind string".to_string()));
+        }
+
+        let (mods_str, key_str) = parts.split_at(parts.len() - 1);
+        let key_code = KeyCode::parse_from_str(key_str[0])?;
+
+        let mut key_mods = KeyModifiers::empty();
+        for m in mods_str {
+            key_mods |= KeyModifiers::parse_from_str(m)?;
+        }
+
+        Ok(ResolvedKeyBind::new(key_mods, key_code))
+    }
+}
+
 impl FromStr for UnresolvedKeyBind {
     type Err = String;
 
@@ -150,7 +170,7 @@ where
 }
 
 #[cfg(feature = "serde")]
-impl<'de> Deserialize<'de> for UnresolvedKeyElement<KeyCode> {
+impl<'de> Deserialize<'de> for UnresolvedKeyElement<ResolvedKeyBind> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -265,7 +285,7 @@ fn parse_segments(s: &str) -> Result<Vec<String>, String> {
     Ok(segments)
 }
 
-fn parse_key_element(s: &str) -> Result<UnresolvedKeyElement<KeyCode>, String> {
+fn parse_key_element(s: &str) -> Result<UnresolvedKeyElement<ResolvedKeyBind>, String> {
     // Check for command substitution first (highest priority)
     if let Some(cmd) = s.strip_prefix("$(").and_then(|s| s.strip_suffix(")")) {
         return parse_command(cmd);
@@ -274,16 +294,22 @@ fn parse_key_element(s: &str) -> Result<UnresolvedKeyElement<KeyCode>, String> {
     // Check for OneOf pattern
     if let Some(inner) = s.strip_prefix("(").and_then(|s| s.strip_suffix(")")) {
         if inner.contains('|') {
-            let options: Result<Vec<KeyCode>, String> = inner
+            let options: Result<Vec<ResolvedKeyBind>, String> = inner
                 .split('|')
                 .map(|opt| {
                     let opt = opt.trim();
-                    KeyCode::parse_from_str(opt)
+                    ResolvedKeyBind::parse_from_str(opt)
                         .map_err(|e| format!("Failed to parse key '{}': {}", opt, e))
                 })
                 .collect();
             return Ok(UnresolvedKeyElement::OneOf(options?));
         }
+        
+        // Try parsing as literal keybind first
+        if let Ok(bind) = ResolvedKeyBind::parse_from_str(inner) {
+             return Ok(UnresolvedKeyElement::Literal(bind));
+        }
+
         // It's a template in parentheses
         return Ok(UnresolvedKeyElement::Template(inner.to_string()));
     }
@@ -294,7 +320,7 @@ fn parse_key_element(s: &str) -> Result<UnresolvedKeyElement<KeyCode>, String> {
     }
 
     // Otherwise it's a literal
-    KeyCode::parse_from_str(s)
+    ResolvedKeyBind::parse_from_str(s)
         .map(UnresolvedKeyElement::Literal)
         .map_err(|e| format!("Failed to parse key '{}': {}", s, e))
 }
@@ -318,6 +344,12 @@ fn parse_modifier_element(s: &str) -> Result<UnresolvedKeyElement<KeyModifiers>,
                 .collect();
             return Ok(UnresolvedKeyElement::OneOf(options?));
         }
+        
+        // Try parsing as literal modifier first
+        if let Ok(mod_) = KeyModifiers::parse_from_str(inner) {
+             return Ok(UnresolvedKeyElement::Literal(mod_));
+        }
+
         // It's a template in parentheses
         return Ok(UnresolvedKeyElement::Template(inner.to_string()));
     }
@@ -358,15 +390,36 @@ mod tests {
         let bind: UnresolvedKeyBind = "ctrl-a".parse().unwrap();
         assert_eq!(bind.mods.len(), 1);
         match &bind.code {
-            UnresolvedKeyElement::Literal(KeyCode::Char('a')) => (),
+            UnresolvedKeyElement::Literal(ResolvedKeyBind {
+                code: KeyCode::Char('a'),
+                ..
+            }) => (),
             _ => panic!("Expected literal 'a'"),
         }
     }
 
     #[test]
+    fn test_parse_nested_key() {
+        // alt-(shift-a). (shift-a) is grouped.
+        // It should be parsed as Literal(ResolvedKeyBind { shift, a }) in `code`.
+        let bind: UnresolvedKeyBind = "alt-(shift-a)".parse().unwrap();
+        assert_eq!(bind.mods.len(), 1); // alt
+        match &bind.code {
+            UnresolvedKeyElement::Literal(ResolvedKeyBind {
+                code: KeyCode::Char('a'),
+                mods,
+            }) => {
+                assert!(mods.contains(KeyModifiers::SHIFT));
+            }
+            _ => panic!("Expected literal 'shift-a' inside code"),
+        }
+    }
+
+    #[test]
     fn test_parse_multiple_modifiers() {
+        // Flat string behavior
         let bind: UnresolvedKeyBind = "ctrl-shift-a".parse().unwrap();
-        assert_eq!(bind.mods.len(), 2);
+        assert_eq!(bind.mods.len(), 2); // ctrl and shift both parsed as modifiers
     }
 
     #[test]
@@ -375,6 +428,24 @@ mod tests {
         assert_eq!(bind.mods.len(), 1);
         match &bind.code {
             UnresolvedKeyElement::OneOf(opts) => assert_eq!(opts.len(), 3),
+            _ => panic!("Expected OneOf"),
+        }
+    }
+
+    #[test]
+    fn test_parse_oneof_keys_nested() {
+        let bind: UnresolvedKeyBind = "alt-(shift-a|b)".parse().unwrap();
+        assert_eq!(bind.mods.len(), 1);
+        match &bind.code {
+            UnresolvedKeyElement::OneOf(opts) => {
+                assert_eq!(opts.len(), 2);
+                // check shift-a
+                assert_eq!(opts[0].code, KeyCode::Char('a'));
+                assert!(opts[0].mods.contains(KeyModifiers::SHIFT));
+                // check b
+                assert_eq!(opts[1].code, KeyCode::Char('b'));
+                assert!(opts[1].mods.is_empty());
+            }
             _ => panic!("Expected OneOf"),
         }
     }
@@ -441,7 +512,10 @@ mod tests {
         let bind: UnresolvedKeyBind = "a".parse().unwrap();
         assert_eq!(bind.mods.len(), 0);
         match &bind.code {
-            UnresolvedKeyElement::Literal(KeyCode::Char('a')) => (),
+            UnresolvedKeyElement::Literal(ResolvedKeyBind {
+                code: KeyCode::Char('a'),
+                ..
+            }) => (),
             _ => panic!("Expected literal 'a'"),
         }
     }

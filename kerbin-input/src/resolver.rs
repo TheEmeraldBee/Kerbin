@@ -34,6 +34,7 @@ impl<'a> Resolver<'a> {
         }
 
         // Resolve the key code element
+        // bind.code is UnresolvedKeyElement<ResolvedKeyBind>, so we get Vec<ResolvedKeyBind>
         let code_options = self.resolve_element(bind.code)?;
 
         // Generate all permutations of modifiers
@@ -48,10 +49,12 @@ impl<'a> Resolver<'a> {
                 .into_iter()
                 .fold(KeyModifiers::empty(), |acc, m| acc | m);
 
-            for code in &code_options {
+            for code_part in &code_options {
+                // Combine outer modifiers with inner modifiers from the key part
+                let final_mods = combined_mods | code_part.mods;
                 results.push(ResolvedKeyBind {
-                    mods: combined_mods,
-                    code: *code,
+                    mods: final_mods,
+                    code: code_part.code,
                 });
             }
         }
@@ -64,20 +67,20 @@ impl<'a> Resolver<'a> {
         let mut chars = input.chars().peekable();
 
         while let Some(ch) = chars.next() {
-            match ch {
-                '\\' => {
-                    if let Some(&next) = chars.peek() {
+                        match ch {
+                            '\\' => {
+                                if let Some(&next) = chars.peek() {
                         if next == '$' {
                             chars.next();
                             result.push('$');
                         } else {
-                            result.push('\\');
+                                                        result.push('\\');
                         }
                     } else {
-                        result.push('\\');
+                                                    result.push('\\');
                     }
                 }
-                '%' => {
+                '%'=> {
                     if chars.peek() == Some(&'%') {
                         chars.next();
                         result.push('%');
@@ -125,7 +128,7 @@ impl<'a> Resolver<'a> {
                     }
 
                     if allow_run {
-                        tracing::info!("{cmd_string}, {allow_run}");
+                        tracing::info!(%cmd_string, %allow_run);
 
                         // Execute command regardless of whether closing paren was found
                         let cmd_parts =
@@ -236,11 +239,16 @@ mod tests {
 
         let bind = UnresolvedKeyBind {
             mods: vec![UnresolvedKeyElement::Literal(KeyModifiers::CONTROL)],
-            code: UnresolvedKeyElement::Literal(KeyCode::Char('a')),
+            code: UnresolvedKeyElement::Literal(ResolvedKeyBind::new(
+                KeyModifiers::empty(),
+                KeyCode::Char('a'),
+            )),
         };
 
         let results = resolver.resolve(bind).unwrap();
         assert_eq!(results.len(), 1);
+        assert!(results[0].mods.contains(KeyModifiers::CONTROL));
+        assert_eq!(results[0].code, KeyCode::Char('a'));
     }
 
     #[test]
@@ -255,10 +263,37 @@ mod tests {
                 KeyModifiers::CONTROL,
                 KeyModifiers::ALT,
             ])],
-            code: UnresolvedKeyElement::OneOf(vec![KeyCode::Char('a'), KeyCode::Char('b')]),
+            code: UnresolvedKeyElement::OneOf(vec![
+                ResolvedKeyBind::new(KeyModifiers::empty(), KeyCode::Char('a')),
+                ResolvedKeyBind::new(KeyModifiers::empty(), KeyCode::Char('b')),
+            ]),
         };
 
         let results = resolver.resolve(bind).unwrap();
         assert_eq!(results.len(), 4); // 2 mods * 2 codes = 4 permutations
+    }
+
+    #[test]
+    fn test_resolve_nested_modifiers() {
+        let templates = HashMap::new();
+        let executor = |_: &str, _: &[String]| -> Result<Vec<String>, ParseError> { Ok(vec![]) };
+
+        let resolver = Resolver::new(&templates, Arc::new(executor));
+
+        // alt-(shift-a)
+        let bind = UnresolvedKeyBind {
+            mods: vec![UnresolvedKeyElement::Literal(KeyModifiers::ALT)],
+            code: UnresolvedKeyElement::Literal(ResolvedKeyBind::new(
+                KeyModifiers::SHIFT,
+                KeyCode::Char('a'),
+            )),
+        };
+
+        let results = resolver.resolve(bind).unwrap();
+        assert_eq!(results.len(), 1);
+        // Should have both ALT and SHIFT
+        assert!(results[0].mods.contains(KeyModifiers::ALT));
+        assert!(results[0].mods.contains(KeyModifiers::SHIFT));
+        assert_eq!(results[0].code, KeyCode::Char('a'));
     }
 }
