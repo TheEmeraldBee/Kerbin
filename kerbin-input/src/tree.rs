@@ -3,7 +3,7 @@ use std::sync::Arc;
 use ascii_forge::window::{KeyCode, KeyModifiers};
 use indexmap::IndexMap;
 
-use crate::{ParseError, ResolvedKeyBind, Resolver, UnresolvedKeyBind};
+use crate::{Matchable, ParseError, ResolvedKeyBind, Resolver, UnresolvedKeyBind};
 
 #[derive(Debug, Clone)]
 pub enum KeyItem<A: Clone> {
@@ -369,41 +369,61 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
     ) -> Result<StepResult<A>, ParseError> {
         let pressed_key = ResolvedKeyBind::new(key_mods, key_code);
 
-        if self.active_tree.is_none() {
-            if let Some(items) = self.tree.get(&pressed_key) {
-                // Check items in reverse order (most recently added first)
-                for (vec_idx, item) in items.iter().enumerate().rev() {
-                    match item.as_ref() {
-                        KeyItem::Leaf(actions) => {
-                            // Check actions in reverse order (last added = first checked)
-                            for (meta_idx, action) in actions.iter().rev() {
-                                let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
-                                if check(meta) {
-                                    self.current_sequence.clear();
-                                    return Ok(StepResult::Success(
-                                        vec![pressed_key],
-                                        action.clone(),
-                                    ));
-                                }
-                            }
-                        }
-                        KeyItem::Tree(_, _, actions) => {
-                            // For tree nodes, check if any action passes (for partial match handling)
-                            let mut has_valid_action = false;
-                            for (meta_idx, _) in actions.iter().rev() {
-                                let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
-                                if check(meta) {
-                                    has_valid_action = true;
-                                    break;
-                                }
-                            }
+        // Generate fallback keys for wildcard matching
+        // Order: Exact -> AnyMods -> AnyCode -> AnyAll
+        let candidates = vec![
+            pressed_key.clone(),
+            ResolvedKeyBind {
+                mods: Matchable::Any,
+                code: Matchable::Specific(pressed_key.code.unwrap_specific()),
+            },
+            ResolvedKeyBind {
+                mods: Matchable::Specific(pressed_key.mods.unwrap_specific()),
+                code: Matchable::Any,
+            },
+            ResolvedKeyBind {
+                mods: Matchable::Any,
+                code: Matchable::Any,
+            },
+        ];
 
-                            // If we have valid actions or no actions (pure tree), descend
-                            if has_valid_action || actions.is_empty() {
-                                self.active_tree = Some((0, Arc::clone(item), vec_idx));
-                                self.current_sequence.push(pressed_key);
-                                self.resolve_current_layer(resolver)?;
-                                return Ok(StepResult::Step);
+        if self.active_tree.is_none() {
+            for candidate in &candidates {
+                if let Some(items) = self.tree.get(candidate) {
+                    // Check items in reverse order (most recently added first)
+                    for (vec_idx, item) in items.iter().enumerate().rev() {
+                        match item.as_ref() {
+                            KeyItem::Leaf(actions) => {
+                                // Check actions in reverse order (last added = first checked)
+                                for (meta_idx, action) in actions.iter().rev() {
+                                    let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
+                                    if check(meta) {
+                                        self.current_sequence.clear();
+                                        return Ok(StepResult::Success(
+                                            vec![pressed_key],
+                                            action.clone(),
+                                        ));
+                                    }
+                                }
+                            }
+                            KeyItem::Tree(_, _, actions) => {
+                                // For tree nodes, check if any action passes (for partial match handling)
+                                let mut has_valid_action = false;
+                                for (meta_idx, _) in actions.iter().rev() {
+                                    let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
+                                    if check(meta) {
+                                        has_valid_action = true;
+                                        break;
+                                    }
+                                }
+
+                                // If we have valid actions or no actions (pure tree), descend
+                                if has_valid_action || actions.is_empty() {
+                                    self.active_tree = Some((0, Arc::clone(item), vec_idx));
+                                    self.current_sequence.push(pressed_key);
+                                    self.resolve_current_layer(resolver)?;
+                                    return Ok(StepResult::Step);
+                                }
                             }
                         }
                     }
@@ -412,45 +432,48 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
             return Ok(StepResult::Reset);
         }
 
-        if let Some(cache) = &self.resolved_cache
-            && let Some(candidates) = cache.get(&pressed_key)
-        {
-            // Check candidates in reverse order
-            for &(vec_idx, child_idx) in candidates.iter().rev() {
-                if let Some(active) = &self.active_tree
-                    && let KeyItem::Tree(_, children, _) = active.1.as_ref()
-                    && let Some(child) = children.get(child_idx)
-                {
-                    match child.as_ref() {
-                        KeyItem::Leaf(actions) => {
-                            // Check actions in reverse order (last added = first checked)
-                            for (meta_idx, action) in actions.iter().rev() {
-                                let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
-                                if check(meta) {
-                                    self.current_sequence.push(pressed_key.clone());
-                                    let action = action.clone();
-                                    let seq = self.current_sequence.clone();
-                                    self.reset();
-                                    return Ok(StepResult::Success(seq, action));
+        if let Some(cache) = &self.resolved_cache {
+            for candidate in &candidates {
+                if let Some(matches) = cache.get(candidate) {
+                    // Check candidates in reverse order
+                    for &(vec_idx, child_idx) in matches.iter().rev() {
+                        if let Some(active) = &self.active_tree
+                            && let KeyItem::Tree(_, children, _) = active.1.as_ref()
+                            && let Some(child) = children.get(child_idx)
+                        {
+                            match child.as_ref() {
+                                KeyItem::Leaf(actions) => {
+                                    // Check actions in reverse order (last added = first checked)
+                                    for (meta_idx, action) in actions.iter().rev() {
+                                        let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
+                                        if check(meta) {
+                                            self.current_sequence.push(pressed_key.clone());
+                                            let action = action.clone();
+                                            let seq = self.current_sequence.clone();
+                                            self.reset();
+                                            return Ok(StepResult::Success(seq, action));
+                                        }
+                                    }
                                 }
-                            }
-                        }
-                        KeyItem::Tree(_, _, actions) => {
-                            // For tree nodes, check if any action passes
-                            let mut has_valid_action = false;
-                            for (meta_idx, _) in actions.iter().rev() {
-                                let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
-                                if check(meta) {
-                                    has_valid_action = true;
-                                    break;
-                                }
-                            }
+                                KeyItem::Tree(_, _, actions) => {
+                                    // For tree nodes, check if any action passes
+                                    let mut has_valid_action = false;
+                                    for (meta_idx, _) in actions.iter().rev() {
+                                        let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
+                                        if check(meta) {
+                                            has_valid_action = true;
+                                            break;
+                                        }
+                                    }
 
-                            if has_valid_action || actions.is_empty() {
-                                self.current_sequence.push(pressed_key.clone());
-                                self.active_tree = Some((active.0 + 1, Arc::clone(child), vec_idx));
-                                self.resolve_current_layer(resolver)?;
-                                return Ok(StepResult::Step);
+                                    if has_valid_action || actions.is_empty() {
+                                        self.current_sequence.push(pressed_key.clone());
+                                        self.active_tree =
+                                            Some((active.0 + 1, Arc::clone(child), vec_idx));
+                                        self.resolve_current_layer(resolver)?;
+                                        return Ok(StepResult::Step);
+                                    }
+                                }
                             }
                         }
                     }
@@ -557,4 +580,13 @@ pub enum StepResult<A: Clone> {
     Success(Vec<ResolvedKeyBind>, A),
     Step,
     Reset,
+}
+
+impl<T: Copy> Matchable<T> {
+    pub fn unwrap_specific(self) -> T {
+        match self {
+            Matchable::Specific(t) => t,
+            Matchable::Any => panic!("Called unwrap_specific on Any"),
+        }
+    }
 }

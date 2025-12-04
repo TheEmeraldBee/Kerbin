@@ -307,7 +307,8 @@ pub async fn highlight_file(
         // Full re-highlight (fallback for complex changes or first highlight)
         buf.renderer.clear_extmark_ns(namespace);
 
-        let Some(highlighter) = Highlighter::new(&config_path.0, &mut grammars, &state, buf.get_rope())
+        let Some(highlighter) =
+            Highlighter::new(&config_path.0, &mut grammars, &state, buf.get_rope())
         else {
             return;
         };

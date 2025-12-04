@@ -1,3 +1,5 @@
+use std::arch::naked_asm;
+
 use crate::ascii_forge::prelude::*;
 use crate::*;
 use ascii_forge::widgets::Border;
@@ -220,7 +222,16 @@ pub async fn handle_inputs(
 
                 mode_ok && !invalid_mode_present && templates_ok
             }) {
-            Ok(StepResult::Success(_, commands)) => {
+            Ok(StepResult::Success(sequence, commands)) => {
+                drop(resolver);
+                drop(resolver_engine);
+
+                let mut resolver = resolver_engine_mut().await;
+                for (i, key) in sequence.iter().enumerate() {
+                    resolver.set_template(format!("{}", i), [key.to_string()]);
+                }
+
+                let resolver = resolver.as_resolver();
                 'outer: for _ in 0..input.repeat_count.parse::<i32>().unwrap_or(1) {
                     for command in &commands {
                         let registry = prefix_registry.get().await;

@@ -166,7 +166,8 @@ fn check_predicates(entry: &QueryMatchEntry) -> bool {
     let pattern_idx = entry.query_match.pattern_index;
 
     for predicate in query.general_predicates(pattern_idx) {
-        if predicate.operator.as_ref() == "not-same-line?" && !check_not_same_line(predicate, entry) {
+        if predicate.operator.as_ref() == "not-same-line?" && !check_not_same_line(predicate, entry)
+        {
             return false;
         }
     }

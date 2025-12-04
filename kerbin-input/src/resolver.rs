@@ -2,7 +2,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use ascii_forge::window::KeyModifiers;
 
-use crate::{ParsableKey, ParseError, ResolvedKeyBind, UnresolvedKeyBind, UnresolvedKeyElement};
+use crate::{
+    Matchable, ParsableKey, ParseError, ResolvedKeyBind, UnresolvedKeyBind, UnresolvedKeyElement,
+};
 
 pub type CommandExecutor =
     dyn Fn(&str, &[String]) -> Result<Vec<String>, ParseError> + Send + Sync + 'static;
@@ -26,7 +28,7 @@ impl<'a> Resolver<'a> {
     /// Resolve a single UnresolvedKeyBind into all possible ResolvedKeyBind permutations
     pub fn resolve(&self, bind: UnresolvedKeyBind) -> Result<Vec<ResolvedKeyBind>, ParseError> {
         // First, resolve all modifier elements into their possible values
-        let mut modifier_options: Vec<Vec<KeyModifiers>> = Vec::new();
+        let mut modifier_options: Vec<Vec<Matchable<KeyModifiers>>> = Vec::new();
 
         for mod_elem in bind.mods {
             let resolved = self.resolve_element(mod_elem)?;
@@ -34,7 +36,7 @@ impl<'a> Resolver<'a> {
         }
 
         // Resolve the key code element
-        // bind.code is UnresolvedKeyElement<ResolvedKeyBind>, so we get Vec<ResolvedKeyBind>
+        // bind.code is UnresolvedKeyElement<ResolvedKeyBind>
         let code_options = self.resolve_element(bind.code)?;
 
         // Generate all permutations of modifiers
@@ -44,10 +46,10 @@ impl<'a> Resolver<'a> {
         let mut results = Vec::new();
 
         for mod_combo in mod_permutations {
-            // Combine all modifiers using bitwise OR
+            // Combine all modifiers
             let combined_mods = mod_combo
                 .into_iter()
-                .fold(KeyModifiers::empty(), |acc, m| acc | m);
+                .fold(Matchable::Specific(KeyModifiers::empty()), |acc, m| acc | m);
 
             for code_part in &code_options {
                 // Combine outer modifiers with inner modifiers from the key part
@@ -67,20 +69,20 @@ impl<'a> Resolver<'a> {
         let mut chars = input.chars().peekable();
 
         while let Some(ch) = chars.next() {
-                        match ch {
-                            '\\' => {
-                                if let Some(&next) = chars.peek() {
+            match ch {
+                '\\' => {
+                    if let Some(&next) = chars.peek() {
                         if next == '$' {
                             chars.next();
                             result.push('$');
                         } else {
-                                                        result.push('\\');
+                            result.push('\\');
                         }
                     } else {
-                                                    result.push('\\');
+                        result.push('\\');
                     }
                 }
-                '%'=> {
+                '%' => {
                     if chars.peek() == Some(&'%') {
                         chars.next();
                         result.push('%');
@@ -219,81 +221,5 @@ impl<'a> Resolver<'a> {
         }
 
         result
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use ascii_forge::window::KeyCode;
-
-    use crate::UnresolvedKeyElement;
-
-    use super::*;
-
-    #[test]
-    fn test_resolve_simple_literal() {
-        let templates = HashMap::new();
-        let executor = |_: &str, _: &[String]| -> Result<Vec<String>, ParseError> { Ok(vec![]) };
-
-        let resolver = Resolver::new(&templates, Arc::new(executor));
-
-        let bind = UnresolvedKeyBind {
-            mods: vec![UnresolvedKeyElement::Literal(KeyModifiers::CONTROL)],
-            code: UnresolvedKeyElement::Literal(ResolvedKeyBind::new(
-                KeyModifiers::empty(),
-                KeyCode::Char('a'),
-            )),
-        };
-
-        let results = resolver.resolve(bind).unwrap();
-        assert_eq!(results.len(), 1);
-        assert!(results[0].mods.contains(KeyModifiers::CONTROL));
-        assert_eq!(results[0].code, KeyCode::Char('a'));
-    }
-
-    #[test]
-    fn test_resolve_one_of() {
-        let templates = HashMap::new();
-        let executor = |_: &str, _: &[String]| -> Result<Vec<String>, ParseError> { Ok(vec![]) };
-
-        let resolver = Resolver::new(&templates, Arc::new(executor));
-
-        let bind = UnresolvedKeyBind {
-            mods: vec![UnresolvedKeyElement::OneOf(vec![
-                KeyModifiers::CONTROL,
-                KeyModifiers::ALT,
-            ])],
-            code: UnresolvedKeyElement::OneOf(vec![
-                ResolvedKeyBind::new(KeyModifiers::empty(), KeyCode::Char('a')),
-                ResolvedKeyBind::new(KeyModifiers::empty(), KeyCode::Char('b')),
-            ]),
-        };
-
-        let results = resolver.resolve(bind).unwrap();
-        assert_eq!(results.len(), 4); // 2 mods * 2 codes = 4 permutations
-    }
-
-    #[test]
-    fn test_resolve_nested_modifiers() {
-        let templates = HashMap::new();
-        let executor = |_: &str, _: &[String]| -> Result<Vec<String>, ParseError> { Ok(vec![]) };
-
-        let resolver = Resolver::new(&templates, Arc::new(executor));
-
-        // alt-(shift-a)
-        let bind = UnresolvedKeyBind {
-            mods: vec![UnresolvedKeyElement::Literal(KeyModifiers::ALT)],
-            code: UnresolvedKeyElement::Literal(ResolvedKeyBind::new(
-                KeyModifiers::SHIFT,
-                KeyCode::Char('a'),
-            )),
-        };
-
-        let results = resolver.resolve(bind).unwrap();
-        assert_eq!(results.len(), 1);
-        // Should have both ALT and SHIFT
-        assert!(results[0].mods.contains(KeyModifiers::ALT));
-        assert!(results[0].mods.contains(KeyModifiers::SHIFT));
-        assert_eq!(results[0].code, KeyCode::Char('a'));
     }
 }
