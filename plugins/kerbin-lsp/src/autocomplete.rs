@@ -653,12 +653,11 @@ pub async fn render_completions(
                         let doc_max_width = 40;
                         let mut lines = Vec::new();
 
-                        if let Some(detail) = &selected_item.detail {
-                            if !detail.is_empty() {
+                        if let Some(detail) = &selected_item.detail
+                            && !detail.is_empty() {
                                 lines.push(vec![(detail.clone(), window_style)]);
                                 lines.push(vec![]); // Separator
                             }
-                        }
 
                         if let Some(doc_text) = doc
                             && !doc_text.is_empty()

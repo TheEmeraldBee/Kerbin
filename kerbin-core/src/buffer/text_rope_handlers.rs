@@ -76,6 +76,9 @@ pub trait SafeRopeAccess {
     /// Returns the length of the buffer in bytes.
     fn len(&self) -> usize;
 
+    /// Returns whether the buffer is empty or not.
+    fn is_empty(&self) -> bool;
+
     /// Returns the length of the buffer in chars.
     fn len_chars(&self) -> usize;
 
@@ -229,6 +232,10 @@ impl SafeRopeAccess for TextBuffer {
 
     fn len(&self) -> usize {
         self.rope.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.rope.len() == 0
     }
 
     fn len_chars(&self) -> usize {

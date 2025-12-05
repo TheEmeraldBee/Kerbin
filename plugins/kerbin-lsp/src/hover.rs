@@ -158,7 +158,7 @@ pub async fn render_hover(
     let mut chars: Vec<StyledChar> = Vec::new();
     for (part, style) in text {
         for char in part.chars() {
-            chars.push(StyledChar { char, style: style });
+            chars.push(StyledChar { char, style });
         }
     }
 
