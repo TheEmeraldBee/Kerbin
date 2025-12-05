@@ -5,58 +5,30 @@ use ascii_forge::prelude::*;
 use serde::Deserialize;
 
 /// Configuration for a specific mode within the statusline.
-///
-/// This struct allows customization of how individual editor modes are displayed
-/// in the statusline, including their long names and theme keys.
 #[derive(Deserialize, Default, Debug)]
 #[serde(default)]
 pub struct ModeConfig {
     /// An optional longer, more descriptive name for the mode (e.g., "NORMAL" instead of "n").
-    /// If `None`, the single-character mode identifier will be used.
     pub long_name: Option<String>,
 
     /// An optional key to retrieve a specific `ContentStyle` from the `Theme` for this mode.
-    /// If `None`, a default fallback mechanism will be used.
     pub theme_key: Option<String>,
-
-    /// If `true`, this mode's display in the statusline will hide all other modes.
-    /// This is not currently implemented in `render_statusline` but is part of the config.
-    pub hide_others: bool,
 }
 
 /// Overall configuration for the editor's statusline.
-///
-/// This struct holds a mapping of mode characters to their `ModeConfig`,
-/// allowing detailed customization of each mode's statusline appearance.
 #[derive(Deserialize, Default, Debug)]
 pub struct StatuslineConfig {
-    /// A hash map where keys are single-character mode identifiers (e.g., 'n', 'i', 'v')
-    /// and values are `ModeConfig` instances defining how each mode should be displayed.
     pub modes: HashMap<char, ModeConfig>,
 }
 
 /// Renders the editor's statusline, displaying current modes, cursor information, and other details.
-///
-/// This asynchronous function takes various resources from the Kerbin state machine
-/// to construct and render the statusline. It dynamically adjusts the display based
-/// on the active modes, theme configuration, and current buffer state.
-///
-/// # Arguments
-///
-/// * `chunk`: A `Chunk` resource representing the drawing area for the statusline.
-///   It holds an `Arc<RwLock<InnerChunk>>` for the `StatuslineChunk`.
-/// * `plugin_config`: A `Res` (resource) holding the `PluginConfig`, which is used
-///   to extract statusline-specific configurations.
-/// * `theme`: A `Res` holding the `Theme` resource, used to apply styling to the statusline elements.
-/// * `mode_stack`: A `Res` holding the `ModeStack` resource, indicating the currently
-///   active editor modes.
-/// * `buffers`: A `Res` holding the `Buffers` resource, used to retrieve information
-///   about the current buffer and its cursors.
 pub async fn render_statusline(
     chunk: Chunk<StatuslineChunk>,
     plugin_config: Res<PluginConfig>,
     theme: Res<Theme>,
     mode_stack: Res<ModeStack>,
+
+    input: Res<InputState>,
 
     buffers: Res<Buffers>,
 ) {
@@ -69,9 +41,9 @@ pub async fn render_statusline(
         .map(|x| StatuslineConfig::deserialize(x.clone()).unwrap())
         .unwrap_or_default();
 
-    get!(theme, mode_stack);
+    get!(Some(mut chunk), theme, mode_stack, input);
 
-    let mut chunk = chunk.get().await.unwrap();
+    let chunk_width = chunk.size().x;
 
     let mut parts = vec![];
 
@@ -121,31 +93,49 @@ pub async fn render_statusline(
     for (i, (text, theme)) in parts.into_iter().enumerate().take(4) {
         if loc.x >= chunk.size().x {
             // Stop rendering if beyond chunk width
-            return;
+            break;
         }
         // Render each part, adding " -> " separator if it's not the first part
         loc = render!(chunk, loc => [if i != 0 {" -> "} else {""}, theme.apply(text)]);
     }
 
-    // Get information about the current buffer for cursor display
+    // Build right-aligned content
     let cur_buf = buffers.get().await.cur_buffer().await;
+    let mut right_parts = vec![];
 
-    let mut loc = chunk.size() - vec2(1, 0); // Start rendering from the right edge
+    // Add repeat count if present
+    if !input.repeat_count.is_empty() {
+        let repeat_style = theme.get_fallback_default(["statusline.repeat"]);
+        tracing::error!("{}", input.repeat_count);
+        right_parts.push(repeat_style.apply(input.repeat_count.clone()));
+    }
 
-    // Display cursor count
-    let cursor_count = cur_buf.cursors.len().saturating_sub(1);
-    if cursor_count == 0 {
+    // Add cursor/selection count
+    let cursor_count = cur_buf.cursors.len();
+    if cursor_count == 1 {
         let sel_style =
             theme.get_fallback_default(["statusline.selections.one", "statusline.selections"]);
-        // Render "1 sel" for a single cursor
-        render!(chunk, loc - vec2(5, 0) => [sel_style.apply("1 sel")]);
+        right_parts.push(sel_style.apply("1 sel".to_string()));
     } else {
         let sel_style =
             theme.get_fallback_default(["statusline.selections.multi", "statusline.selections"]);
-        let primary_cursor = cur_buf.primary_cursor;
-        let render_text = format!("{primary_cursor}/{cursor_count} sels");
-        loc.x = loc.x.saturating_sub(render_text.len() as u16);
-        // Render "{primary_cursor}/{total_cursors} sels" for multiple cursors
-        render!(chunk, loc => [sel_style.apply(render_text)]);
+        let primary_cursor = cur_buf.primary_cursor + 1; // Display as 1-indexed
+        right_parts.push(sel_style.apply(format!("{}/{} sels", primary_cursor, cursor_count)));
+    }
+
+    // Calculate total width needed for right-aligned content
+    let spacing = if right_parts.len() > 1 { 3 } else { 0 }; // " | " separator
+    let right_width: usize = right_parts.iter().map(|s| s.content().len()).sum::<usize>() + spacing;
+
+    // Render right-aligned content if it fits
+    if right_width <= chunk_width as usize {
+        let mut right_loc = vec2(chunk_width.saturating_sub(right_width as u16), 0);
+
+        for (i, part) in right_parts.into_iter().enumerate() {
+            if i != 0 {
+                right_loc = render!(chunk, right_loc => [" | "]);
+            }
+            right_loc = render!(chunk, right_loc => [part]);
+        }
     }
 }

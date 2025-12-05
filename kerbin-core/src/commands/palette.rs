@@ -2,12 +2,19 @@ use crate::*;
 
 #[derive(Command)]
 pub enum PaletteCommand {
+    #[command]
     /// Pushes the given string into the content of the palette
     PushPalette(String),
 
+    #[command]
+    /// Pops items from the palette string
+    PopPalette(usize),
+
+    #[command]
     /// Clears the content in the command palette
     ClearPalette,
 
+    #[command]
     /// Executes the content in the command palette
     ExecutePalette,
 }
@@ -20,6 +27,17 @@ impl Command for PaletteCommand {
         match self {
             Self::PushPalette(content) => {
                 palette.input.push_str(content.as_str());
+                true
+            }
+
+            Self::PopPalette(chars) => {
+                for _ in 0..*chars {
+                    palette.input.pop();
+                    if palette.input.is_empty() {
+                        return false;
+                    }
+                }
+
                 true
             }
 

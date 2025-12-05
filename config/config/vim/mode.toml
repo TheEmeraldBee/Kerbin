@@ -1,6 +1,6 @@
 [[keybind]]
 modes = []
-exclude_modes = ["c"]
+invalid_modes = ["c"]
 keys = [":"]
 commands = ["pm c"]
 desc = "Enter Command Mode"

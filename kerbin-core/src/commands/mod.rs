@@ -27,6 +27,9 @@ pub use palette::*;
 mod registers;
 pub use registers::*;
 
+mod input;
+pub use input::*;
+
 /// Type alias for a command parsing function.
 ///
 /// This defines the signature required for functions that can parse a slice of

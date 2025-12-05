@@ -1,0 +1,56 @@
+# The default command mode configuration
+
+[[keybind]]
+modes = []
+invalid_modes = ["c"]
+keys = [":"]
+commands = ["pm c"]
+desc = "Enter Command Mode"
+
+[[keybind]]
+modes = ['c']
+keys = ["enter"]
+commands = ['execute_palette', 'clear_palette', 'rm']
+desc = "Execute command palette"
+
+[[keybind]]
+modes = ['c']
+keys = ['esc']
+commands = ['clear_palette', 'rm']
+desc = "Clear command palette"
+
+[[keybind]]
+modes = ['c']
+keys = ['backspace']
+commands = ['pop_palette 1']
+desc = "Delete command palette char"
+
+[[keybind]]
+modes = ['c']
+keys = ["%alphabet"]
+commands = ["push_palette %0"]
+desc = "Insert character"
+
+[[keybind]]
+modes = ['c']
+keys = ["%cap_alphabet"]
+commands = ["push_palette %0"]
+desc = "Insert character"
+
+[[keybind]]
+modes = ['c']
+keys = ["%numbers"]
+commands = ["push_palette %0"]
+desc = "Insert character"
+
+[[keybind]]
+modes = ['c']
+keys = ["%symbols"]
+commands = ["push_palette %0"]
+desc = "Insert character"
+
+[[keybind]]
+modes = ['c']
+keys = ["space"]
+commands = ["push_palette ' '"]
+desc = "Insert character"

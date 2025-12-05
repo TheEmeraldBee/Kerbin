@@ -191,6 +191,10 @@ async fn main() {
         }
     };
 
+    resolver_engine_mut()
+        .await
+        .set_template("cfg_folder", [&config_path]);
+
     let temp_dir = dirs::data_dir().unwrap();
     let queue_dir = format!("{}/kerbin/sessions", temp_dir.to_string_lossy());
     let queue_file = format!("{}/{}", queue_dir, command_session);
@@ -251,6 +255,9 @@ async fn main() {
         commands.register::<ModeCommand>();
         commands.register::<StateCommand>();
 
+        commands.register::<PaletteCommand>();
+        commands.register::<InputCommand>();
+
         commands.register::<MotionCommand>();
 
         commands.register::<ShellCommand>();
@@ -291,7 +298,6 @@ async fn main() {
         .on_hook(hooks::Update)
         .system(update_debounce)
         .system(handle_inputs)
-        .system(handle_command_palette_input)
         .system(update_palette_suggestions)
         .system(render_cursors_and_selections);
 

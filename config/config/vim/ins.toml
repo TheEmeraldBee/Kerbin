@@ -9,14 +9,3 @@ modes = []
 keys = ["shift-o"]
 commands = ["start_change", "slb false", "gsb", "sc", "ts_nl", "ml -1", "pm i"]
 desc = "Start insert at new line before"
-
-[[keybind]]
-modes = ["i"]
-keys = ["enter"]
-commands = ["ts_nl"]
-desc = "Insert Newline"
-
-[[keybind]]
-modes = ["i"]
-keys = ["tab"]
-commands = ["a '    ' false", "gse", "cs"]

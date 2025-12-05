@@ -1,0 +1,7 @@
+[[keybind]]
+modes = []
+keys = ["%numbers"]
+commands = ["p_rep %0"]
+desc = "Add to repeat numbers"
+
+deny_repeat = true

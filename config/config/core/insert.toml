@@ -1,36 +1,49 @@
 # The default insert mode configuration
 
 [[keybind]]
+modes = []
+invalid_modes = ["i"]
+keys = ["i"]
+commands = ["pm i"]
+desc = "Insert Mode"
+
+[[keybind]]
+modes = ["i"]
+keys = ["enter"]
+commands = ["ts_nl"]
+desc = "Insert Newline"
+
+[[keybind]]
+modes = ["i"]
+keys = ["tab"]
+commands = ["a '    ' false", "gse", "cs"]
+
+[[keybind]]
 modes = ['i']
-invalid_modes = []
 keys = ["%alphabet"]
 commands = ["a %0 false"]
 desc = "Insert character"
 
 [[keybind]]
 modes = ['i']
-invalid_modes = []
 keys = ["%cap_alphabet"]
 commands = ["a %0 false"]
 desc = "Insert character"
 
 [[keybind]]
 modes = ['i']
-invalid_modes = []
 keys = ["%numbers"]
 commands = ["a %0 false"]
 desc = "Insert character"
 
 [[keybind]]
 modes = ['i']
-invalid_modes = []
 keys = ["%symbols"]
 commands = ["a %0 false"]
 desc = "Insert character"
 
 [[keybind]]
 modes = ['i']
-invalid_modes = []
 keys = ["space"]
 commands = ["a ' ' false"]
 desc = "Insert character"

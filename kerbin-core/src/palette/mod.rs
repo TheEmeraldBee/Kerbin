@@ -58,63 +58,6 @@ pub async fn update_palette_suggestions(
     );
 }
 
-/// Handles keyboard input specific to the command palette ('c' mode).
-pub async fn handle_command_palette_input(
-    window: Res<WindowState>,
-    palette: ResMut<CommandPaletteState>,
-    modes: ResMut<ModeStack>,
-    command_registry: Res<CommandRegistry>,
-    prefix_registry: Res<CommandPrefixRegistry>,
-    command_sender: ResMut<CommandSender>,
-) {
-    get!(window, mut palette, mut modes);
-
-    let mode = modes.get_mode();
-    if mode != 'c' {
-        return;
-    }
-
-    for event in window.events() {
-        if let Event::Key(key) = event {
-            match key.code {
-                KeyCode::Char(c) => palette.input.push(c),
-                KeyCode::Backspace => {
-                    palette.input.pop();
-                }
-                KeyCode::Enter => {
-                    modes.pop_mode();
-
-                    let registry = prefix_registry.get().await;
-                    let command = command_registry.get().await.parse_command(
-                        word_split(&palette.input),
-                        true,
-                        true,
-                        Some(&resolver_engine().await.as_resolver()),
-                        true,
-                        &registry,
-                        &modes,
-                    );
-                    if let Some(command) = command {
-                        command_sender.get().await.send(command).unwrap();
-                    }
-
-                    palette.input.clear();
-                }
-                KeyCode::Esc => {
-                    modes.pop_mode();
-                    palette.input.clear();
-                }
-                KeyCode::Tab => {
-                    if let Some(completion) = palette.completion.take() {
-                        palette.input = completion;
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-}
-
 /// Registers the command palette's required chunks for rendering.
 /// Creates a centered floating layout similar to noice.nvim
 pub async fn register_command_palette_chunks(

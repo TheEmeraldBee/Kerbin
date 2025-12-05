@@ -24,6 +24,9 @@ pub struct Metadata {
     pub required_templates: Vec<String>,
 
     #[serde(default)]
+    pub deny_repeat: bool,
+
+    #[serde(default)]
     pub desc: String,
 }
 
@@ -125,36 +128,6 @@ pub async fn handle_inputs(
         }
     }
 
-    let mode = modes.get_mode();
-    if mode == 'c' {
-        return;
-    }
-
-    let mut found_num = false;
-
-    for event in window.events() {
-        let Event::Key(KeyEvent {
-            code: KeyCode::Char(ch),
-            modifiers: KeyModifiers::NONE,
-            ..
-        }) = event
-        else {
-            continue;
-        };
-
-        if ch.is_numeric() {
-            if *ch == '0' && input.repeat_count.is_empty() {
-                continue;
-            }
-            input.repeat_count.push(*ch);
-            found_num = true;
-        }
-    }
-
-    if found_num {
-        return;
-    }
-
     let resolver_engine = resolver_engine().await;
     let resolver = resolver_engine.as_resolver();
 
@@ -198,7 +171,7 @@ pub async fn handle_inputs(
                     None
                 }
             }) {
-            Ok(StepResult::Success(sequence, commands)) => {
+            Ok(StepResult::Success(sequence, commands, meta)) => {
                 drop(resolver);
                 drop(resolver_engine);
 
@@ -207,8 +180,14 @@ pub async fn handle_inputs(
                     resolver.set_template(i, [key.to_string()]);
                 }
 
+                let mut repeat = 1;
+                if !input.repeat_count.is_empty() && !meta.map(|x| x.deny_repeat).unwrap_or(false) {
+                    repeat = input.repeat_count.parse().unwrap_or(1).max(1);
+                    input.repeat_count.clear();
+                }
+
                 let resolver = resolver.as_resolver();
-                'outer: for _ in 0..input.repeat_count.parse::<i32>().unwrap_or(1) {
+                'outer: for _ in 0..repeat {
                     for command in &commands {
                         let registry = prefix_registry.get().await;
                         let command = command_registry.get().await.parse_command(
@@ -229,7 +208,6 @@ pub async fn handle_inputs(
                 }
 
                 input.tree.reset();
-                input.repeat_count.clear();
 
                 break;
             }

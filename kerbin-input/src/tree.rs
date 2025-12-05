@@ -366,7 +366,7 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
         key_code: KeyCode,
         key_mods: KeyModifiers,
         check: impl Fn(Option<&M>) -> Option<u32>,
-    ) -> Result<StepResult<A>, ParseError> {
+    ) -> Result<StepResult<A, M>, ParseError> {
         let pressed_key = ResolvedKeyBind::new(key_mods, key_code);
 
         let candidates = [
@@ -385,26 +385,26 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
             },
         ];
 
-        struct Match<A: Clone> {
+        struct Match<A: Clone, M: Clone> {
             rank: u32,
             candidate_idx: usize,
             vec_idx: usize,
             action_idx: usize,
-            result: PendingResult<A>,
+            result: PendingResult<A, M>,
         }
 
-        enum PendingResult<A: Clone> {
-            Success(A),
+        enum PendingResult<A: Clone, M: Clone> {
+            Success(A, Option<M>),
             Step(usize, Arc<KeyItem<A>>, usize),
         }
 
-        let mut best_match: Option<Match<A>> = None;
+        let mut best_match: Option<Match<A, M>> = None;
 
         let mut consider = |rank: u32,
                             candidate_idx: usize,
                             vec_idx: usize,
                             action_idx: usize,
-                            result: PendingResult<A>| {
+                            result: PendingResult<A, M>| {
             match &best_match {
                 None => {
                     best_match = Some(Match {
@@ -472,7 +472,7 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
                                             cand_idx,
                                             vec_idx,
                                             action_idx,
-                                            PendingResult::Success(action.clone()),
+                                            PendingResult::Success(action.clone(), meta.cloned()),
                                         );
                                     }
                                 }
@@ -522,9 +522,12 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
                                             consider(
                                                 rank,
                                                 cand_idx,
-                                                vec_idx, // This is 0 for nested
+                                                vec_idx,
                                                 action_idx,
-                                                PendingResult::Success(action.clone()),
+                                                PendingResult::Success(
+                                                    action.clone(),
+                                                    meta.cloned(),
+                                                ),
                                             );
                                         }
                                     }
@@ -564,11 +567,11 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
 
         match best_match {
             Some(Match { result, .. }) => match result {
-                PendingResult::Success(action) => {
+                PendingResult::Success(action, metadata) => {
                     self.current_sequence.push(pressed_key);
                     let seq = self.current_sequence.clone();
                     self.reset();
-                    Ok(StepResult::Success(seq, action))
+                    Ok(StepResult::Success(seq, action, metadata))
                 }
                 PendingResult::Step(depth, node, idx) => {
                     self.current_sequence.push(pressed_key);
@@ -675,8 +678,8 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum StepResult<A: Clone> {
-    Success(Vec<ResolvedKeyBind>, A),
+pub enum StepResult<A: Clone, M> {
+    Success(Vec<ResolvedKeyBind>, A, Option<M>),
     Step,
     Reset,
 }

@@ -83,21 +83,3 @@ modes = []
 keys = ["shift-b"]
 commands = ['rxcb (?:\\s+|\\S+)(\\s?) -1 false', "gsb", "sc"]
 desc = "Go Back WORD"
-
-[[keybind]]
-modes = []
-keys = ["0"]
-commands = ["slb false", "gsb", "sc"]
-desc = "Goto Line Start"
-
-[[keybind]]
-modes = []
-keys = ["$"]
-commands = ["sle false", "gse", "sc"]
-desc = "Goto Line End"
-
-[[keybind]]
-modes = []
-keys = ["^"]
-commands = ["sfw false", "sc"]
-desc = "Goto Line End"
