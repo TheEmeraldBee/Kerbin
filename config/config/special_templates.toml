@@ -1,19 +1,5 @@
 # This file defines special templates used by many core systems
 
-[[keybind]]
-modes = []
-invalid_modes = []
-keys = ["I"]
-commands = ["pm I"]
-desc = "Enter Special Insert Mode"
-
-[[keybind]]
-modes = ['I']
-invalid_modes = []
-keys = ["%alphabet"]
-commands = ["a %0 false"]
-desc = "Insert character"
-
 [template]
 alphabet = [
   "a",
@@ -88,7 +74,7 @@ symbols = [
   "=",
   "-",
   "+",
-  "-",
+  "_",
   "\\",
   "|",
   "/",

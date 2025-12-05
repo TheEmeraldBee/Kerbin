@@ -1,6 +1,6 @@
 [[import]]
 # Import core system toml configuration
-paths = ["./special_templates.toml"]
+paths = ["./special_templates.toml", "./insert.toml"]
 
 [[import]]
 # Just import theme here for organization

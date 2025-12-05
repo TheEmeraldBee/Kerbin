@@ -31,3 +31,11 @@ opt-level = 3
 
 [profile.dev]
 opt-level = 1
+
+[profile.mini]
+inherits = "release"
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"

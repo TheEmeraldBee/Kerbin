@@ -365,12 +365,10 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
         resolver: &Resolver,
         key_code: KeyCode,
         key_mods: KeyModifiers,
-        check: impl Fn(Option<&M>) -> bool,
+        check: impl Fn(Option<&M>) -> Option<u32>,
     ) -> Result<StepResult<A>, ParseError> {
         let pressed_key = ResolvedKeyBind::new(key_mods, key_code);
 
-        // Generate fallback keys for wildcard matching
-        // Order: Exact -> AnyMods -> AnyCode -> AnyAll
         let candidates = vec![
             pressed_key.clone(),
             ResolvedKeyBind {
@@ -387,91 +385,177 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
             },
         ];
 
-        if self.active_tree.is_none() {
-            for candidate in &candidates {
-                if let Some(items) = self.tree.get(candidate) {
-                    // Check items in reverse order (most recently added first)
-                    for (vec_idx, item) in items.iter().enumerate().rev() {
-                        match item.as_ref() {
-                            KeyItem::Leaf(actions) => {
-                                // Check actions in reverse order (last added = first checked)
-                                for (meta_idx, action) in actions.iter().rev() {
-                                    let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
-                                    if check(meta) {
-                                        self.current_sequence.clear();
-                                        return Ok(StepResult::Success(
-                                            vec![pressed_key],
-                                            action.clone(),
-                                        ));
-                                    }
-                                }
-                            }
-                            KeyItem::Tree(_, _, actions) => {
-                                // For tree nodes, check if any action passes (for partial match handling)
-                                let mut has_valid_action = false;
-                                for (meta_idx, _) in actions.iter().rev() {
-                                    let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
-                                    if check(meta) {
-                                        has_valid_action = true;
-                                        break;
-                                    }
-                                }
+        struct Match<A: Clone> {
+            rank: u32,
+            candidate_idx: usize,
+            vec_idx: usize,
+            action_idx: usize,
+            result: PendingResult<A>,
+        }
 
-                                // If we have valid actions or no actions (pure tree), descend
-                                if has_valid_action || actions.is_empty() {
-                                    self.active_tree = Some((0, Arc::clone(item), vec_idx));
-                                    self.current_sequence.push(pressed_key);
-                                    self.resolve_current_layer(resolver)?;
-                                    return Ok(StepResult::Step);
+        enum PendingResult<A: Clone> {
+            Success(A),
+            Step(usize, Arc<KeyItem<A>>, usize),
+        }
+
+        let mut best_match: Option<Match<A>> = None;
+
+        let mut consider = |rank: u32,
+                            candidate_idx: usize,
+                            vec_idx: usize,
+                            action_idx: usize,
+                            result: PendingResult<A>| {
+            match &best_match {
+                None => {
+                    best_match = Some(Match {
+                        rank,
+                        candidate_idx,
+                        vec_idx,
+                        action_idx,
+                        result,
+                    })
+                }
+                Some(current) => {
+                    if rank < current.rank {
+                        best_match = Some(Match {
+                            rank,
+                            candidate_idx,
+                            vec_idx,
+                            action_idx,
+                            result,
+                        });
+                    } else if rank == current.rank {
+                        if candidate_idx < current.candidate_idx {
+                            best_match = Some(Match {
+                                rank,
+                                candidate_idx,
+                                vec_idx,
+                                action_idx,
+                                result,
+                            });
+                        } else if candidate_idx == current.candidate_idx {
+                            // Priority 3: Insertion Order (Later = Higher Index)
+                            if vec_idx > current.vec_idx {
+                                best_match = Some(Match {
+                                    rank,
+                                    candidate_idx,
+                                    vec_idx,
+                                    action_idx,
+                                    result,
+                                });
+                            } else if vec_idx == current.vec_idx {
+                                // Priority 4: Action Insertion Order
+                                if action_idx > current.action_idx {
+                                    best_match = Some(Match {
+                                        rank,
+                                        candidate_idx,
+                                        vec_idx,
+                                        action_idx,
+                                        result,
+                                    });
                                 }
                             }
                         }
                     }
                 }
             }
-            return Ok(StepResult::Reset);
-        }
+        };
 
-        if let Some(cache) = &self.resolved_cache {
-            for candidate in &candidates {
+        if self.active_tree.is_none() {
+            for (cand_idx, candidate) in candidates.iter().enumerate() {
+                if let Some(items) = self.tree.get(candidate) {
+                    for (vec_idx, item) in items.iter().enumerate() {
+                        match item.as_ref() {
+                            KeyItem::Leaf(actions) => {
+                                for (action_idx, (meta_idx, action)) in actions.iter().enumerate() {
+                                    let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
+                                    if let Some(rank) = check(meta) {
+                                        consider(
+                                            rank,
+                                            cand_idx,
+                                            vec_idx,
+                                            action_idx,
+                                            PendingResult::Success(action.clone()),
+                                        );
+                                    }
+                                }
+                            }
+                            KeyItem::Tree(_, _, actions) => {
+                                // Check for actions (potential success/rank source)
+                                let mut best_action_rank = None;
+                                for (meta_idx, _) in actions.iter() {
+                                    let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
+                                    if let Some(rank) = check(meta) {
+                                        if best_action_rank.map_or(true, |r| rank < r) {
+                                            best_action_rank = Some(rank);
+                                        }
+                                    }
+                                }
+
+                                if best_action_rank.is_some() || actions.is_empty() {
+                                    let step_rank = 0; // Highest priority for stepping
+                                    consider(
+                                        step_rank,
+                                        cand_idx,
+                                        vec_idx,
+                                        usize::MAX,
+                                        PendingResult::Step(0, Arc::clone(item), vec_idx),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else if let Some(cache) = &self.resolved_cache {
+            for (cand_idx, candidate) in candidates.iter().enumerate() {
                 if let Some(matches) = cache.get(candidate) {
-                    // Check candidates in reverse order
-                    for &(vec_idx, child_idx) in matches.iter().rev() {
+                    for &(vec_idx, child_idx) in matches.iter() {
                         if let Some(active) = &self.active_tree
                             && let KeyItem::Tree(_, children, _) = active.1.as_ref()
                             && let Some(child) = children.get(child_idx)
                         {
                             match child.as_ref() {
                                 KeyItem::Leaf(actions) => {
-                                    // Check actions in reverse order (last added = first checked)
-                                    for (meta_idx, action) in actions.iter().rev() {
+                                    for (action_idx, (meta_idx, action)) in
+                                        actions.iter().enumerate()
+                                    {
                                         let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
-                                        if check(meta) {
-                                            self.current_sequence.push(pressed_key.clone());
-                                            let action = action.clone();
-                                            let seq = self.current_sequence.clone();
-                                            self.reset();
-                                            return Ok(StepResult::Success(seq, action));
+                                        if let Some(rank) = check(meta) {
+                                            consider(
+                                                rank,
+                                                cand_idx,
+                                                vec_idx, // This is 0 for nested
+                                                action_idx,
+                                                PendingResult::Success(action.clone()),
+                                            );
                                         }
                                     }
                                 }
                                 KeyItem::Tree(_, _, actions) => {
-                                    // For tree nodes, check if any action passes
-                                    let mut has_valid_action = false;
-                                    for (meta_idx, _) in actions.iter().rev() {
+                                    let mut best_action_rank = None;
+                                    for (meta_idx, _) in actions.iter() {
                                         let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
-                                        if check(meta) {
-                                            has_valid_action = true;
-                                            break;
+                                        if let Some(rank) = check(meta) {
+                                            if best_action_rank.map_or(true, |r| rank < r) {
+                                                best_action_rank = Some(rank);
+                                            }
                                         }
                                     }
 
-                                    if has_valid_action || actions.is_empty() {
-                                        self.current_sequence.push(pressed_key.clone());
-                                        self.active_tree =
-                                            Some((active.0 + 1, Arc::clone(child), vec_idx));
-                                        self.resolve_current_layer(resolver)?;
-                                        return Ok(StepResult::Step);
+                                    if best_action_rank.is_some() || actions.is_empty() {
+                                        let step_rank = 0;
+                                        consider(
+                                            step_rank,
+                                            cand_idx,
+                                            vec_idx,
+                                            usize::MAX,
+                                            PendingResult::Step(
+                                                active.0 + 1,
+                                                Arc::clone(child),
+                                                vec_idx,
+                                            ),
+                                        );
                                     }
                                 }
                             }
@@ -481,8 +565,26 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
             }
         }
 
-        self.reset();
-        Ok(StepResult::Reset)
+        match best_match {
+            Some(Match { result, .. }) => match result {
+                PendingResult::Success(action) => {
+                    self.current_sequence.push(pressed_key);
+                    let seq = self.current_sequence.clone();
+                    self.reset();
+                    Ok(StepResult::Success(seq, action))
+                }
+                PendingResult::Step(depth, node, idx) => {
+                    self.current_sequence.push(pressed_key);
+                    self.active_tree = Some((depth, node, idx));
+                    self.resolve_current_layer(resolver)?;
+                    Ok(StepResult::Step)
+                }
+            },
+            None => {
+                self.reset();
+                Ok(StepResult::Reset)
+            }
+        }
     }
 
     fn resolve_current_layer(&mut self, resolver: &Resolver) -> Result<(), ParseError> {

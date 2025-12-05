@@ -130,39 +130,6 @@ pub async fn handle_inputs(
         return;
     }
 
-    let mut consumed = false;
-    if mode == 'i' {
-        for event in window.events() {
-            if let Event::Key(KeyEvent {
-                code: KeyCode::Char(chr),
-                modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
-                ..
-            }) = event
-            {
-                consumed = true;
-
-                // Existing character handling
-                let registry = prefix_registry.get().await;
-                let command = command_registry.get().await.parse_command(
-                    vec!["a".to_string(), chr.to_string(), "false".to_string()],
-                    true,
-                    false,
-                    None,
-                    false,
-                    &registry,
-                    &modes,
-                );
-                if let Some(command) = command {
-                    command_sender.get().await.send(command).unwrap();
-                }
-            }
-        }
-    }
-
-    if consumed {
-        return;
-    }
-
     let mut found_num = false;
 
     for event in window.events() {
@@ -200,7 +167,7 @@ pub async fn handle_inputs(
             .tree
             .step(&resolver, event.code, event.modifiers, |data| {
                 let Some(data) = data else {
-                    return true;
+                    return Some(u32::MAX);
                 };
 
                 // Check if modes are satisfied
@@ -218,7 +185,18 @@ pub async fn handle_inputs(
                         .iter()
                         .all(|x| resolver_engine.has_template(x));
 
-                mode_ok && !invalid_mode_present && templates_ok
+                if mode_ok && !invalid_mode_present && templates_ok {
+                    Some(
+                        data.modes
+                            .iter()
+                            .filter_map(|x| modes.where_on_stack(*x))
+                            .max()
+                            .map(|x| x as u32)
+                            .unwrap_or(u32::MAX),
+                    )
+                } else {
+                    None
+                }
             }) {
             Ok(StepResult::Success(sequence, commands)) => {
                 drop(resolver);

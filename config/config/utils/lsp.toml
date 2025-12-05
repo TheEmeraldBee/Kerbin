@@ -1,5 +1,5 @@
 [[keybind]]
-modes = ["n"]
+modes = []
 keys = ["space", "k"]
 commands = ['hover']
 desc = "Show Hover"

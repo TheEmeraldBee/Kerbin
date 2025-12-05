@@ -1,0 +1,36 @@
+# The default insert mode configuration
+
+[[keybind]]
+modes = ['i']
+invalid_modes = []
+keys = ["%alphabet"]
+commands = ["a %0 false"]
+desc = "Insert character"
+
+[[keybind]]
+modes = ['i']
+invalid_modes = []
+keys = ["%cap_alphabet"]
+commands = ["a %0 false"]
+desc = "Insert character"
+
+[[keybind]]
+modes = ['i']
+invalid_modes = []
+keys = ["%numbers"]
+commands = ["a %0 false"]
+desc = "Insert character"
+
+[[keybind]]
+modes = ['i']
+invalid_modes = []
+keys = ["%symbols"]
+commands = ["a %0 false"]
+desc = "Insert character"
+
+[[keybind]]
+modes = ['i']
+invalid_modes = []
+keys = ["space"]
+commands = ["a ' ' false"]
+desc = "Insert character"

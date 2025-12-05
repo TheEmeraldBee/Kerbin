@@ -102,17 +102,34 @@ impl ParsableKey for KeyCode {
 impl ParsableKey for ResolvedKeyBind {
     type Output = Self;
     fn parse_from_str(text: &str) -> Result<Self::Output, ParseError> {
-        let parts: Vec<&str> = text.split('-').collect();
-        if parts.is_empty() {
-            return Err(ParseError::Custom("Empty keybind string".to_string()));
+        // Special case for dash key
+        if text == "-" {
+            return Ok(ResolvedKeyBind::new_matchable(
+                Matchable::Specific(KeyModifiers::empty()),
+                Matchable::Specific(KeyCode::Char('-')),
+            ));
         }
 
-        let (mods_str, key_str) = parts.split_at(parts.len() - 1);
-        let key_code = Matchable::<KeyCode>::parse_from_str(key_str[0])?;
+        let (mods_str, key_str) = if text.ends_with("--") {
+            (&text[..text.len() - 2], "-")
+        } else {
+            match text.rsplit_once('-') {
+                Some((m, k)) => (m, k),
+                None => ("", text),
+            }
+        };
+
+        if key_str.is_empty() {
+            return Err(ParseError::Custom("Empty key code".to_string()));
+        }
+
+        let key_code = Matchable::<KeyCode>::parse_from_str(key_str)?;
 
         let mut key_mods = Matchable::Specific(KeyModifiers::empty());
-        for m in mods_str {
-            key_mods = key_mods | Matchable::<KeyModifiers>::parse_from_str(m)?;
+        if !mods_str.is_empty() {
+            for m in mods_str.split('-') {
+                key_mods = key_mods | Matchable::<KeyModifiers>::parse_from_str(m)?;
+            }
         }
 
         Ok(ResolvedKeyBind::new_matchable(key_mods, key_code))
@@ -211,6 +228,14 @@ fn parse_segments(s: &str) -> Result<Vec<String>, String> {
 
     while let Some(ch) = chars.next() {
         match ch {
+            '\\' => {
+                if let Some(next_char) = chars.next() {
+                    current.push(next_char);
+                } else {
+                    current.push('\\');
+                }
+            }
+
             // Command substitution
             '$' if chars.peek() == Some(&'(') => {
                 chars.next(); // consume '('
@@ -275,7 +300,11 @@ fn parse_segments(s: &str) -> Result<Vec<String>, String> {
                     segments.push(current.clone());
                     current.clear();
                 } else {
-                    return Err("Empty segment before dash".to_string());
+                    if chars.peek().is_none() {
+                        current.push('-');
+                    } else {
+                        return Err("Empty segment before dash".to_string());
+                    }
                 }
             }
 
@@ -466,6 +495,45 @@ mod tests {
         match &bind.code {
             UnresolvedKeyElement::OneOf(opts) => assert_eq!(opts.len(), 3),
             _ => panic!("Expected OneOf"),
+        }
+    }
+
+    #[test]
+    fn test_parse_dash() {
+        let bind: UnresolvedKeyBind = "-".parse().unwrap();
+        match &bind.code {
+            UnresolvedKeyElement::Literal(ResolvedKeyBind {
+                code: Matchable::Specific(KeyCode::Char('-')),
+                ..
+            }) => (),
+            _ => panic!("Expected literal '-'"),
+        }
+    }
+
+    #[test]
+    fn test_parse_ctrl_dash() {
+        let bind: UnresolvedKeyBind = "ctrl--".parse().unwrap();
+        assert_eq!(bind.mods.len(), 1);
+        match &bind.code {
+            UnresolvedKeyElement::Literal(ResolvedKeyBind {
+                code: Matchable::Specific(KeyCode::Char('-')),
+                ..
+            }) => (),
+            _ => panic!("Expected literal '-'"),
+        }
+    }
+
+    #[test]
+    fn test_parse_escaped_dash() {
+        // "ctrl-\-" should be parsed as "ctrl" modifier and "-" key
+        let bind: UnresolvedKeyBind = r"ctrl-\-".parse().unwrap();
+        assert_eq!(bind.mods.len(), 1);
+        match &bind.code {
+            UnresolvedKeyElement::Literal(ResolvedKeyBind {
+                code: Matchable::Specific(KeyCode::Char('-')),
+                ..
+            }) => (),
+            _ => panic!("Expected literal '-'"),
         }
     }
 }

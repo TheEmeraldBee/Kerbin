@@ -3,19 +3,19 @@ keys = ["space", "f"]
 desc = "File findings"
 
 [[keybind]]
-modes = ["n"]
+modes = []
 keys = ["space", "f", "f"]
 commands = ["ship sh %cfg_folder/scripts/fzf.sh %session"]
 desc = "Run FZF file picker at location editor was run"
 
 [[keybind]]
-modes = ["n"]
+modes = []
 keys = ["space", "f", "t"]
 commands = ["ship sh %cfg_folder/scripts/yazi.sh %session %cur_buf"]
 desc = "Run Yazi file picker"
 
 [[keybind]]
-modes = ["n"]
+modes = []
 keys = [";", "s"]
 commands = ['ship sh -c "%shell"']
 desc = "Run sh shell session"

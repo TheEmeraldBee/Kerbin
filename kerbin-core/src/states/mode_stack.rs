@@ -12,10 +12,6 @@ impl ModeStack {
     /// Pushes a new mode onto the mode stack.
     ///
     /// The newly pushed mode becomes the current active mode.
-    ///
-    /// # Arguments
-    ///
-    /// * `mode`: The character representing the mode to push (e.g., 'i' for insert mode).
     pub fn push_mode(&mut self, mode: char) {
         self.0.push(mode);
     }
@@ -24,11 +20,6 @@ impl ModeStack {
     ///
     /// If only one mode remains (typically 'n' for normal mode), it cannot be popped
     /// to ensure there's always an active mode.
-    ///
-    /// # Returns
-    ///
-    /// An `Option<char>` containing the popped mode, or `None` if only one mode remains
-    /// and thus cannot be popped.
     pub fn pop_mode(&mut self) -> Option<char> {
         if self.0.len() <= 1 {
             return None;
@@ -41,10 +32,6 @@ impl ModeStack {
     /// is at the bottom of the stack, followed by the specified mode if it's not 'n'.
     ///
     /// This effectively switches the editor to a new, single-active mode.
-    ///
-    /// # Arguments
-    ///
-    /// * `mode`: The character representing the mode to set as the current active mode.
     pub fn set_mode(&mut self, mode: char) {
         self.0.clear();
         self.0.push('n');
@@ -56,15 +43,6 @@ impl ModeStack {
     }
 
     /// Returns the current active mode (the top-most mode on the stack).
-    ///
-    /// # Panics
-    ///
-    /// Panics if the mode stack is empty. This scenario should ideally be prevented
-    /// by always ensuring 'n' mode is present.
-    ///
-    /// # Returns
-    ///
-    /// The character representing the current active mode.
     pub fn get_mode(&self) -> char {
         *self.0.last().unwrap()
     }
@@ -73,15 +51,22 @@ impl ModeStack {
     ///
     /// This is useful for determining if the editor is in a specific mode,
     /// even if it's not the top-most (current) mode.
-    ///
-    /// # Arguments
-    ///
-    /// * `mode`: The character representing the mode to check for.
-    ///
-    /// # Returns
-    ///
-    /// `true` if the mode is found on the stack, `false` otherwise.
     pub fn mode_on_stack(&self, mode: char) -> bool {
         self.0.contains(&mode)
+    }
+
+    /// Locates the index of the stack that the mode is on, in decending order
+    ///
+    /// IE: 'n' -> 'i'
+    /// Would be (1 -> 0)
+    /// So asking for 'n' would return 1,
+    /// asking for 'i' would return 0
+    pub fn where_on_stack(&self, mode: char) -> Option<usize> {
+        self.0
+            .iter()
+            .rev()
+            .enumerate()
+            .find(|x| *x.1 == mode)
+            .map(|x| x.0)
     }
 }

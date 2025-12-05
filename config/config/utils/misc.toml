@@ -1,11 +1,11 @@
 [[keybind]]
-modes = ["n"]
+modes = []
 keys = [";", "shift-q"]
 commands = ["quit"]
 desc = "Quit"
 
 [[keybind]]
-modes = ["n"]
+modes = []
 keys = [";", "w"]
 commands = ["write_file"]
 desc = "Save file"
@@ -23,19 +23,19 @@ commands = ["redo"]
 desc = "Undo"
 
 [[keybind]]
-modes = ["n"]
+modes = []
 keys = ["g", "n"]
 commands = ["bm 1"] 
 desc = "Next Buffer"
 
 [[keybind]]
-modes = ["n"]
+modes = []
 keys = ["g", "p"]
 commands = ["bm -1"] 
 desc = "Previous Buffer"
 
 [[keybind]]
-modes = ["n"]
+modes = []
 keys = [";", "q"]
 commands = ["bc"]
 desc = "Close current buffer"
