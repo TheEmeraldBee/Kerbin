@@ -369,7 +369,7 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
     ) -> Result<StepResult<A>, ParseError> {
         let pressed_key = ResolvedKeyBind::new(key_mods, key_code);
 
-        let candidates = vec![
+        let candidates = [
             pressed_key.clone(),
             ResolvedKeyBind {
                 mods: Matchable::Any,
@@ -434,7 +434,6 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
                                 result,
                             });
                         } else if candidate_idx == current.candidate_idx {
-                            // Priority 3: Insertion Order (Later = Higher Index)
                             if vec_idx > current.vec_idx {
                                 best_match = Some(Match {
                                     rank,
@@ -443,17 +442,15 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
                                     action_idx,
                                     result,
                                 });
-                            } else if vec_idx == current.vec_idx {
-                                // Priority 4: Action Insertion Order
-                                if action_idx > current.action_idx {
-                                    best_match = Some(Match {
-                                        rank,
-                                        candidate_idx,
-                                        vec_idx,
-                                        action_idx,
-                                        result,
-                                    });
-                                }
+                            } else if vec_idx == current.vec_idx && action_idx > current.action_idx
+                            {
+                                best_match = Some(Match {
+                                    rank,
+                                    candidate_idx,
+                                    vec_idx,
+                                    action_idx,
+                                    result,
+                                });
                             }
                         }
                     }
@@ -485,15 +482,15 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
                                 let mut best_action_rank = None;
                                 for (meta_idx, _) in actions.iter() {
                                     let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
-                                    if let Some(rank) = check(meta) {
-                                        if best_action_rank.map_or(true, |r| rank < r) {
-                                            best_action_rank = Some(rank);
-                                        }
+                                    if let Some(rank) = check(meta)
+                                        && best_action_rank.is_none_or(|r| rank < r)
+                                    {
+                                        best_action_rank = Some(rank);
                                     }
                                 }
 
                                 if best_action_rank.is_some() || actions.is_empty() {
-                                    let step_rank = 0; // Highest priority for stepping
+                                    let step_rank = best_action_rank.unwrap_or(u32::MAX);
                                     consider(
                                         step_rank,
                                         cand_idx,
@@ -536,15 +533,15 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
                                     let mut best_action_rank = None;
                                     for (meta_idx, _) in actions.iter() {
                                         let meta = meta_idx.and_then(|idx| self.metadata.get(idx));
-                                        if let Some(rank) = check(meta) {
-                                            if best_action_rank.map_or(true, |r| rank < r) {
-                                                best_action_rank = Some(rank);
-                                            }
+                                        if let Some(rank) = check(meta)
+                                            && best_action_rank.is_none_or(|r| rank < r)
+                                        {
+                                            best_action_rank = Some(rank);
                                         }
                                     }
 
                                     if best_action_rank.is_some() || actions.is_empty() {
-                                        let step_rank = 0;
+                                        let step_rank = best_action_rank.unwrap_or(u32::MAX);
                                         consider(
                                             step_rank,
                                             cand_idx,

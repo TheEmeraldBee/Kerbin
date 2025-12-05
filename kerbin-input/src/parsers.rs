@@ -37,6 +37,8 @@ impl<T: ParsableKey<Output = T>> ParsableKey for Matchable<T> {
     fn parse_from_str(text: &str) -> Result<Self::Output, ParseError> {
         if text == "*" {
             Ok(Matchable::Any)
+        } else if let Some(stripped) = text.strip_prefix('\\') {
+            Ok(Matchable::Specific(T::parse_from_str(stripped)?))
         } else {
             Ok(Matchable::Specific(T::parse_from_str(text)?))
         }
@@ -110,8 +112,8 @@ impl ParsableKey for ResolvedKeyBind {
             ));
         }
 
-        let (mods_str, key_str) = if text.ends_with("--") {
-            (&text[..text.len() - 2], "-")
+        let (mods_str, key_str) = if let Some(stripped) = text.strip_suffix("--") {
+            (stripped, "-")
         } else {
             match text.rsplit_once('-') {
                 Some((m, k)) => (m, k),
@@ -299,12 +301,10 @@ fn parse_segments(s: &str) -> Result<Vec<String>, String> {
                 if !current.is_empty() {
                     segments.push(current.clone());
                     current.clear();
+                } else if chars.peek().is_none() {
+                    current.push('-');
                 } else {
-                    if chars.peek().is_none() {
-                        current.push('-');
-                    } else {
-                        return Err("Empty segment before dash".to_string());
-                    }
+                    return Err("Empty segment before dash".to_string());
                 }
             }
 
