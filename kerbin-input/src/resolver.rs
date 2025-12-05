@@ -87,10 +87,15 @@ impl<'a> Resolver<'a> {
                         chars.next();
                         result.push('%');
                     } else {
-                        let template_name: String = chars
-                            .by_ref()
-                            .take_while(|c| c.is_alphanumeric() || *c == '_')
-                            .collect();
+                        let mut template_name = String::new();
+                        while let Some(&c) = chars.peek() {
+                            if c.is_alphanumeric() || c == '_' {
+                                template_name.push(c);
+                                chars.next();
+                            } else {
+                                break;
+                            }
+                        }
 
                         if !template_name.is_empty() {
                             if let Some(values) = self.templates.get(&template_name) {
