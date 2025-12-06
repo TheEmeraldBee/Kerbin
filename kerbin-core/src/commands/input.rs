@@ -27,7 +27,7 @@ impl Command for InputCommand {
                     return false;
                 }
 
-                input.repeat_count.push_str(&i.to_string());
+                input.repeat_count.push(*i);
                 true
             }
 

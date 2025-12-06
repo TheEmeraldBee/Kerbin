@@ -38,9 +38,9 @@ want to do it as a stretch goal, and I also wouldn't use it personally.
 ## Structs & Enums 
 - LspClient
     - Client state and writer/reader storage for the lsp client
-- Diagnostics State
+- Diagnostics
     - Stores results of diagnostic information
-- Opened Files
+- OpenedFile
     - Tracks buffers that are open to prevent re-checks
 - ProcessLspEventsCommand
     - A command to force checking of lsp events and dispatch Handlers
@@ -50,16 +50,30 @@ want to do it as a stretch goal, and I also wouldn't use it personally.
     - A state that describes a bunch of handlers
 - LspHandlerManager
     - Stores handlers for file-types as well as global handlers
-- BufferHoverInfo
+- HoverInfo
     - Stores a Buffer's hover information (hoverdata, position, etc)
 - HoverState
     - Stores hoverinfo and requests for Hovers on buffers
 - HoverCommand
     - A list of commands able to be run by the editor for using hovers
-- LanguageInfo
+- LangInfo
     - Info about how a language is defined in the editor
 - LspManager
     - Storage for the language infos and extension map
+- CompletionInfo
+    - Stores information about current autocomplete request and items
+- CompletionState
+    - Stores the state of completion for a buffer
+- CompletionCommand
+    - A list of commands for interacting with autocomplete
+- RequestInfo
+    - Stores information about a pending request
+- EventHandler
+    - Type alias for a function that handles LSP events
+- ClientFacade
+    - Trait for simplifying client interaction
+- UriExt
+    - Trait for working with Uris
 
 ### Below all types are related to using JsonRpc requirements
 - JsonRpcRequest
@@ -74,3 +88,12 @@ want to do it as a stretch goal, and I also wouldn't use it personally.
     a full file written out by the 7th of november
     - Partial Showing of the project could be done whenever, I recently implemented hover,
     still some bugs, but I will have it ready to be checked and shown by the 20th of November
+
+# Final Writeup
+I really enjoyed working on this part of kerbin because it taught me how to use and understand LSPs.
+I found that working on this project took a lot more work than I had initially expected because of the expectations
+that I had for the functionality required many changes in other locations.
+
+My biggest difficulty came from just implementing the LspClient type as they are super complicated and pretty hard
+to wrap your head around without just spending a couple hours messing around with them.
+
