@@ -176,18 +176,32 @@ async fn main() {
     }
 
     let config_path = match args.config {
-        Some(t) => t,
-        None => {
-            // Check XDG_CONFIG_HOME environment variable first (favors ~/.config)
-            let mut res = if let Ok(home) = std::env::var("XDG_CONFIG_HOME") {
-                std::path::PathBuf::from(home)
+        Some(t) => {
+            if let Ok(p) = std::fs::canonicalize(&t) {
+                p.to_string_lossy().to_string()
             } else {
-                // Fallback to the OS-native directory (via the `dirs` crate)
-                dirs::config_dir().expect("Failed to find user config directory")
-            };
+                t
+            }
+        }
+        None => {
+            // Check XDG_CONFIG_HOME environment variable first
+            if let Ok(home) = std::env::var("XDG_CONFIG_HOME") {
+                let mut path = std::path::PathBuf::from(home);
+                path.push("kerbin");
+                path.to_string_lossy().to_string()
+            } else {
+                // Check if ~/.config/kerbin exists (Common on macOS/Linux dev setups)
+                let home_config = dirs::home_dir().map(|h| h.join(".config").join("kerbin"));
 
-            res.push("kerbin"); // Append application name
-            res.to_string_lossy().to_string()
+                if let Some(path) = home_config.filter(|p| p.exists()) {
+                    path.to_string_lossy().to_string()
+                } else {
+                    // Fallback to the OS-native directory (via the `dirs` crate)
+                    let mut res = dirs::config_dir().expect("Failed to find user config directory");
+                    res.push("kerbin");
+                    res.to_string_lossy().to_string()
+                }
+            }
         }
     };
 
