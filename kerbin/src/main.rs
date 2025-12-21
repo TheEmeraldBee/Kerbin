@@ -15,7 +15,6 @@ use uuid::Uuid;
 #[derive(Parser, Clone)]
 pub struct KerbinCommand {
     /// A list of commands you would like to run
-    #[clap(short, long)]
     cmd: Vec<String>,
 
     /// The session to pass these commands to,
