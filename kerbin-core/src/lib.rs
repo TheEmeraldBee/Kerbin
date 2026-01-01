@@ -172,6 +172,9 @@ pub use logging::*;
 pub mod signal;
 pub use signal::*;
 
+pub mod ipc;
+pub use ipc::*;
+
 pub mod resolver;
 pub use resolver::*;
 

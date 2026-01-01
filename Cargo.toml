@@ -22,7 +22,7 @@ serde = { version = "1.0.219", features = [ "derive" ] }
 
 tracing = "0.1.41"
 
-uuid = { version = "1.18.1", features = ["v4"] }
+uuid = { version = "1.18.1", features = ["v4", "serde"] }
 
 ropey = { version = "=2.0.0-beta.1", features = ["metric_chars", "metric_lines_lf"] }
 

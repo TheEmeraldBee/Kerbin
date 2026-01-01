@@ -1,8 +1,7 @@
-use std::{iter::once, panic, str::FromStr, time::Duration};
+use std::{panic, time::Duration};
 
 use ascii_forge::prelude::*;
 
-use ipmpsc::SharedRingBuffer;
 use kerbin_config::Config;
 use kerbin_core::*;
 
@@ -12,29 +11,6 @@ use tokio::sync::mpsc::unbounded_channel;
 use clap::*;
 use uuid::Uuid;
 
-#[derive(Parser, Clone)]
-pub struct KerbinCommand {
-    /// A list of commands you would like to run
-    cmd: Vec<String>,
-
-    /// The session to pass these commands to,
-    /// Not putting one will create a new session and run the commands.
-    #[clap(short, long)]
-    session: Option<String>,
-}
-
-#[derive(Subcommand, Clone)]
-pub enum KerbinSubcommand {
-    /// Run a command either in a new session, or in the defined session
-    Command(KerbinCommand),
-
-    /// Run a command, then quit the editor
-    /// This can be done in a new window, or in a session by using the `-s` flag
-    ///
-    /// Should mostly be used to run one off commands like install commands.
-    CommandQuit(KerbinCommand),
-}
-
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 /// Kerbin: The Space-Age Text Editor
@@ -43,7 +19,36 @@ pub struct KerbinArgs {
     #[clap(short, long)]
     config: Option<String>,
     #[clap(subcommand)]
-    subcommand: Option<KerbinSubcommand>,
+    command: Option<Command>,
+}
+
+#[derive(Subcommand)]
+pub enum Command {
+    /// Execute a command in an existing session
+    Exec(ExecArgs),
+    /// Query information from an existing session
+    Query(QueryArgs),
+}
+
+#[derive(Args)]
+pub struct ExecArgs {
+    /// The session ID to target
+    #[clap(short, long)]
+    session: String,
+
+    /// The command to execute
+    #[clap(num_args = 1.., required = true)]
+    command: Vec<String>,
+}
+
+#[derive(Args)]
+pub struct QueryArgs {
+    /// The session ID to target
+    #[clap(short, long)]
+    session: String,
+
+    /// The query to execute
+    query: String,
 }
 
 pub async fn register_default_chunks(chunks: ResMut<Chunks>, window: Res<WindowState>) {
@@ -150,29 +155,26 @@ async fn update(state: &mut State) {
 async fn main() {
     init_log();
 
-    let mut new_session = true;
-    let mut command_session = Uuid::new_v4();
-    let mut command_strings = vec![];
-
     let args = KerbinArgs::parse();
 
-    match args.subcommand {
-        Some(KerbinSubcommand::Command(t)) => {
-            command_strings.extend(t.cmd);
-            if let Some(s) = t.session {
-                command_session = Uuid::from_str(&s).unwrap();
-                new_session = false;
-            }
+    match args.command {
+        Some(Command::Exec(exec_args)) => {
+            handle_exec(exec_args).await;
+            return;
         }
-        Some(KerbinSubcommand::CommandQuit(t)) => {
-            command_strings.extend(t.cmd.into_iter().chain(once("q!".to_string())));
-            if let Some(s) = t.session {
-                command_session = Uuid::from_str(&s).unwrap();
-                new_session = false;
-            }
+        Some(Command::Query(query_args)) => {
+            handle_query(query_args).await;
+            return;
         }
-        _ => {}
+        None => {
+            // Start the editor
+        }
     }
+
+    // Editor startup logic
+    let session_id = Uuid::new_v4();
+
+    let server_ipc = ServerIpc::new(&session_id.to_string());
 
     let config_path = match args.config {
         Some(t) => {
@@ -208,32 +210,17 @@ async fn main() {
         .await
         .set_template("cfg_folder", [&config_path]);
 
-    let temp_dir = dirs::data_dir().unwrap();
-    let queue_dir = format!("{}/kerbin/sessions", temp_dir.to_string_lossy());
-    let queue_file = format!("{}/{}", queue_dir, command_session);
-
-    if !new_session {
-        let queue = ipmpsc::Sender::new(SharedRingBuffer::open(&queue_file).unwrap());
-        for cmd in command_strings {
-            queue.send(&cmd).unwrap();
-        }
-
-        return;
-    }
-
-    std::fs::create_dir_all(queue_dir).unwrap();
-
-    let queue = ipmpsc::Receiver::new(SharedRingBuffer::create(&queue_file, 16000).unwrap());
+    resolver_engine_mut()
+        .await
+        .set_template("session", [session_id]);
 
     let window = Window::init().unwrap();
     handle_panics();
 
     let (command_sender, mut command_reciever) = unbounded_channel();
 
-    let mut state = init_state(window, command_sender, config_path.clone(), command_session);
-    resolver_engine_mut()
-        .await
-        .set_template("session", [command_session]);
+    let mut state = init_state(window, command_sender, config_path.clone(), session_id);
+    state.state(server_ipc);
 
     let mut framerate = 60;
 
@@ -278,28 +265,6 @@ async fn main() {
         commands.register::<RegisterCommand>();
     }
 
-    {
-        let commands = state.lock_state::<CommandRegistry>().await;
-        let command_sender = state.lock_state::<CommandSender>().await;
-        let prefix_registry = state.lock_state::<CommandPrefixRegistry>().await;
-        let modes = state.lock_state::<ModeStack>().await;
-
-        for string in command_strings {
-            let words = word_split(&string);
-            if let Some(cmd) = commands.parse_command(
-                words,
-                true,
-                false,
-                Some(&resolver_engine().await.as_resolver()),
-                true,
-                &prefix_registry,
-                &modes,
-            ) {
-                command_sender.send(cmd).unwrap();
-            }
-        }
-    }
-
     state
         .on_hook(hooks::ChunkRegister)
         .system(register_default_chunks)
@@ -312,7 +277,8 @@ async fn main() {
         .system(update_debounce)
         .system(handle_inputs)
         .system(update_palette_suggestions)
-        .system(render_cursors_and_selections);
+        .system(render_cursors_and_selections)
+        .system(handle_ipc_messages);
 
     state.on_hook(hooks::PostUpdate).system(post_update_buffer);
 
@@ -342,28 +308,6 @@ async fn main() {
 
     loop {
         let frame_start = tokio::time::Instant::now();
-
-        {
-            let commands = state.lock_state::<CommandRegistry>().await;
-            let command_sender = state.lock_state::<CommandSender>().await;
-            let prefix_registry = state.lock_state::<CommandPrefixRegistry>().await;
-            let modes = state.lock_state::<ModeStack>().await;
-
-            while let Some(item) = queue.try_recv::<String>().unwrap() {
-                let words = word_split(&item);
-                if let Some(cmd) = commands.parse_command(
-                    words,
-                    true,
-                    false,
-                    Some(&resolver_engine().await.as_resolver()),
-                    true,
-                    &prefix_registry,
-                    &modes,
-                ) {
-                    command_sender.send(cmd).unwrap();
-                }
-            }
-        }
 
         // Process all available commands with blocking
         while let Ok(cmd) = command_reciever.try_recv() {
@@ -409,6 +353,22 @@ async fn main() {
         .await
         .restore()
         .expect("Window should restore fine");
+}
 
-    let _ = std::fs::remove_file(&queue_file);
+async fn handle_exec(args: ExecArgs) {
+    let full_command = args.command.join(" ");
+    if let Err(e) = ClientIpc::send_command(&args.session, full_command) {
+        eprintln!("{}", e);
+        std::process::exit(1);
+    }
+}
+
+async fn handle_query(args: QueryArgs) {
+    match ClientIpc::query(&args.session, args.query) {
+        Ok(result) => println!("{}", result),
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+    }
 }

@@ -756,6 +756,8 @@ version = "0.1.0"
 dependencies = [
  "ascii-forge",
  "async-trait",
+ "dirs",
+ "ipmpsc",
  "kerbin-input",
  "kerbin-macros",
  "kerbin-state-machine",
@@ -1664,6 +1666,7 @@ checksum = "2f87b8aa10b915a06587d0dec516c282ff295b475d94abf425d62b57710070a2"
 dependencies = [
  "getrandom 0.3.3",
  "js-sys",
+ "serde",
  "wasm-bindgen",
 ]
 
