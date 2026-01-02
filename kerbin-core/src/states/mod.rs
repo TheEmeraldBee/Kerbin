@@ -30,6 +30,7 @@ pub fn init_state(
     cmd_sender: UnboundedSender<Box<dyn Command>>,
     config_path: String,
     uuid: Uuid,
+    server_ipc: ServerIpc,
 ) -> State {
     let mut state = State::default();
 
@@ -38,6 +39,8 @@ pub fn init_state(
     state
         .state(EventStorage::default())
         .state(Registers::default())
+        .state(server_ipc)
+        .state(QueryRegistry::default())
         .state(ConfigFolder(config_path))
         .state(SessionUuid(uuid))
         // Editor's running status

@@ -6,8 +6,3 @@ release:
 
 mini:
 	cargo clean && cargo build --profile mini
-
-jj:
-	jj bookmark move master class --to @ &&\
-	jj git push &&\
-	jj git push --remote class

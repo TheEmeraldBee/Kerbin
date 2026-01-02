@@ -147,6 +147,9 @@ async fn update(state: &mut State) {
     // Render all chunks to the window
     state.hook(hooks::RenderChunks).call().await;
 
+    // Handle general IPC messages
+    handle_ipc_messages(state).await;
+
     // Call out to recently emited events
     EVENT_BUS.resolve(state).await;
 }
@@ -185,19 +188,16 @@ async fn main() {
             }
         }
         None => {
-            // Check XDG_CONFIG_HOME environment variable first
             if let Ok(home) = std::env::var("XDG_CONFIG_HOME") {
                 let mut path = std::path::PathBuf::from(home);
                 path.push("kerbin");
                 path.to_string_lossy().to_string()
             } else {
-                // Check if ~/.config/kerbin exists (Common on macOS/Linux dev setups)
                 let home_config = dirs::home_dir().map(|h| h.join(".config").join("kerbin"));
 
                 if let Some(path) = home_config.filter(|p| p.exists()) {
                     path.to_string_lossy().to_string()
                 } else {
-                    // Fallback to the OS-native directory (via the `dirs` crate)
                     let mut res = dirs::config_dir().expect("Failed to find user config directory");
                     res.push("kerbin");
                     res.to_string_lossy().to_string()
@@ -219,8 +219,13 @@ async fn main() {
 
     let (command_sender, mut command_reciever) = unbounded_channel();
 
-    let mut state = init_state(window, command_sender, config_path.clone(), session_id);
-    state.state(server_ipc);
+    let mut state = init_state(
+        window,
+        command_sender,
+        config_path.clone(),
+        session_id,
+        server_ipc,
+    );
 
     let mut framerate = 60;
 
@@ -265,6 +270,8 @@ async fn main() {
         commands.register::<RegisterCommand>();
     }
 
+    register_default_queries(&mut state).await;
+
     state
         .on_hook(hooks::ChunkRegister)
         .system(register_default_chunks)
@@ -277,8 +284,7 @@ async fn main() {
         .system(update_debounce)
         .system(handle_inputs)
         .system(update_palette_suggestions)
-        .system(render_cursors_and_selections)
-        .system(handle_ipc_messages);
+        .system(render_cursors_and_selections);
 
     state.on_hook(hooks::PostUpdate).system(post_update_buffer);
 

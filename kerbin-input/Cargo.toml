@@ -21,7 +21,3 @@ toml = "0.9.8"
 
 [features]
 serde = ["dep:serde"]
-
-[[example]]
-name = "toml"
-required-features = ["serde"]

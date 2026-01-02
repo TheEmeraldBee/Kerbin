@@ -1,8 +1,11 @@
 use crate::*;
 use ipmpsc::{Receiver, Sender, SharedRingBuffer};
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use std::{collections::HashMap, pin::Pin, sync::Arc, time::Duration};
 use uuid::Uuid;
+
+pub mod default_queries;
+pub use default_queries::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ClientMessage {
@@ -58,15 +61,11 @@ impl ServerIpc {
     }
 
     pub fn send_response(&self, id: Uuid, result: String) {
-        let _ = self
-            .out_queue
-            .send(&ServerMessage::Response { id, result });
+        let _ = self.out_queue.send(&ServerMessage::Response { id, result });
     }
 
     pub fn send_error(&self, id: Uuid, message: String) {
-        let _ = self
-            .out_queue
-            .send(&ServerMessage::Error { id, message });
+        let _ = self.out_queue.send(&ServerMessage::Error { id, message });
     }
 }
 
@@ -110,10 +109,7 @@ impl ClientIpc {
         let out_queue = Receiver::new(out_ring);
 
         let req_id = Uuid::new_v4();
-        let msg = ClientMessage::Query {
-            id: req_id,
-            query,
-        };
+        let msg = ClientMessage::Query { id: req_id, query };
 
         in_queue
             .send(&msg)
@@ -150,28 +146,50 @@ impl ClientIpc {
     }
 }
 
-pub async fn handle_ipc_messages(
-    server_ipc: Res<ServerIpc>,
-    commands: Res<CommandRegistry>,
-    command_sender: Res<CommandSender>,
-    prefix_registry: Res<CommandPrefixRegistry>,
-    modes: Res<ModeStack>,
-    bufs: Res<Buffers>,
-    log: Res<LogSender>,
-) {
-    get!(
-        server_ipc,
-        commands,
-        command_sender,
-        prefix_registry,
-        modes,
-        bufs,
-        log
-    );
+pub type QueryHandler = Arc<
+    dyn for<'a> Fn(&'a mut State) -> Pin<Box<dyn Future<Output = String> + Send + 'a>>
+        + Send
+        + Sync,
+>;
 
-    while let Some(msg) = server_ipc.try_recv() {
+#[derive(State, Default)]
+pub struct QueryRegistry {
+    handlers: HashMap<String, QueryHandler>,
+}
+
+impl QueryRegistry {
+    pub fn register<F>(&mut self, name: impl ToString, handler: F)
+    where
+        F: for<'a> Fn(&'a mut State) -> Pin<Box<dyn Future<Output = String> + Send + 'a>>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.handlers.insert(name.to_string(), Arc::new(handler));
+    }
+
+    pub fn handler(&self, query: &str) -> Result<QueryHandler, String> {
+        if let Some(handler) = self.handlers.get(query) {
+            Ok(handler.clone())
+        } else {
+            Err(format!("Unknown query: {}", query))
+        }
+    }
+}
+
+#[allow(unused_assignments)]
+pub async fn handle_ipc_messages(state: &mut State) {
+    let log = state.lock_state::<LogSender>().await.clone();
+
+    let mut server_ipc = Some(state.lock_state::<ServerIpc>().await);
+    while let Some(msg) = server_ipc.as_ref().and_then(|x| x.try_recv()) {
         match msg {
             ClientMessage::Command { id: _, command } => {
+                let commands = state.lock_state::<CommandRegistry>().await;
+                let command_sender = state.lock_state::<CommandSender>().await;
+                let prefix_registry = state.lock_state::<CommandPrefixRegistry>().await;
+                let modes = state.lock_state::<ModeStack>().await;
+
                 let words = word_split(&command);
                 if let Some(cmd) = commands.parse_command(
                     words,
@@ -181,27 +199,38 @@ pub async fn handle_ipc_messages(
                     true,
                     &prefix_registry,
                     &modes,
-                ) {
-                    if let Err(e) = command_sender.send(cmd) {
+                )
+                    && let Err(e) = command_sender.send(cmd) {
                         log.medium("IPC", format!("Failed to send command: {:?}", e));
                     }
-                }
             }
             ClientMessage::Query { id, query } => {
-                // Simple query handler
-                let response = if query == "file_info" {
-                    let buf = bufs.cur_buffer().await;
-                    format!(
-                        "{{ \"path\": \"{:?}\", \"dirty\": {} }}",
-                        buf.path, buf.dirty
-                    )
-                } else {
-                    let err_msg = format!("{{ \"error\": \"Unknown query: {}\" }}", query);
-                    log.medium("IPC", format!("Received unknown query: {}", query));
-                    err_msg
-                };
+                let registry = state.lock_state::<QueryRegistry>().await;
 
-                server_ipc.send_response(id, response);
+                match registry.handler(&query) {
+                    Ok(handler) => {
+                        drop(registry);
+
+                        // It's assigned???
+                        server_ipc = None;
+
+                        let res = handler(state).await;
+
+                        server_ipc = Some(state.lock_state::<ServerIpc>().await);
+
+                        server_ipc
+                            .as_ref()
+                            .expect("Should be some here")
+                            .send_response(id, res);
+                    }
+                    Err(err) => {
+                        log.medium("IPC", format!("Query error: {}", err));
+                        server_ipc
+                            .as_ref()
+                            .expect("Should be some here")
+                            .send_error(id, err);
+                    }
+                }
             }
         }
     }

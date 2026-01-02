@@ -416,7 +416,21 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
                     })
                 }
                 Some(current) => {
-                    if rank < current.rank {
+                    let better = (
+                        rank,
+                        candidate_idx,
+                        std::cmp::Reverse(vec_idx),
+                        std::cmp::Reverse(action_idx),
+                    );
+
+                    let current_key = (
+                        current.rank,
+                        current.candidate_idx,
+                        std::cmp::Reverse(current.vec_idx),
+                        std::cmp::Reverse(current.action_idx),
+                    );
+
+                    if better < current_key {
                         best_match = Some(Match {
                             rank,
                             candidate_idx,
@@ -424,35 +438,6 @@ impl<A: Clone, M: Clone> KeyTree<A, M> {
                             action_idx,
                             result,
                         });
-                    } else if rank == current.rank {
-                        if candidate_idx < current.candidate_idx {
-                            best_match = Some(Match {
-                                rank,
-                                candidate_idx,
-                                vec_idx,
-                                action_idx,
-                                result,
-                            });
-                        } else if candidate_idx == current.candidate_idx {
-                            if vec_idx > current.vec_idx {
-                                best_match = Some(Match {
-                                    rank,
-                                    candidate_idx,
-                                    vec_idx,
-                                    action_idx,
-                                    result,
-                                });
-                            } else if vec_idx == current.vec_idx && action_idx > current.action_idx
-                            {
-                                best_match = Some(Match {
-                                    rank,
-                                    candidate_idx,
-                                    vec_idx,
-                                    action_idx,
-                                    result,
-                                });
-                            }
-                        }
                     }
                 }
             }
