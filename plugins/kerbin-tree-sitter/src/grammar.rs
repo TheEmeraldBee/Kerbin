@@ -5,22 +5,21 @@ use tree_sitter::Language;
 
 #[derive(thiserror::Error, Debug)]
 pub enum GrammarLoadError {
+    /// Wraps a libloading error
     #[error(transparent)]
     LibLoading(#[from] libloading::Error),
 
+    /// Library file not found
     #[error("Library file not found at {path} (excludes .so/.dylib/.dll)")]
     MissingFile { path: String },
 }
 
-/// Normalizes a language name by replacing -, ., and _ with a single underscore
-/// This is used for internal storage and lookups
+/// Normalizes a language name by replacing special characters with a single underscore
 pub fn normalize_lang_name(name: &str) -> String {
     name.replace(['-', '.'], "_")
 }
 
 /// Helps to define a Grammar using a default definition as well as aliases
-///
-/// Aliases are used to point to other grammars
 #[derive(serde::Deserialize)]
 #[serde(tag = "type")]
 pub enum GrammarEntry {
@@ -37,23 +36,20 @@ pub enum GrammarEntry {
 
 #[derive(serde::Deserialize, Clone)]
 pub struct GrammarDefinition {
-    /// The custom entrypoint for the lang (defaults to tree_sitter_{name})
+    /// Custom entrypoint for the lang
     pub entry: Option<String>,
 
-    /// The custom path to the language (default to
-    /// {config_path}/runtime/grammars/{name}/{name})
-    /// Don't include .so/.dylib/.dll, this is automatically checked
-    ///
+    /// Custom path to the language
     pub location: Option<String>,
 
-    /// Name of the language (will be normalized internally)
+    /// Name of the language
     pub name: String,
 
     /// Valid extensions for the grammar
     #[serde(default)]
     pub exts: Vec<String>,
 
-    /// Grammar Install Definition
+    /// Grammar install definition
     #[serde(flatten)]
     pub install: Option<GrammarInstallDefinition>,
 }
@@ -64,9 +60,7 @@ impl GrammarDefinition {
         normalize_lang_name(&self.name)
     }
 
-    /// Locates the name for the file of the grammar, returning it's probable location
-    /// This does not check for the file existing
-    /// Returns all possible paths with -, _, and . variations
+    /// Locates the name for the file of the grammar returning its probable location
     pub fn get_file_paths(&self, config_path: &str) -> Vec<String> {
         if let Some(location) = &self.location {
             return vec![location.clone()];
@@ -96,30 +90,28 @@ impl GrammarDefinition {
 
 #[derive(serde::Deserialize, Clone)]
 pub struct GrammarInstallDefinition {
-    /// The git-url for the grammar
+    /// Git URL for the grammar
     pub url: String,
 
-    /// The .so/.dylib/.dll that is created
-    /// Defaults to language name
+    /// Library file name that is created
     pub build_name: Option<String>,
 
-    /// The Sub-directory that should be entered into the git repository
+    /// Sub-directory that should be entered into the git repository
     pub sub_dir: Option<String>,
 }
 
 /// Represents a loaded grammar file
 pub struct Grammar {
-    /// The normalized name of the language for the grammar
+    /// Normalized name of the language for the grammar
     pub name: String,
 
-    /// The loaded language file for the grammar
+    /// Loaded language file for the grammar
     pub lang: Language,
 
-    /// The dynamic library for the grammar
+    /// Dynamic library for the grammar
     pub lib: Library,
 }
 
-/// Gets all possible variants of a name with -, _, and .
 fn get_name_variants(name: &str) -> Vec<String> {
     let mut variants = vec![name.to_string()];
 
@@ -141,8 +133,7 @@ fn get_name_variants(name: &str) -> Vec<String> {
     variants
 }
 
-/// Locates a .so/.dylib/.dll depending on the active OS
-/// Tries all name variants with -, _, and .
+/// Locates a shared library depending on the active OS
 pub fn find_library(base_paths: &[String]) -> Option<PathBuf> {
     for base_path in base_paths {
         for ext in get_platform_extensions() {
@@ -178,7 +169,7 @@ const fn get_platform_extensions() -> &'static [&'static str] {
 }
 
 impl Grammar {
-    /// Loads a grammar, capturing errors and searching for the correct filetype automatically
+    /// Loads a grammar capturing errors and searching for the correct filetype automatically
     pub fn load(name: &str, paths: &[String], symbol_name: &str) -> Result<Self, GrammarLoadError> {
         let path = match find_library(paths) {
             Some(t) => t,
@@ -202,7 +193,7 @@ impl Grammar {
         }
     }
 
-    /// Loads a grammar from a GrammarDefinition, getting correct paths automatically
+    /// Loads a grammar from a GrammarDefinition getting correct paths automatically
     pub fn from_def(config_path: &str, def: &GrammarDefinition) -> Result<Self, GrammarLoadError> {
         let paths = def.get_file_paths(config_path);
         let symbol = def.get_symbol_name();

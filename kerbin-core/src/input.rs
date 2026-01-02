@@ -37,7 +37,6 @@ pub struct InputState {
     pub tree: KeyTree<Vec<String>, Metadata>,
 }
 
-/// Registers the help menu chunk in the UI if there are active input sequences.
 pub async fn register_help_menu_chunk(
     window: Res<WindowState>,
     chunks: ResMut<Chunks>,
@@ -67,7 +66,6 @@ pub async fn register_help_menu_chunk(
     chunks.register_chunk::<HelpChunk>(1, rect);
 }
 
-/// Renders the help menu, displaying currently active input sequences.
 pub async fn render_help_menu(chunk: Chunk<HelpChunk>, input: Res<InputState>) {
     get!(input);
     if input.tree.active_tree().is_none() {
@@ -92,7 +90,6 @@ pub async fn render_help_menu(chunk: Chunk<HelpChunk>, input: Res<InputState>) {
     }
 }
 
-/// Handles incoming key events, processes input sequences, and dispatches commands.
 pub async fn handle_inputs(
     window: Res<WindowState>,
     input: ResMut<InputState>,

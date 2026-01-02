@@ -2,14 +2,12 @@ use ascii_forge::window::Buffer;
 
 use crate::*;
 
-/// State used for storing registered commands within the system itself.
-///
-/// Also used for parsing and validating commands.
+/// State for storing registered commands and parsing input
 #[derive(State)]
 pub struct CommandRegistry(pub Vec<RegisteredCommandSet>);
 
 impl CommandRegistry {
-    /// Registers the given command type within the editor using its implementation.
+    /// Registers a command type within the editor
     pub fn register<T: AsCommandInfo + 'static>(&mut self) {
         self.0.push(RegisteredCommandSet {
             parser: Box::new(T::from_str),
@@ -17,7 +15,7 @@ impl CommandRegistry {
         })
     }
 
-    /// Given the input, will return whether the input would be considered a valid command.
+    /// Determines if the input string represents a valid command
     pub fn validate_command(
         &self,
         input: &str,
@@ -38,9 +36,7 @@ impl CommandRegistry {
         .is_some()
     }
 
-    /// Retrieves the buffers used for handling the rendering of
-    /// command palette within the core engine.
-    /// Buffers are used so theming can be stored directly.
+    /// Retrieves command suggestions and theming for the palette
     pub async fn get_command_suggestions(
         &self,
         input: &str,
@@ -98,7 +94,7 @@ impl CommandRegistry {
     }
 
     #[allow(clippy::too_many_arguments)]
-    /// Parses a given list of command words into a `Box<dyn Command>`.
+    /// Parses a list of words into a runnable command
     pub fn parse_command(
         &self,
         mut words: Vec<String>,

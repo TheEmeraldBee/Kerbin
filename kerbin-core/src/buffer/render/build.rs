@@ -1,7 +1,6 @@
 use crate::*;
 use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
 
-/// Process extmark decorations for a given byte position
 fn process_extmarks(
     exts: &[&Extmark],
     absolute_byte_idx: usize,
@@ -73,7 +72,6 @@ fn process_extmarks(
     (style, after_elems, post_line_elems)
 }
 
-/// Builds out the rendered lines for the current buffer, only building the required sizes
 pub async fn build_buffer_lines(
     chunk: Chunk<BufferChunk>,
     bufs: ResMut<Buffers>,

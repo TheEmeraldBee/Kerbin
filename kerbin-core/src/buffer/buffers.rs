@@ -8,26 +8,24 @@ use kerbin_macros::State;
 use kerbin_state_machine::storage::*;
 use tokio::sync::{OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
 
-/// Stores all text buffers managed by the editor, along with their unique paths and selection state.
+/// Stores all text buffers managed by the editor
 #[derive(Default, State)]
 pub struct Buffers {
-    /// The index of the currently selected buffer in the `buffers` vector.
+    /// The index of the currently selected buffer in the `buffers` vector
     pub selected_buffer: usize,
 
-    /// The horizontal scroll offset of the tab-bar (bufferline) in characters.
+    /// The horizontal scroll offset of the tab-bar (bufferline) in characters
     pub tab_scroll: usize,
 
-    /// The internal storage of `TextBuffer` instances. Each buffer is wrapped in an
-    /// `Arc<RwLock>` for concurrent access.
+    /// The internal storage of `TextBuffer` instances
     pub buffers: Vec<Arc<RwLock<TextBuffer>>>,
 
-    /// The list of unique, shortened paths corresponding to each buffer.
-    /// These paths are generated to be distinguishable in the UI.
+    /// The list of unique, shortened paths corresponding to each buffer
     pub buffer_paths: Vec<String>,
 }
 
 impl Buffers {
-    /// Returns a read lock to the currently selected buffer.
+    /// Returns a read lock to the currently selected buffer
     pub async fn cur_buffer(&self) -> OwnedRwLockReadGuard<TextBuffer> {
         self.buffers[self.selected_buffer]
             .clone()
@@ -35,7 +33,7 @@ impl Buffers {
             .await
     }
 
-    /// Returns a read lock to the currently selected buffer.
+    /// Returns a write lock to the currently selected buffer
     pub async fn cur_buffer_mut(&mut self) -> OwnedRwLockWriteGuard<TextBuffer> {
         self.buffers[self.selected_buffer]
             .clone()
@@ -65,9 +63,7 @@ impl Buffers {
         None
     }
 
-    /// Changes the selected buffer by a given signed distance.
-    ///
-    /// The selection will not wrap around the ends of the buffer list.
+    /// Changes the selected buffer by a given signed distance
     pub fn change_buffer(&mut self, dist: isize) {
         self.selected_buffer = self
             .selected_buffer
@@ -75,19 +71,12 @@ impl Buffers {
             .clamp(0, self.buffers.len() - 1);
     }
 
-    /// Sets the selected buffer to a specific index.
-    ///
-    /// The provided index will be clamped to ensure it's within the valid range
-    /// of available buffers.
+    /// Sets the selected buffer to a specific index
     pub fn set_selected_buffer(&mut self, id: usize) {
         self.selected_buffer = id.clamp(0, self.buffers.len() - 1);
     }
 
-    /// Closes the buffer at the given index.
-    ///
-    /// If closing the buffer results in no open buffers, a new scratch buffer
-    /// is automatically created to ensure there's always at least one buffer.
-    /// The `selected_buffer` is adjusted accordingly if the closed buffer was active.
+    /// Closes the buffer at the given index
     pub async fn close_buffer(&mut self, idx: usize) {
         let buf = self.buffers.remove(idx);
 
@@ -105,11 +94,7 @@ impl Buffers {
         self.change_buffer(0); // Adjust selected_buffer to remain valid
     }
 
-    /// Opens a buffer with the given file path.
-    ///
-    /// If a buffer with the canonicalized version of the provided `path` is already
-    /// open, that existing buffer is selected instead of opening a duplicate.
-    /// Otherwise, a new `TextBuffer` is created, opened, and set as the selected buffer.
+    /// Opens a buffer with the given file path
     pub async fn open(&mut self, path: String) -> std::io::Result<usize> {
         let check_path = get_canonical_path_with_non_existent(&path)
             .to_str()
@@ -166,10 +151,7 @@ impl Buffers {
         }
     }
 
-    /// Renders the bufferline (tab bar) into the provided `Buffer`.
-    ///
-    /// This method displays the unique paths of all open buffers, highlighting
-    /// the currently selected one and handling horizontal scrolling.
+    /// Renders the bufferline (tab bar) into the provided `Buffer`
     pub async fn render_bufferline(&self, buffer: &mut Buffer, theme: &Theme) {
         let mut current_char_offset = 0;
 
@@ -218,10 +200,7 @@ impl Buffers {
         }
     }
 
-    /// Updates the unique, shortened paths for all currently open buffers.
-    ///
-    /// This function re-calculates the `buffer_paths` vector based on the
-    /// full paths of the `TextBuffer`s, ensuring they are unique and readable.
+    /// Updates the unique, shortened paths for all currently open buffers
     pub async fn update_paths(&mut self) {
         let mut paths: Vec<String> = Vec::with_capacity(self.buffers.len());
 
@@ -235,17 +214,12 @@ impl Buffers {
         self.buffer_paths = unique_paths;
     }
 
-    /// Returns the unique (shortened) path of the buffer at the given index.
+    /// Returns the unique (shortened) path of the buffer at the given index
     pub fn unique_path_of(&self, idx: usize) -> Option<String> {
         self.buffer_paths.get(idx).cloned()
     }
 }
 
-/// Helper function that takes an iterator of full paths and generates a list
-/// of unique, readable shortened paths.
-///
-/// If paths share common prefixes, it will attempt to truncate them to the shortest
-/// possible unique representation.
 fn get_unique_paths(paths: impl Iterator<Item = String>, len: usize) -> Vec<String> {
     if len == 0 {
         return vec![];

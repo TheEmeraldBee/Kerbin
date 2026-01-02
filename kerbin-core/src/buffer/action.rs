@@ -2,50 +2,37 @@ use super::TextBuffer;
 use crate::buffer::text_rope_handlers::SafeRopeAccess;
 
 /// A result of an action that stores whether the action was applied
-/// and returns the inverse of the action for applying undo and redo.
 pub struct ActionResult {
-    /// `true` if the action was successfully applied, `false` otherwise.
+    /// `true` if the action was successfully applied, `false` otherwise
     pub success: bool,
-    /// A boxed `BufferAction` representing the inverse of the applied action.
-    /// This is used for undo/redo functionality.
+    /// A boxed `BufferAction` representing the inverse of the applied action
     pub action: Box<dyn BufferAction>,
 }
 
 impl ActionResult {
-    /// Creates a new `ActionResult`.
+    /// Creates a new `ActionResult`
     pub fn new(success: bool, action: Box<dyn BufferAction>) -> Self {
         Self { success, action }
     }
 
-    /// Creates an `ActionResult` with a `NoOp` inverse action.
+    /// Creates an `ActionResult` with a `NoOp` inverse action
     pub fn none(success: bool) -> Self {
         Self::new(success, Box::new(NoOp))
     }
 }
 
-/// A system that treats changes to a `TextBuffer` as inversable actions.
-///
-/// This trait allows for a consistent system to handle modifications to the rope,
-/// abstracting over many internal requirements of the editor engine, and
-/// enabling robust undo/redo functionality.
+/// A system that treats changes to a `TextBuffer` as inversable actions
 pub trait BufferAction: Send + Sync {
-    /// Applies the action to the given `TextBuffer`.
-    ///
-    /// This method performs the actual modification on the buffer. It should
-    /// also return an `ActionResult` which includes a boolean indicating
-    /// success and a boxed `BufferAction` representing the inverse operation.
+    /// Applies the action to the given `TextBuffer`
     fn apply(&self, buf: &mut TextBuffer) -> ActionResult;
 }
 
-/// An action that inserts text at a given byte offset in the `TextBuffer`.
-///
-/// Fails if the specified `byte` offset is beyond the current length of the rope.
+/// An action that inserts text at a given byte offset in the `TextBuffer`
 pub struct Insert {
-    /// The byte offset within the `TextBuffer` where the content should be inserted.
-    /// Will be converted into a valid char boundary index
+    /// The byte offset within the `TextBuffer` where the content should be inserted
     pub byte: usize,
 
-    /// The string content to be inserted at the specified location.
+    /// The string content to be inserted at the specified location
     pub content: String,
 }
 
@@ -90,16 +77,12 @@ impl BufferAction for Insert {
     }
 }
 
-/// An action to delete text from a `TextBuffer`.
-///
-/// Fails if the specified range to delete (`byte` to `byte + len`)
-/// extends beyond the end of the rope.
+/// An action to delete text from a `TextBuffer`
 pub struct Delete {
-    /// The starting byte offset of the text to be deleted.
-    /// Will be turned into a char index internally
+    /// The starting byte offset of the text to be deleted
     pub byte: usize,
 
-    /// The length in **chars** of the text to be deleted.
+    /// The length in **chars** of the text to be deleted
     pub len: usize,
 }
 
@@ -182,11 +165,7 @@ impl BufferAction for Delete {
     }
 }
 
-/// An empty operation.
-///
-/// This action does nothing and always succeeds. It is useful for scenarios
-/// where an action cannot or should not be undone (e.g., when an action
-/// changes state in a non-reversible way that the action system can't track).
+/// An empty operation
 pub struct NoOp;
 
 impl BufferAction for NoOp {

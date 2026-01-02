@@ -3,8 +3,6 @@ use std::collections::HashMap;
 use crate::*;
 
 /// Registers are char-indexed sets of stored text
-///
-/// Used for copy, paste, etc.
 #[derive(State)]
 pub struct Registers {
     last_used: char,
@@ -34,8 +32,6 @@ impl Registers {
     }
 
     /// Returns a register's text
-    ///
-    /// Returns an empty str if the register isn't set
     pub fn get(&mut self, register: &char) -> &str {
         self.last_used = *register;
 

@@ -24,7 +24,7 @@ pub use chunks::*;
 pub mod registers;
 pub use registers::*;
 
-/// Initializes the editor's core state with essential components.
+/// Initializes the editor's core state with essential components
 pub fn init_state(
     window: Window,
     cmd_sender: UnboundedSender<Box<dyn Command>>,

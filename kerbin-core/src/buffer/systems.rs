@@ -3,11 +3,6 @@ use std::collections::VecDeque;
 use crate::*;
 use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
 
-/// Projects `Cursor`s and their selections into temporary extmarks for rendering.
-///
-/// This system clears ephemeral extmarks each frame and recreates them from
-/// the current cursor state, allowing `render_buffer_default` to render them
-/// as part of the extmark pipeline.
 pub async fn render_cursors_and_selections(
     bufs: ResMut<Buffers>,
     modes: Res<ModeStack>,
@@ -87,10 +82,6 @@ pub async fn render_cursors_and_selections(
     }
 }
 
-/// System used to render the bufferline (tab bar) to the `BufferlineChunk`.
-///
-/// This system retrieves the `Buffers` and `Theme` resources and delegates
-/// the actual rendering to the `Buffers::render_bufferline` method.
 pub async fn render_bufferline(
     chunk: Chunk<BufferlineChunk>,
     buffers: Res<Buffers>,
@@ -102,10 +93,6 @@ pub async fn render_bufferline(
     buffers.render_bufferline(chunk, &theme).await;
 }
 
-/// System that updates the horizontal scroll position of the bufferline.
-///
-/// This system ensures that the currently selected buffer's tab is always
-/// visible within the bufferline display area, adjusting `tab_scroll` as needed.
 pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<WindowState>) {
     get!(mut buffers, window);
 
@@ -166,11 +153,6 @@ pub async fn post_update_buffer(buffers: ResMut<Buffers>) {
     buf.post_update();
 }
 
-/// System that updates the active buffer's state, including its content,
-/// and handles horizontal and vertical scrolling to keep the primary cursor in view.
-///
-/// This system is crucial for ensuring the displayed buffer content is up-to-date
-/// and the user's cursor remains visible as they navigate and edit.
 pub async fn cleanup_buffers(buffers: ResMut<Buffers>) {
     get!(mut buffers);
 

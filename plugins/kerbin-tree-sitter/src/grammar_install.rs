@@ -5,19 +5,23 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::grammar::{GrammarDefinition, normalize_lang_name};
+use crate::grammar::{normalize_lang_name, GrammarDefinition};
 
 #[derive(thiserror::Error, Debug)]
 pub enum GrammarInstallError {
+    /// Missing install definition for language
     #[error("Missing install definition for language")]
     MissingInstallDefinition,
 
+    /// Build succeeded but shared lib not found
     #[error("Build succeeded but shared lib not found")]
     NoSharedLibrary,
 
+    /// Missing expected build directory
     #[error("Missing expected build directory")]
     MissingBuildDir,
 
+    /// Command failed with status
     #[error("{command} failed with status: {status} and stderr: {stderr}")]
     CommandFailed {
         command: &'static str,
@@ -25,15 +29,15 @@ pub enum GrammarInstallError {
         stderr: String,
     },
 
+    /// Tree-sitter couldn't be found on your computer
     #[error("tree-sitter couldn't be found on your computer, is it installed?")]
     MissingTreeSitter,
 
+    /// Wraps an IO error
     #[error(transparent)]
     IOError(#[from] io::Error),
 }
 
-/// Cleans up the grammar directory after a successful build, keeping only the
-/// compiled library and query files.
 fn cleanup_grammar_directory(dir: &Path, normalized_name: &str) -> io::Result<()> {
     let essential_files: Vec<String> = vec![
         format!("{}.so", normalized_name),
@@ -70,7 +74,6 @@ fn cleanup_grammar_directory(dir: &Path, normalized_name: &str) -> io::Result<()
     Ok(())
 }
 
-/// Gets all possible variants of a name with -, _, and .
 fn get_name_variants(name: &str) -> Vec<String> {
     let mut variants = vec![name.to_string()];
 
@@ -93,7 +96,6 @@ fn get_name_variants(name: &str) -> Vec<String> {
 }
 
 /// Installs a language based on the install config
-/// Installs to the config's runtime/grammars path with normalized directory name
 pub fn install_language(
     base_path: PathBuf,
     mut def: GrammarDefinition,

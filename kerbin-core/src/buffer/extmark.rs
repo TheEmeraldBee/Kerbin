@@ -2,7 +2,7 @@ use std::{ops::Range, sync::Arc};
 
 use ascii_forge::{
     math::Vec2,
-    window::{Buffer, ContentStyle, crossterm::cursor::SetCursorStyle},
+    window::{crossterm::cursor::SetCursorStyle, Buffer, ContentStyle},
 };
 
 use crate::OverlayPositioning;
@@ -31,24 +31,18 @@ pub enum ExtmarkAdjustment {
     DeleteOnDelete,
 }
 
-/// Types of decorations that can be attached to an [`Extmark`].
-///
-/// Extmarks let you attach visual overlays to a [`TextBuffer`] without
-/// modifying the actual text content. Multiple decorations can be combined.
+/// Types of decorations that can be attached to an [`Extmark`]
 pub enum ExtmarkDecoration {
-    /// Highlight a region of text with a named highlight group.
-    /// Takes an array and treats items as a fallback list
+    /// Highlight a region of text with a named highlight group
     Highlight { hl: ContentStyle },
 
-    /// Insert “virtual” text inline after buffer byte position.
+    /// Insert “virtual” text inline after buffer byte position
     VirtText {
         text: String,
         hl: Option<ContentStyle>,
     },
 
     /// Given the byte position of the decoration, render this element with an offset
-    /// from the byte's render position
-    /// Enhanced overlay element with full control
     OverlayElement {
         offset: Vec2,
         elem: Arc<Buffer>,
@@ -57,41 +51,30 @@ pub enum ExtmarkDecoration {
         positioning: OverlayPositioning,
     },
 
-    /// Display a cursor (block/bar/underline), only one of these can exist on the state at a time,
-    /// If you want your own, and to ignore the other, set a higher priority
-    ///
-    /// # Styles - Valid values of the style
-    /// * `underscore`
-    /// * `block`
-    /// * `bar`
-    /// * else: `block`
+    /// Display a cursor (block/bar/underline), only one of these can exist on the state at a time
     Cursor { style: SetCursorStyle },
 
     /// Reserve the given lines after the buf
-    /// Used for rendering complex states
     FullElement { elem: Arc<Buffer> },
 }
 
-/// An anchored “mark” in a buffer, augmented with one or more decorations.
-///
-/// Extmarks are automatically shifted when text is inserted or deleted,
-/// and can be queried during rendering.
+/// An anchored “mark” in a buffer, augmented with one or more decorations
 pub struct Extmark {
-    /// An identifier for the file version for which the extmark was registered.
+    /// An identifier for the file version for which the extmark was registered
     pub file_version: u128,
 
-    /// Unique identifier for programmatic reference and removal.
+    /// Unique identifier for programmatic reference and removal
     pub id: u64,
 
-    /// Shared identifier marking relationships to other extmarks for removal.
+    /// Shared identifier marking relationships to other extmarks for removal
     pub namespace: String,
 
     pub byte_range: Range<usize>,
 
-    /// Priority controls layer ordering. Higher = drawn later (on top).
+    /// Priority controls layer ordering
     pub priority: i32,
 
-    /// List of one or more decorations applied at this mark.
+    /// List of one or more decorations applied at this mark
     pub decorations: Vec<ExtmarkDecoration>,
 
     pub gravity: ExtmarkGravity,

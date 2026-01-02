@@ -5,46 +5,22 @@ use tokio::sync::RwLock;
 
 use crate::*;
 
-/// State managing and organizing drawing chunks (buffers).
-///
-/// `Chunks` provides a way to register and retrieve `InnerChunk` instances,
-/// allowing different UI components to manage their own drawing areas.
-/// Chunks are organized by a Z-index for layering.
+/// State managing and organizing drawing chunks (buffers)
 #[derive(State, Default)]
 pub struct Chunks {
-    /// A vector of vectors, where the outer vector represents Z-layers
-    /// and the inner vector holds `(position, InnerChunk)` pairs for that layer.
+    /// Layered storage for drawing chunks
     pub buffers: Vec<Vec<(Vec2, Arc<RwLock<InnerChunk>>)>>,
-    /// A map from state name (identifier for a chunk) to its `(z_index, inner_vec_index)` coordinates.
     chunk_idx_map: HashMap<String, (usize, usize)>,
 }
 
 impl Chunks {
-    /// Clears all registered chunks and their associated buffers.
-    ///
-    /// This effectively resets the entire chunk management system.
+    /// Clears all registered chunks and their associated buffers
     pub fn clear(&mut self) {
         self.buffers.clear();
         self.chunk_idx_map.clear();
     }
 
-    /// Registers a new chunk for drawing, identified by its state name.
-    ///
-    /// If a chunk with the given `C::static_name()` is already registered at the
-    /// specified `z_index`, its existing entry might be updated. Otherwise, a new
-    /// chunk is created and added. The size of the `InnerChunk`'s buffer is derived
-    /// from the `rect`.
-    ///
-    /// # Type Parameters
-    ///
-    /// * `C`: The state type that implements `StateName` and `StaticState`. This type's
-    ///   `static_name()` method provides a unique identifier for the chunk.
-    ///
-    /// # Arguments
-    ///
-    /// * `z_index`: The Z-index (layer) at which to draw this chunk. Higher indices
-    ///   are drawn on top of lower indices.
-    /// * `rect`: The `Rect` defining the position and size (width and height) of the chunk.
+    /// Registers a new chunk for drawing
     pub fn register_chunk<C: StateName + StaticState>(&mut self, z_index: usize, rect: Rect) {
         let size = (rect.width, rect.height);
         let pos = (rect.x, rect.y);
@@ -73,20 +49,7 @@ impl Chunks {
         }
     }
 
-    /// Retrieves a registered chunk by its state name.
-    ///
-    /// This method allows access to the `InnerChunk` associated with a specific
-    /// UI component or state, identified by its static name.
-    ///
-    /// # Type Parameters
-    ///
-    /// * `C`: The state type that implements `StateName` and `StaticState`, used to
-    ///   identify the chunk via `C::static_name()`.
-    ///
-    /// # Returns
-    ///
-    /// An `Option<Arc<RwLock<InnerChunk>>>` containing a thread-safe reference to the
-    /// chunk if found, or `None` if no chunk is registered under that name.
+    /// Retrieves a registered chunk by its state name
     pub fn get_chunk<C: StateName + StaticState>(&self) -> Option<Arc<RwLock<InnerChunk>>> {
         let id = C::static_name();
 

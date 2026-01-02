@@ -181,8 +181,6 @@ pub fn merge_overlapping_spans(mut spans: Vec<HighlightSpan>) -> Vec<HighlightSp
     result
 }
 
-/// Calculates the affected range that needs re-highlighting based on byte changes
-/// Returns a byte range, or None if the entire file should be re-highlighted
 fn calculate_affected_range(
     byte_changes: &[[((usize, usize), usize); 3]],
     rope: &ropey::Rope,

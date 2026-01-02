@@ -1,45 +1,23 @@
 use regex_cursor::*;
 
-/// Represents the current position within a text chunk during cursor iteration.
 #[derive(Clone, Copy)]
 enum Pos {
-    /// The cursor is at the beginning of the `current` chunk.
     ChunkStart,
-    /// The cursor is at the end of the `current` chunk.
     ChunkEnd,
 }
 
-/// A cursor implementation for `ropey::RopeSlice` that allows efficient
-/// iteration over chunks of text, primarily for use with `regex_cursor`.
-///
-/// This struct wraps `ropey::iter::Chunks` to provide byte-slice chunks
-/// and manage the cursor's position and total offset.
+/// A cursor implementation for ropey::RopeSlice that allows efficient iteration over chunks of text
 #[derive(Clone)]
 pub struct RopeyCursor<'a> {
-    /// The underlying `ropey` iterator for chunks of the `RopeSlice`.
     iter: ropey::iter::Chunks<'a>,
-    /// The current byte slice chunk being pointed to by the cursor.
     current: &'a [u8],
-    /// The position of the cursor within the `current` chunk (start or end).
     pos: Pos,
-    /// The total length of the `RopeSlice` in bytes.
     len: usize,
-    /// The byte offset of the `current` chunk from the beginning of the `RopeSlice`.
     offset: usize,
 }
 
 impl<'a> RopeyCursor<'a> {
-    /// Creates a new `RopeyCursor` starting from the beginning of the given `RopeSlice`.
-    ///
-    /// The cursor will immediately advance to the first non-empty chunk.
-    ///
-    /// # Arguments
-    ///
-    /// * `slice`: The `ropey::RopeSlice` to create the cursor for.
-    ///
-    /// # Returns
-    ///
-    /// A new `RopeyCursor` positioned at the start of the `slice`.
+    /// Creates a new RopeyCursor starting from the beginning of the given RopeSlice
     pub fn new(slice: ropey::RopeSlice<'a>) -> Self {
         let iter = slice.chunks();
         let mut res = Self {
@@ -53,19 +31,7 @@ impl<'a> RopeyCursor<'a> {
         res
     }
 
-    /// Creates a new `RopeyCursor` positioned at a specific byte offset within the `RopeSlice`.
-    ///
-    /// The cursor will be positioned such that `offset()` returns the provided `at` value.
-    /// It handles edge cases where `at` is at the end of the slice.
-    ///
-    /// # Arguments
-    ///
-    /// * `slice`: The `ropey::RopeSlice` to create the cursor for.
-    /// * `at`: The byte offset within the slice where the cursor should be placed.
-    ///
-    /// # Returns
-    ///
-    /// A new `RopeyCursor` positioned at the specified `at` byte offset.
+    /// Creates a new RopeyCursor positioned at a specific byte offset within the RopeSlice
     pub fn at(slice: ropey::RopeSlice<'a>, at: usize) -> Self {
         let (iter, offset_in_chunk) = slice.chunks_at(at);
         let len = slice.len();
@@ -97,22 +63,12 @@ impl<'a> RopeyCursor<'a> {
 }
 
 impl Cursor for RopeyCursor<'_> {
-    /// Returns the current byte slice chunk that the cursor is pointing to.
-    ///
-    /// # Returns
-    ///
-    /// A `&[u8]` slice representing the current chunk.
+    /// Returns the current byte slice chunk that the cursor is pointing to
     fn chunk(&self) -> &[u8] {
         self.current
     }
 
-    /// Advances the cursor to the next non-empty chunk.
-    ///
-    /// Updates `current` and `offset` to reflect the new chunk's data and position.
-    ///
-    /// # Returns
-    ///
-    /// `true` if the cursor successfully moved to a new chunk, `false` if it reached the end.
+    /// Advances the cursor to the next non-empty chunk
     fn advance(&mut self) -> bool {
         match self.pos {
             Pos::ChunkStart => {
@@ -142,13 +98,7 @@ impl Cursor for RopeyCursor<'_> {
         false // No more chunks
     }
 
-    /// Moves the cursor to the previous non-empty chunk.
-    ///
-    /// Updates `current` and `offset` to reflect the new chunk's data and position.
-    ///
-    /// # Returns
-    ///
-    /// `true` if the cursor successfully moved to a previous chunk, `false` if it reached the beginning.
+    /// Moves the cursor to the previous non-empty chunk
     fn backtrack(&mut self) -> bool {
         // If already at ChunkStart, `iter.prev()` would skip the current chunk,
         // so we don't need to call it again.
@@ -180,33 +130,17 @@ impl Cursor for RopeyCursor<'_> {
         false // No more previous chunks
     }
 
-    /// Indicates whether the cursor is aware of UTF-8 boundaries.
-    ///
-    /// `ropey` is UTF-8 aware, so this returns `true`.
-    ///
-    /// # Returns
-    ///
-    /// Always `true`.
+    /// Indicates whether the cursor is aware of UTF-8 boundaries
     fn utf8_aware(&self) -> bool {
         true
     }
 
-    /// Returns the total number of bytes in the underlying `RopeSlice`.
-    ///
-    /// # Returns
-    ///
-    /// `Some(usize)` containing the total byte length.
+    /// Returns the total number of bytes in the underlying RopeSlice
     fn total_bytes(&self) -> Option<usize> {
         Some(self.len)
     }
 
-    /// Returns the current byte offset of the cursor from the beginning of the `RopeSlice`.
-    ///
-    /// This offset points to the start of the `current` chunk.
-    ///
-    /// # Returns
-    ///
-    /// The current byte offset as `usize`.
+    /// Returns the current byte offset of the cursor from the beginning of the RopeSlice
     fn offset(&self) -> usize {
         self.offset
     }

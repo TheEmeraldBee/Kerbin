@@ -12,7 +12,6 @@ use tokio::sync::{RwLock, RwLockWriteGuard};
 
 use crate::*;
 
-/// Holds subscribers + registration flag + data for each event type
 struct EventEntry {
     active: bool,
     subscribers: Vec<Box<dyn System + Send + Sync>>,

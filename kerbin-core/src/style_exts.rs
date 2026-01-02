@@ -1,21 +1,8 @@
 use ascii_forge::window::ContentStyle;
 
-/// An extension trait for `ContentStyle` to provide utility methods.
+/// An extension trait for `ContentStyle` to provide utility methods
 pub trait ContentStyleExt {
-    /// Combines two `ContentStyle` instances, giving priority to the `other` style.
-    ///
-    /// This function is used extensively with core rendering to layer styles on top
-    /// of one another. If a field (like foreground color) is set in `other`, it
-    /// overrides the value from `self`. Otherwise, the value from `self` is used.
-    /// Attributes are combined using a bitwise OR.
-    ///
-    /// # Arguments
-    ///
-    /// * `other`: The `ContentStyle` to combine with, which takes priority.
-    ///
-    /// # Returns
-    ///
-    /// A new `ContentStyle` resulting from the combination.
+    /// Combines two `ContentStyle` instances, giving priority to the `other` style
     fn combined_with(&self, other: &ContentStyle) -> ContentStyle;
 }
 

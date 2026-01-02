@@ -4,34 +4,25 @@ use ascii_forge::window::crossterm::cursor::SetCursorStyle;
 
 use crate::*;
 
-/// The main element stored in a buffer that is used
-/// to render the buffer to the screen. Stores Extmarks,
-/// renderable lines, visual cursors, scroll values, etc.
+/// The main element stored in a buffer that is used to render the buffer to the screen
 #[derive(Default)]
 pub struct BufferRenderer {
-    /// A set of marks that allow for decorating areas of text
-    /// Used for ghost text, hightlighting, etc.
     extmarks: BTreeMap<u64, Extmark>,
     next_id: u64,
 
     /// The visual representation of the viewport for rendering
     pub lines: Vec<RenderLine>,
 
-    /// Stores a byte position and cursor style for where the renderer
-    /// should be rendering the cursor, allows for centeralized cursor rendering
+    /// Stores a byte position and cursor style for where the renderer should be rendering the cursor
     pub cursor: Option<(usize, SetCursorStyle)>,
 
     /// The byte based scroll of the window
-    /// marks where to start the line building
     pub byte_scroll: usize,
 
-    /// The visual scroll, marks where rendered items should
-    /// be offset based on the byte_scroll.
-    ///
-    /// Helpful when working with images or inline tables, etc
+    /// The visual scroll, marks where rendered items should be offset based on the byte_scroll
     pub visual_scroll: usize,
 
-    /// The scroll horizontally of the lines.
+    /// The scroll horizontally of the lines
     pub h_scroll: usize,
 }
 
@@ -158,7 +149,6 @@ impl BufferRenderer {
     }
 
     /// Process all byte changes from the buffer
-    /// This should be called after actions are applied, using buf.byte_changes
     pub fn process_byte_changes(
         &mut self,
         file_version: u128,
@@ -180,13 +170,12 @@ impl BufferRenderer {
         self.extmarks.retain(|_, e| e.namespace != ns);
     }
 
-    /// Removes an extmark by its ID.
+    /// Removes an extmark by its ID
     pub fn remove_extmark(&mut self, id: u64) -> bool {
         self.extmarks.remove(&id).is_some()
     }
 
-    /// Removes all extmarks in a specific namespace that intersect with the given byte range.
-    /// An extmark intersects if any part of it overlaps with the range.
+    /// Removes all extmarks in a specific namespace that intersect with the given byte range
     pub fn remove_extmarks_in_range(
         &mut self,
         namespace: impl AsRef<str>,
@@ -206,7 +195,7 @@ impl BufferRenderer {
         });
     }
 
-    /// Updates an existing extmark's decorations.
+    /// Updates an existing extmark's decorations
     pub fn update_extmark(&mut self, id: u64, decorations: Vec<ExtmarkDecoration>) -> bool {
         if let Some(ext) = self.extmarks.get_mut(&id) {
             ext.decorations = decorations;
@@ -216,7 +205,7 @@ impl BufferRenderer {
         }
     }
 
-    /// Queries extmarks intersecting a byte range.
+    /// Queries extmarks intersecting a byte range
     pub fn query_extmarks(&self, range: std::ops::Range<usize>) -> Vec<&Extmark> {
         let mut marks = self
             .extmarks

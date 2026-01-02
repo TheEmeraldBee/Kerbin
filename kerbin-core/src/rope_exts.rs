@@ -1,8 +1,7 @@
 use ropey::Rope;
 
 pub trait RopeExts {
-    /// Converts the given byte index into another byte
-    /// index that sits on a valid char boundary
+    /// Converts the given byte index into another byte index that sits on a valid char boundary
     fn byte_to_char_boundary_byte(&self, byte: usize) -> usize;
 }
 

@@ -5,31 +5,25 @@ use kerbin_macros::State;
 pub mod ranking;
 pub use ranking::*;
 
-/// The internal state of the command palette.
-///
-/// This struct holds all information related to the command palette's current
-/// display and input processing, including user input, command suggestions,
-/// and validation status.
+/// Core state for handling command palette
 #[derive(Default, State)]
 pub struct CommandPaletteState {
-    /// The input string from the previous frame, used to detect changes and
-    /// optimize suggestion updates.
+    /// Input string from previous frame
     pub old_input: String,
-    /// The current input string typed by the user in the command palette.
+    /// Current user input string
     pub input: String,
-    /// An optional string representing a potential auto-completion for the current input.
+    /// Optional auto-completion for current input
     pub completion: Option<String>,
-    /// A vector of `Buffer`s, each representing a command suggestion to display.
+    /// List of command suggestions
     pub suggestions: Vec<Buffer>,
 
-    /// An optional `Buffer` containing the detailed description of the top command suggestion.
+    /// Detailed description of top suggestion
     pub desc: Option<Buffer>,
 
-    /// A boolean indicating whether the current input string forms a valid command.
+    /// Whether current input is valid
     pub input_valid: bool,
 }
 
-/// System used to update the command palette's suggestions and input validation status.
 pub async fn update_palette_suggestions(
     modes: Res<ModeStack>,
     palette: ResMut<CommandPaletteState>,
@@ -58,8 +52,6 @@ pub async fn update_palette_suggestions(
     );
 }
 
-/// Registers the command palette's required chunks for rendering.
-/// Creates a centered floating layout similar to noice.nvim
 pub async fn register_command_palette_chunks(
     chunks: ResMut<Chunks>,
     window: Res<WindowState>,
@@ -122,7 +114,6 @@ pub async fn register_command_palette_chunks(
     chunks.register_chunk::<CommandlineChunk>(2, layout[3][1]);
 }
 
-/// Renders the command palette with noice.nvim-inspired styling.
 pub async fn render_command_palette(
     line_chunk: Chunk<CommandlineChunk>,
     suggestions_chunk: Chunk<CommandSuggestionsChunk>,

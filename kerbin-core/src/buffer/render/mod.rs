@@ -13,14 +13,6 @@ pub use scroll::*;
 use crate::*;
 use ascii_forge::prelude::*;
 
-/// Default renderer for a `TextBuffer`.
-///
-/// This function renders:
-/// - The rope text itself
-/// - Any extmarks in the visible viewport
-///
-/// Cursor positions and selections are *not* hardcoded here – they are provided
-/// each frame as [`Extmark`]s by the [`render_cursors_and_selections`] system.
 pub async fn render_buffer_default(
     gutter_chunk: Chunk<BufferGutterChunk>,
     chunk: Chunk<BufferChunk>,

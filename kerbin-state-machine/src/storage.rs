@@ -9,8 +9,7 @@ pub struct StateStorage {
 }
 
 pub trait StateName: Any + Send + Sync + 'static {
-    /// Returns the concatenated (crate_name::module::Type) type_name
-    /// This is consistent across the ffi boundary
+    /// Returns the concatenated type name
     fn name(&self) -> String;
 }
 

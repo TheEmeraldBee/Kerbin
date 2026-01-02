@@ -9,37 +9,37 @@ use crate::{state::TreeSitterState, text_provider::TextProviderRope};
 /// Represents a match from either the main tree or an injected tree
 #[derive(Debug)]
 pub struct QueryMatchEntry<'a> {
-    /// The match itself
+    /// Match itself
     pub query_match: &'a QueryMatch<'a, 'a>,
 
-    /// The query that produced this match
+    /// Query that produced this match
     pub query: Arc<Query>,
 
-    /// The language this match came from
+    /// Language this match came from
     pub lang: String,
 
     /// Whether this match came from an injected tree
     pub is_injected: bool,
 
-    /// Index of the injected tree (None if from main tree)
+    /// Index of the injected tree
     pub injected_index: Option<usize>,
 
-    /// Byte offset to add to node positions (0 for main tree, start_byte for injected trees)
+    /// Byte offset to add to node positions
     pub byte_offset: usize,
 }
 
-/// Callback-based walker that processes all query matches in a tree and its injected trees
+/// Callback-based walker processing all query matches in a tree and its injected trees
 pub struct QueryWalker<'tree, 'rope> {
     /// Reference to the tree-sitter state
     state: &'tree TreeSitterState,
 
-    /// The rope containing the text
+    /// Rope containing the text
     rope: &'rope Rope,
 
-    /// The query for the main tree
+    /// Query for the main tree
     main_query: Arc<Query>,
 
-    /// Queries for injected languages (keyed by language name)
+    /// Queries for injected languages
     injected_queries: HashMap<String, Arc<Query>>,
 
     /// Current cursor
@@ -47,8 +47,7 @@ pub struct QueryWalker<'tree, 'rope> {
 }
 
 impl<'tree, 'rope> QueryWalker<'tree, 'rope> {
-    /// Walk through all matches, calling the callback for each one
-    /// Returns early if the callback returns false
+    /// Walks through all matches calling the callback for each one
     pub fn walk<F>(&mut self, mut callback: F)
     where
         F: FnMut(QueryMatchEntry) -> bool,
@@ -110,8 +109,7 @@ impl<'tree, 'rope> QueryWalker<'tree, 'rope> {
         }
     }
 
-    /// Walk through matches and collect them into a Vec
-    /// This copies the match data so it can be stored
+    /// Walks through matches and collects them into a vector
     pub fn collect_matches(&mut self) -> Vec<StoredQueryMatch> {
         let mut results = Vec::new();
 
@@ -140,7 +138,7 @@ impl<'tree, 'rope> QueryWalker<'tree, 'rope> {
         results
     }
 
-    /// Walk through matches, but only process the first N matches
+    /// Walks through matches but only processes the first N matches
     pub fn walk_limited<F>(&mut self, limit: usize, mut callback: F)
     where
         F: FnMut(QueryMatchEntry),
@@ -157,7 +155,7 @@ impl<'tree, 'rope> QueryWalker<'tree, 'rope> {
     }
 }
 
-/// A stored version of a query match that doesn't hold references
+/// Stored version of a query match that doesn't hold references
 #[derive(Debug, Clone)]
 pub struct StoredQueryMatch {
     pub pattern_index: usize,
@@ -169,7 +167,7 @@ pub struct StoredQueryMatch {
     pub byte_offset: usize,
 }
 
-/// A stored version of a capture that doesn't hold references
+/// Stored version of a capture that doesn't hold references
 #[derive(Debug, Clone)]
 pub struct StoredCapture {
     pub node_id: usize,
@@ -208,7 +206,7 @@ impl<'tree, 'rope> QueryWalkerBuilder<'tree, 'rope> {
         self
     }
 
-    /// Adds a set of queries, replacing old ones
+    /// Adds a set of queries replacing old ones
     pub fn with_injected_queries(mut self, injected_queries: HashMap<String, Arc<Query>>) -> Self {
         self.injected_queries.extend(injected_queries);
         self

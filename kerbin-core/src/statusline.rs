@@ -4,24 +4,23 @@ use crate::*;
 use ascii_forge::prelude::*;
 use serde::Deserialize;
 
-/// Configuration for a specific mode within the statusline.
+/// Configuration for a specific mode within the statusline
 #[derive(Deserialize, Default, Debug)]
 #[serde(default)]
 pub struct ModeConfig {
-    /// An optional longer, more descriptive name for the mode (e.g., "NORMAL" instead of "n").
+    /// An optional longer, more descriptive name for the mode
     pub long_name: Option<String>,
 
-    /// An optional key to retrieve a specific `ContentStyle` from the `Theme` for this mode.
+    /// An optional key to retrieve a specific `ContentStyle` from the `Theme` for this mode
     pub theme_key: Option<String>,
 }
 
-/// Overall configuration for the editor's statusline.
+/// Overall configuration for the editor's statusline
 #[derive(Deserialize, Default, Debug)]
 pub struct StatuslineConfig {
     pub modes: HashMap<char, ModeConfig>,
 }
 
-/// Renders the editor's statusline, displaying current modes, cursor information, and other details.
 pub async fn render_statusline(
     chunk: Chunk<StatuslineChunk>,
     plugin_config: Res<PluginConfig>,

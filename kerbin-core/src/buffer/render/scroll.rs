@@ -1,9 +1,5 @@
 use crate::*;
 
-/// System that manages horizontal scrolling for the buffer.
-///
-/// `h_scroll` determines how many columns to skip when rendering each line.
-/// This ensures the primary cursor remains visible with padding from left/right edges.
 pub async fn update_buffer_horizontal_scroll(chunk: Chunk<BufferChunk>, buffers: ResMut<Buffers>) {
     let Some(chunk) = chunk.get().await else {
         return;
@@ -57,12 +53,6 @@ pub async fn update_buffer_horizontal_scroll(chunk: Chunk<BufferChunk>, buffers:
     }
 }
 
-/// System that manages vertical scrolling for the buffer.
-///
-/// `byte_scroll` determines which line `build_buffer_lines` starts rendering from.
-/// `visual_scroll` is how many of those built lines we skip when displaying.
-///
-/// This ensures the primary cursor remains visible with a 3-line padding from edges.
 pub async fn update_buffer_vertical_scroll(chunk: Chunk<BufferChunk>, buffers: ResMut<Buffers>) {
     let Some(chunk) = chunk.get().await else {
         return;

@@ -8,7 +8,7 @@ use ascii_forge::prelude::*;
 pub struct OverlayInfo {
     /// The line index this overlay is anchored to
     pub anchor_line: usize,
-    /// The column within that line (in visual columns)
+    /// The column within that line
     pub anchor_col: usize,
     /// The byte position this overlay is anchored to
     pub anchor_byte: usize,
@@ -16,7 +16,7 @@ pub struct OverlayInfo {
     pub offset: Vec2,
     /// The element to render
     pub elem: Arc<Buffer>,
-    /// Z-index for layering (higher renders on top)
+    /// Z-index for layering
     pub z_index: i32,
     /// Whether the overlay should be clipped to viewport
     pub clip_to_viewport: bool,
@@ -25,15 +25,8 @@ pub struct OverlayInfo {
 }
 
 /// A pre-visual representation of what a rendered byte line looks like
-/// This is updated so that visually we can find where bytes should be resulted
-/// Allows for visual scrolling to correctly work
 pub struct RenderLine {
-    /// A list of elements and their visual column start positions, and the element that will be
-    /// drawn, this should allow for easy systems to render elements to the screen
     elements: Vec<(usize, RenderLineElement)>,
-
-    /// The far-left piece of the rendered line
-    /// Rendered at the BufferGutter location
     gutter: Buffer,
 }
 
@@ -148,7 +141,6 @@ impl RenderLine {
     }
 
     /// Extract overlay information from this line
-    /// Returns overlays with their column positions
     pub fn extract_overlays(&self) -> Vec<(usize, OverlayInfo)> {
         let mut overlays = vec![];
 
@@ -182,22 +174,11 @@ impl RenderLine {
     }
 
     /// Renders the gutter to the location
-    ///
-    /// # Arguments
-    /// `chunk`: The visual chunk to render to
-    /// `loc`: The position to render at
     pub fn render_gutter(&self, chunk: &mut InnerChunk, loc: Vec2) {
         render!(chunk, loc => [ &self.gutter ]);
     }
 
     /// Renders the Line to the passed buffer Will only render a max of 1 y location, and the buffer's width
-    /// This will automatically apply scrolling algorithms to the system,
-    /// Making rendering the line very easy
-    ///
-    /// # Arguments
-    /// * `chunk`: The visual chunk to render to
-    /// * `loc`: The offset on the buffer to render at
-    /// * `horizontal_scroll`: The scroll of the line to apply
     pub fn render(&self, chunk: &mut InnerChunk, loc: Vec2, horizontal_scroll: usize) {
         let viewport_width = chunk.size().x.saturating_sub(loc.x) as usize;
         let mut render_col = 0_u16;
@@ -249,9 +230,6 @@ impl RenderLine {
     }
 
     /// Calculates the size of the last element, returning the total length of the Line
-    ///
-    /// # Returns
-    /// The width, in visual columns of the RenderLine
     pub fn calculate_size(&self) -> usize {
         self.elements
             .last()
@@ -260,12 +238,6 @@ impl RenderLine {
     }
 
     /// Adds an element to the line, taking ownership for a builder pattern
-    ///
-    /// # Arguments
-    /// * `element`: the element to add into the system
-    ///
-    /// # Returns
-    /// This line with a new element in it, if you want a non-ownership function, look at `RenderLine::element`
     pub fn with_element(mut self, element: RenderLineElement) -> Self {
         self.elements.push((
             self.elements
@@ -278,13 +250,6 @@ impl RenderLine {
     }
 
     /// Adds an element to the line, taking ownership for a builder pattern
-    ///
-    /// # Arguments
-    /// * `element`: the element to add into the system
-    ///
-    /// # Returns
-    /// This line with a new element in it, if you want a version with ownership, look at
-    /// `RenderLine::with_element`
     pub fn element(&mut self, element: RenderLineElement) -> &mut Self {
         self.elements.push((
             self.elements
@@ -297,12 +262,6 @@ impl RenderLine {
     }
 
     /// Search the line for  a byte within it
-    ///
-    /// # Arguments
-    /// * `byte`: the byte to search for
-    ///
-    /// # Returns
-    /// An optional column that the rope byte is being rendered at
     pub fn byte_to_col(&self, byte: usize) -> Option<usize> {
         for (col, elem) in &self.elements {
             if elem.is_rope_byte(byte) {
@@ -316,11 +275,11 @@ impl RenderLine {
 /// Controls how an overlay is positioned
 #[derive(Clone, Copy, Debug)]
 pub enum OverlayPositioning {
-    /// Relative to the character/byte position (affected by scroll)
+    /// Relative to the character/byte position
     RelativeToChar,
-    /// Relative to the line start (moves with horizontal scroll)
+    /// Relative to the line start
     RelativeToLine,
-    /// Fixed to viewport (ignores scroll completely)
+    /// Fixed to viewport
     ViewportFixed,
 }
 
@@ -329,20 +288,16 @@ pub enum RenderLineElement {
     /// A character from the byte line with a style applied
     RopeChar(char, usize, ContentStyle),
 
-    /// A text element with a style (can be any text)
+    /// A text element with a style
     Text(String, ContentStyle),
 
     /// An element that's rendering is called straight by window
-    /// Should be paired with ReservedSpace to correctly reserve space
-    /// for the widget contained
     Element(Arc<Buffer>),
 
-    /// A reserved width in columns for inline element rendering (height of 1 only)
+    /// A reserved width in columns for inline element rendering
     ReservedSpace(usize),
 
     /// An overlay element rendered at an offset from the byte position
-    /// Does not take up space in the line layout
-    /// Enhanced overlay element with positioning options
     OverlayElement {
         /// The byte position this overlay is anchored to
         anchor_byte: usize,
@@ -350,7 +305,7 @@ pub enum RenderLineElement {
         offset: Vec2,
         /// The element to render
         elem: Arc<Buffer>,
-        /// Z-index for layering (higher renders on top)
+        /// Z-index for layering
         z_index: i32,
         /// Whether the overlay should be clipped to viewport
         clip_to_viewport: bool,
@@ -360,8 +315,7 @@ pub enum RenderLineElement {
 }
 
 impl RenderLineElement {
-    /// Returns whether the byte passed is within the
-    /// passed character for the inner TextBuffer rope
+    /// Returns whether the byte passed is within the passed character
     pub fn is_rope_byte(&self, byte: usize) -> bool {
         match self {
             Self::RopeChar(_, b, _) => *b == byte,
@@ -398,12 +352,6 @@ impl RenderLineElement {
     }
 
     /// Render the element with clipping support for scrolling
-    ///
-    /// # Arguments
-    /// * `chunk` - The chunk to render to
-    /// * `pos` - The position to render at
-    /// * `skip` - How many visual columns to skip from the start
-    /// * `max_width` - Maximum width to render
     pub fn render(&self, chunk: &mut InnerChunk, pos: Vec2, skip: usize, max_width: usize) {
         match self {
             Self::RopeChar(ch, _, st) => {

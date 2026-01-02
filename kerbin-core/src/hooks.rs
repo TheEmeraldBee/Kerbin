@@ -24,8 +24,7 @@ impl Hook for ChunkRegister {
     }
 }
 
-/// This runs **RIGHT** before Render
-/// RenderLines are known at this point :)
+/// This runs right before Render
 pub struct PreRender;
 impl Hook for PreRender {
     fn info(&self) -> HookInfo {
@@ -33,9 +32,7 @@ impl Hook for PreRender {
     }
 }
 
-/// This runs **RIGHT** before building RenderLines
-/// Should be used for building pieces that will be needed
-/// for RenderLines that are retrieved from update (ie. scrolling)
+/// This runs right before building RenderLines
 pub struct PreLines;
 impl Hook for PreLines {
     fn info(&self) -> HookInfo {
@@ -51,7 +48,7 @@ impl Hook for Render {
     }
 }
 
-/// This runs after update each frame, should be used to register chunks by layouts
+/// This runs after update each frame and should be used to register chunks by layouts
 pub struct RenderChunks;
 impl Hook for RenderChunks {
     fn info(&self) -> HookInfo {
@@ -59,7 +56,7 @@ impl Hook for RenderChunks {
     }
 }
 
-/// Runs before updating the buffer's lines, and after creating chunks
+/// Runs before updating the buffer's lines and after creating chunks
 pub struct UpdateFiletype(pub HookInfo);
 
 impl UpdateFiletype {
@@ -97,8 +94,7 @@ impl Hook for PostUpdate {
     }
 }
 
-/// This state runs after all updates, should be used to clear states, and not render, update, or
-/// read anything
+/// This state runs after all updates and should be used to clear states
 pub struct UpdateCleanup;
 impl Hook for UpdateCleanup {
     fn info(&self) -> HookInfo {

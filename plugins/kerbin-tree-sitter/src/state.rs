@@ -24,14 +24,14 @@ fn translate_name_to_style(theme: &Theme, mut name: &str) -> ContentStyle {
     theme.get("ui.text").unwrap_or_default()
 }
 
-/// A tree that was injected into the state
+/// Tree that was injected into the state
 pub struct InjectedTree {
     pub lang: String,
     pub tree: Tree,
     pub byte_range: std::ops::Range<usize>,
 }
 
-/// A state stored in each buffer with the state of tree-sitter
+/// State stored in each buffer with the state of tree-sitter
 #[derive(State)]
 pub struct TreeSitterState {
     pub lang: String,
@@ -40,7 +40,6 @@ pub struct TreeSitterState {
     pub injected_trees: Vec<InjectedTree>,
 }
 
-/// Updates tree-sitter trees based on byte changes in the buffer
 pub async fn update_trees(
     buffers: ResMut<Buffers>,
     grammars: ResMut<GrammarManager>,
@@ -253,7 +252,6 @@ pub async fn open_files(
     }
 }
 
-/// Loads all injected trees for a given parse tree
 fn load_injected_trees(
     state: &TreeSitterState,
     grammars: &mut GrammarManager,
@@ -331,7 +329,6 @@ fn load_injected_trees(
     injected_trees
 }
 
-/// Parses a single injected tree
 fn parse_injection(
     grammars: &mut GrammarManager,
     config_path: &str,

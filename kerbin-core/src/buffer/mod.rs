@@ -36,85 +36,57 @@ use tokio::sync::{OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
 
 use crate::EVENT_BUS;
 
-/// Used internally for defining a set of actions that were applied together as a single undo/redo unit.
-///
-/// A `ChangeGroup` stores the state of cursors *before* the actions were applied,
-/// whether the buffer was dirty or not in the change,
-/// and a list of `BufferAction` inverses to reverse the changes.
+/// Used internally for defining a set of actions that were applied together as a single undo/redo unit
 #[derive(Default)]
 pub struct ChangeGroup(Vec<Cursor>, Vec<Box<dyn BufferAction>>);
 
-/// The core storage of an open text buffer inside of the editor.
-///
-/// `TextBuffer` is responsible for storing file content (`ropey::Rope`),
-/// managing file metadata (path, extension), tracking multiple cursors,
-/// handling undo/redo, and managing scroll positions for rendering.
+/// The core storage of an open text buffer inside of the editor
 pub struct TextBuffer {
     /// A marker for the text buffer that marks if it is unsaved
-    /// Used for commands that may do file operations or similar
     pub dirty: bool,
 
     /// An optional index into `undo_stack` that marks the point
-    /// where the content matches the last file save on disk.
     pub save_point: usize,
 
-    /// A number representing the "version" of an edit,
-    /// is incremented for any action applied,
-    /// including undo and redo
+    /// A number representing the "version" of an edit
     pub version: u128,
 
-    /// The last stored time that the file was changed. None if the file didn't exist, or if
-    /// reading it failed. Used for commands that write to file, to check if external changes exist
+    /// The last stored time that the file was changed
     pub changed: Option<SystemTime>,
 
-    /// Internal storage of the text itself using `ropey::Rope`.
-    ///
-    /// Changes to the `Rope` should primarily be made through `BufferAction`s
-    /// to correctly integrate with undo/redo and syntax highlighting systems.
+    /// Internal storage of the text itself using `ropey::Rope`
     pub(crate) rope: Rope,
 
-    /// The absolute, canonical path of the file associated with this buffer.
-    /// Used for saving and identifying the file.
+    /// The absolute, canonical path of the file associated with this buffer
     pub path: String,
 
-    /// The file extension (e.g., "rs", "txt") derived from the `path`.
-    /// Used for determining syntax highlighting and other file-type-specific behaviors.
+    /// The file extension derived from the `path`
     pub ext: String,
 
-    /// A vector of all active `Cursor`s in this buffer.
-    /// Supports multicursor editing.
+    /// A vector of all active `Cursor`s in this buffer
     pub cursors: Vec<Cursor>,
 
-    /// The index within the `cursors` vector that identifies the primary,
-    /// or active, cursor.
+    /// The index within the `cursors` vector that identifies the primary cursor
     pub primary_cursor: usize,
 
     /// A set of flags that may be set on a buffer
     pub flags: HashSet<&'static str>,
 
     /// A set of states stored within a buffer
-    /// Used for tying states to a buffer specifically
     pub states: HashMap<String, Box<dyn StateName>>,
 
-    /// A list of data that marks byte changes applied to the rope.
-    /// Each entry is an array of three `((row, col), byte_idx)` tuples:
-    /// `[0]` is the start position of the edit.
-    /// `[1]` is the previous ending position of the edit.
-    /// `[2]` is the new ending position of the edit.
-    /// This is used for systems like incremental syntax highlighting updates.
+    /// A list of data that marks byte changes applied to the rope
     pub byte_changes: Vec<[((usize, usize), usize); 3]>,
 
-    /// An optional `ChangeGroup` currently being built.
-    /// Actions are added to this group until `commit_change_group` is called.
+    /// An optional `ChangeGroup` currently being built
     pub current_change: Option<ChangeGroup>,
 
-    /// A stack of `ChangeGroup`s representing past changes that can be undone.
+    /// A stack of `ChangeGroup`s representing past changes that can be undone
     pub undo_stack: Vec<ChangeGroup>,
-    /// A stack of `ChangeGroup`s representing undone changes that can be redone.
+    /// A stack of `ChangeGroup`s representing undone changes that can be redone
     pub redo_stack: Vec<ChangeGroup>,
 
     /// Stores the current render state of the buffer
-    /// used for handling the rendering of the buffer
     pub renderer: BufferRenderer,
 }
 
@@ -150,24 +122,12 @@ impl Default for TextBuffer {
 }
 
 impl TextBuffer {
-    /// Creates a new "scratch" file, which is an in-memory, unsavable buffer.
-    ///
-    /// Scratch buffers are typically used for new, unsaved files or as a default
-    /// buffer when the editor starts without opening a specific file.
-    ///
-    /// # Returns
-    ///
-    /// A new `TextBuffer` instance representing a scratch file.
+    /// Creates a new "scratch" file, which is an in-memory, unsavable buffer
     pub fn scratch() -> Self {
         Self::default()
     }
 
-    /// Opens a file with the provided path, loading its content into the buffer.
-    ///
-    /// The `path_str` can be absolute or relative. It will be canonicalized,
-    /// even if the file does not yet exist. This method also handles
-    /// extracting the file extension, initializing cursors, and reading file content.
-    /// If the file does not exist, an empty buffer is created.
+    /// Opens a file with the provided path, loading its content into the buffer
     pub fn open(path_str: String) -> io::Result<Self> {
         let mut found_ext = "".to_string();
 
@@ -281,10 +241,7 @@ impl TextBuffer {
         }
     }
 
-    /// Given a byte offset, returns a tuple containing the `((line_idx, col_idx), byte_idx)`.
-    ///
-    /// This format is convenient for registering edits within the `byte_changes` vector,
-    /// particularly for external tools like Tree-sitter.
+    /// Given a byte offset, returns a tuple containing the `((line_idx, col_idx), byte_idx)`
     pub fn get_edit_part(&self, byte: usize) -> ((usize, usize), usize) {
         let line_idx = self.byte_to_line_clamped(byte);
         let col = byte - self.line_to_byte_clamped(line_idx);
@@ -292,11 +249,7 @@ impl TextBuffer {
         ((line_idx, col), byte)
     }
 
-    /// Registers an edit with the buffer for tracking changes.
-    ///
-    /// This method stores the start, old end, and new end positions of an edit.
-    /// This information is crucial for systems that need to react to buffer changes,
-    /// such as syntax highlighting or language server protocols.
+    /// Registers an edit with the buffer for tracking changes
     pub fn register_input_edit(
         &mut self,
         start: ((usize, usize), usize),
@@ -306,7 +259,7 @@ impl TextBuffer {
         self.byte_changes.push([start, old_end, new_end]);
     }
 
-    /// Applies a given `BufferAction` to the editor.
+    /// Applies a given `BufferAction` to the editor
     pub fn action(&mut self, action: impl BufferAction) -> bool {
         if self.current_change.is_none() {
             self.start_change_group();
@@ -327,18 +280,13 @@ impl TextBuffer {
         res.success
     }
 
-    /// Creates a new cursor at the same location as the current primary cursor.
-    ///
-    /// The newly created cursor becomes the new primary cursor.
+    /// Creates a new cursor at the same location as the current primary cursor
     pub fn create_cursor(&mut self) {
         self.cursors.push(self.primary_cursor().clone());
         self.primary_cursor = self.cursors.len() - 1;
     }
 
-    /// Removes all cursors from the buffer except for the current primary cursor.
-    ///
-    /// After this operation, only one cursor will remain, and it will be set
-    /// as the primary cursor at index 0.
+    /// Removes all cursors from the buffer except for the current primary cursor
     pub fn drop_other_cursors(&mut self) {
         let cursor = self.cursors.remove(self.primary_cursor);
         self.primary_cursor = 0;
@@ -347,12 +295,7 @@ impl TextBuffer {
         self.cursors.push(cursor);
     }
 
-    /// Removes the current primary cursor from the buffer.
-    ///
-    /// If there is only one cursor, this action does nothing, as a buffer
-    /// must always have at least one cursor. If multiple cursors exist,
-    /// the primary cursor is removed, and the `primary_cursor` index
-    /// is adjusted to point to a valid remaining cursor.
+    /// Removes the current primary cursor from the buffer
     pub fn drop_primary_cursor(&mut self) {
         if self.cursors.len() <= 1 {
             return;
@@ -366,10 +309,7 @@ impl TextBuffer {
             .clamp(0, self.cursors.len() - 1);
     }
 
-    /// Changes the currently selected primary cursor by an offset.
-    ///
-    /// The `primary_cursor` index will be clamped to remain within the
-    /// valid range of `0` to `self.cursors.len() - 1` and will not wrap.
+    /// Changes the currently selected primary cursor by an offset
     pub fn change_cursor(&mut self, offset: isize) {
         self.primary_cursor = self
             .primary_cursor
@@ -377,17 +317,17 @@ impl TextBuffer {
             .clamp(0, self.cursors.len() - 1);
     }
 
-    /// Returns an immutable reference to the current primary cursor of the buffer.
+    /// Returns an immutable reference to the current primary cursor of the buffer
     pub fn primary_cursor(&self) -> &Cursor {
         &self.cursors[self.primary_cursor]
     }
 
-    /// Returns a mutable reference to the current primary cursor of the buffer.
+    /// Returns a mutable reference to the current primary cursor of the buffer
     pub fn primary_cursor_mut(&mut self) -> &mut Cursor {
         &mut self.cursors[self.primary_cursor]
     }
 
-    /// Applies the undo operation of the last `ChangeGroup` on the undo stack.
+    /// Applies the undo operation of the last `ChangeGroup` on the undo stack
     pub fn undo(&mut self) {
         self.commit_change_group();
         if let Some(group) = self.undo_stack.pop() {
@@ -416,7 +356,7 @@ impl TextBuffer {
         }
     }
 
-    /// Applies the redo operation from the redo stack.
+    /// Applies the redo operation from the redo stack
     pub fn redo(&mut self) {
         self.commit_change_group();
         if let Some(group) = self.redo_stack.pop() {
@@ -451,19 +391,13 @@ impl TextBuffer {
         }
     }
 
-    /// Starts a new change group for recording subsequent actions.
-    ///
-    /// Any pending actions in `current_change` are first committed to the undo stack.
-    /// A new empty `ChangeGroup` is then initiated.
+    /// Starts a new change group for recording subsequent actions
     pub fn start_change_group(&mut self) {
         self.commit_change_group();
         self.current_change = Some(ChangeGroup(self.cursors.clone(), vec![]));
     }
 
-    /// Commits the current `ChangeGroup` to the undo stack, if it's not empty.
-    ///
-    /// If there is an active `current_change` with recorded actions, it is moved
-    /// to the `undo_stack`. If `current_change` is empty or `None`, this does nothing.
+    /// Commits the current `ChangeGroup` to the undo stack, if it's not empty
     pub fn commit_change_group(&mut self) {
         if let Some(group) = self.current_change.take()
             && !group.1.is_empty()
@@ -472,10 +406,7 @@ impl TextBuffer {
         }
     }
 
-    /// Writes the buffer's content to a file on disk.
-    ///
-    /// Handles directory creation and ensures the file exists.
-    /// A special buffer (starts with `<` and ends with `>`) cannot be written without providing a new path.
+    /// Writes the buffer's content to a file on disk
     pub async fn write_file(&mut self, path: Option<String>) {
         if let Some(new_path) = path {
             let path = Path::new(&new_path);
@@ -551,11 +482,7 @@ impl TextBuffer {
         }
     }
 
-    /// Moves the primary cursor by a given number of bytes.
-    ///
-    /// This function directly adjusts the cursor's position by `bytes` within the buffer's
-    /// content, clamping the new position to be within the valid range of the `Rope`.
-    /// It can optionally extend the current selection.
+    /// Moves the primary cursor by a given number of bytes
     pub fn move_bytes(&mut self, bytes: isize, extend_selection: bool) -> bool {
         if bytes == 0 {
             return false;
@@ -587,11 +514,7 @@ impl TextBuffer {
         new_caret_byte != current_caret_byte
     }
 
-    /// Moves the primary cursor by a given number of lines.
-    ///
-    /// This function adjusts the cursor's line position by `rows`, attempting to maintain
-    /// the current column position. The new line position is clamped to be within
-    /// the valid range of lines in the `Rope`. It can optionally extend the current selection.
+    /// Moves the primary cursor by a given number of lines
     pub fn move_lines(&mut self, rows: isize, extend_selection: bool) -> bool {
         if rows == 0 {
             return false;
@@ -651,11 +574,7 @@ impl TextBuffer {
         new_caret_byte != current_caret_byte
     }
 
-    /// Moves the primary cursor by a given number of characters.
-    ///
-    /// This function adjusts the cursor's character position by `chars` within the buffer's
-    /// content, clamping the new position to be within the valid range of the `Rope`.
-    /// It handles multi-byte characters correctly. It can optionally extend the current selection.
+    /// Moves the primary cursor by a given number of characters
     pub fn move_chars(&mut self, chars: isize, extend_selection: bool) -> bool {
         if chars == 0 {
             return false;
@@ -689,11 +608,7 @@ impl TextBuffer {
         new_caret_byte != current_cursor.get_cursor_byte()
     }
 
-    /// Merges any overlapping cursors in the `cursors` list.
-    ///
-    /// If multiple cursors select overlapping regions of text, they are combined
-    /// into a single cursor whose selection encompasses the merged region.
-    /// The `primary_cursor` index is adjusted if a cursor before it is removed.
+    /// Merges any overlapping cursors in the `cursors` list
     pub fn merge_overlapping_cursors(&mut self) {
         if self.cursors.len() <= 1 {
             return;
@@ -743,12 +658,12 @@ impl TextBuffer {
         self.byte_changes.clear();
     }
 
-    /// Inserts text at the specified byte offset.
+    /// Inserts text at the specified byte offset
     pub fn insert(&mut self, byte: usize, text: &str) {
         self.rope.insert(byte, text);
     }
 
-    /// Removes text within the specified byte range.
+    /// Removes text within the specified byte range
     pub fn remove_range(&mut self, range: std::ops::Range<usize>) {
         self.rope.remove(range);
     }
@@ -758,12 +673,7 @@ impl TextBuffer {
     }
 }
 
-/// Computes the canonicalized path for a given path string, even if the path
-/// or some of its components do not yet exist on the filesystem.
-///
-/// This function attempts to resolve `.` and `..` components and canonicalize
-/// existing parts of the path, but will not fail if a full canonicalization
-/// is not possible due to non-existent parts.
+/// Computes the canonicalized path even if parts do not exist
 pub fn get_canonical_path_with_non_existent(path_str: &str) -> PathBuf {
     let path = PathBuf::from(path_str);
     let mut resolved_path = PathBuf::new();

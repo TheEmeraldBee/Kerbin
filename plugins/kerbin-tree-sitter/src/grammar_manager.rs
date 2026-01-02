@@ -14,22 +14,24 @@ use crate::{
 
 #[derive(thiserror::Error, Debug)]
 pub enum GrammarManagerError {
+    /// Wraps a grammar load error
     #[error(transparent)]
     LoadError(#[from] GrammarLoadError),
 
+    /// Missing definition for grammar
     #[error("Missing definition for grammar {lang}")]
     MissingDefinition { lang: String },
 }
 
 #[derive(State, Default)]
 pub struct GrammarManager {
-    /// A list of extensions that map to normalized language names (Case-Insensitive)
+    /// Extensions mapping to normalized language names
     pub ext_map: HashMap<String, String>,
 
-    /// A map of normalized languages to their definitions
+    /// Map of normalized languages to their definitions
     pub lang_map: HashMap<String, GrammarDefinition>,
 
-    /// A map of normalized languages to their **possibly** loaded grammars
+    /// Map of normalized languages to loaded grammars
     pub loaded_grammars: HashMap<String, Arc<Grammar>>,
 
     pub query_map: HashMap<String, HashMap<String, Arc<Query>>>,
@@ -47,10 +49,7 @@ impl GrammarManager {
         }
     }
 
-    /// Iterates through all grammars, attempting to locate their installation
-    /// Attempts to install them if possible, logging the results
-    ///
-    /// Never returns an error, will log to console if it fails
+    /// Iterates through all grammars attempting to locate their installation
     pub async fn install_all_grammars(&self, state: &State) {
         let config_path = state.lock_state::<ConfigFolder>().await.0.clone();
 
@@ -102,7 +101,6 @@ impl GrammarManager {
     }
 
     /// Creates the Manager by loading in a list of grammar entries
-    /// When it fails, it returns what it got valid still, allowing for a recoverable state
     #[allow(clippy::result_large_err)]
     pub fn from_definitions(
         entries: Vec<GrammarEntry>,
@@ -155,13 +153,12 @@ impl GrammarManager {
         Ok(ret)
     }
 
-    /// Translates an extension into a normalized language string, returning None if non-existent
+    /// Translates an extension into a normalized language string
     pub fn ext_to_lang(&self, ext: &str) -> Option<&str> {
         self.ext_map.get(ext).map(|x| x.as_str())
     }
 
-    /// Attempts to return a grammar, attempting to load it if it isn't already
-    /// Accepts any variant of the language name (with -, _, or .)
+    /// Attempts to return a grammar
     pub fn get_grammar(
         &mut self,
         config_path: &str,
@@ -196,7 +193,7 @@ impl GrammarManager {
             .expect("Just inserted language"))
     }
 
-    /// Gets a query set (main query + injected queries) for all queries in a language
+    /// Gets a query set for all queries in a language
     #[allow(clippy::type_complexity)]
     pub fn get_query_set(
         &mut self,
@@ -216,7 +213,6 @@ impl GrammarManager {
         Some((query, injected_queries))
     }
 
-    /// Gets all possible query file paths for a language, trying all variants
     fn get_query_paths(
         &self,
         config_path: &str,
@@ -243,7 +239,6 @@ impl GrammarManager {
     }
 
     /// Gets or loads a query for a specific language
-    /// Accepts any variant of the language name (with -, _, or .)
     pub fn get_query(
         &mut self,
         config_path: &str,
@@ -293,7 +288,6 @@ impl GrammarManager {
     }
 }
 
-/// Gets all possible variants of a name with -, _, and .
 fn get_name_variants(name: &str) -> Vec<String> {
     let mut variants = vec![name.to_string()];
 

@@ -1,88 +1,77 @@
-use ropey::{LineType, RopeSlice, iter::Lines};
+use ropey::{iter::Lines, LineType, RopeSlice};
 
-use crate::TextBuffer;
 use crate::rope_exts::RopeExts;
+use crate::TextBuffer;
 
-/// Extension trait for safe rope operations on TextBuffer.
-///
-/// This provides helper methods that automatically handle bounds checking
-/// and clamping to prevent panics when accessing the underlying rope.
+/// Extension trait for safe rope operations on TextBuffer
 pub trait SafeRopeAccess {
-    /// Safely gets the line index for a byte index.
-    /// Returns None if the byte is out of bounds.
+    /// Safely gets the line index for a byte index
     fn byte_to_line(&self, byte: usize) -> Option<usize>;
 
-    /// Gets the line index for a byte index, clamping to the valid range.
+    /// Gets the line index for a byte index, clamping to the valid range
     fn byte_to_line_clamped(&self, byte: usize) -> usize;
 
-    /// Safely gets the byte index for a line index.
-    /// Returns None if the line is out of bounds.
+    /// Safely gets the byte index for a line index
     fn line_to_byte(&self, line: usize) -> Option<usize>;
 
-    /// Gets the byte index for a line index, clamping to the valid range.
+    /// Gets the byte index for a line index, clamping to the valid range
     fn line_to_byte_clamped(&self, line: usize) -> usize;
 
-    /// Safely gets the char index for a byte index.
-    /// Returns None if the byte is out of bounds.
+    /// Safely gets the char index for a byte index
     fn byte_to_char(&self, byte: usize) -> Option<usize>;
 
-    /// Gets the char index for a byte index, clamping to the valid range.
+    /// Gets the char index for a byte index, clamping to the valid range
     fn byte_to_char_clamped(&self, byte: usize) -> usize;
 
-    /// Safely gets the byte index for a char index.
-    /// Returns None if the char is out of bounds.
+    /// Safely gets the byte index for a char index
     fn char_to_byte(&self, char_idx: usize) -> Option<usize>;
 
-    /// Gets the byte index for a char index, clamping to the valid range.
+    /// Gets the byte index for a char index, clamping to the valid range
     fn char_to_byte_clamped(&self, char_idx: usize) -> usize;
 
-    /// Safely gets a character at the specified index.
-    /// Returns None if the index is out of bounds.
+    /// Safely gets a character at the specified index
     fn char(&self, char_idx: usize) -> Option<char>;
 
-    /// Gets a character at the specified index, clamping to the valid range.
+    /// Gets a character at the specified index, clamping to the valid range
     fn char_clamped(&self, char_idx: usize) -> char;
 
-    /// Safely gets a line slice.
-    /// Returns None if the index is out of bounds.
+    /// Safely gets a line slice
     fn line(&self, line_idx: usize) -> Option<RopeSlice<'_>>;
 
-    /// Gets a line slice, clamping to the last line.
+    /// Gets a line slice, clamping to the last line
     fn line_clamped(&self, line_idx: usize) -> RopeSlice<'_>;
 
-    /// Safely gets an iterator over lines starting at byte.
-    /// Returns None if byte is out of bounds.
+    /// Safely gets an iterator over lines starting at byte
     fn lines_at(&self, byte: usize) -> Option<Lines<'_>>;
 
-    /// Gets an iterator over lines starting at byte, clamping byte to len.
+    /// Gets an iterator over lines starting at byte, clamping byte to len
     fn lines_at_clamped(&self, byte: usize) -> Lines<'_>;
 
-    /// Safely gets the chunk at the specified byte.
+    /// Safely gets the chunk at the specified byte
     fn chunk_at(&self, byte: usize) -> Option<(&str, usize, usize, usize)>;
 
-    /// Gets the byte offset of the char boundary at or before the given byte, clamping input.
+    /// Gets the byte offset of the char boundary at or before the given byte, clamping input
     fn byte_to_char_boundary(&self, byte: usize) -> usize;
 
-    /// Safely slices the rope.
-    /// Returns None if the range is invalid.
+    /// Safely slices the rope
     fn slice_to_string(&self, start: usize, end: usize) -> Option<String>;
 
-    /// Safely slices the rope, returning a RopeSlice.
+    /// Safely slices the rope, returning a RopeSlice
     fn slice(&self, start: usize, end: usize) -> Option<RopeSlice<'_>>;
 
-    /// Returns the entire buffer content as a String.
+    /// Returns the entire buffer content as a String
     fn to_string(&self) -> String;
 
-    /// Returns the length of the buffer in bytes.
+    /// Returns the length of the buffer in bytes
     fn len(&self) -> usize;
 
-    /// Returns whether the buffer is empty or not.
+    /// Returns whether the buffer is empty or not
     fn is_empty(&self) -> bool;
 
-    /// Returns the length of the buffer in chars.
+    /// Returns the length of the buffer in chars
     fn len_chars(&self) -> usize;
 
-    /// Returns the length of the buffer in lines.
+    /// Returns the length of the buffer in lines
     fn len_lines(&self) -> usize;
 }
 

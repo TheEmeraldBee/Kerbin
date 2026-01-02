@@ -14,8 +14,7 @@ pub struct DebounceEvent {
     pub ignore_with_template: Vec<String>,
 }
 
-/// Stores debounce info, is None if not in mode where config requests it's tracked
-/// Can be used by plugins to run commands or similar
+/// Stores debounce info for plugins to use
 #[derive(State, Default)]
 pub struct Debounce {
     flag: bool,
