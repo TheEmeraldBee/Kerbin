@@ -122,7 +122,7 @@ desc = "Collapse Selection"
 [[keybind]]
 modes = ["v"]
 keys = ["d"]
-commands = ["gsb", "commit d", "rm"]
+commands = ["gsb", "commit [d]", "rm"]
 desc = "Delete selection"
 
 [[keybind]]

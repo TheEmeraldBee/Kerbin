@@ -50,7 +50,7 @@ impl Command for PaletteCommand {
                 let content = palette.input.clone();
                 drop(palette);
                 let command = state.lock_state::<CommandRegistry>().await.parse_command(
-                    word_split(&content),
+                    tokenize(&content).unwrap_or_default(),
                     true,
                     false,
                     Some(&resolver_engine().await.as_resolver()),

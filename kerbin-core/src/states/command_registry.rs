@@ -24,8 +24,9 @@ impl CommandRegistry {
         prefix_registry: &CommandPrefixRegistry,
         modes: &ModeStack,
     ) -> bool {
+        let tokens = tokenize(input).unwrap_or_default();
         self.parse_command(
-            word_split(input),
+            tokens,
             false, // Do not log errors during validation
             true,  // Indicate that prefix checking should happen (or has happened)
             resolver,
@@ -46,18 +47,23 @@ impl CommandRegistry {
         let resolver = resolver_engine().await;
         resolver.as_resolver().expand_str(input, false);
 
-        let words = word_split(input);
+        let tokens = tokenize(input).unwrap_or_default();
 
-        if words.is_empty() {
+        if tokens.is_empty() {
             return (vec![], None, None);
         }
+
+        let first_name = match tokens.first() {
+            Some(Token::Word(s)) => s.clone(),
+            _ => return (vec![], None, None),
+        };
 
         let mut res = vec![];
 
         for registry in &self.0 {
             for info in &registry.infos {
                 for valid_name in &info.valid_names {
-                    let Some(rnk) = rank(&words[0], valid_name) else {
+                    let Some(rnk) = rank(&first_name, valid_name) else {
                         continue;
                     };
 
@@ -71,7 +77,7 @@ impl CommandRegistry {
 
         let desc = res.first().and_then(|x| x.1.desc_buf(theme));
 
-        let completion = if words.len() == 1 {
+        let completion = if tokens.len() == 1 {
             res.first().map(|x| x.2.clone())
         } else {
             None
@@ -94,10 +100,10 @@ impl CommandRegistry {
     }
 
     #[allow(clippy::too_many_arguments)]
-    /// Parses a list of words into a runnable command
+    /// Parses a list of tokens into a runnable command
     pub fn parse_command(
         &self,
-        mut words: Vec<String>,
+        mut tokens: Vec<Token>,
         log_errors: bool,
         prefix_checked: bool,
 
@@ -108,21 +114,23 @@ impl CommandRegistry {
         modes: &ModeStack,
     ) -> Option<Box<dyn Command>> {
         if let Some(resolver) = resolver {
-            words = words
-                .iter()
-                .map(|x| resolver.expand_str(x, allow_run))
-                .collect();
+            tokens = resolver.expand_tokens(tokens, allow_run);
         }
 
         if !prefix_checked {
             for prefix in &prefix_registry.0 {
                 if prefix.modes.iter().any(|x| modes.mode_on_stack(*x)) {
+                    let first_word = match tokens.first() {
+                        Some(Token::Word(s)) => s.clone(),
+                        _ => String::new(),
+                    };
+
                     // Check that the cmd name is valid
                     let mut has_name = false;
                     if !prefix.list.is_empty() {
                         for infos in &self.0 {
                             if infos.infos.iter().any(|x| {
-                                let matches_word0 = x.check_name(&words[0]);
+                                let matches_word0 = x.check_name(&first_word);
                                 let matches_prefix = prefix.list.iter().any(|l| x.check_name(l));
                                 matches_word0 && matches_prefix
                             }) {
@@ -141,21 +149,21 @@ impl CommandRegistry {
                         continue;
                     }
 
-                    // Prefix the command with the resulting prefix split
-                    let mut new_words = word_split(&prefix.prefix_cmd);
-                    new_words.append(&mut words);
+                    // Prefix the command, wrapping user tokens as a Token::List
+                    let mut new_tokens = tokenize(&prefix.prefix_cmd).unwrap_or_default();
+                    new_tokens.push(Token::List(tokens));
 
-                    words = new_words;
+                    tokens = new_tokens;
                 }
             }
         }
 
-        if words.is_empty() {
+        if tokens.is_empty() {
             return None;
         }
 
         for registry in &self.0 {
-            if let Some(cmd) = (registry.parser)(&words) {
+            if let Some(cmd) = (registry.parser)(&tokens) {
                 match cmd {
                     Ok(t) => return Some(t),
                     Err(e) => {

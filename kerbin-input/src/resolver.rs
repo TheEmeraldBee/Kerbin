@@ -3,7 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use ascii_forge::window::KeyModifiers;
 
 use crate::{
-    Matchable, ParsableKey, ParseError, ResolvedKeyBind, UnresolvedKeyBind, UnresolvedKeyElement,
+    Matchable, ParsableKey, ParseError, ResolvedKeyBind, Token, UnresolvedKeyBind,
+    UnresolvedKeyElement, flatten_tokens, tokenize,
 };
 
 pub type CommandExecutor =
@@ -64,111 +65,56 @@ impl<'a> Resolver<'a> {
         Ok(results)
     }
 
+    /// Expand a list of tokens by resolving variables and command substitutions.
+    pub fn expand_tokens(&self, tokens: Vec<Token>, allow_run: bool) -> Vec<Token> {
+        tokens
+            .into_iter()
+            .flat_map(|t| match t {
+                Token::Word(s) => vec![Token::Word(s)],
+
+                Token::Variable(name) => {
+                    if let Some(values) = self.templates.get(&name) {
+                        values.iter().map(|v| Token::Word(v.clone())).collect()
+                    } else {
+                        // Unknown variable: keep as-is
+                        vec![Token::Variable(name)]
+                    }
+                }
+
+                Token::CommandSubst(inner) if allow_run => {
+                    tracing::info!(%inner, %allow_run);
+                    // Tokenize and expand the inner command string, then execute
+                    let cmd_tokens = tokenize(&inner).unwrap_or_default();
+                    let expanded = self.expand_tokens(cmd_tokens, allow_run);
+                    let parts: Vec<String> = expanded
+                        .into_iter()
+                        .filter_map(|t| {
+                            if let Token::Word(s) = t { Some(s) } else { None }
+                        })
+                        .collect();
+
+                    if let Some((cmd, args)) = parts.split_first() {
+                        match (self.command_executor)(cmd, args) {
+                            Ok(output) => output.into_iter().map(Token::Word).collect(),
+                            Err(_) => vec![Token::CommandSubst(inner)],
+                        }
+                    } else {
+                        vec![]
+                    }
+                }
+
+                Token::CommandSubst(inner) => vec![Token::CommandSubst(inner)],
+
+                Token::List(inner) => vec![Token::List(self.expand_tokens(inner, allow_run))],
+            })
+            .collect()
+    }
+
+    /// Expand a raw string by tokenizing it and resolving variables/substitutions.
+    /// Used as a compatibility shim where a flat string result is needed.
     pub fn expand_str(&self, input: &str, allow_run: bool) -> String {
-        let mut result = String::new();
-        let mut chars = input.chars().peekable();
-
-        while let Some(ch) = chars.next() {
-            match ch {
-                '\\' => {
-                    if let Some(&next) = chars.peek() {
-                        if next == '$' {
-                            chars.next();
-                            result.push('$');
-                        } else {
-                            result.push('\\');
-                        }
-                    } else {
-                        result.push('\\');
-                    }
-                }
-                '%' => {
-                    if chars.peek() == Some(&'%') {
-                        chars.next();
-                        result.push('%');
-                    } else {
-                        let mut template_name = String::new();
-                        while let Some(&c) = chars.peek() {
-                            if c.is_alphanumeric() || c == '_' {
-                                template_name.push(c);
-                                chars.next();
-                            } else {
-                                break;
-                            }
-                        }
-
-                        if !template_name.is_empty() {
-                            if let Some(values) = self.templates.get(&template_name) {
-                                if values.len() == 1 {
-                                    result.push_str(&values[0]);
-                                } else {
-                                    result.push_str(&values.join(" "));
-                                }
-                            } else {
-                                result.push('%');
-                                result.push_str(&template_name);
-                            }
-                        } else {
-                            result.push('%');
-                        }
-                    }
-                }
-                '$' if chars.peek() == Some(&'(') => {
-                    chars.next();
-
-                    let mut cmd_string = String::new();
-                    let mut depth = 1;
-
-                    for ch in chars.by_ref() {
-                        if ch == '(' {
-                            depth += 1;
-                            cmd_string.push(ch);
-                        } else if ch == ')' {
-                            depth -= 1;
-                            if depth == 0 {
-                                break;
-                            }
-                            cmd_string.push(ch);
-                        } else {
-                            cmd_string.push(ch);
-                        }
-                    }
-
-                    if allow_run {
-                        tracing::info!(%cmd_string, %allow_run);
-
-                        // Execute command regardless of whether closing paren was found
-                        let cmd_parts =
-                            shellwords::split(&cmd_string).unwrap_or(vec![cmd_string.clone()]);
-
-                        if let Some((cmd, args)) = cmd_parts.split_first() {
-                            if let Ok(output) = (self.command_executor)(cmd, args) {
-                                if output.len() == 1 {
-                                    result.push_str(&output[0]);
-                                } else {
-                                    result.push_str(&output.join(" "));
-                                }
-                            } else {
-                                result.push_str("$(");
-                                result.push_str(&cmd_string);
-                                if depth == 0 {
-                                    result.push(')');
-                                }
-                            }
-                        } else {
-                            result.push_str("$()");
-                        }
-                    } else {
-                        result.push_str("FAIL");
-                    }
-                }
-                _ => {
-                    result.push(ch);
-                }
-            }
-        }
-
-        result
+        let tokens = tokenize(input).unwrap_or_default();
+        flatten_tokens(self.expand_tokens(tokens, allow_run))
     }
 
     /// Resolve a single UnresolvedKeyElement into a list of possible values

@@ -7,54 +7,23 @@ use ascii_forge::window::crossterm::terminal::{
 use ascii_forge::window::{EnableFocusChange, EnableMouseCapture};
 use std::process::Stdio;
 
-fn execute_parser(val: &[String]) -> Result<Box<dyn Command>, String> {
-    if val.len() == 1 {
-        return Err("Expected at least 1 argument".to_string());
-    }
-    Ok(Box::new(ShellCommand::Execute(val[1..].to_vec())))
-}
-
-fn spawn_parser(val: &[String]) -> Result<Box<dyn Command>, String> {
-    if val.len() == 1 {
-        return Err("Expected at least 1 argument".to_string());
-    }
-    Ok(Box::new(ShellCommand::Spawn(val[1..].to_vec())))
-}
-
-fn in_place_parser(val: &[String]) -> Result<Box<dyn Command>, String> {
-    if val.len() == 1 {
-        return Err("Expected at least 1 argument".to_string());
-    }
-    Ok(Box::new(ShellCommand::InPlace(val[1..].to_vec())))
-}
-
 #[derive(Debug, Clone, Command)]
 pub enum ShellCommand {
-    #[command(parser = "execute_parser", drop_ident, name = "shell", name = "sh")]
+    #[command(drop_ident, name = "shell", name = "sh")]
     /// Executes a shell command, freezing until it is executed
     /// Should probably be ignored in favor of spawn or in_place
-    Execute(#[command(name = "cmd", type_name = "rest")] Vec<String>),
-    #[command(
-        parser = "spawn_parser",
-        drop_ident,
-        name = "shell_spawn",
-        name = "shsp"
-    )]
+    Execute(#[command(name = "cmd", type_name = "[string]")] Vec<String>),
 
+    #[command(drop_ident, name = "shell_spawn", name = "shsp")]
     /// Spawns a shell command in the background
-    Spawn(#[command(name = "cmd", type_name = "rest")] Vec<String>),
+    Spawn(#[command(name = "cmd", type_name = "[string]")] Vec<String>),
 
     /// Spawns a shell command, replacing stdin with this
     /// Reapply's window when rendering app again
     ///
     /// Results in pausing the editor until command is finished
-    #[command(
-        parser = "in_place_parser",
-        drop_ident,
-        name = "shell_in_place",
-        name = "ship"
-    )]
-    InPlace(#[command(name = "cmd", type_name = "rest")] Vec<String>),
+    #[command(drop_ident, name = "shell_in_place", name = "ship")]
+    InPlace(#[command(name = "cmd", type_name = "[string]")] Vec<String>),
 }
 
 #[async_trait::async_trait]

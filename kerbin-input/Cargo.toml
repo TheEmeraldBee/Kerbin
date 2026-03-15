@@ -8,8 +8,6 @@ ascii-forge.workspace = true
 
 thiserror.workspace = true
 
-shellwords = "1.1.0"
-
 serde = { version = "1.0.228", features = ["derive"], optional = true }
 indexmap = "2.12.0"
 

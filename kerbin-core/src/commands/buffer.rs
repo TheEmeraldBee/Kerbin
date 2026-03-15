@@ -7,20 +7,11 @@ use crate::*;
 
 pub use ropey::LineType;
 
-fn parse_commit(val: &[String]) -> Result<Box<dyn Command>, String> {
-    if val.len() > 1 {
-        Ok(Box::new(CommitCommand::Commit(Some(val[1..].to_vec()))))
-    } else {
-        Ok(Box::new(CommitCommand::Commit(None)))
-    }
-}
-
 #[derive(Clone, Debug, Command)]
 pub enum CommitCommand {
-    #[command(parser = "parse_commit")]
     /// Commits the command after it as a change
     /// Useful for single commands that should always instacommit
-    Commit(#[command(name = "cmd", type_name = "command")] Option<Vec<String>>),
+    Commit(#[command(name = "cmd", type_name = "[command]?")] Option<Vec<Token>>),
 }
 
 #[async_trait::async_trait]
@@ -328,20 +319,18 @@ impl Command for BufferCommand {
             }
 
             BufferCommand::Insert(text) => {
-                let processed_text = process_escape_sequences(text);
                 cur_buffer.action(Insert {
                     byte,
-                    content: processed_text.clone(),
+                    content: text.clone(),
                 })
             }
 
             BufferCommand::Append(text, extend) => {
-                let processed_text = process_escape_sequences(text);
                 cur_buffer.action(Insert {
                     byte,
-                    content: processed_text.clone(),
+                    content: text.clone(),
                 });
-                cur_buffer.move_chars(processed_text.len() as isize, *extend)
+                cur_buffer.move_chars(text.len() as isize, *extend)
             }
 
             BufferCommand::Undo => {
@@ -483,35 +472,3 @@ impl Command for BuffersCommand {
     }
 }
 
-/// Process escape sequences in a string
-fn process_escape_sequences(s: &str) -> String {
-    let mut result = String::new();
-    let mut chars = s.chars();
-
-    while let Some(ch) = chars.next() {
-        if ch == '\\' {
-            if let Some(next) = chars.next() {
-                match next {
-                    'n' => result.push('\n'),
-                    'r' => result.push('\r'),
-                    't' => result.push('\t'),
-                    '\\' => result.push('\\'),
-                    '\'' => result.push('\''),
-                    '"' => result.push('"'),
-                    '0' => result.push('\0'),
-                    _ => {
-                        // Unknown escape, keep as-is
-                        result.push('\\');
-                        result.push(next);
-                    }
-                }
-            } else {
-                result.push('\\');
-            }
-        } else {
-            result.push(ch);
-        }
-    }
-
-    result
-}

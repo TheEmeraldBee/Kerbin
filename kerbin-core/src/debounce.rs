@@ -121,7 +121,7 @@ pub async fn update_debounce(
         let resolver = engine.as_resolver();
         for cmd_str in &event.events {
             if let Some(cmd) = command_registry.parse_command(
-                word_split(cmd_str),
+                tokenize(cmd_str).unwrap_or_default(),
                 true,
                 false,
                 Some(&resolver),

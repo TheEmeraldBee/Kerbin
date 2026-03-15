@@ -21,22 +21,10 @@ pub enum CursorCommand {
     /// Will clear all cursors other than the primary cursor
     DropOtherCursors,
 
-    #[command(
-        drop_ident,
-        name = "apply_all_cursor",
-        name = "aa",
-        parser = "parse_apply_all"
-    )]
+    #[command(drop_ident, name = "apply_all_cursor", name = "aa")]
     /// Applies the following command to all cursors
     /// Emulates a true multicursor environment
-    ApplyAll(#[command(name = "cmd", type_name = "command")] Vec<String>),
-}
-
-fn parse_apply_all(val: &[String]) -> Result<Box<dyn Command>, String> {
-    if val.len() == 1 {
-        return Err("Expected at least 1 argument".to_string());
-    }
-    Ok(Box::new(CursorCommand::ApplyAll(val[1..].to_vec())))
+    ApplyAll(#[command(name = "cmd", type_name = "[command]")] Vec<Token>),
 }
 
 #[async_trait::async_trait]

@@ -204,9 +204,44 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                         );
                         let idx_usize = arg_idx as usize;
 
-                        let parser = if let Some(inner_ty) = get_option_inner_type(ty) {
+                        let parser = if let Some(inner) = get_option_inner_type(ty)
+                            && get_vec_inner_type(inner).map(|v| is_token_type(v)).unwrap_or(false)
+                        {
+                            // Option<Vec<Token>>: match List or absent, never parse
                             quote! {
-                                let #var = if let Some(s) = val.get(#idx_usize) {
+                                let #var = match val.get(#idx_usize) {
+                                    Some(Token::List(items)) => Some(items.clone()),
+                                    _ => None,
+                                };
+                            }
+                        } else if get_vec_inner_type(ty).map(|v| is_token_type(v)).unwrap_or(false) {
+                            // Vec<Token>: clone items directly from Token::List
+                            quote! {
+                                let #var = match val.get(#idx_usize) {
+                                    Some(Token::List(items)) => items.clone(),
+                                    _ => return None,
+                                };
+                            }
+                        } else if let Some(inner_ty) = get_vec_inner_type(ty) {
+                            // Vec<T>: expect a Token::List at this position
+                            quote! {
+                                let #var = match val.get(#idx_usize) {
+                                    Some(Token::List(items)) => {
+                                        items.iter().filter_map(|t| {
+                                            if let Token::Word(s) = t {
+                                                s.parse::<#inner_ty>().ok()
+                                            } else {
+                                                None
+                                            }
+                                        }).collect::<Vec<#inner_ty>>()
+                                    }
+                                    _ => return None,
+                                };
+                            }
+                        } else if let Some(inner_ty) = get_option_inner_type(ty) {
+                            // Option<T>: optional Token::Word at this position
+                            quote! {
+                                let #var = if let Some(Token::Word(s)) = val.get(#idx_usize) {
                                     Some(match s.parse::<#inner_ty>() {
                                         Ok(t) => t,
                                         Err(e) => return Some(Err(e.to_string())),
@@ -216,13 +251,14 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                                 };
                             }
                         } else {
+                            // Regular T: expect a Token::Word at this position
                             quote! {
                                 let #var = match val.get(#idx_usize) {
-                                    Some(s) => match s.parse::<#ty>() {
+                                    Some(Token::Word(s)) => match s.parse::<#ty>() {
                                         Ok(t) => t,
                                         Err(e) => return Some(Err(e.to_string())),
                                     },
-                                    None => return None,
+                                    _ => return None,
                                 };
                             }
                         };
@@ -265,9 +301,12 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
         let ident = &info.ident;
         quote! {
             impl CommandFromStr for #ident {
-                fn from_str(val: &[String]) -> Option<Result<Box<dyn Command>, String>> {
-                    match val.get(0).map(|s| s.as_str())? {
-                        #(#match_arms),*
+                fn from_str(val: &[Token]) -> Option<Result<Box<dyn Command>, String>> {
+                    match val.get(0) {
+                        Some(Token::Word(s)) => match s.as_str() {
+                            #(#match_arms),*
+                            _ => None,
+                        },
                         _ => None,
                     }
                 }
@@ -303,6 +342,27 @@ fn get_option_inner_type(ty: &Type) -> Option<&Type> {
     if let Type::Path(type_path) = ty
         && let Some(segment) = type_path.path.segments.last()
         && segment.ident == "Option"
+        && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
+        && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
+    {
+        return Some(inner_ty);
+    }
+    None
+}
+
+fn is_token_type(ty: &Type) -> bool {
+    if let Type::Path(tp) = ty {
+        if let Some(seg) = tp.path.segments.last() {
+            return seg.ident == "Token";
+        }
+    }
+    false
+}
+
+fn get_vec_inner_type(ty: &Type) -> Option<&Type> {
+    if let Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+        && segment.ident == "Vec"
         && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
         && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
     {

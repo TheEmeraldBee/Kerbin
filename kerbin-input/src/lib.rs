@@ -1,3 +1,6 @@
+pub mod lexer;
+pub use lexer::{LexError, Token, flatten_tokens, tokenize};
+
 pub mod tree;
 pub use tree::*;
 

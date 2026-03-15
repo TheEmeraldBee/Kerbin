@@ -33,8 +33,8 @@ pub use input::*;
 /// Type alias for a command parsing function.
 ///
 /// This defines the signature required for functions that can parse a slice of
-/// strings (command words) into an `Option` of `Result` containing a boxed `Command`.
-type CommandFn = Box<dyn Fn(&[String]) -> Option<Result<Box<dyn Command>, String>> + Send + Sync>;
+/// tokens into an `Option` of `Result` containing a boxed `Command`.
+type CommandFn = Box<dyn Fn(&[Token]) -> Option<Result<Box<dyn Command>, String>> + Send + Sync>;
 
 /// Represents a set of registered commands, including its parser and command information.
 ///
@@ -344,5 +344,5 @@ pub trait AsCommandInfo: Command + CommandFromStr {
 /// Used for config, as well as the command pallette Serde + a parsing library can make this much
 /// easier to implement
 pub trait CommandFromStr: Command {
-    fn from_str(val: &[String]) -> Option<Result<Box<dyn Command>, String>>;
+    fn from_str(val: &[Token]) -> Option<Result<Box<dyn Command>, String>>;
 }

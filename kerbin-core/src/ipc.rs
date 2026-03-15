@@ -190,9 +190,8 @@ pub async fn handle_ipc_messages(state: &mut State) {
                 let prefix_registry = state.lock_state::<CommandPrefixRegistry>().await;
                 let modes = state.lock_state::<ModeStack>().await;
 
-                let words = word_split(&command);
                 if let Some(cmd) = commands.parse_command(
-                    words,
+                    tokenize(&command).unwrap_or_default(),
                     true,
                     false,
                     Some(&resolver_engine().await.as_resolver()),

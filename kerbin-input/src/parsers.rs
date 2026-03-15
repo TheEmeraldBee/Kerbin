@@ -3,7 +3,7 @@ use std::str::FromStr;
 use ascii_forge::window::{KeyCode, KeyModifiers};
 use thiserror::Error;
 
-use crate::{Matchable, ResolvedKeyBind, UnresolvedKeyBind, UnresolvedKeyElement};
+use crate::{Matchable, ResolvedKeyBind, Token, UnresolvedKeyBind, UnresolvedKeyElement, tokenize};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -411,14 +411,21 @@ fn parse_command<T>(cmd: &str) -> Result<UnresolvedKeyElement<T>, String>
 where
     T: ParsableKey<Output = T>,
 {
-    // Split command and arguments
-    let parts = shellwords::split(cmd).map_err(|x| x.to_string())?;
+    let tokens = tokenize(cmd).map_err(|e| e.to_string())?;
+    // Keybind commands don't use lists, so flatten to word strings only
+    let parts: Vec<String> = tokens
+        .into_iter()
+        .filter_map(|t| match t {
+            Token::Word(s) => Some(s),
+            _ => None,
+        })
+        .collect();
     if parts.is_empty() {
         return Err("Empty command".to_string());
     }
 
-    let command = parts[0].to_string();
-    let args = parts[1..].iter().map(|s| s.to_string()).collect();
+    let command = parts[0].clone();
+    let args = parts[1..].to_vec();
 
     Ok(UnresolvedKeyElement::Command(command, args))
 }
