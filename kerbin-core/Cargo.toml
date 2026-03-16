@@ -23,8 +23,6 @@ ropey.workspace = true
 
 serde.workspace = true
 
-toml = { version = "0.9.5", default-features = false, features = ["display", "fast_hash", "serde"] }
-
 regex = "1.12.2"
 regex-cursor = { version = "0.1.5", default-features = false, features = ["perf-inline"] }
 

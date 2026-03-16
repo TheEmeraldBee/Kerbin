@@ -268,8 +268,9 @@ impl GrammarManager {
         // Get the grammar (may need to load it)
         let grammar = self.get_grammar(config_path, &normalized).ok()?;
 
-        // Try to load the query from filesystem, checking all variants
-        let query_paths = self.get_query_paths(config_path, &normalized, query_name);
+        // Use the grammar's own name for path resolution so aliases fall through
+        // to the base grammar's query files (e.g. "kerbin" alias → "bash" queries).
+        let query_paths = self.get_query_paths(config_path, &grammar.name, query_name);
 
         let query_source = query_paths
             .iter()

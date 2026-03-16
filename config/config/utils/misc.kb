@@ -1,0 +1,7 @@
+bind [';' shift-q] [quit] --desc "Quit"
+bind [';' w] [write_file] --desc "Save file"
+bind [u] [undo] --desc "Undo"
+bind [shift-u] [redo] --desc "Redo"
+bind [g n] [bm 1] --desc "Next Buffer"
+bind [g p] [bm -1] --desc "Previous Buffer"
+bind [';' q] [bc] --desc "Close current buffer"

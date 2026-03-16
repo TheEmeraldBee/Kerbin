@@ -1,0 +1,17 @@
+# Basic Movement Keys
+bind [left] [mc -1] --desc "Move Left"
+bind [down] [ml 1] --desc "Move Down"
+bind [up] [ml -1] --desc "Move Up"
+bind [right] [mc 1] --desc "Move Right"
+bind [h] [mc -1] --desc "Move Left"
+bind [j] [ml 1] --desc "Move Down"
+bind [k] [ml -1] --desc "Move Up"
+bind [l] [mc 1] --desc "Move Right"
+
+# Jump movements (motions) — regex patterns single-quoted to prevent tokenizer from parsing [ as List
+bind [w] [[rxc '(?:\w+|[^\w\s]+|\s+)(\s?)' --offset 1] [gse] [sc]] --desc "Go Word"
+bind [e] [[rxc '(\w+|[^\w\s]+|\s+)' --offset 1] [gse] [sc]] --desc "Go Word End"
+bind [b] [[rxcb '(?:\w+|[^\w\s]+|\s+)(\s?)' --offset -1] [gsb] [sc]] --desc "Go Back Word"
+bind [shift-w] [[rxc '(?:\s+|\S+)(\s?)' --offset 1] [gse] [sc]] --desc "Go WORD"
+bind [shift-e] [[rxc '(\s+|\S+)' --offset 1] [gse] [sc]] --desc "Go WORD end"
+bind [shift-b] [[rxcb '(?:\s+|\S+)(\s?)' --offset -1] [gsb] [sc]] --desc "Go Back WORD"

@@ -1,0 +1,11 @@
+source special_templates.kb
+source core/insert.kb
+source core/command_palette.kb
+source core/repeat.kb
+source theme.kb
+source vim/init.kb
+source utils/init.kb
+source plugins/init.kb
+
+core framerate 60
+template shell [nu]

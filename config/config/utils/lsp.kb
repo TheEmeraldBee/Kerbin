@@ -1,0 +1,13 @@
+lsp-register rust --exts [rs] --cmd rust-analyzer --roots [Cargo.toml Cargo.lock]
+
+bind [space k] [hover] --desc "Show Hover"
+bind [tab] [snlc] --modes [i] --required [lsp_items] --desc "Select next LSP change"
+bind [down] [snlc] --modes [i] --required [lsp_items] --desc "Select next LSP change"
+bind [up] [splc] --modes [i] --required [lsp_items] --desc "Select previous LSP change"
+bind [enter] [ala] --modes [i] --required [lsp_items] --desc "Select previous LSP change"
+bind [esc] [[tla] [rm]] --modes [i] --required [lsp_items] --desc "Trash LSP change and drop move"
+bind [ctrl-(j|down)] [hs 1] --desc "Scroll Hover Down 1"
+bind [ctrl-(k|up)] [hs -1] --desc "Scroll Hover Up 1"
+
+# Make lsp start autocompletion on debounce of 100ms
+debounce_event [sla] --min_ms 100 --modes [i]

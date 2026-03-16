@@ -49,7 +49,7 @@ impl Debounce {
 
 pub async fn update_debounce(
     buffers: ResMut<Buffers>,
-    plugin_config: Res<PluginConfig>,
+    debounce_config: Res<DebounceConfig>,
     modes: Res<ModeStack>,
     command_registry: Res<CommandRegistry>,
     prefix_registry: Res<CommandPrefixRegistry>,
@@ -57,7 +57,7 @@ pub async fn update_debounce(
 ) {
     get!(
         mut buffers,
-        plugin_config,
+        debounce_config,
         modes,
         command_registry,
         prefix_registry,
@@ -92,9 +92,10 @@ pub async fn update_debounce(
     }
 
     // Get config and check events
-    let Some(Ok(events)) = plugin_config.get::<Vec<DebounceEvent>>("debounce_event") else {
+    let events = &debounce_config.0;
+    if events.is_empty() {
         return;
-    };
+    }
 
     let elapsed = Instant::now()
         .duration_since(debounce.state.unwrap().0)

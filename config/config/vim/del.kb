@@ -1,0 +1,10 @@
+# Deletion motions
+bind [backspace] [[mc -1] [d]] --modes [i] --desc "Backspace"
+bind [x] [commit [d]] --desc "Delete Sel"
+bind [d w] [[rxc '(?:\w+|[^\w\s]+|\s+)(\s?)' --offset 1 --extend] [gsb] [commit [d]]] --desc "Delete Word"
+bind [d e] [[rxc '(\w+|[^\w\s]+|\s+)' --offset 1 --extend] [gsb] [commit [d]]] --desc "Delete Word End"
+bind [d b] [[rxcb '(?:\w+|[^\w\s]+|\s+)(\s?)' --offset -1 --extend] [gsb] [commit [d]]] --desc "Delete Back Word"
+bind [d shift-w] [[rxc '(\s+|\S+)(\s?)' --offset 1 --extend] [gsb] [commit [d]]] --desc "Delete WORD"
+bind [d shift-e] [[rxc '(\s+|\S+)' --offset 1 --extend] [gsb] [commit [d]]] --desc "Delete WORD End"
+bind [d shift-b] [[rxcb '(?:\s+|\S+)(\s?)' --offset -1 --extend] [gsb] [commit [d]]] --desc "Delete Back WORD"
+bind [d d] [[sl] [gsb] [commit [d]]] --desc "Delete Line"

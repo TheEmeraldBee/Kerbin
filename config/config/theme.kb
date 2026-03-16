@@ -1,0 +1,119 @@
+# Catppuccin Mocha palette
+palette rosewater #f5e0dc
+palette flamingo #f2cdcd
+palette pink #f5c2e7
+palette mauve #cba6f7
+palette red #f38ba8
+palette maroon #eba0ac
+palette peach #fab387
+palette yellow #f9e2af
+palette green #a6e3a1
+palette teal #94e2d5
+palette sky #89dceb
+palette sapphire #74c7ec
+palette blue #89b4fa
+palette lavender #b4befe
+palette text #cdd6f4
+palette subtext1 #bac2de
+palette subtext0 #a6adc8
+palette overlay2 #9399b2
+palette overlay1 #7f849c
+palette overlay0 #6c7086
+palette surface2 #585b70
+palette surface1 #45475a
+palette surface0 #313244
+palette base #1e1e2e
+palette mantle #181825
+palette crust #11111b
+
+# Treesitter
+theme ts.attribute yellow
+theme ts.property blue
+theme ts.type yellow
+theme ts.type.enum.variant teal
+theme ts.constructor sapphire
+theme ts.constant peach
+theme ts.constant.character teal
+theme ts.constant.character.escape pink
+theme ts.string green
+theme ts.string.regexp pink
+theme ts.string.special blue
+theme ts.string.special.symbol red
+theme ts.comment --fg overlay2 --attrs [italic]
+theme ts.variable text
+theme ts.variable.parameter --fg maroon --attrs [italic]
+theme ts.variable.builtin red
+theme ts.variable.other.member blue
+theme ts.label sapphire
+theme ts.punctuation overlay2
+theme ts.punctuation.special sky
+theme ts.keyword mauve
+theme ts.keyword.control.conditional --fg mauve --attrs [italic]
+theme ts.operator sky
+theme ts.function blue
+theme ts.function.macro mauve
+theme ts.tag blue
+theme ts.namespace --fg yellow --attrs [italic]
+theme ts.special blue
+theme ts.text.title red
+theme ts.text.literal peach
+theme ts.markup.heading.1 red
+theme ts.markup.heading.2 peach
+theme ts.markup.heading.3 yellow
+theme ts.markup.heading.4 green
+theme ts.markup.heading.5 sapphire
+theme ts.markup.heading.6 lavender
+theme ts.markup.list teal
+theme ts.markup.list.unchecked overlay2
+theme ts.markup.list.checked green
+theme ts.markup.bold --fg red --attrs [bold]
+theme ts.markup.italic --fg red --attrs [italic]
+theme ts.markup.link.url --fg blue --attrs [italic underlined]
+theme ts.markup.link.text lavender
+theme ts.markup.link.label sapphire
+theme ts.markup.raw green
+theme ts.markup.quote pink
+
+# UI
+theme ui.text text
+theme ui.linenum --fg #555555
+theme ui.commandline.valid --fg teal --attrs [bold]
+theme ui.commandline.invalid --fg maroon --attrs [bold]
+theme ui.commandline.auto_name --fg sky --attrs [bold italic]
+theme ui.commandline.primary_name --fg peach --attrs [bold]
+theme ui.commandline.names pink
+theme ui.commandline.arg_name yellow
+theme ui.commandline.arg_type --fg teal --attrs [italic]
+theme ui.commandline.desc --fg rosewater
+theme ui.commandline.border blue
+theme ui.commandline.title --fg mauve --attrs [bold]
+theme ui.commandline.prompt sky
+theme ui.commandline.match_highlight --fg yellow --attrs [bold]
+theme ui.commandline.icon sky
+theme ui.bufferline.selected --fg teal --attrs [bold italic]
+theme ui.bufferline text
+theme ui.cursor --bg overlay0
+theme ui.log.critical mauve
+theme ui.log.high flamingo
+theme ui.log.medium teal
+theme ui.log.low green
+theme ui.cursor.x.i --bg green --attrs [bold]
+theme ui.cursor.x.v --bg sky --attrs [bold italic]
+theme ui.cursor.x --bg lavender
+theme ui.selection --bg surface1 --attrs [italic]
+theme statusline.selections.one --fg sky --attrs [italic]
+theme statusline.selections.multi --fg sapphire --attrs [bold italic]
+theme statusline.mode.n --fg mantle --bg green --attrs [bold]
+theme statusline.mode.i --fg mantle --bg teal --attrs [bold]
+theme statusline.mode.c --fg mantle --bg maroon --attrs [bold]
+theme statusline.mode.x --fg mantle --bg lavender --attrs [bold]
+theme statusline.mode.v --fg mantle --bg pink --attrs [bold]
+theme lsp.autocomplete.selected --fg sky --bg mantle --attrs [italic]
+theme lsp.autocomplete.window --fg text
+
+# Statusline mode display names
+statusline n --long_name " NORMAL "
+statusline i --long_name " INSERT "
+statusline c --long_name " COMMAND "
+statusline x --long_name " CURSOR "
+statusline v --long_name " SELECT "

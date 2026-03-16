@@ -66,24 +66,24 @@ pub enum BufferCommand {
     /// Moves primary cursor by a given number of bytes
     MoveBytes {
         bytes: isize,
-        #[command(type_name = "bool?")]
-        extend: Option<bool>,
+        #[command(flag)]
+        extend: bool,
     },
 
     #[command(name = "ml")]
     /// Moves primary cursor by a given number of lines
     MoveLines {
         lines: isize,
-        #[command(type_name = "bool?")]
-        extend: Option<bool>,
+        #[command(flag)]
+        extend: bool,
     },
 
     #[command(name = "mc")]
     /// Moves primary cursor by a given number of characters
     MoveChars {
         chars: isize,
-        #[command(type_name = "bool?")]
-        extend: Option<bool>,
+        #[command(flag)]
+        extend: bool,
     },
 
     #[command(name = "write", name = "w")]
@@ -127,7 +127,11 @@ pub enum BufferCommand {
 
     #[command(name = "apnd", name = "a")]
     /// Appends the given content at the primary cursor's location, extending the selection if set
-    Append(String, #[command(name = "extend")] bool),
+    Append {
+        text: String,
+        #[command(flag)]
+        extend: bool,
+    },
 
     #[command(name = "del", name = "d")]
     /// Deletes the primary cursor's selection
@@ -154,15 +158,9 @@ impl Command for BufferCommand {
         let byte = cur_buffer.primary_cursor().get_cursor_byte();
 
         match self {
-            BufferCommand::MoveBytes { bytes, extend } => {
-                cur_buffer.move_bytes(*bytes, extend.unwrap_or(false))
-            }
-            BufferCommand::MoveLines { lines, extend } => {
-                cur_buffer.move_lines(*lines, extend.unwrap_or(false))
-            }
-            BufferCommand::MoveChars { chars, extend } => {
-                cur_buffer.move_chars(*chars, extend.unwrap_or(false))
-            }
+            BufferCommand::MoveBytes { bytes, extend } => cur_buffer.move_bytes(*bytes, *extend),
+            BufferCommand::MoveLines { lines, extend } => cur_buffer.move_lines(*lines, *extend),
+            BufferCommand::MoveChars { chars, extend } => cur_buffer.move_chars(*chars, *extend),
 
             BufferCommand::WriteFile { path } => {
                 let current_path = if let Some(new_path) = path {
@@ -318,14 +316,12 @@ impl Command for BufferCommand {
                 true
             }
 
-            BufferCommand::Insert(text) => {
-                cur_buffer.action(Insert {
-                    byte,
-                    content: text.clone(),
-                })
-            }
+            BufferCommand::Insert(text) => cur_buffer.action(Insert {
+                byte,
+                content: text.clone(),
+            }),
 
-            BufferCommand::Append(text, extend) => {
+            BufferCommand::Append { text, extend } => {
                 cur_buffer.action(Insert {
                     byte,
                     content: text.clone(),
@@ -471,4 +467,3 @@ impl Command for BuffersCommand {
         }
     }
 }
-

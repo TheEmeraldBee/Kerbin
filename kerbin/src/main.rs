@@ -1,8 +1,7 @@
-use std::{panic, time::Duration};
+use std::{panic, path::PathBuf, time::Duration};
 
 use ascii_forge::prelude::*;
 
-use kerbin_config::Config;
 use kerbin_core::*;
 
 use kerbin_state_machine::system::param::{SystemParam, res::Res, res_mut::ResMut};
@@ -156,8 +155,6 @@ async fn update(state: &mut State) {
 
 #[tokio::main]
 async fn main() {
-    init_log();
-
     let args = KerbinArgs::parse();
 
     match args.command {
@@ -214,6 +211,7 @@ async fn main() {
         .await
         .set_template("session", [session_id]);
 
+    init_log();
     let window = Window::init().unwrap();
     handle_panics();
 
@@ -227,26 +225,7 @@ async fn main() {
         server_ipc,
     );
 
-    let mut framerate = 60;
-
-    match Config::load(format!("{config_path}/config/config.toml")) {
-        Ok(t) => {
-            framerate = t.core.framerate();
-            t.apply(&mut state).await;
-        }
-        Err(e) => {
-            state
-                .lock_state::<LogSender>()
-                .await
-                .critical("core::config_load", e);
-        }
-    }
-
-    let ms_per_frame = 1000 / framerate;
-
-    config::init(&mut state).await;
-
-    // Register command types
+    // Register command types BEFORE loading config so commands are available to .kb files
     {
         let mut commands = state.lock_state::<CommandRegistry>().await;
 
@@ -268,7 +247,22 @@ async fn main() {
         commands.register::<ShellCommand>();
 
         commands.register::<RegisterCommand>();
+
+        commands.register::<ConfigCommand>();
     }
+
+    config::init(&mut state).await;
+
+    let kb_path = PathBuf::from(format!("{config_path}/config/config.kb"));
+    if let Err(e) = load_kb(&kb_path, &mut state).await {
+        state
+            .lock_state::<LogSender>()
+            .await
+            .critical("core::config_load", e);
+    }
+
+    let framerate = state.lock_state::<CoreConfig>().await.framerate;
+    let ms_per_frame = 1000 / framerate;
 
     register_default_queries(&mut state).await;
 

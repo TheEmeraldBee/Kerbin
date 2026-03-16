@@ -1,0 +1,371 @@
+use crate::*;
+use kerbin_macros::Command;
+use kerbin_state_machine::State;
+
+fn parse_key_tokens(keys: &[Token]) -> Vec<UnresolvedKeyBind> {
+    keys.iter()
+        .filter_map(|t| match t {
+            Token::Word(s) => s.parse().ok(),
+            Token::Variable(name) => format!("%{}", name).parse().ok(),
+            _ => None,
+        })
+        .collect()
+}
+
+fn tokens_to_mode_chars(tokens: &Option<Vec<Token>>) -> Vec<char> {
+    tokens
+        .as_ref()
+        .map(|ts| {
+            ts.iter()
+                .filter_map(|t| {
+                    if let Token::Word(s) = t {
+                        s.chars().next()
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn tokens_to_strings(tokens: &[Token]) -> Vec<String> {
+    tokens
+        .iter()
+        .filter_map(|t| {
+            if let Token::Word(s) = t {
+                Some(s.clone())
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+#[derive(Debug, Clone, Command)]
+pub enum ConfigCommand {
+    /// Bind a key sequence to one or more commands.
+    #[command(drop_ident, name = "bind")]
+    Bind {
+        keys: Vec<Token>,
+        cmds: Vec<Token>,
+        #[command(flag)]
+        modes: Option<Vec<Token>>,
+        #[command(flag)]
+        invalid: Option<Vec<Token>>,
+        #[command(flag)]
+        required: Option<Vec<String>>,
+        #[command(flag)]
+        deny_repeat: bool,
+        #[command(flag)]
+        desc: Option<String>,
+    },
+
+    /// Set metadata (description) on a key prefix without binding a command.
+    #[command(drop_ident, name = "category")]
+    Category {
+        keys: Vec<Token>,
+        #[command(flag)]
+        modes: Option<Vec<Token>>,
+        #[command(flag)]
+        invalid: Option<Vec<Token>>,
+        #[command(flag)]
+        desc: Option<String>,
+    },
+
+    /// Register a template expansion.
+    #[command(drop_ident, name = "template")]
+    Template { name: String, values: Vec<Token> },
+
+    /// Register a named palette color.
+    #[command(drop_ident, name = "palette")]
+    Palette { name: String, value: String },
+
+    /// Register a theme style entry.
+    #[command(drop_ident, name = "theme")]
+    Theme {
+        key: String,
+        #[command(flag)]
+        fg: Option<String>,
+        #[command(flag)]
+        bg: Option<String>,
+        #[command(flag)]
+        underline: Option<String>,
+        #[command(flag)]
+        attrs: Option<Vec<String>>,
+        value: Option<String>,
+    },
+
+    /// Register a command prefix for a set of modes.
+    #[command(drop_ident, name = "prefix")]
+    Prefix {
+        cmd: String,
+        #[command(flag)]
+        modes: Vec<Token>,
+        #[command(flag)]
+        include: Option<Vec<Token>>,
+        #[command(flag)]
+        exclude: Option<Vec<Token>>,
+    },
+
+    /// Set a core editor setting (e.g. `core framerate 60`).
+    #[command(drop_ident, name = "core")]
+    Core { key: String, value: String },
+
+    /// Register a debounce event that fires after idle time in specific modes.
+    #[command(drop_ident, name = "debounce_event")]
+    DebounceEvent {
+        events: Vec<Token>,
+        #[command(flag)]
+        min_ms: u64,
+        #[command(flag)]
+        modes: Option<Vec<Token>>,
+        #[command(flag)]
+        ignore_modes: Option<Vec<Token>>,
+        #[command(flag)]
+        ignore_with_template: Option<Vec<Token>>,
+    },
+
+    /// Configure the statusline display for a specific mode.
+    #[command(drop_ident, name = "statusline")]
+    Statusline {
+        mode: String,
+        #[command(flag)]
+        long_name: Option<String>,
+        #[command(flag)]
+        theme_key: Option<String>,
+    },
+
+    /// Source another .kb file relative to the current config directory.
+    #[command(drop_ident, name = "source")]
+    Source { path: String },
+}
+
+#[async_trait::async_trait]
+impl Command for ConfigCommand {
+    async fn apply(&self, state: &mut State) -> bool {
+        match self {
+            ConfigCommand::Bind {
+                keys,
+                cmds,
+                modes,
+                invalid,
+                required,
+                deny_repeat,
+                desc,
+            } => {
+                let key_binds = parse_key_tokens(keys);
+                let mode_chars = tokens_to_mode_chars(modes);
+                let invalid_chars = tokens_to_mode_chars(invalid);
+                let required_tpls = required.clone().unwrap_or_default();
+
+                let commands: Vec<String> =
+                    if cmds.iter().all(|t| matches!(t, Token::List(_))) {
+                        cmds.iter()
+                            .filter_map(|t| {
+                                if let Token::List(items) = t {
+                                    Some(tokens_to_command_string(items))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect()
+                    } else {
+                        vec![tokens_to_command_string(cmds)]
+                    };
+
+                let metadata = Metadata {
+                    modes: mode_chars,
+                    invalid_modes: invalid_chars,
+                    required_templates: required_tpls,
+                    deny_repeat: *deny_repeat,
+                    desc: desc.clone().unwrap_or_default(),
+                };
+
+                let resolver = resolver_engine().await;
+                let resolver = resolver.as_resolver();
+                let mut inputs = state.lock_state::<InputState>().await;
+                if let Err(e) =
+                    inputs
+                        .tree
+                        .register(&resolver, key_binds, commands, Some(metadata))
+                {
+                    tracing::error!("bind: failed to register keybind: {:?}", e);
+                }
+            }
+
+            ConfigCommand::Category {
+                keys,
+                modes,
+                invalid,
+                desc,
+            } => {
+                let key_binds = parse_key_tokens(keys);
+                let metadata = Metadata {
+                    modes: tokens_to_mode_chars(modes),
+                    invalid_modes: tokens_to_mode_chars(invalid),
+                    desc: desc.clone().unwrap_or_default(),
+                    ..Metadata::default()
+                };
+                let resolver = resolver_engine().await;
+                let resolver = resolver.as_resolver();
+                let mut inputs = state.lock_state::<InputState>().await;
+                if let Err(e) = inputs.tree.set_metadata(&resolver, key_binds, metadata) {
+                    tracing::error!("category: failed to set metadata: {:?}", e);
+                }
+            }
+
+            ConfigCommand::Template { name, values } => {
+                let strs: Vec<String> = values
+                    .iter()
+                    .filter_map(|t| {
+                        if let Token::Word(s) = t {
+                            Some(s.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                resolver_engine_mut().await.set_template(name, strs);
+            }
+
+            ConfigCommand::Palette { name, value } => {
+                let palette = state.lock_state::<PaletteState>().await;
+                let resolved_palette = palette.0.clone();
+                drop(palette);
+
+                if let Some(color) = resolve_color(value, &resolved_palette) {
+                    state.lock_state::<PaletteState>().await.0.insert(name.clone(), color);
+                } else {
+                    tracing::error!("palette: unknown color '{}' for '{}'", value, name);
+                }
+            }
+
+            ConfigCommand::Theme {
+                key,
+                fg,
+                bg,
+                underline,
+                attrs,
+                value,
+            } => {
+                let palette = state.lock_state::<PaletteState>().await.0.clone();
+
+                // Simple form: `theme key colorname` → foreground only
+                // Full form: `theme key --fg c --bg c --attrs [list]`
+                let (eff_fg, eff_bg, eff_ul, eff_attrs) = if fg.is_none()
+                    && bg.is_none()
+                    && underline.is_none()
+                    && attrs.is_none()
+                {
+                    // Simple form: value is the foreground color
+                    (value.as_deref(), None::<&str>, None::<&str>, vec![])
+                } else {
+                    (
+                        fg.as_deref(),
+                        bg.as_deref(),
+                        underline.as_deref(),
+                        attrs.clone().unwrap_or_default(),
+                    )
+                };
+
+                let style = build_content_style(eff_fg, eff_bg, eff_ul, &eff_attrs, &palette);
+                state.lock_state::<Theme>().await.register(key.clone(), style);
+            }
+
+            ConfigCommand::Prefix {
+                cmd,
+                modes,
+                include,
+                exclude,
+            } => {
+                let mode_chars: Vec<char> = modes
+                    .iter()
+                    .filter_map(|t| {
+                        if let Token::Word(s) = t {
+                            s.chars().next()
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                let (include_bool, list) = if let Some(inc) = include {
+                    (true, tokens_to_strings(inc))
+                } else if let Some(exc) = exclude {
+                    (false, tokens_to_strings(exc))
+                } else {
+                    (false, vec![])
+                };
+
+                state
+                    .lock_state::<CommandPrefixRegistry>()
+                    .await
+                    .register(CommandPrefix {
+                        modes: mode_chars,
+                        prefix_cmd: cmd.clone(),
+                        include: include_bool,
+                        list,
+                    });
+            }
+
+            ConfigCommand::Core { key, value } => match key.as_str() {
+                "framerate" => {
+                    if let Ok(n) = value.parse::<u64>() {
+                        state.lock_state::<CoreConfig>().await.framerate = n;
+                    }
+                }
+                _ => {
+                    tracing::warn!("core: unknown key '{}'", key);
+                }
+            },
+
+            ConfigCommand::DebounceEvent {
+                events,
+                min_ms,
+                modes,
+                ignore_modes,
+                ignore_with_template,
+            } => {
+                let event = crate::debounce::DebounceEvent {
+                    events: tokens_to_strings(events),
+                    min_ms: *min_ms,
+                    modes: tokens_to_mode_chars(modes),
+                    ignore_modes: tokens_to_mode_chars(ignore_modes),
+                    ignore_with_template: tokens_to_strings(
+                        ignore_with_template.as_deref().unwrap_or(&[]),
+                    ),
+                };
+                state.lock_state::<DebounceConfig>().await.0.push(event);
+            }
+
+            ConfigCommand::Statusline {
+                mode,
+                long_name,
+                theme_key,
+            } => {
+                if let Some(mode_char) = mode.chars().next() {
+                    let config = ModeConfig {
+                        long_name: long_name.clone(),
+                        theme_key: theme_key.clone(),
+                    };
+                    state
+                        .lock_state::<StatuslineConfig>()
+                        .await
+                        .modes
+                        .insert(mode_char, config);
+                }
+            }
+
+            ConfigCommand::Source { path } => {
+                let config_dir = state.lock_state::<ConfigDir>().await.0.clone();
+                let resolved = config_dir.join(path);
+                drop(config_dir);
+                if let Err(e) = crate::load_kb(&resolved, state).await {
+                    tracing::error!("source: failed to load '{}': {}", path, e);
+                }
+            }
+        }
+        false
+    }
+}

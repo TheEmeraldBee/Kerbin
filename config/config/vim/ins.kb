@@ -1,0 +1,2 @@
+bind [o] [[start_change] [sle] [gse] [sc] [ts_nl] [gse] [sc] [pm i]] --desc "Start insert at new line"
+bind [shift-o] [[start_change] [slb] [gsb] [sc] [ts_nl] [ml -1] [pm i]] --desc "Start insert at new line before"

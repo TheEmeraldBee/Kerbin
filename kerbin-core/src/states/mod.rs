@@ -1,5 +1,5 @@
 pub mod wrappers;
-use std::{collections::HashMap, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 use ascii_forge::window::Window;
 use tokio::sync::{RwLock, mpsc::UnboundedSender};
@@ -41,6 +41,9 @@ pub fn init_state(
         .state(Registers::default())
         .state(server_ipc)
         .state(QueryRegistry::default())
+        .state(ConfigDir(PathBuf::from(format!("{config_path}/config"))))
+        .state(CoreConfig::default())
+        .state(PaletteState::default())
         .state(ConfigFolder(config_path))
         .state(SessionUuid(uuid))
         // Editor's running status
@@ -73,8 +76,10 @@ pub fn init_state(
         .state(CommandPrefixRegistry(vec![]))
         // Chunk management for drawing areas
         .state(Chunks::default())
-        // Plugin specific configurations
-        .state(PluginConfig(HashMap::default()));
+        // Debounce event configuration
+        .state(DebounceConfig::default())
+        // Statusline display configuration
+        .state(StatuslineConfig::default());
 
     state
 }

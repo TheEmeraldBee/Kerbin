@@ -1,0 +1,33 @@
+# Tree-sitter grammar definitions
+
+# Bash
+tree-sitter-define bash --exts [sh bash] --url https://github.com/tree-sitter/tree-sitter-bash.git
+tree-sitter-alias bash kerbin --exts [kb]
+
+# Golang
+tree-sitter-define go --exts [go] --url https://github.com/tree-sitter/tree-sitter-go.git
+
+# Rust
+tree-sitter-define rust --exts [rs] --url https://github.com/tree-sitter/tree-sitter-rust.git
+tree-sitter-define rust_format_args --exts [] --url https://github.com/nik-rev/tree-sitter-rust-format-args.git --build_name rust-format-args
+tree-sitter-alias rust rust_format_args_macro
+
+# Python
+tree-sitter-define python --exts [py] --url https://github.com/tree-sitter/tree-sitter-python.git
+
+# Toml
+tree-sitter-define toml --exts [toml] --url https://github.com/ikatyang/tree-sitter-toml.git
+
+# Comment
+tree-sitter-define comment --exts [] --url https://github.com/stsewd/tree-sitter-comment.git
+
+# Markdown
+tree-sitter-define markdown --exts [md] --url https://github.com/tree-sitter-grammars/tree-sitter-markdown.git --sub_dir tree-sitter-markdown
+tree-sitter-define markdown_inline --exts [] --url https://github.com/tree-sitter-grammars/tree-sitter-markdown.git --sub_dir tree-sitter-markdown-inline --build_name markdown-inline
+tree-sitter-alias markdown markdown_rustdoc
+
+# Nushell
+tree-sitter-define nu --exts [nu] --url https://github.com/nushell/tree-sitter-nu.git
+
+# Html
+tree-sitter-define html --exts [html] --url https://github.com/tree-sitter/tree-sitter-html.git

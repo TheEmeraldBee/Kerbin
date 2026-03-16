@@ -43,7 +43,7 @@ pub fn init_log() {
 
     let log_file = File::options()
         .create(true)
-        .append(true)
+        .write(true)
         .open(log_file_path)
         .expect("file should be able to open");
 
@@ -136,3 +136,6 @@ pub use word_split::*;
 
 pub mod debounce;
 pub use debounce::*;
+
+pub mod kb;
+pub use kb::*;

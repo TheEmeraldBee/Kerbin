@@ -7,23 +7,30 @@ pub enum MotionCommand {
     /// Selects the first match of the regex in the buffer
     Regex {
         pattern: String,
-        extend: Option<bool>,
+        #[command(flag)]
+        extend: bool,
     },
 
     #[command(name = "rxc")]
     /// Selects the first match of the regex from the cursor
+    /// Use --offset to start searching from an offset relative to the cursor
     RegexCursor {
         pattern: String,
+        #[command(flag)]
         offset: Option<isize>,
-        extend: Option<bool>,
+        #[command(flag)]
+        extend: bool,
     },
 
     #[command(name = "rxcb")]
-    /// Selects the first match of the regex from the cursor
+    /// Selects the last match of the regex before the cursor
+    /// Use --offset to start searching from an offset relative to the cursor
     RegexCursorBackwards {
         pattern: String,
+        #[command(flag)]
         offset: Option<isize>,
-        extend: Option<bool>,
+        #[command(flag)]
+        extend: bool,
     },
 
     #[command(name = "rxs")]
@@ -37,8 +44,11 @@ pub enum MotionCommand {
 
     #[command(drop_ident, name = "sel_line", name = "sl")]
     /// Selects the current (or next if at end of line) line
-    /// Extends selection if extend is set
-    SelectLine { extend: bool },
+    /// Use --extend to extend the existing selection
+    SelectLine {
+        #[command(flag)]
+        extend: bool,
+    },
 
     #[command(drop_ident, name = "sel_clear", name = "sc")]
     /// Clears the current cursor selection
@@ -53,16 +63,25 @@ pub enum MotionCommand {
 
     #[command(drop_ident, name = "sel_line_end", name = "sle")]
     /// Selects to the end of the line
-    /// Extends selection if extend is set
-    SelectLineEnd { extend: bool },
+    /// Use --extend to extend the existing selection
+    SelectLineEnd {
+        #[command(flag)]
+        extend: bool,
+    },
     #[command(drop_ident, name = "sel_line_begin", name = "slb")]
     /// Selects from current cursor to the beginning of the line
-    /// Extends selection if extend is set
-    SelectLineBegin { extend: bool },
+    /// Use --extend to extend the existing selection
+    SelectLineBegin {
+        #[command(flag)]
+        extend: bool,
+    },
     #[command(drop_ident, name = "sel_first_whitespace", name = "sfw")]
     /// Selects to the first non-whitespace character in the line
-    /// Extends selection if extend is set
-    SelectFirstNonWhitespace { extend: bool },
+    /// Use --extend to extend the existing selection
+    SelectFirstNonWhitespace {
+        #[command(flag)]
+        extend: bool,
+    },
 }
 
 #[async_trait::async_trait]
@@ -251,7 +270,7 @@ impl Command for MotionCommand {
                     let x = regex.search(searcher);
 
                     if let Some(x) = x {
-                        if extend.unwrap_or(false) {
+                        if *extend {
                             let existing_selection = cur_buffer.primary_cursor().sel().clone();
                             let new_start = (*existing_selection.start()).min(x.start());
                             let new_end =
@@ -302,7 +321,7 @@ impl Command for MotionCommand {
                         let start = x.start() + cursor;
                         let end = x.end() + cursor;
 
-                        if extend.unwrap_or(false) {
+                        if *extend {
                             let existing_selection = cur_buffer.primary_cursor().sel().clone();
                             let new_start = (*existing_selection.start()).min(start);
                             let new_end = (*existing_selection.end()).max(end.saturating_sub(1));
@@ -348,7 +367,7 @@ impl Command for MotionCommand {
                         let start = x.start();
                         let end = x.end();
 
-                        if extend.unwrap_or(false) {
+                        if *extend {
                             let existing_selection = cur_buffer.primary_cursor().sel().clone();
                             let new_start = (*existing_selection.start()).min(start);
                             let new_end = (*existing_selection.end()).max(end.saturating_sub(1));

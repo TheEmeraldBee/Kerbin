@@ -60,6 +60,21 @@ struct CommandField {
     type_name: Option<String>,
     #[darling(default)]
     name: Option<String>,
+    #[darling(default)]
+    flag: bool,
+}
+
+impl CommandField {
+    fn flag_cli_name(&self) -> String {
+        let base = if let Some(ref n) = self.name {
+            n.clone()
+        } else if let Some(ref ident) = self.ident {
+            ident.to_string()
+        } else {
+            "_".to_string()
+        };
+        format!("--{}", base)
+    }
 }
 
 #[proc_macro_derive(Command, attributes(command))]
@@ -108,13 +123,19 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                 .fields
                 .iter()
                 .map(|field| {
-                    let name = if let Some(ref field_ident) = field.ident {
+                    let base_name = if let Some(ref field_ident) = field.ident {
                         field
                             .name
                             .clone()
                             .unwrap_or_else(|| field_ident.to_string())
                     } else {
                         field.name.clone().unwrap_or_else(|| "_".to_string())
+                    };
+
+                    let name = if field.flag {
+                        format!("--{}", base_name)
+                    } else {
+                        base_name
                     };
 
                     let field_ty = &field.ty;
@@ -165,12 +186,426 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
             }
 
             if let Some(parser_func) = &variant.parser {
-                quote! {
+                return quote! {
                     #(#names)|* => {
                         Some(#parser_func(val))
                     }
+                };
+            }
+
+            // Validate: optional positional fields cannot precede required positional fields.
+            // Flags are exempt from this rule.
+            {
+                let mut saw_optional_positional = false;
+                for field in variant.fields.iter() {
+                    if field.flag {
+                        continue;
+                    }
+                    let is_optional = get_option_inner_type(&field.ty).is_some();
+                    if saw_optional_positional && !is_optional {
+                        let field_name = field
+                            .ident
+                            .as_ref()
+                            .map(|i| i.to_string())
+                            .unwrap_or_else(|| "_".to_string());
+                        panic!(
+                            "Required positional field `{}` cannot follow an optional positional \
+                             field. Mark it as #[command(flag)] if it should be a flag.",
+                            field_name
+                        );
+                    }
+                    if is_optional {
+                        saw_optional_positional = true;
+                    }
+                }
+            }
+
+            let has_flags = variant.fields.iter().any(|f| f.flag);
+
+            if has_flags {
+                // Build pre-scan match arms: skip past each flag (and its value token if applicable).
+                let prescan_arms = variant
+                    .fields
+                    .iter()
+                    .filter(|f| f.flag)
+                    .map(|f| {
+                        let flag_name_str = f.flag_cli_name();
+                        let ty = &f.ty;
+                        let is_bool_flag = is_bool_type(ty)
+                            || get_option_inner_type(ty)
+                                .map(|t| is_bool_type(t))
+                                .unwrap_or(false);
+
+                        if is_bool_flag {
+                            quote! {
+                                Token::Word(_s) if _s.as_str() == #flag_name_str => {
+                                    _fi += 1;
+                                }
+                            }
+                        } else {
+                            // Value-taking flag: conditionally consume the next token.
+                            quote! {
+                                Token::Word(_s) if _s.as_str() == #flag_name_str => {
+                                    let _has_value = match val.get(_fi + 1) {
+                                        Some(Token::Word(_v)) if !_v.starts_with("--") => true,
+                                        Some(Token::List(_)) => true,
+                                        _ => false,
+                                    };
+                                    _fi += if _has_value { 2 } else { 1 };
+                                }
+                            }
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                let prescan = quote! {
+                    let mut _positional: Vec<usize> = vec![];
+                    let mut _fi = 1usize;
+                    while _fi < val.len() {
+                        match &val[_fi] {
+                            #(#prescan_arms,)*
+                            _ => { _positional.push(_fi); _fi += 1; }
+                        }
+                    }
+                };
+
+                let positional_count = variant.fields.iter().filter(|f| !f.flag).count();
+                let num_required_positional = variant
+                    .fields
+                    .iter()
+                    .filter(|f| !f.flag && get_option_inner_type(&f.ty).is_none())
+                    .count();
+
+                let arg_check = if num_required_positional == positional_count {
+                    quote! {
+                        if _positional.len() != #positional_count { return None; }
+                    }
+                } else {
+                    quote! {
+                        if _positional.len() < #num_required_positional
+                            || _positional.len() > #positional_count
+                        {
+                            return None;
+                        }
+                    }
+                };
+
+                let mut arg_idx = 1usize;
+                let mut pos_idx = 0usize;
+
+                let field_parsers_and_names = variant
+                    .fields
+                    .iter()
+                    .map(|field| {
+                        let ty = &field.ty;
+                        let var = syn::Ident::new(
+                            &format!("arg_{}", arg_idx),
+                            proc_macro2::Span::call_site(),
+                        );
+                        arg_idx += 1;
+
+                        let field_name_assignment = match variant.fields.style {
+                            Style::Struct => {
+                                let field_ident = field.ident.as_ref().unwrap();
+                                quote! { #field_ident: #var }
+                            }
+                            Style::Tuple => quote! { #var },
+                            Style::Unit => quote! {},
+                        };
+
+                        let parser = if field.flag {
+                            let flag_name_str = field.flag_cli_name();
+
+                            if is_bool_type(ty) {
+                                // --flag → true, absent → false
+                                quote! {
+                                    let #var = val[1..].iter().any(|_t| {
+                                        matches!(_t, Token::Word(_s) if _s.as_str() == #flag_name_str)
+                                    });
+                                }
+                            } else if get_option_inner_type(ty)
+                                .map(|t| is_bool_type(t))
+                                .unwrap_or(false)
+                            {
+                                // --flag → Some(true), absent → None
+                                quote! {
+                                    let #var = if val[1..].iter().any(|_t| {
+                                        matches!(_t, Token::Word(_s) if _s.as_str() == #flag_name_str)
+                                    }) {
+                                        Some(true)
+                                    } else {
+                                        None
+                                    };
+                                }
+                            } else if let Some(inner_ty) = get_option_inner_type(ty)
+                                && get_vec_inner_type(inner_ty)
+                                    .map(|v| is_token_type(v))
+                                    .unwrap_or(false)
+                            {
+                                // --flag [tokens] → Some(items), absent → None
+                                quote! {
+                                    let #var = {
+                                        let mut _result = None;
+                                        let mut _fi = 1usize;
+                                        while _fi < val.len() {
+                                            if let Token::Word(_s) = &val[_fi]
+                                                && _s.as_str() == #flag_name_str
+                                            {
+                                                if let Some(Token::List(_items)) = val.get(_fi + 1) {
+                                                    _result = Some(_items.clone());
+                                                }
+                                                break;
+                                            }
+                                            _fi += 1;
+                                        }
+                                        _result
+                                    };
+                                }
+                            } else if get_vec_inner_type(ty)
+                                .map(|v| is_token_type(v))
+                                .unwrap_or(false)
+                            {
+                                // --flag [tokens] → items (required)
+                                quote! {
+                                    let #var = {
+                                        let mut _result = None;
+                                        let mut _fi = 1usize;
+                                        while _fi < val.len() {
+                                            if let Token::Word(_s) = &val[_fi]
+                                                && _s.as_str() == #flag_name_str
+                                            {
+                                                if let Some(Token::List(_items)) = val.get(_fi + 1) {
+                                                    _result = Some(_items.clone());
+                                                }
+                                                break;
+                                            }
+                                            _fi += 1;
+                                        }
+                                        match _result {
+                                            Some(_v) => _v,
+                                            None => return None,
+                                        }
+                                    };
+                                }
+                            } else if let Some(inner_ty) = get_option_inner_type(ty)
+                                && let Some(list_inner_ty) = get_vec_inner_type(inner_ty)
+                            {
+                                // --flag [items] → Some(parsed_items), absent → None
+                                quote! {
+                                    let #var = {
+                                        let mut _result = None;
+                                        let mut _fi = 1usize;
+                                        while _fi < val.len() {
+                                            if let Token::Word(_s) = &val[_fi]
+                                                && _s.as_str() == #flag_name_str
+                                            {
+                                                if let Some(Token::List(_items)) = val.get(_fi + 1) {
+                                                    _result = Some(
+                                                        _items.iter().filter_map(|_t| {
+                                                            if let Token::Word(_w) = _t {
+                                                                _w.parse::<#list_inner_ty>().ok()
+                                                            } else {
+                                                                None
+                                                            }
+                                                        }).collect::<Vec<#list_inner_ty>>()
+                                                    );
+                                                }
+                                                break;
+                                            }
+                                            _fi += 1;
+                                        }
+                                        _result
+                                    };
+                                }
+                            } else if let Some(list_inner_ty) = get_vec_inner_type(ty) {
+                                // --flag [items] → parsed_items (required)
+                                quote! {
+                                    let #var = {
+                                        let mut _result = None;
+                                        let mut _fi = 1usize;
+                                        while _fi < val.len() {
+                                            if let Token::Word(_s) = &val[_fi]
+                                                && _s.as_str() == #flag_name_str
+                                            {
+                                                if let Some(Token::List(_items)) = val.get(_fi + 1) {
+                                                    _result = Some(
+                                                        _items.iter().filter_map(|_t| {
+                                                            if let Token::Word(_w) = _t {
+                                                                _w.parse::<#list_inner_ty>().ok()
+                                                            } else {
+                                                                None
+                                                            }
+                                                        }).collect::<Vec<#list_inner_ty>>()
+                                                    );
+                                                }
+                                                break;
+                                            }
+                                            _fi += 1;
+                                        }
+                                        match _result {
+                                            Some(_v) => _v,
+                                            None => return None,
+                                        }
+                                    };
+                                }
+                            } else if let Some(inner_ty) = get_option_inner_type(ty) {
+                                // --flag value → Some(parsed), absent → None
+                                quote! {
+                                    let #var = {
+                                        let mut _result = None;
+                                        let mut _fi = 1usize;
+                                        while _fi < val.len() {
+                                            if let Token::Word(_s) = &val[_fi]
+                                                && _s.as_str() == #flag_name_str
+                                            {
+                                                if let Some(Token::Word(_v)) = val.get(_fi + 1) {
+                                                    if !_v.starts_with("--") {
+                                                        _result = match _v.parse::<#inner_ty>() {
+                                                            Ok(_t) => Some(_t),
+                                                            Err(_e) => return Some(Err(_e.to_string())),
+                                                        };
+                                                    }
+                                                }
+                                                break;
+                                            }
+                                            _fi += 1;
+                                        }
+                                        _result
+                                    };
+                                }
+                            } else {
+                                // --flag value → parsed (required)
+                                quote! {
+                                    let #var = {
+                                        let mut _result = None;
+                                        let mut _fi = 1usize;
+                                        while _fi < val.len() {
+                                            if let Token::Word(_s) = &val[_fi]
+                                                && _s.as_str() == #flag_name_str
+                                            {
+                                                if let Some(Token::Word(_v)) = val.get(_fi + 1) {
+                                                    if !_v.starts_with("--") {
+                                                        _result = match _v.parse::<#ty>() {
+                                                            Ok(_t) => Some(_t),
+                                                            Err(_e) => return Some(Err(_e.to_string())),
+                                                        };
+                                                    }
+                                                }
+                                                break;
+                                            }
+                                            _fi += 1;
+                                        }
+                                        match _result {
+                                            Some(_v) => _v,
+                                            None => return None,
+                                        }
+                                    };
+                                }
+                            }
+                        } else {
+                            // Positional field: index into _positional
+                            let current_pos_idx = pos_idx;
+                            pos_idx += 1;
+
+                            if let Some(inner) = get_option_inner_type(ty)
+                                && get_vec_inner_type(inner)
+                                    .map(|v| is_token_type(v))
+                                    .unwrap_or(false)
+                            {
+                                quote! {
+                                    let #var = match _positional
+                                        .get(#current_pos_idx)
+                                        .and_then(|&_i| val.get(_i))
+                                    {
+                                        Some(Token::List(items)) => Some(items.clone()),
+                                        _ => None,
+                                    };
+                                }
+                            } else if get_vec_inner_type(ty)
+                                .map(|v| is_token_type(v))
+                                .unwrap_or(false)
+                            {
+                                quote! {
+                                    let #var = match _positional
+                                        .get(#current_pos_idx)
+                                        .and_then(|&_i| val.get(_i))
+                                    {
+                                        Some(Token::List(items)) => items.clone(),
+                                        _ => return None,
+                                    };
+                                }
+                            } else if let Some(inner_ty) = get_vec_inner_type(ty) {
+                                quote! {
+                                    let #var = match _positional
+                                        .get(#current_pos_idx)
+                                        .and_then(|&_i| val.get(_i))
+                                    {
+                                        Some(Token::List(items)) => {
+                                            items.iter().filter_map(|t| {
+                                                if let Token::Word(s) = t {
+                                                    s.parse::<#inner_ty>().ok()
+                                                } else {
+                                                    None
+                                                }
+                                            }).collect::<Vec<#inner_ty>>()
+                                        }
+                                        _ => return None,
+                                    };
+                                }
+                            } else if let Some(inner_ty) = get_option_inner_type(ty) {
+                                quote! {
+                                    let #var = if let Some(&_pi) = _positional.get(#current_pos_idx) {
+                                        if let Some(Token::Word(s)) = val.get(_pi) {
+                                            Some(match s.parse::<#inner_ty>() {
+                                                Ok(t) => t,
+                                                Err(e) => return Some(Err(e.to_string())),
+                                            })
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    };
+                                }
+                            } else {
+                                quote! {
+                                    let #var = match _positional
+                                        .get(#current_pos_idx)
+                                        .and_then(|&_i| val.get(_i))
+                                    {
+                                        Some(Token::Word(s)) => match s.parse::<#ty>() {
+                                            Ok(t) => t,
+                                            Err(e) => return Some(Err(e.to_string())),
+                                        },
+                                        _ => return None,
+                                    };
+                                }
+                            }
+                        };
+
+                        (parser, field_name_assignment)
+                    })
+                    .collect::<Vec<_>>();
+
+                let field_parsers = field_parsers_and_names.iter().map(|(p, _)| p);
+                let field_names = field_parsers_and_names.iter().map(|(_, n)| n);
+
+                let fields = match variant.fields.style {
+                    Style::Struct => quote! { { #(#field_names),* } },
+                    Style::Tuple => quote! { ( #(#field_names),* ) },
+                    Style::Unit => quote! {},
+                };
+
+                quote! {
+                    #(#names)|* => {
+                        #prescan
+                        #arg_check
+                        #(#field_parsers)*
+                        Some(Ok(Box::new(Self::#ident #fields)))
+                    }
                 }
             } else {
+                // Original positional-only code path.
                 let num_required_args = variant
                     .fields
                     .iter()
@@ -348,6 +783,15 @@ fn get_option_inner_type(ty: &Type) -> Option<&Type> {
         return Some(inner_ty);
     }
     None
+}
+
+fn is_bool_type(ty: &Type) -> bool {
+    if let Type::Path(tp) = ty {
+        if let Some(seg) = tp.path.segments.last() {
+            return seg.ident == "bool";
+        }
+    }
+    false
 }
 
 fn is_token_type(ty: &Type) -> bool {

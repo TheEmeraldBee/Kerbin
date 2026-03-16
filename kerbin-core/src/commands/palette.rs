@@ -64,6 +64,11 @@ impl Command for PaletteCommand {
                         .await
                         .send(command)
                         .unwrap();
+                } else {
+                    state
+                        .lock_state::<LogSender>()
+                        .await
+                        .medium("palette", format!("Invalid command: {content}"));
                 }
                 false
             }

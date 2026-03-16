@@ -1,12 +1,11 @@
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
+    path::PathBuf,
 };
 
-use ascii_forge::window::Window;
-use serde::de::DeserializeOwned;
+use ascii_forge::{prelude::Color, window::Window};
 use tokio::sync::mpsc::UnboundedSender;
-use toml::Value;
 use uuid::Uuid;
 
 pub use crate::*;
@@ -22,18 +21,6 @@ pub struct SessionUuid(pub Uuid);
 /// Primary state marking whether the core editor is running
 #[derive(State)]
 pub struct Running(pub bool);
-
-/// Stores plugin configuration as a map of plugin names to TOML Values
-#[derive(State)]
-pub struct PluginConfig(pub HashMap<String, Value>);
-
-impl PluginConfig {
-    pub fn get<T: DeserializeOwned>(&self, key: &str) -> Option<Result<T, String>> {
-        self.0
-            .get(key)
-            .map(|x| x.clone().try_into().map_err(|x| format!("{x}")))
-    }
-}
 
 /// State for sending commands through an unbounded MPSC sender
 #[derive(State)]
@@ -51,6 +38,30 @@ impl DerefMut for CommandSender {
         &mut self.0
     }
 }
+
+/// Config directory used to resolve `source` paths in .kb files
+#[derive(State)]
+pub struct ConfigDir(pub PathBuf);
+
+/// Core runtime settings (framerate, etc.)
+#[derive(State)]
+pub struct CoreConfig {
+    pub framerate: u64,
+}
+
+impl Default for CoreConfig {
+    fn default() -> Self {
+        Self { framerate: 60 }
+    }
+}
+
+/// Stores the list of configured debounce events
+#[derive(State, Default)]
+pub struct DebounceConfig(pub Vec<DebounceEvent>);
+
+/// Resolved palette: name → Color
+#[derive(State, Default)]
+pub struct PaletteState(pub HashMap<String, Color>);
 
 /// State wrapper around the ascii_forge window
 #[derive(State)]

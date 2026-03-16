@@ -1,0 +1,9 @@
+# Multicursor mode
+prefix aa --modes [x] --include [mc mb ml rxc rxcb rxs sl sle slb sfw sc d i a gse gsb ts_nl]
+
+bind [c] [pm x] --invalid [x] --desc "Enter Multicursor Mode"
+bind [shift-c] [[cc] [ml 1]] --invalid [x] --desc "Create cursor"
+bind [shift-,] [dc] --desc "Delete Primary Cursor"
+bind [,] [[dcs] [cm n]] --desc "Delete Other Cursors, Go To Normal Mode"
+bind [\[] [cac -1] --desc "Change Primary Cursor Up"
+bind [\]] [cac 1] --desc "Change Primary Cursor Down"

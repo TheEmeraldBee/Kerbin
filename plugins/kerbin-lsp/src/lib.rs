@@ -1,5 +1,8 @@
 use kerbin_core::{CloseEvent, CommandRegistry, EVENT_BUS, LogSender, SaveEvent, State};
 
+pub mod commands;
+pub use commands::LspCommand;
+
 pub mod jsonrpc;
 pub use jsonrpc::*;
 
@@ -78,6 +81,7 @@ pub async fn init(state: &mut State) {
     {
         let mut command_registry = state.lock_state::<CommandRegistry>().await;
 
+        command_registry.register::<LspCommand>();
         command_registry.register::<HoverCommand>();
         command_registry.register::<CompletionCommand>();
     }

@@ -20,7 +20,7 @@ pub fn normalize_lang_name(name: &str) -> String {
 }
 
 /// Helps to define a Grammar using a default definition as well as aliases
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Clone)]
 #[serde(tag = "type")]
 pub enum GrammarEntry {
     #[serde(rename = "def")]

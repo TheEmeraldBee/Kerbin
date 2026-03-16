@@ -59,6 +59,7 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>, LexError> {
 
     macro_rules! flush_word {
         () => {
+            #[allow(unused_assignments)]
             if has_current {
                 tokens.push(Token::Word(std::mem::take(&mut current)));
                 has_current = false;
@@ -190,8 +191,49 @@ fn consume_until_close_bracket(
     let mut inner = String::new();
     let mut depth = 1;
 
-    for ch in chars.by_ref() {
+    while let Some(ch) = chars.next() {
         match ch {
+            // Single-quoted region: pass verbatim, no depth tracking inside
+            '\'' => {
+                inner.push('\'');
+                loop {
+                    match chars.next() {
+                        Some('\'') => {
+                            inner.push('\'');
+                            break;
+                        }
+                        Some(c) => inner.push(c),
+                        None => return Err(LexError::UnclosedString),
+                    }
+                }
+            }
+            // Double-quoted region: pass verbatim with \X handling, no depth tracking
+            '"' => {
+                inner.push('"');
+                loop {
+                    match chars.next() {
+                        Some('"') => {
+                            inner.push('"');
+                            break;
+                        }
+                        Some('\\') => {
+                            inner.push('\\');
+                            if let Some(c) = chars.next() {
+                                inner.push(c);
+                            }
+                        }
+                        Some(c) => inner.push(c),
+                        None => return Err(LexError::UnclosedString),
+                    }
+                }
+            }
+            // Backslash escape: consume next char without depth-tracking it
+            '\\' => {
+                inner.push('\\');
+                if let Some(next) = chars.next() {
+                    inner.push(next);
+                }
+            }
             '[' => {
                 depth += 1;
                 inner.push(ch);
@@ -208,6 +250,42 @@ fn consume_until_close_bracket(
     }
 
     Err(LexError::UnclosedList)
+}
+
+/// Serialize a single token back to a string that re-tokenizes to the same token.
+fn token_to_string(token: &Token) -> String {
+    match token {
+        Token::Word(s) => {
+            if s.is_empty() {
+                return "''".to_string();
+            }
+            let needs_quoting = s.chars().any(|c| " \t\n[]()$%\\'\"#".contains(c));
+            if needs_quoting {
+                if !s.contains('\'') {
+                    format!("'{}'", s)
+                } else {
+                    // Fall back to double-quoting; escape \ and "
+                    let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
+                    format!("\"{}\"", escaped)
+                }
+            } else {
+                s.clone()
+            }
+        }
+        Token::List(items) => format!("[{}]", tokens_to_command_string(items)),
+        Token::Variable(name) => format!("%{}", name),
+        Token::CommandSubst(cmd) => format!("$({})", cmd),
+    }
+}
+
+/// Convert a slice of tokens into a whitespace-separated command string.
+/// The resulting string, when re-tokenized, produces equivalent tokens.
+pub fn tokens_to_command_string(tokens: &[Token]) -> String {
+    tokens
+        .iter()
+        .map(token_to_string)
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Flatten a token list back into a single whitespace-separated string.
@@ -303,9 +381,7 @@ mod tests {
     fn test_nested_command_subst() {
         let tokens = tokenize("echo $(outer (inner))").unwrap();
         assert_eq!(tokens.len(), 2);
-        assert!(
-            matches!(&tokens[1], Token::CommandSubst(s) if s == "outer (inner)")
-        );
+        assert!(matches!(&tokens[1], Token::CommandSubst(s) if s == "outer (inner)"));
     }
 
     #[test]
@@ -415,5 +491,62 @@ mod tests {
         assert!(matches!(&tokens[0], Token::Word(s) if s == "cmd"));
         assert!(matches!(&tokens[1], Token::CommandSubst(s) if s == "get-list"));
         assert!(matches!(&tokens[2], Token::List(_)));
+    }
+
+    #[test]
+    fn test_bracket_key_via_single_quote_in_list() {
+        // ['['] → List([Word("[")]) — single-quoted bracket inside a list
+        let tokens = tokenize("['[']").unwrap();
+        assert_eq!(tokens.len(), 1);
+        if let Token::List(items) = &tokens[0] {
+            assert_eq!(items.len(), 1);
+            assert!(matches!(&items[0], Token::Word(s) if s == "["));
+        } else {
+            panic!("Expected List");
+        }
+    }
+
+    #[test]
+    fn test_bracket_key_via_backslash_in_list() {
+        // [\[] → List([Word("[")]) — backslash-escaped bracket inside a list
+        let tokens = tokenize(r"[\[]").unwrap();
+        assert_eq!(tokens.len(), 1);
+        if let Token::List(items) = &tokens[0] {
+            assert_eq!(items.len(), 1);
+            assert!(matches!(&items[0], Token::Word(s) if s == "["));
+        } else {
+            panic!("Expected List");
+        }
+    }
+
+    #[test]
+    fn test_close_bracket_key_in_list() {
+        // [']'] → List([Word("]")]) — single-quoted close-bracket
+        let tokens = tokenize("[']']").unwrap();
+        assert_eq!(tokens.len(), 1);
+        if let Token::List(items) = &tokens[0] {
+            assert_eq!(items.len(), 1);
+            assert!(matches!(&items[0], Token::Word(s) if s == "]"));
+        } else {
+            panic!("Expected List");
+        }
+    }
+
+    #[test]
+    fn test_regex_in_list_via_single_quote() {
+        // Single-quoted regex inside a nested list — the key use case for .kb config
+        let tokens = tokenize("[[rxc '(?:\\w+|[^\\w\\s]+)' --offset 1]]").unwrap();
+        assert_eq!(tokens.len(), 1);
+        if let Token::List(outer) = &tokens[0] {
+            assert_eq!(outer.len(), 1);
+            if let Token::List(inner) = &outer[0] {
+                assert!(matches!(&inner[0], Token::Word(s) if s == "rxc"));
+                assert!(matches!(&inner[1], Token::Word(s) if s == r"(?:\w+|[^\w\s]+)"));
+            } else {
+                panic!("Expected inner List");
+            }
+        } else {
+            panic!("Expected outer List");
+        }
     }
 }

@@ -26,7 +26,6 @@ pub enum SubCommand {
     Install,
 
     /// Rebuild kerbin with `rust` config changes applied.
-    /// Toml file changes dont require rebuilds!
     Rebuild {
         /// Path to a new config directory
         #[clap(short, long)]

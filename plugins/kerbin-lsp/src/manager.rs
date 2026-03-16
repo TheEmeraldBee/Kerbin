@@ -43,6 +43,12 @@ impl LangInfo {
         self.roots.push(root.to_string());
         self
     }
+
+    /// Extend the root list for the language
+    pub fn with_roots(mut self, roots: impl IntoIterator<Item = impl ToString>) -> Self {
+        self.roots.extend(roots.into_iter().map(|x| x.to_string()));
+        self
+    }
 }
 
 #[derive(Default, State)]

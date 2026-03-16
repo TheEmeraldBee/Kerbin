@@ -111,7 +111,11 @@ pub async fn handle_inputs(
         if let Event::Paste(text) = event {
             let registry = prefix_registry.get().await;
             let command = command_registry.get().await.parse_command(
-                vec![Token::Word("a".to_string()), Token::Word(text.to_string()), Token::Word("false".to_string())],
+                vec![
+                    Token::Word("a".to_string()),
+                    Token::Word(text.to_string()),
+                    Token::Word("false".to_string()),
+                ],
                 true,
                 false,
                 None,

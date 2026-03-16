@@ -1,7 +1,6 @@
 // Sample config file for basic plugin systems
 
 use kerbin_core::*;
-use kerbin_lsp::LangInfo;
 
 /// Example for subscribing to an event
 pub async fn my_test_system(log: Res<LogSender>, event_data: EventData<SaveEvent>) {
@@ -14,21 +13,8 @@ pub async fn my_test_system(log: Res<LogSender>, event_data: EventData<SaveEvent
 }
 
 pub async fn init(state: &mut State) {
-    // Initialize the tree-sitter plugin
     kerbin_tree_sitter::init(state).await;
-
-    // Initialize the lsp plugin
     kerbin_lsp::init(state).await;
-
-    kerbin_lsp::register_lang(
-        state,
-        "rust",
-        ["rs"],
-        LangInfo::new("rust-analyzer")
-            .with_root("Cargo.toml") // Root paths
-            .with_root("Cargo.lock"),
-    )
-    .await;
 
     /*
     Welcome to the rust-side of your configuration!

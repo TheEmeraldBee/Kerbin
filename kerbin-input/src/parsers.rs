@@ -37,7 +37,7 @@ impl<T: ParsableKey<Output = T>> ParsableKey for Matchable<T> {
     fn parse_from_str(text: &str) -> Result<Self::Output, ParseError> {
         if text == "*" {
             Ok(Matchable::Any)
-        } else if let Some(stripped) = text.strip_prefix('\\') {
+        } else if let Some(stripped) = text.strip_prefix('\\').filter(|s| !s.is_empty()) {
             Ok(Matchable::Specific(T::parse_from_str(stripped)?))
         } else {
             Ok(Matchable::Specific(T::parse_from_str(text)?))

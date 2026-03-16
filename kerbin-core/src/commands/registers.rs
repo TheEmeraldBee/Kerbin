@@ -13,13 +13,10 @@ pub enum RegisterCommand {
     ///
     /// Defaults to the 'a' register
     ///
-    /// Extend defines if selection should extend to the text
-    /// Otherwise it just replaces current selection
-    ///
-    /// Extend defaults to false
+    /// Use --extend to extend the selection to the pasted text
     PasteRegister(
         #[command(type_name = "char?", name = "register")] Option<char>,
-        #[command(type_name = "bool?", name = "extend")] Option<bool>,
+        #[command(flag, name = "extend")] bool,
     ),
 }
 
@@ -44,10 +41,10 @@ impl Command for RegisterCommand {
             Self::PasteRegister(register, extend) => {
                 let command_sender = state.lock_state::<CommandSender>().await;
                 let text = registers.get(&register.unwrap_or('a')).to_string();
-                match command_sender.send(Box::new(BufferCommand::Append(
+                match command_sender.send(Box::new(BufferCommand::Append {
                     text,
-                    extend.unwrap_or(false),
-                ))) {
+                    extend: *extend,
+                })) {
                     Ok(_) => {}
                     Err(e) => {
                         let logger = state.lock_state::<LogSender>().await;

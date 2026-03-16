@@ -16,14 +16,14 @@ pub struct ModeConfig {
 }
 
 /// Overall configuration for the editor's statusline
-#[derive(Deserialize, Default, Debug)]
+#[derive(Deserialize, Default, Debug, State)]
 pub struct StatuslineConfig {
     pub modes: HashMap<char, ModeConfig>,
 }
 
 pub async fn render_statusline(
     chunk: Chunk<StatuslineChunk>,
-    plugin_config: Res<PluginConfig>,
+    statusline_config: Res<StatuslineConfig>,
     theme: Res<Theme>,
     mode_stack: Res<ModeStack>,
 
@@ -31,16 +31,7 @@ pub async fn render_statusline(
 
     buffers: Res<Buffers>,
 ) {
-    // Deserialize statusline-specific configuration from the plugin config
-    let plugin_config = plugin_config
-        .get()
-        .await
-        .0
-        .get("statusline")
-        .map(|x| StatuslineConfig::deserialize(x.clone()).unwrap())
-        .unwrap_or_default();
-
-    get!(Some(mut chunk), theme, mode_stack, input);
+    get!(statusline_config, Some(mut chunk), theme, mode_stack, input);
 
     let chunk_width = chunk.size().x;
 
@@ -48,7 +39,7 @@ pub async fn render_statusline(
 
     // Build the mode display parts for the statusline
     for part in &mode_stack.0 {
-        if let Some(config) = plugin_config.modes.get(part) {
+        if let Some(config) = statusline_config.modes.get(part) {
             parts.push((
                 config.long_name.clone().unwrap_or(part.to_string()),
                 config

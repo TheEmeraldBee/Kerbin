@@ -1,0 +1,11 @@
+# Command palette keybindings
+
+bind [':'] [pm c] --invalid [c] --desc "Enter Command Mode"
+bind [enter] [[execute_palette] [clear_palette] [rm]] --modes [c] --desc "Execute command palette"
+bind [esc] [[clear_palette] [rm]] --modes [c] --desc "Clear command palette"
+bind [backspace] [pop_palette 1] --modes [c] --desc "Delete command palette char"
+bind [%alphabet] [push_palette %0] --modes [c] --desc "Insert character"
+bind [%cap_alphabet] [push_palette %0] --modes [c] --desc "Insert character"
+bind [%numbers] [push_palette %0] --modes [c] --desc "Insert character"
+bind [%symbols] [push_palette %0] --modes [c] --desc "Insert character"
+bind [space] [push_palette ' '] --modes [c] --desc "Insert character"
