@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use ascii_forge::window::{KeyCode, KeyModifiers};
+use crossterm::event::{KeyCode, KeyModifiers};
 use thiserror::Error;
 
 use crate::{Matchable, ResolvedKeyBind, Token, UnresolvedKeyBind, UnresolvedKeyElement, tokenize};
@@ -479,7 +479,7 @@ mod tests {
         match &bind.code {
             UnresolvedKeyElement::Literal(ResolvedKeyBind {
                 code: Matchable::Any,
-                mods: Matchable::Specific(m),
+                mods: Matchable::Specific(_m),
             }) => {
                 // "ctrl" should be in outer mods, so inner mods usually empty
                 // unless parsed as "ctrl-*" from a single string.

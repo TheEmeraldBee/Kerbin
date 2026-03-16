@@ -16,7 +16,7 @@ thiserror = "2.0.17"
 tokio = { version = "1.47.1", features = [ "full" ] }
 async-trait = "0.1.89"
 
-ascii-forge = { version = "2.1.5", features = [ "serde" ] }
+ratatui = "0.30.0"
 
 serde = { version = "1.0.219", features = [ "derive" ] }
 
@@ -25,6 +25,8 @@ tracing = "0.1.41"
 uuid = { version = "1.18.1", features = ["v4", "serde"] }
 
 ropey = { version = "=2.0.0-beta.1", features = ["metric_chars", "metric_lines_lf"] }
+
+crossterm = "0.29.0"
 
 [profile.dev.package."*"]
 opt-level = 3

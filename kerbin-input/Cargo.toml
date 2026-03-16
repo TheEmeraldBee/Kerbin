@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-ascii-forge.workspace = true
+crossterm.workspace = true
 
 thiserror.workspace = true
 

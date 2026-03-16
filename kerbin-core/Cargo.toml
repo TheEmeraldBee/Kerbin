@@ -12,7 +12,7 @@ async-trait.workspace = true
 uuid.workspace = true
 
 kerbin-macros.workspace = true
-ascii-forge.workspace = true
+ratatui.workspace = true
 
 tokio.workspace = true
 

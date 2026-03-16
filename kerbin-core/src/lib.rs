@@ -115,10 +115,6 @@ pub use chunks::*;
 pub mod rope_exts;
 pub use rope_exts::*;
 
-/// Module used to extend the functionality of ContentStyle
-pub mod style_exts;
-pub use style_exts::*;
-
 pub mod logging;
 pub use logging::*;
 

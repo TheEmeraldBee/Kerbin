@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use ascii_forge::window::KeyModifiers;
+use crossterm::event::KeyModifiers;
 
 use crate::{
     Matchable, ParsableKey, ParseError, ResolvedKeyBind, Token, UnresolvedKeyBind,
@@ -89,7 +89,11 @@ impl<'a> Resolver<'a> {
                     let parts: Vec<String> = expanded
                         .into_iter()
                         .filter_map(|t| {
-                            if let Token::Word(s) = t { Some(s) } else { None }
+                            if let Token::Word(s) = t {
+                                Some(s)
+                            } else {
+                                None
+                            }
                         })
                         .collect();
 

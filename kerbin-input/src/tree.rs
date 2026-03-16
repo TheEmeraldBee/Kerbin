@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use ascii_forge::window::{KeyCode, KeyModifiers};
+use crossterm::event::{KeyCode, KeyModifiers};
 use indexmap::IndexMap;
 
 use crate::{Matchable, ParseError, ResolvedKeyBind, Resolver, UnresolvedKeyBind};

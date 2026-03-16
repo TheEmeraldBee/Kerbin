@@ -3,9 +3,9 @@ use std::sync::Arc;
 use crate::{CloseEvent, EVENT_BUS, Theme, get_canonical_path_with_non_existent};
 
 use super::TextBuffer;
-use ascii_forge::prelude::*;
 use kerbin_macros::State;
 use kerbin_state_machine::storage::*;
+use ratatui::buffer::Buffer;
 use tokio::sync::{OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
 
 /// Stores all text buffers managed by the editor
@@ -169,7 +169,7 @@ impl Buffers {
 
             // Calculate the visible range of the bufferline chunk
             let visible_range_start = self.tab_scroll;
-            let visible_range_end = self.tab_scroll + buffer.size().x as usize;
+            let visible_range_end = self.tab_scroll + buffer.area.width as usize;
             // Calculate the start and end of the current tab
             let tab_range_start = current_char_offset;
             let tab_range_end = current_char_offset + title_width;

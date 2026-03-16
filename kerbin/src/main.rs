@@ -17,6 +17,7 @@ pub struct KerbinArgs {
     /// Defines a path to the config, using default if not provided
     #[clap(short, long)]
     config: Option<String>,
+
     #[clap(subcommand)]
     command: Option<Command>,
 }

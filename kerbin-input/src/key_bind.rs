@@ -1,7 +1,7 @@
 use std::fmt::Display;
 use std::ops::BitOr;
 
-use ascii_forge::window::{KeyCode, KeyModifiers};
+use crossterm::event::{KeyCode, KeyModifiers};
 
 use crate::ParsableKey;
 
