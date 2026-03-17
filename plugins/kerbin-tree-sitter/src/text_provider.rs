@@ -14,7 +14,12 @@ impl<'a> TextProvider<&'a [u8]> for &'a TextProviderRope<'a> {
 
         byte_range.end = byte_range.end.min(self.0.len());
 
-        ChunksBytes(Some(self.0.slice(byte_range).chunks()))
+        let char_start = self.0.byte_to_char_idx(byte_range.start);
+        let char_end = self.0.byte_to_char_idx(byte_range.end);
+        let start = self.0.char_to_byte_idx(char_start);
+        let end = self.0.char_to_byte_idx(char_end);
+
+        ChunksBytes(Some(self.0.slice(start..end).chunks()))
     }
 }
 

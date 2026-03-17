@@ -992,7 +992,7 @@ dependencies = [
 
 [[package]]
 name = "kerbin"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "clap",
  "config",
@@ -1010,7 +1010,7 @@ dependencies = [
 
 [[package]]
 name = "kerbin-booster"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "chrono",
  "clap",
@@ -1027,7 +1027,7 @@ dependencies = [
 
 [[package]]
 name = "kerbin-core"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "async-trait",
  "crossterm",
@@ -1050,7 +1050,7 @@ dependencies = [
 
 [[package]]
 name = "kerbin-input"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "crossterm",
  "indexmap",
@@ -1061,7 +1061,7 @@ dependencies = [
 
 [[package]]
 name = "kerbin-lsp"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "kerbin-core",
  "kerbin-tree-sitter",
@@ -1076,7 +1076,7 @@ dependencies = [
 
 [[package]]
 name = "kerbin-macros"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "darling 0.21.2",
  "proc-macro2",
@@ -1086,7 +1086,7 @@ dependencies = [
 
 [[package]]
 name = "kerbin-state-machine"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "async-scoped",
  "async-trait",
@@ -1097,7 +1097,7 @@ dependencies = [
 
 [[package]]
 name = "kerbin-tree-sitter"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "kerbin-core",
  "libloading",
@@ -2278,7 +2278,7 @@ checksum = "c4013970217383f67b18aef68f6fb2e8d409bc5755227092d32efb0422ba24b8"
 
 [[package]]
 name = "tutor"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "kerbin-core",
 ]
