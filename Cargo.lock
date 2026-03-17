@@ -210,22 +210,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "booster"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "clap",
- "console",
- "dialoguer",
- "dirs",
- "fs_extra",
- "indicatif",
- "regex",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1022,6 +1006,22 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "kerbin-booster"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "clap",
+ "console",
+ "dialoguer",
+ "dirs",
+ "fs_extra",
+ "indicatif",
+ "regex",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
