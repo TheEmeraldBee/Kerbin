@@ -32,13 +32,21 @@ impl ResolverEngine {
                 return Err(ParseError::Custom(msg));
             }
 
-            Ok(output.stdout.lines().map(|l| l.unwrap()).collect::<Vec<_>>())
+            Ok(output
+                .stdout
+                .lines()
+                .map(|l| l.unwrap())
+                .collect::<Vec<_>>())
         };
 
         Resolver::new(
             &self.map,
             self.custom_fn.clone().unwrap_or(Arc::new(default_fn)),
         )
+    }
+
+    pub fn templates(&self) -> &HashMap<String, Vec<String>> {
+        &self.map
     }
 
     pub fn set_cmd_fn(&mut self, solver: Option<Arc<CommandExecutor>>) {

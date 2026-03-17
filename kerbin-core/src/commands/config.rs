@@ -74,11 +74,18 @@ pub enum ConfigCommand {
     },
 
     /// Register a template expansion.
-    #[command(drop_ident, name = "template")]
+    #[command]
     Template { name: String, values: Vec<Token> },
 
+    /// List all available templates to the log
+    ///
+    /// If `contains` is passed, will require that at
+    /// least one substring is within the template's name
+    #[command]
+    ListTemplates(#[command(flag, name = "contains", type_name = "[string]?")] Option<Vec<String>>),
+
     /// Register a named palette color.
-    #[command(drop_ident, name = "palette")]
+    #[command]
     Palette { name: String, value: String },
 
     /// Register a theme style entry.
@@ -159,20 +166,19 @@ impl Command for ConfigCommand {
                 let invalid_chars = tokens_to_mode_chars(invalid);
                 let required_tpls = required.clone().unwrap_or_default();
 
-                let commands: Vec<String> =
-                    if cmds.iter().all(|t| matches!(t, Token::List(_))) {
-                        cmds.iter()
-                            .filter_map(|t| {
-                                if let Token::List(items) = t {
-                                    Some(tokens_to_command_string(items))
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect()
-                    } else {
-                        vec![tokens_to_command_string(cmds)]
-                    };
+                let commands: Vec<String> = if cmds.iter().all(|t| matches!(t, Token::List(_))) {
+                    cmds.iter()
+                        .filter_map(|t| {
+                            if let Token::List(items) = t {
+                                Some(tokens_to_command_string(items))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect()
+                } else {
+                    vec![tokens_to_command_string(cmds)]
+                };
 
                 let metadata = Metadata {
                     modes: mode_chars,
@@ -185,10 +191,9 @@ impl Command for ConfigCommand {
                 let resolver = resolver_engine().await;
                 let resolver = resolver.as_resolver();
                 let mut inputs = state.lock_state::<InputState>().await;
-                if let Err(e) =
-                    inputs
-                        .tree
-                        .register(&resolver, key_binds, commands, Some(metadata))
+                if let Err(e) = inputs
+                    .tree
+                    .register(&resolver, key_binds, commands, Some(metadata))
                 {
                     tracing::error!("bind: failed to register keybind: {:?}", e);
                 }
@@ -229,13 +234,37 @@ impl Command for ConfigCommand {
                 resolver_engine_mut().await.set_template(name, strs);
             }
 
+            ConfigCommand::ListTemplates(filter) => {
+                let filter = filter.clone().unwrap_or_default();
+
+                let log = state.lock_state::<LogSender>().await;
+
+                let mut keys = resolver_engine()
+                    .await
+                    .templates()
+                    .keys()
+                    .cloned()
+                    .filter(|x| filter.iter().any(|f| x.contains(f)))
+                    .collect::<Vec<_>>();
+
+                keys.sort();
+
+                let out = keys.join(", ");
+
+                log.high("list-templates", out);
+            }
+
             ConfigCommand::Palette { name, value } => {
                 let palette = state.lock_state::<PaletteState>().await;
                 let resolved_palette = palette.0.clone();
                 drop(palette);
 
                 if let Some(color) = resolve_color(value, &resolved_palette) {
-                    state.lock_state::<PaletteState>().await.0.insert(name.clone(), color);
+                    state
+                        .lock_state::<PaletteState>()
+                        .await
+                        .0
+                        .insert(name.clone(), color);
                 } else {
                     tracing::error!("palette: unknown color '{}' for '{}'", value, name);
                 }
@@ -253,24 +282,24 @@ impl Command for ConfigCommand {
 
                 // Simple form: `theme key colorname` → foreground only
                 // Full form: `theme key --fg c --bg c --attrs [list]`
-                let (eff_fg, eff_bg, eff_ul, eff_attrs) = if fg.is_none()
-                    && bg.is_none()
-                    && underline.is_none()
-                    && attrs.is_none()
-                {
-                    // Simple form: value is the foreground color
-                    (value.as_deref(), None::<&str>, None::<&str>, vec![])
-                } else {
-                    (
-                        fg.as_deref(),
-                        bg.as_deref(),
-                        underline.as_deref(),
-                        attrs.clone().unwrap_or_default(),
-                    )
-                };
+                let (eff_fg, eff_bg, eff_ul, eff_attrs) =
+                    if fg.is_none() && bg.is_none() && underline.is_none() && attrs.is_none() {
+                        // Simple form: value is the foreground color
+                        (value.as_deref(), None::<&str>, None::<&str>, vec![])
+                    } else {
+                        (
+                            fg.as_deref(),
+                            bg.as_deref(),
+                            underline.as_deref(),
+                            attrs.clone().unwrap_or_default(),
+                        )
+                    };
 
                 let style = build_style(eff_fg, eff_bg, eff_ul, &eff_attrs, &palette);
-                state.lock_state::<Theme>().await.register(key.clone(), style);
+                state
+                    .lock_state::<Theme>()
+                    .await
+                    .register(key.clone(), style);
             }
 
             ConfigCommand::Prefix {
