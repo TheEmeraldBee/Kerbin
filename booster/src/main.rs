@@ -1,5 +1,6 @@
 use clap::*;
 use dialoguer::*;
+use kerbin_core::{ClientIpc, session_name_path, session_pid_path, sessions_dir};
 use indicatif::*;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -30,6 +31,57 @@ pub enum SubCommand {
         /// Path to a new config directory
         #[clap(short, long)]
         config: Option<PathBuf>,
+    },
+
+    /// Send a command to a running kerbin session
+    Exec {
+        /// The session ID to target
+        #[clap(short, long)]
+        session: String,
+        /// The command to execute
+        #[clap(num_args = 1.., required = true)]
+        command: Vec<String>,
+    },
+
+    /// Manage running kerbin sessions
+    Session {
+        #[clap(subcommand)]
+        command: SessionCommand,
+    },
+}
+
+#[derive(Subcommand, Clone)]
+pub enum SessionCommand {
+    /// List all running sessions
+    List,
+
+    /// Gracefully close a session (sends :q!)
+    Close {
+        /// The session ID to close
+        session: String,
+    },
+
+    /// Open a file in a running session
+    Open {
+        /// The session ID to target
+        #[clap(short, long)]
+        session: String,
+        /// The file to open
+        file: String,
+    },
+
+    /// Force-kill a session (SIGKILL)
+    Kill {
+        /// The session ID or name to kill
+        session: String,
+    },
+
+    /// Assign a human-readable name to a session
+    Rename {
+        /// The session ID to rename
+        session: String,
+        /// The new name
+        name: String,
     },
 }
 
@@ -336,6 +388,35 @@ fn build_kerbin(kerbin_dir: &Path, config_path: Option<PathBuf>, info: &mut Kerb
     info.save(kerbin_dir);
 }
 
+/// Resolve a session argument that may be either a UUID or a human-readable name.
+/// Returns the session UUID if found, otherwise returns the input unchanged.
+fn resolve_session(input: &str) -> String {
+    let dir = sessions_dir();
+
+    // Direct UUID match: the .in file exists
+    let in_file = format!("{}/{}.in", dir, input);
+    if std::path::Path::new(&in_file).exists() {
+        return input.to_string();
+    }
+
+    // Search .name sidecar files for a match
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            let filename = entry.file_name().into_string().unwrap_or_default();
+            if let Some(session_id) = filename.strip_suffix(".name") {
+                let name_path = format!("{}/{}", dir, filename);
+                if let Ok(stored) = std::fs::read_to_string(&name_path) {
+                    if stored.trim() == input {
+                        return session_id.to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    input.to_string()
+}
+
 fn main() {
     let args = Args::parse();
 
@@ -522,6 +603,105 @@ fn main() {
             println!("✓ Installation complete!");
             println!("  Ensure to add ~/.kerbin/bin to your PATH");
         }
+        SubCommand::Exec { session, command } => {
+            let full_command = command.join(" ");
+            if let Err(e) = ClientIpc::send_command(&session, full_command) {
+                eprintln!("{}", e);
+                std::process::exit(1);
+            }
+        }
+        SubCommand::Session { command } => match command {
+            SessionCommand::List => {
+                let dir = sessions_dir();
+                let mut sessions: Vec<(String, Option<String>)> = std::fs::read_dir(&dir)
+                    .map(|rd| {
+                        rd.filter_map(|e| e.ok())
+                            .filter_map(|e| {
+                                let filename = e.file_name().into_string().ok()?;
+                                let id = filename.strip_suffix(".in")?.to_string();
+                                let name = std::fs::read_to_string(
+                                    format!("{}/{}.name", dir, id)
+                                )
+                                .ok()
+                                .map(|s| s.trim().to_string());
+                                Some((id, name))
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                sessions.sort_by(|a, b| a.0.cmp(&b.0));
+
+                if sessions.is_empty() {
+                    println!("No running sessions.");
+                } else {
+                    println!("{} session(s):", sessions.len());
+                    for (id, name) in sessions {
+                        match name {
+                            Some(n) => println!("  {}  ({})", id, n),
+                            None    => println!("  {}", id),
+                        }
+                    }
+                }
+            }
+            SessionCommand::Close { session } => {
+                let session = resolve_session(&session);
+                if let Err(e) = ClientIpc::send_command(&session, "q!".to_string()) {
+                    eprintln!("{}", e);
+                    std::process::exit(1);
+                }
+            }
+            SessionCommand::Open { session, file } => {
+                let session = resolve_session(&session);
+                let command = format!("open {}", file);
+                if let Err(e) = ClientIpc::send_command(&session, command) {
+                    eprintln!("{}", e);
+                    std::process::exit(1);
+                }
+            }
+            SessionCommand::Kill { session } => {
+                let session = resolve_session(&session);
+                let pid_path = session_pid_path(&session);
+                match std::fs::read_to_string(&pid_path) {
+                    Ok(pid_str) => {
+                        let pid = pid_str.trim();
+                        let status = std::process::Command::new("kill")
+                            .args(["-9", pid])
+                            .status();
+                        match status {
+                            Ok(s) if s.success() => {}
+                            Ok(_) => {
+                                eprintln!("kill returned non-zero (process may have already exited).");
+                                std::process::exit(1);
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to run kill: {}", e);
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        eprintln!("Session '{}' not found.", session);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            SessionCommand::Rename { session, name } => {
+                let session = resolve_session(&session);
+                let name_path = session_name_path(&session);
+                // Verify the session is actually running before naming it
+                let in_file = format!("{}/{}.in", sessions_dir(), session);
+                if !std::path::Path::new(&in_file).exists() {
+                    eprintln!("Session '{}' not found.", session);
+                    std::process::exit(1);
+                }
+                if let Err(e) = std::fs::write(&name_path, &name) {
+                    eprintln!("Failed to write name file: {}", e);
+                    std::process::exit(1);
+                }
+                println!("Session {} renamed to '{}'.", session, name);
+            }
+        },
         SubCommand::Rebuild { config } => {
             if !kerbin_dir.exists() {
                 eprintln!(

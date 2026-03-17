@@ -17,6 +17,10 @@ pub enum PaletteCommand {
     #[command]
     /// Executes the content in the command palette
     ExecutePalette,
+
+    #[command]
+    /// Autocompletes the palette command
+    CompletePalette,
 }
 
 #[async_trait::async_trait]
@@ -70,6 +74,14 @@ impl Command for PaletteCommand {
                         .await
                         .medium("palette", format!("Invalid command: {content}"));
                 }
+                false
+            }
+
+            Self::CompletePalette => {
+                if let Some(done) = &palette.completion {
+                    palette.input = done.to_string()
+                }
+
                 false
             }
         }

@@ -40,7 +40,6 @@ pub fn init_state(
         .state(EventStorage::default())
         .state(Registers::default())
         .state(server_ipc)
-        .state(QueryRegistry::default())
         .state(ConfigDir(PathBuf::from(format!("{config_path}/config"))))
         .state(CoreConfig::default())
         .state(PaletteState::default())

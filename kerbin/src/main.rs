@@ -21,37 +21,9 @@ pub struct KerbinArgs {
     #[clap(short, long)]
     config: Option<String>,
 
-    #[clap(subcommand)]
-    command: Option<Command>,
-}
-
-#[derive(Subcommand)]
-pub enum Command {
-    /// Execute a command in an existing session
-    Exec(ExecArgs),
-    /// Query information from an existing session
-    Query(QueryArgs),
-}
-
-#[derive(Args)]
-pub struct ExecArgs {
-    /// The session ID to target
-    #[clap(short, long)]
-    session: String,
-
-    /// The command to execute
-    #[clap(num_args = 1.., required = true)]
-    command: Vec<String>,
-}
-
-#[derive(Args)]
-pub struct QueryArgs {
-    /// The session ID to target
-    #[clap(short, long)]
-    session: String,
-
-    /// The query to execute
-    query: String,
+    /// Files to open on startup
+    #[clap(value_name = "FILE")]
+    files: Vec<std::path::PathBuf>,
 }
 
 pub async fn register_default_chunks(chunks: ResMut<Chunks>, window: Res<WindowState>) {
@@ -187,18 +159,6 @@ async fn update(state: &mut State) {
 async fn main() {
     let args = KerbinArgs::parse();
 
-    match args.command {
-        Some(Command::Exec(exec_args)) => {
-            handle_exec(exec_args).await;
-            return;
-        }
-        Some(Command::Query(query_args)) => {
-            handle_query(query_args).await;
-            return;
-        }
-        None => {}
-    }
-
     let session_id = Uuid::new_v4();
     let server_ipc = ServerIpc::new(&session_id.to_string());
 
@@ -290,8 +250,6 @@ async fn main() {
     let framerate = state.lock_state::<CoreConfig>().await.framerate;
     let ms_per_frame = 1000 / framerate;
 
-    register_default_queries(&mut state).await;
-
     state
         .on_hook(hooks::ChunkRegister)
         .system(register_default_chunks)
@@ -328,6 +286,11 @@ async fn main() {
 
     state.hook(hooks::PostInit).call().await;
 
+    for file in args.files {
+        let path = file.to_string_lossy().to_string();
+        state.lock_state::<Buffers>().await.open(path).await.ok();
+    }
+
     loop {
         let frame_start = tokio::time::Instant::now();
 
@@ -361,20 +324,3 @@ async fn main() {
     ratatui::restore();
 }
 
-async fn handle_exec(args: ExecArgs) {
-    let full_command = args.command.join(" ");
-    if let Err(e) = ClientIpc::send_command(&args.session, full_command) {
-        eprintln!("{}", e);
-        std::process::exit(1);
-    }
-}
-
-async fn handle_query(args: QueryArgs) {
-    match ClientIpc::query(&args.session, args.query) {
-        Ok(result) => println!("{}", result),
-        Err(e) => {
-            eprintln!("{}", e);
-            std::process::exit(1);
-        }
-    }
-}

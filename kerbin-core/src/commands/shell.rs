@@ -19,6 +19,16 @@ pub enum ShellCommand {
     /// Spawns a shell command in the background
     Spawn(#[command(name = "cmd", type_name = "[string]")] Vec<String>),
 
+    #[command]
+    /// Executes a shell command, running the inner command with the template `out` set
+    ///
+    /// `pipe` is the shell command to run
+    /// `cmd` is the command to run after
+    Pipe(
+        #[command(flag, name = "pipe", type_name = "[string]")] Vec<String>,
+        #[command(flag, name = "cmd", type_name = "[string]")] Vec<Token>,
+    ),
+
     /// Spawns a shell command, replacing stdin with this
     /// Reapply's window when rendering app again
     ///
@@ -47,6 +57,7 @@ impl Command for ShellCommand {
                 match std::process::Command::new(&args[0])
                     .args(&args[1..])
                     .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
                     .stdin(Stdio::piped())
                     .spawn()
                 {
@@ -56,6 +67,40 @@ impl Command for ShellCommand {
                         false
                     }
                 }
+            }
+            Self::Pipe(pipe, cmd) => {
+                let text = match std::process::Command::new(&pipe[0])
+                    .args(&pipe[1..])
+                    .output()
+                {
+                    Ok(t) => String::from_utf8_lossy(&t.stdout).to_string(),
+
+                    Err(e) => {
+                        tracing::error!("Failed to run command: {e}");
+                        return false;
+                    }
+                };
+
+                resolver_engine_mut().await.set_template("out", [text]);
+
+                let command = state.lock_state::<CommandRegistry>().await.parse_command(
+                    cmd.clone(),
+                    true,
+                    false,
+                    Some(&resolver_engine().await.as_resolver()),
+                    true,
+                    &*state.lock_state::<CommandPrefixRegistry>().await,
+                    &*state.lock_state::<ModeStack>().await,
+                );
+                if let Some(command) = command {
+                    state
+                        .lock_state::<CommandSender>()
+                        .await
+                        .send(command)
+                        .unwrap();
+                }
+
+                true
             }
             Self::InPlace(args) => {
                 tracing::error!("{:#?}", args);
