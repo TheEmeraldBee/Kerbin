@@ -15,6 +15,8 @@ pub fn word_split(input: &str) -> Vec<String> {
             Token::CommandSubst(s) => Some(format!("$({})", s)),
             Token::Variable(s) => Some(format!("%{}", s)),
             Token::List(_) => None,
+            // Interpolated strings are not yet resolved here; serialize back as-is
+            Token::Interpolated(parts) => Some(kerbin_input::flatten_tokens(parts)),
         })
         .collect()
 }

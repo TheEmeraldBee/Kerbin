@@ -110,6 +110,23 @@ impl<'a> Resolver<'a> {
                 Token::CommandSubst(inner) => vec![Token::CommandSubst(inner)],
 
                 Token::List(inner) => vec![Token::List(self.expand_tokens(inner, allow_run))],
+
+                Token::Interpolated(parts) => {
+                    // Expand each part, then concatenate into a single Word
+                    let expanded = self.expand_tokens(parts, allow_run);
+                    let joined = expanded
+                        .into_iter()
+                        .map(|t| match t {
+                            Token::Word(s) => s,
+                            Token::Variable(name) => format!("%{}", name),
+                            Token::CommandSubst(s) => format!("$({})", s),
+                            Token::Interpolated(inner) => flatten_tokens(inner),
+                            Token::List(inner) => format!("[{}]", flatten_tokens(inner)),
+                        })
+                        .collect::<Vec<_>>()
+                        .join("");
+                    vec![Token::Word(joined)]
+                }
             })
             .collect()
     }

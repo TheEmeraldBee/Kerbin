@@ -5,6 +5,7 @@ use crossterm::{
     execute,
     terminal::{DisableLineWrap, EnterAlternateScreen, enable_raw_mode},
 };
+use ratatui::widgets::Clear;
 use std::process::Stdio;
 
 #[derive(Debug, Clone, Command)]
@@ -28,7 +29,7 @@ pub enum ShellCommand {
 
 #[async_trait::async_trait]
 impl Command for ShellCommand {
-    async fn apply(&self, _state: &mut State) -> bool {
+    async fn apply(&self, state: &mut State) -> bool {
         match self {
             Self::Execute(args) => {
                 match std::process::Command::new(&args[0])
@@ -57,13 +58,11 @@ impl Command for ShellCommand {
                 }
             }
             Self::InPlace(args) => {
+                tracing::error!("{:#?}", args);
+
                 // Tear down terminal
                 crossterm::terminal::disable_raw_mode().ok();
-                execute!(
-                    std::io::stdout(),
-                    crossterm::terminal::LeaveAlternateScreen
-                )
-                .ok();
+                execute!(std::io::stdout(), crossterm::terminal::LeaveAlternateScreen).ok();
 
                 let res = match std::process::Command::new(&args[0])
                     .args(&args[1..])
@@ -87,6 +86,12 @@ impl Command for ShellCommand {
                     DisableLineWrap,
                 )
                 .ok();
+
+                state
+                    .lock_state::<WindowState>()
+                    .await
+                    .draw(|x| x.render_widget(Clear, x.area()))
+                    .expect("terminal should render");
 
                 res
             }

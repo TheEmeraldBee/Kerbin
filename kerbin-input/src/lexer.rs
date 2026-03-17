@@ -11,6 +11,9 @@ pub enum Token {
     Variable(String),
     /// Items inside `[...]`.
     List(Vec<Token>),
+    /// A double-quoted string with embedded `%variable` expansions.
+    /// Parts may be `Word` (literal segments) or `Variable`/`CommandSubst`.
+    Interpolated(Vec<Token>),
 }
 
 #[derive(Debug, Error, Clone, PartialEq)]
@@ -87,20 +90,66 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>, LexError> {
                 has_current = true;
             }
             // Double quotes: preserves spaces, \X escape sequences active inside.
-            // $() and % are kept as literal text (not tokenized separately).
+            // `%name` expands as a variable; `%%` → literal `%`.
+            // `$()` is kept as literal text (not tokenized separately).
             '"' => {
+                let mut parts: Vec<Token> = Vec::new();
+                let mut seg = String::new();
                 loop {
                     match chars.next() {
                         Some('"') => break,
                         Some('\\') => {
                             let next = chars.next().unwrap_or('\\');
-                            current.push(unescape(next));
+                            seg.push(unescape(next));
                         }
-                        Some(c) => current.push(c),
+                        Some('%') => {
+                            if chars.peek() == Some(&'%') {
+                                chars.next(); // consume second %
+                                seg.push('%');
+                            } else {
+                                let mut name = String::new();
+                                while let Some(&c) = chars.peek() {
+                                    if c.is_alphanumeric() || c == '_' {
+                                        name.push(c);
+                                        chars.next();
+                                    } else {
+                                        break;
+                                    }
+                                }
+                                if name.is_empty() {
+                                    seg.push('%');
+                                } else {
+                                    if !seg.is_empty() {
+                                        parts.push(Token::Word(std::mem::take(&mut seg)));
+                                    }
+                                    parts.push(Token::Variable(name));
+                                }
+                            }
+                        }
+                        Some(c) => seg.push(c),
                         None => return Err(LexError::UnclosedString),
                     }
                 }
-                has_current = true;
+                if !seg.is_empty() || parts.is_empty() {
+                    parts.push(Token::Word(seg));
+                }
+                if parts.len() == 1 {
+                    // Plain string (no variables): fold into current word buffer
+                    match parts.remove(0) {
+                        Token::Word(s) => {
+                            current.push_str(&s);
+                            has_current = true;
+                        }
+                        other => {
+                            // Single variable with no surrounding text: treat like bare %var
+                            flush_word!();
+                            tokens.push(other);
+                        }
+                    }
+                } else {
+                    flush_word!();
+                    tokens.push(Token::Interpolated(parts));
+                }
             }
             // Command substitution: $( ... )
             '$' if chars.peek() == Some(&'(') => {
@@ -275,6 +324,34 @@ fn token_to_string(token: &Token) -> String {
         Token::List(items) => format!("[{}]", tokens_to_command_string(items)),
         Token::Variable(name) => format!("%{}", name),
         Token::CommandSubst(cmd) => format!("$({})", cmd),
+        Token::Interpolated(parts) => {
+            // Serialize back as a double-quoted string with embedded %vars
+            let mut out = String::from('"');
+            for part in parts {
+                match part {
+                    Token::Word(s) => {
+                        for c in s.chars() {
+                            if c == '\\' || c == '"' {
+                                out.push('\\');
+                            }
+                            out.push(c);
+                        }
+                    }
+                    Token::Variable(name) => {
+                        out.push('%');
+                        out.push_str(name);
+                    }
+                    Token::CommandSubst(cmd) => {
+                        out.push_str("$(");
+                        out.push_str(cmd);
+                        out.push(')');
+                    }
+                    _ => {}
+                }
+            }
+            out.push('"');
+            out
+        }
     }
 }
 
@@ -298,6 +375,7 @@ pub fn flatten_tokens(tokens: Vec<Token>) -> String {
             Token::CommandSubst(s) => format!("$({})", s),
             Token::Variable(s) => format!("%{}", s),
             Token::List(items) => format!("[{}]", flatten_tokens(items)),
+            Token::Interpolated(parts) => flatten_tokens(parts),
         })
         .collect::<Vec<_>>()
         .join(" ")
@@ -530,6 +608,58 @@ mod tests {
         } else {
             panic!("Expected List");
         }
+    }
+
+    #[test]
+    fn test_double_quotes_variable_expansion() {
+        // "%var" with no surrounding text → plain Variable token (no Interpolated)
+        let tokens = tokenize(r#""%my_var""#).unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert!(matches!(&tokens[0], Token::Variable(s) if s == "my_var"));
+    }
+
+    #[test]
+    fn test_double_quotes_interpolated() {
+        // "prefix_%var" → Interpolated([Word("prefix_"), Variable("var")])
+        let tokens = tokenize(r#""prefix_%var""#).unwrap();
+        assert_eq!(tokens.len(), 1);
+        if let Token::Interpolated(parts) = &tokens[0] {
+            assert_eq!(parts.len(), 2);
+            assert!(matches!(&parts[0], Token::Word(s) if s == "prefix_"));
+            assert!(matches!(&parts[1], Token::Variable(s) if s == "var"));
+        } else {
+            panic!("Expected Interpolated");
+        }
+    }
+
+    #[test]
+    fn test_double_quotes_interpolated_suffix() {
+        // "%var/path" → Interpolated([Variable("var"), Word("/path")])
+        let tokens = tokenize(r#""%var/path""#).unwrap();
+        assert_eq!(tokens.len(), 1);
+        if let Token::Interpolated(parts) = &tokens[0] {
+            assert_eq!(parts.len(), 2);
+            assert!(matches!(&parts[0], Token::Variable(s) if s == "var"));
+            assert!(matches!(&parts[1], Token::Word(s) if s == "/path"));
+        } else {
+            panic!("Expected Interpolated");
+        }
+    }
+
+    #[test]
+    fn test_double_quotes_percent_percent_inside() {
+        // "%%" inside double quotes → literal %
+        let tokens = tokenize(r#""100%%""#).unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert!(matches!(&tokens[0], Token::Word(s) if s == "100%"));
+    }
+
+    #[test]
+    fn test_double_quotes_plain_still_works() {
+        // Plain double-quoted strings still produce Word (unchanged behaviour)
+        let tokens = tokenize(r#""hello world""#).unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert!(matches!(&tokens[0], Token::Word(s) if s == "hello world"));
     }
 
     #[test]
