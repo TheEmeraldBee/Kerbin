@@ -1,5 +1,6 @@
 use kerbin_core::SafeRopeAccess;
-use kerbin_core::{ascii_forge::window::ContentStyle, *};
+use kerbin_core::*;
+use ratatui::style::Style;
 use tree_sitter::{Parser, Tree};
 
 use crate::{
@@ -8,7 +9,7 @@ use crate::{
     query_walker::QueryWalkerBuilder,
 };
 
-fn translate_name_to_style(theme: &Theme, mut name: &str) -> ContentStyle {
+fn translate_name_to_style(theme: &Theme, mut name: &str) -> Style {
     loop {
         if let Some(value) = theme.get(&format!("ts.{name}")) {
             return value;
@@ -247,7 +248,7 @@ pub async fn open_files(
         buf.add_extmark(
             ExtmarkBuilder::new_range("tree-sitter::highlights", span.byte_range.clone())
                 .with_priority(span.priority as i32)
-                .with_decoration(ExtmarkDecoration::Highlight { hl: hl_style }),
+                .with_kind(ExtmarkKind::Highlight { style: hl_style }),
         );
     }
 }
@@ -384,7 +385,7 @@ pub fn highlight_text(
     config_path: &str,
     theme: &Theme,
     log: &LogSender,
-) -> Vec<(String, ContentStyle)> {
+) -> Vec<(String, Style)> {
     let rope = ropey::Rope::from_str(text);
 
     // Load the grammar

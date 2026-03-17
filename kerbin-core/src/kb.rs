@@ -40,7 +40,7 @@ pub async fn load_kb(path: &Path, state: &mut State) -> Result<(), Box<dyn Error
             let registry = state.lock_state::<CommandRegistry>().await;
             let prefix_reg = state.lock_state::<CommandPrefixRegistry>().await;
             let modes = state.lock_state::<ModeStack>().await;
-            let cmd = registry.parse_command(tokens, true, true, None, false, &*prefix_reg, &*modes);
+            let cmd = registry.parse_command(tokens, true, true, None, false, &prefix_reg, &modes);
             drop(modes);
             drop(prefix_reg);
             drop(registry);

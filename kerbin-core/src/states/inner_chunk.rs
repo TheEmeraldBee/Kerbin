@@ -1,19 +1,13 @@
-use std::{
-    ops::{Deref, DerefMut},
-    sync::Arc,
-};
+use std::ops::{Deref, DerefMut};
 
-use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
+use ratatui::{buffer::Buffer, layout::Rect};
 
-use crate::*;
+use crate::CursorShape;
 
-pub type RenderFunc = Arc<Box<dyn Fn(&mut Window, Vec2) + Send + Sync>>;
-
-/// Internal chunk representing a buffer and an optional cursor
+/// Internal chunk representing a ratatui buffer and an optional cursor
 pub struct InnerChunk {
     buffer: Buffer,
-    pub render_items: Vec<(Vec2, RenderFunc)>,
-    cursor: Option<(usize, Vec2, SetCursorStyle)>,
+    cursor: Option<(usize, u16, u16, CursorShape)>,
 }
 
 impl Deref for InnerChunk {
@@ -30,18 +24,17 @@ impl DerefMut for InnerChunk {
 }
 
 impl InnerChunk {
-    /// Creates a new internal chunk
+    /// Creates a new internal chunk from a ratatui Buffer
     pub fn new(buf: Buffer) -> Self {
         Self {
             buffer: buf,
-            render_items: vec![],
             cursor: None,
         }
     }
 
-    /// Registers a special function that will render to the window
-    pub fn register_item(&mut self, pos: impl Into<Vec2>, func: RenderFunc) {
-        self.render_items.push((pos.into(), func));
+    /// Returns the area of this chunk
+    pub fn area(&self) -> Rect {
+        self.buffer.area
     }
 
     /// Removes the cursor from this chunk
@@ -49,14 +42,9 @@ impl InnerChunk {
         self.cursor = None;
     }
 
-    /// Sets the cursor for this chunk with a specified priority and style
-    pub fn set_cursor(&mut self, priority: usize, pos: Vec2, style: SetCursorStyle) {
-        self.cursor = Some((priority, pos, style))
-    }
-
-    /// Returns the position of the cursor if set
-    pub fn cursor_pos(&self) -> Option<Vec2> {
-        self.cursor.as_ref().map(|x| x.1)
+    /// Sets the cursor for this chunk with a specified priority, screen position, and shape
+    pub fn set_cursor(&mut self, priority: usize, x: u16, y: u16, shape: CursorShape) {
+        self.cursor = Some((priority, x, y, shape))
     }
 
     /// Returns whether a cursor is set for this chunk
@@ -64,8 +52,8 @@ impl InnerChunk {
         self.cursor.is_some()
     }
 
-    /// Returns a reference to the full cursor information
-    pub fn get_full_cursor(&self) -> &Option<(usize, Vec2, SetCursorStyle)> {
-        &self.cursor
+    /// Returns a reference to the full cursor information (priority, x, y, shape)
+    pub fn get_cursor(&self) -> Option<&(usize, u16, u16, CursorShape)> {
+        self.cursor.as_ref()
     }
 }

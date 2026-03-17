@@ -193,7 +193,12 @@ impl Buffers {
                     title.chars().skip(slice_start).take(slice_len).collect();
 
                 let render_x = (overlap_start - self.tab_scroll) as u16;
-                render!(buffer, vec2(render_x, 0) => [ StyledContent::new(style, visible_part) ]);
+                buffer.set_string(
+                    buffer.area.x + render_x,
+                    buffer.area.y,
+                    &visible_part,
+                    style,
+                );
             }
 
             current_char_offset += title_width;

@@ -1,7 +1,8 @@
 use std::time::{Duration, SystemTime};
 
 use crate::*;
-use ascii_forge::{prelude::*, widgets::Border, window::Render};
+use ratatui::prelude::*;
+use ratatui::widgets::{Block, BorderType, Paragraph};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 pub async fn register_log_chunk(
@@ -21,7 +22,7 @@ pub async fn register_log_chunk(
     get!(mut chunks, window);
 
     // Calculate total height needed for all notifications
-    let max_width = window.size().x as usize;
+    let max_width = window.size().width as usize;
     let notification_width = (max_width.saturating_sub(4)).min(60);
     let text_width = notification_width.saturating_sub(4);
 
@@ -29,14 +30,17 @@ pub async fn register_log_chunk(
     for msg in log.entries().iter() {
         let wrapped_lines = wrap_text(&msg.message.message, text_width);
         let notification_height = 2 + wrapped_lines.len() as u16 + 1;
-        total_height += notification_height + 1; // +1 for spacing
+        total_height += notification_height + 1;
     }
 
-    // Remove trailing spacing
     total_height = total_height.saturating_sub(1);
 
-    // Create chunk in top-right corner with exact size needed
-    let chunk_rect = Rect::new(0, 0, window.size().x, total_height.min(window.size().y));
+    let chunk_rect = Rect::new(
+        window.size().width - window.size().width / 4,
+        0,
+        window.size().width / 4,
+        total_height.min(window.size().height),
+    );
 
     chunks.register_chunk::<LogChunk>(1, chunk_rect);
 }
@@ -49,64 +53,73 @@ pub async fn render_log(log_chunk: Chunk<LogChunk>, log: ResMut<LogState>, theme
 
     log.poll_messages();
 
-    let size = chunk.size();
-    let max_width = size.x as usize;
+    let area = chunk.area();
+    let max_width = area.width as usize;
 
-    // Render notifications from top down, starting from top right
-    let mut y_offset = 0;
+    let mut y_offset = 0u16;
 
     for msg in log.entries().iter() {
-        let notification_height = render_notification(&mut chunk, msg, &theme, max_width, y_offset);
+        let notification_height =
+            render_notification(&mut chunk, msg, &theme, max_width, area, y_offset);
 
-        y_offset += notification_height + 1; // +1 for spacing
+        y_offset += notification_height + 1;
 
-        if y_offset >= size.y {
-            break; // No more room
+        if y_offset >= area.height {
+            break;
         }
     }
 }
 
 fn render_notification(
-    chunk: &mut Buffer,
+    buf: &mut ratatui::buffer::Buffer,
     msg: &TimedMessage,
     theme: &Theme,
     max_width: usize,
+    chunk_area: Rect,
     top_y: u16,
 ) -> u16 {
     let style = msg.message.style(theme);
     let border_style = style;
 
-    // Calculate notification width (leave some margin from edges)
     let margin = 2;
-    let notification_width = (max_width.saturating_sub(margin * 2)).min(60);
+    let notification_width = (max_width.saturating_sub(margin * 2)).min(60) as u16;
 
-    // Wrap the message text
-    let text_width = notification_width.saturating_sub(4); // Account for borders and padding
+    let text_width = (notification_width.saturating_sub(4)) as usize;
     let wrapped_lines = wrap_text(&msg.message.message, text_width);
 
-    // Calculate height: border + wrapped lines
     let notification_height = 2 + wrapped_lines.len() as u16;
 
-    let start_x = chunk
-        .size()
-        .x
-        .saturating_sub(notification_width as u16 + margin as u16);
+    let start_x = chunk_area
+        .width
+        .saturating_sub(notification_width + margin as u16);
 
-    let mut border = Border::rounded(notification_width as u16, notification_height)
-        .with_title(style.apply(format!(" [{}] ", msg.message.origin)));
-    border.style = border_style;
+    let notification_rect = Rect::new(
+        chunk_area.x + start_x,
+        chunk_area.y + top_y + 1,
+        notification_width,
+        notification_height,
+    );
 
-    render!(chunk, vec2(start_x, top_y + 1) => [border]);
-
-    // Render wrapped message lines
-    for (i, line) in wrapped_lines.iter().enumerate() {
-        let padded_line = format!(
-            "{}{}",
-            line,
-            " ".repeat(text_width.saturating_sub(line.len()))
-        );
-        render!(chunk, vec2(start_x + 2, top_y + 2 + i as u16) => [style.apply(&padded_line)]);
+    // Render notification only if it fits in chunk area
+    if notification_rect.bottom() > chunk_area.bottom() {
+        return notification_height;
     }
+
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .title(Span::styled(format!(" [{}] ", msg.message.origin), style))
+        .border_style(border_style);
+
+    let inner = block.inner(notification_rect);
+
+    block.render(notification_rect, buf);
+
+    let lines: Vec<Line<'static>> = wrapped_lines
+        .iter()
+        .map(|line| Line::from(Span::styled(line.clone(), style)))
+        .collect();
+
+    Paragraph::new(lines).render(inner, buf);
 
     notification_height
 }
@@ -146,7 +159,7 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn style(&self, theme: &Theme) -> ContentStyle {
+    pub fn style(&self, theme: &Theme) -> Style {
         match self.level {
             Level::Low => theme.get_fallback_default(["ui.log.low", "ui.log", "ui.text"]),
             Level::Medium => theme.get_fallback_default(["ui.log.medium", "ui.log", "ui.text"]),
@@ -313,7 +326,6 @@ impl LogState {
                     LogCommand::Modify(id, new_message) => {
                         if let Some(msg) = self.messages.iter_mut().find(|m| m.id == id) {
                             msg.message.message = new_message;
-                            // Reset the timer when modified
                             msg.inserted = now;
                         }
                     }
@@ -324,7 +336,6 @@ impl LogState {
             }
         }
 
-        // Retain only messages that haven't expired
         self.messages
             .retain(|m| now.duration_since(m.inserted).unwrap_or_default() <= m.duration);
     }

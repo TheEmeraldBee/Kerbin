@@ -4,7 +4,8 @@ use std::{
     path::PathBuf,
 };
 
-use ascii_forge::{prelude::Color, window::Window};
+use crossterm::event::Event;
+use ratatui::{Terminal, backend::CrosstermBackend, layout::Rect, style::Color};
 use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 
@@ -63,12 +64,20 @@ pub struct DebounceConfig(pub Vec<DebounceEvent>);
 #[derive(State, Default)]
 pub struct PaletteState(pub HashMap<String, Color>);
 
-/// State wrapper around the ascii_forge window
+/// State wrapper around the ratatui terminal
 #[derive(State)]
-pub struct WindowState(pub Window);
+pub struct WindowState(pub Terminal<CrosstermBackend<std::io::Stdout>>);
+
+impl WindowState {
+    /// Returns the terminal's current size as a `Rect`
+    pub fn size(&self) -> Rect {
+        let s = self.0.size().unwrap_or_default();
+        Rect::new(0, 0, s.width, s.height)
+    }
+}
 
 impl Deref for WindowState {
-    type Target = Window;
+    type Target = Terminal<CrosstermBackend<std::io::Stdout>>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -79,3 +88,7 @@ impl DerefMut for WindowState {
         &mut self.0
     }
 }
+
+/// Stores input events captured from crossterm for the current frame
+#[derive(State, Default)]
+pub struct CrosstermEvents(pub Vec<Event>);

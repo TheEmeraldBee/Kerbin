@@ -1,10 +1,10 @@
 use crate::*;
-use ascii_forge::window::crossterm::cursor::Hide;
-use ascii_forge::window::crossterm::execute;
-use ascii_forge::window::crossterm::terminal::{
-    DisableLineWrap, EnterAlternateScreen, enable_raw_mode,
+use crossterm::{
+    cursor::Hide,
+    event::{EnableFocusChange, EnableMouseCapture},
+    execute,
+    terminal::{DisableLineWrap, EnterAlternateScreen, enable_raw_mode},
 };
-use ascii_forge::window::{EnableFocusChange, EnableMouseCapture};
 use std::process::Stdio;
 
 #[derive(Debug, Clone, Command)]
@@ -28,7 +28,7 @@ pub enum ShellCommand {
 
 #[async_trait::async_trait]
 impl Command for ShellCommand {
-    async fn apply(&self, state: &mut State) -> bool {
+    async fn apply(&self, _state: &mut State) -> bool {
         match self {
             Self::Execute(args) => {
                 match std::process::Command::new(&args[0])
@@ -57,8 +57,13 @@ impl Command for ShellCommand {
                 }
             }
             Self::InPlace(args) => {
-                let mut window = state.lock_state::<WindowState>().await;
-                window.restore().unwrap();
+                // Tear down terminal
+                crossterm::terminal::disable_raw_mode().ok();
+                execute!(
+                    std::io::stdout(),
+                    crossterm::terminal::LeaveAlternateScreen
+                )
+                .ok();
 
                 let res = match std::process::Command::new(&args[0])
                     .args(&args[1..])
@@ -71,19 +76,17 @@ impl Command for ShellCommand {
                     }
                 };
 
-                enable_raw_mode().unwrap();
+                // Restore terminal
+                enable_raw_mode().ok();
                 execute!(
-                    window.io(),
+                    std::io::stdout(),
                     EnterAlternateScreen,
                     EnableMouseCapture,
                     EnableFocusChange,
                     Hide,
                     DisableLineWrap,
                 )
-                .unwrap();
-
-                window.buffer_mut().fill(" ");
-                window.swap_buffers();
+                .ok();
 
                 res
             }

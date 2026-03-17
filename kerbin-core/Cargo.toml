@@ -13,6 +13,7 @@ uuid.workspace = true
 
 kerbin-macros.workspace = true
 ratatui.workspace = true
+crossterm.workspace = true
 
 tokio.workspace = true
 

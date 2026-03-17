@@ -44,6 +44,7 @@ pub fn init_log() {
     let log_file = File::options()
         .create(true)
         .write(true)
+        .truncate(true)
         .open(log_file_path)
         .expect("file should be able to open");
 
@@ -61,8 +62,6 @@ pub use kerbin_macros::*;
 use std::{env::home_dir, fs::File, sync::Mutex};
 
 pub use kerbin_state_machine::*;
-
-pub use ascii_forge;
 
 pub use kerbin_input::*;
 
@@ -88,7 +87,7 @@ pub use input::*;
 pub mod commands;
 pub use commands::*;
 
-/// Module for theme management and ContentStyle extensions
+/// Module for theme management
 pub mod theme;
 pub use theme::*;
 

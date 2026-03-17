@@ -1,17 +1,17 @@
 pub mod renderer;
 pub use renderer::*;
 
-pub mod render_line;
-pub use render_line::*;
-
-pub mod build;
-pub use build::*;
-
 pub mod scroll;
 pub use scroll::*;
 
+pub mod widget;
+pub use widget::*;
+
+pub mod gutter;
+pub use gutter::*;
+
 use crate::*;
-use ascii_forge::prelude::*;
+use ratatui::prelude::*;
 
 pub async fn render_buffer_default(
     gutter_chunk: Chunk<BufferGutterChunk>,
@@ -22,45 +22,30 @@ pub async fn render_buffer_default(
         return;
     };
 
-    let mut gutter = gutter_chunk.get().await;
     get!(buffers);
 
     let buf = buffers.cur_buffer().await;
 
-    let mut pos = vec2(0, 0);
+    let area = chunk.area();
 
-    // Skip the scrolled lines
-    for line in buf.renderer.lines.iter().skip(buf.renderer.visual_scroll) {
-        // Stop rendering if we've filled the viewport
-        if pos.y >= chunk.size().y {
-            break;
-        }
+    // Render text buffer
+    let mut cursor_state = CursorRenderState::default();
+    TextBufferWidget::new(&buf)
+        .with_vertical_scroll(buf.renderer.byte_scroll)
+        .with_horizontal_scroll(buf.renderer.h_scroll)
+        .render(area, &mut chunk, &mut cursor_state);
 
-        if let Some(gutter) = &mut gutter {
-            line.render_gutter(gutter, vec2(0, pos.y));
-        }
-
-        line.render(&mut chunk, pos, buf.renderer.h_scroll);
-
-        if let Some((byte, style)) = buf.renderer.cursor
-            && let Some(col) = line.byte_to_col(byte)
-            && col >= buf.renderer.h_scroll
-            && col < buf.renderer.h_scroll + chunk.size().x as usize
-        {
-            let render_col = col.saturating_sub(buf.renderer.h_scroll);
-            chunk.set_cursor(0, pos + vec2(render_col as u16, 0), style);
-        }
-
-        pos.y += 1;
+    // Store cursor into chunk if found
+    if let Some((cx, cy, shape)) = cursor_state.cursor {
+        chunk.set_cursor(0, cx, cy, shape);
+    } else {
+        chunk.remove_cursor();
     }
 
-    let mut overlay_renderer = OverlayRenderer::default();
-    overlay_renderer.collect_from_lines(&buf.renderer.lines, buf.renderer.byte_scroll);
-    overlay_renderer.render_all(
-        &mut chunk,
-        vec2(0, 0),
-        buf.renderer.byte_scroll,
-        buf.renderer.h_scroll,
-        1,
-    );
+    // Render gutter
+    if let Some(mut gutter) = gutter_chunk.get().await {
+        let gutter_area = gutter.area();
+        GutterWidget::new(buf.renderer.byte_scroll, buf.len_lines())
+            .render(gutter_area, &mut gutter);
+    }
 }

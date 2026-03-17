@@ -1,4 +1,4 @@
-use ascii_forge::window::Buffer;
+use ratatui::prelude::*;
 
 use crate::*;
 
@@ -27,8 +27,8 @@ impl CommandRegistry {
         let tokens = tokenize(input).unwrap_or_default();
         self.parse_command(
             tokens,
-            false, // Do not log errors during validation
-            true,  // Indicate that prefix checking should happen (or has happened)
+            false,
+            true,
             resolver,
             false,
             prefix_registry,
@@ -41,9 +41,8 @@ impl CommandRegistry {
     pub async fn get_command_suggestions(
         &self,
         input: &str,
-
         theme: &Theme,
-    ) -> (Vec<Buffer>, Option<String>, Option<Buffer>) {
+    ) -> (Vec<Line<'static>>, Option<String>, Option<Vec<Line<'static>>>) {
         let resolver = resolver_engine().await;
         resolver.as_resolver().expand_str(input, false);
 
@@ -125,7 +124,6 @@ impl CommandRegistry {
                         _ => String::new(),
                     };
 
-                    // Check that the cmd name is valid
                     let mut has_name = false;
                     if !prefix.list.is_empty() {
                         for infos in &self.0 {
@@ -149,7 +147,6 @@ impl CommandRegistry {
                         continue;
                     }
 
-                    // Prefix the command, wrapping user tokens as a Token::List
                     let mut new_tokens = tokenize(&prefix.prefix_cmd).unwrap_or_default();
                     new_tokens.push(Token::List(tokens));
 

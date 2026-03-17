@@ -1,6 +1,7 @@
-use crate::ascii_forge::prelude::*;
 use crate::*;
-use ascii_forge::widgets::Border;
+use crossterm::event::{Event, KeyEvent};
+use ratatui::prelude::*;
+use ratatui::widgets::{Block, BorderType};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -48,22 +49,29 @@ pub async fn register_help_menu_chunk(
         return;
     }
 
+    let metadata = input.tree.collect_layer_metadata().unwrap();
+    let menu_height = metadata.len() as u16 + 2;
+
     get!(mut chunks, window);
 
-    // Place a layout in the bottom right corner
-    let rect = Layout::new()
-        .row(flexible(), vec![flexible()])
-        .row(
-            // Ensure space for all active inputs (+2 for border)
-            max(input.tree.collect_layer_metadata().unwrap().len() as u16 + 2),
-            vec![flexible(), percent(50.0), fixed(1)],
-        )
-        .row(fixed(1), vec![flexible()])
-        .calculate(window.size())
-        .unwrap()[1][1];
+    let size = window.size();
 
-    // This must render above the buffer, or the 0 z-index
-    chunks.register_chunk::<HelpChunk>(1, rect);
+    // Place help menu in bottom-right corner
+    let [_top, middle, _bottom] = Layout::vertical([
+        Constraint::Fill(1),
+        Constraint::Length(menu_height),
+        Constraint::Length(1),
+    ])
+    .areas(size);
+
+    let [_left, help_area, _right] = Layout::horizontal([
+        Constraint::Fill(1),
+        Constraint::Percentage(50),
+        Constraint::Length(1),
+    ])
+    .areas(middle);
+
+    chunks.register_chunk::<HelpChunk>(1, help_area);
 }
 
 pub async fn render_help_menu(chunk: Chunk<HelpChunk>, input: Res<InputState>) {
@@ -72,26 +80,29 @@ pub async fn render_help_menu(chunk: Chunk<HelpChunk>, input: Res<InputState>) {
         return;
     }
 
-    let mut chunk = &mut chunk.get().await.unwrap();
+    let mut chunk = chunk.get().await.unwrap();
+    let area = chunk.area();
 
-    let border = Border::square(chunk.size().x, chunk.size().y);
-
-    render!(&mut chunk, (0, 0) => [border]);
+    Block::bordered()
+        .border_type(BorderType::Plain)
+        .render(area, &mut chunk);
 
     let metadata = input.tree.collect_layer_metadata().unwrap();
 
-    // Render up to the chunk's height (-2 on size for border)
     for (i, data) in metadata
         .iter()
         .enumerate()
-        .take(metadata.len().min(chunk.size().y as usize - 2))
+        .take(metadata.len().min(area.height as usize - 2))
     {
-        render!(&mut chunk, vec2(1, 1 + i as u16) => [ data.0.to_string(), "   ", data.1.as_ref().map(|x| x.desc.as_str()).unwrap_or_default() ]);
+        let key_str = data.0.to_string();
+        let desc_str = data.1.as_ref().map(|x| x.desc.as_str()).unwrap_or_default();
+        let line_text = format!("{}   {}", key_str, desc_str);
+        chunk.set_string(area.x + 1, area.y + 1 + i as u16, &line_text, Style::default());
     }
 }
 
 pub async fn handle_inputs(
-    window: Res<WindowState>,
+    events: Res<CrosstermEvents>,
     input: ResMut<InputState>,
     modes: Res<ModeStack>,
 
@@ -101,13 +112,13 @@ pub async fn handle_inputs(
 
     log: Res<LogSender>,
 ) {
-    get!(window, mut input, modes, log);
+    get!(events, mut input, modes, log);
 
-    if window.events().is_empty() {
+    if events.0.is_empty() {
         return;
     }
 
-    for event in window.events() {
+    for event in &events.0 {
         if let Event::Paste(text) = event {
             let registry = prefix_registry.get().await;
             let command = command_registry.get().await.parse_command(
@@ -133,10 +144,11 @@ pub async fn handle_inputs(
     let resolver = resolver_engine.as_resolver();
 
     // Update the tree
-    for event in window.events() {
+    for event in &events.0 {
         let Event::Key(event) = event else {
             continue;
         };
+        let event: &KeyEvent = event;
         match input
             .tree
             .step(&resolver, event.code, event.modifiers, |data| {
@@ -144,15 +156,12 @@ pub async fn handle_inputs(
                     return Some(u32::MAX);
                 };
 
-                // Check if modes are satisfied
                 let mode_ok =
                     data.modes.is_empty() || data.modes.iter().any(|x| modes.mode_on_stack(*x));
 
-                // Check if invalid modes are present
                 let invalid_mode_present =
                     data.invalid_modes.iter().any(|x| modes.mode_on_stack(*x));
 
-                // Check if required templates are present
                 let templates_ok = data.required_templates.is_empty()
                     || data
                         .required_templates

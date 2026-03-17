@@ -1,7 +1,5 @@
 use std::collections::BTreeMap;
 
-use ascii_forge::window::crossterm::cursor::SetCursorStyle;
-
 use crate::*;
 
 /// The main element stored in a buffer that is used to render the buffer to the screen
@@ -9,12 +7,6 @@ use crate::*;
 pub struct BufferRenderer {
     extmarks: BTreeMap<u64, Extmark>,
     next_id: u64,
-
-    /// The visual representation of the viewport for rendering
-    pub lines: Vec<RenderLine>,
-
-    /// Stores a byte position and cursor style for where the renderer should be rendering the cursor
-    pub cursor: Option<(usize, SetCursorStyle)>,
 
     /// The byte based scroll of the window
     pub byte_scroll: usize,
@@ -59,7 +51,6 @@ impl BufferRenderer {
             match ext.adjustment {
                 ExtmarkAdjustment::Fixed => continue,
                 ExtmarkAdjustment::DeleteOnDelete => {
-                    // Delete if the edit overlaps with the extmark
                     if edit_start_byte < ext.byte_range.end && old_end_byte > ext.byte_range.start {
                         to_remove.push(*id);
                         continue;
@@ -77,14 +68,12 @@ impl BufferRenderer {
             } else if edit_start_byte >= end {
                 // No adjustment needed
             } else if edit_start_byte < start && old_end_byte > start {
-                // Deletion affects the extmark's start
                 if deleted_len > 0 {
                     let deleted_before_start =
                         (old_end_byte.min(start)).saturating_sub(edit_start_byte);
                     ext.byte_range.start = edit_start_byte + inserted_len;
 
                     if old_end_byte >= end {
-                        // Entire extmark was deleted
                         if ext.adjustment == ExtmarkAdjustment::DeleteOnDelete {
                             to_remove.push(*id);
                             continue;
@@ -103,12 +92,10 @@ impl BufferRenderer {
             } else if edit_start_byte == start {
                 match ext.gravity {
                     ExtmarkGravity::Right => {
-                        // Mark moves with inserted text
                         ext.byte_range.start = (start as isize + delta).max(0) as usize;
                         ext.byte_range.end = (end as isize + delta).max(0) as usize;
                     }
                     ExtmarkGravity::Left => {
-                        // Mark stays in place
                         if ext.expand_on_insert && inserted_len > 0 {
                             ext.byte_range.end = (end as isize + delta).max(0) as usize;
                         } else if deleted_len > 0 {
@@ -119,10 +106,8 @@ impl BufferRenderer {
                 }
             } else if edit_start_byte > start && old_end_byte <= end {
                 if ext.expand_on_insert {
-                    // Expand the range to include inserted text
                     ext.byte_range.end = (end as isize + delta).max(start as isize) as usize;
                 } else if deleted_len > 0 {
-                    // Shrink the range
                     ext.byte_range.end = end.saturating_sub(deleted_len);
                     if ext.byte_range.end <= ext.byte_range.start {
                         if ext.adjustment == ExtmarkAdjustment::DeleteOnDelete {
@@ -134,7 +119,6 @@ impl BufferRenderer {
                 }
             } else if edit_start_byte > start && edit_start_byte < end && old_end_byte >= end {
                 if deleted_len > 0 {
-                    // Truncate the extmark at the edit start
                     ext.byte_range.end = edit_start_byte + inserted_len;
                 } else {
                     ext.byte_range.end = (end as isize + delta).max(start as isize) as usize;
@@ -142,7 +126,6 @@ impl BufferRenderer {
             }
         }
 
-        // Remove marked extmarks
         for id in to_remove {
             self.extmarks.remove(&id);
         }
@@ -166,7 +149,6 @@ impl BufferRenderer {
     /// Clears all extmarks with the given namespace from the system
     pub fn clear_extmark_ns(&mut self, ns: impl AsRef<str>) {
         let ns = ns.as_ref();
-
         self.extmarks.retain(|_, e| e.namespace != ns);
     }
 
@@ -195,10 +177,10 @@ impl BufferRenderer {
         });
     }
 
-    /// Updates an existing extmark's decorations
-    pub fn update_extmark(&mut self, id: u64, decorations: Vec<ExtmarkDecoration>) -> bool {
+    /// Updates an existing extmark's kind
+    pub fn update_extmark(&mut self, id: u64, kind: ExtmarkKind) -> bool {
         if let Some(ext) = self.extmarks.get_mut(&id) {
-            ext.decorations = decorations;
+            ext.kind = kind;
             true
         } else {
             false

@@ -1,7 +1,7 @@
 pub mod wrappers;
 use std::{path::PathBuf, sync::Arc};
 
-use ascii_forge::window::Window;
+use ratatui::{Terminal, backend::CrosstermBackend};
 use tokio::sync::{RwLock, mpsc::UnboundedSender};
 use uuid::Uuid;
 pub use wrappers::*;
@@ -26,7 +26,7 @@ pub use registers::*;
 
 /// Initializes the editor's core state with essential components
 pub fn init_state(
-    window: Window,
+    terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
     cmd_sender: UnboundedSender<Box<dyn Command>>,
     config_path: String,
     uuid: Uuid,
@@ -46,15 +46,12 @@ pub fn init_state(
         .state(PaletteState::default())
         .state(ConfigFolder(config_path))
         .state(SessionUuid(uuid))
-        // Editor's running status
         .state(Running(true))
         .state(log_state)
         .state(log_sender)
-        // Window management
-        .state(WindowState(window))
-        // Command sending channel
+        .state(WindowState(terminal))
+        .state(CrosstermEvents::default())
         .state(CommandSender(cmd_sender))
-        // Buffer management, initialized with a scratch buffer
         .state({
             let mut buffers = Buffers::default();
             buffers
@@ -62,23 +59,14 @@ pub fn init_state(
                 .push(Arc::new(RwLock::new(TextBuffer::scratch())));
             buffers
         })
-        // Input configuration and state
         .state(InputState::default())
-        // Theming
         .state(Theme::default())
-        // Command palette specific state
         .state(CommandPaletteState::default())
-        // Initial mode stack, starting with normal mode
         .state(ModeStack(vec!['n']))
-        // Registry for all commands
         .state(CommandRegistry(vec![]))
-        // Registry for command prefixes
         .state(CommandPrefixRegistry(vec![]))
-        // Chunk management for drawing areas
         .state(Chunks::default())
-        // Debounce event configuration
         .state(DebounceConfig::default())
-        // Statusline display configuration
         .state(StatuslineConfig::default());
 
     state

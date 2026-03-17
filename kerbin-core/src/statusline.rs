@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::*;
-use ascii_forge::prelude::*;
+use ratatui::prelude::*;
 use serde::Deserialize;
 
 /// Configuration for a specific mode within the statusline
@@ -11,7 +11,7 @@ pub struct ModeConfig {
     /// An optional longer, more descriptive name for the mode
     pub long_name: Option<String>,
 
-    /// An optional key to retrieve a specific `ContentStyle` from the `Theme` for this mode
+    /// An optional key to retrieve a specific `Style` from the `Theme` for this mode
     pub theme_key: Option<String>,
 }
 
@@ -33,7 +33,9 @@ pub async fn render_statusline(
 ) {
     get!(statusline_config, Some(mut chunk), theme, mode_stack, input);
 
-    let chunk_width = chunk.size().x;
+    let chunk_width = chunk.area().width;
+    let base_x = chunk.area().x;
+    let base_y = chunk.area().y;
 
     let mut parts = vec![];
 
@@ -47,7 +49,6 @@ pub async fn render_statusline(
                     .clone()
                     .and_then(|x| theme.get(&x))
                     .unwrap_or_else(|| {
-                        // Fallback theme if specific key not found or not provided
                         theme.get_fallback_default([
                             format!("statusline.mode.{part}"),
                             "statusline.mode".to_string(),
@@ -55,7 +56,6 @@ pub async fn render_statusline(
                     }),
             ))
         } else {
-            // Default display for modes without specific configuration
             parts.push((
                 part.to_string(),
                 theme.get_fallback_default([
@@ -77,27 +77,30 @@ pub async fn render_statusline(
         );
     }
 
-    let mut loc = vec2(0, 0);
+    let mut x: u16 = 0;
 
     // Render the mode parts
-    for (i, (text, theme)) in parts.into_iter().enumerate().take(4) {
-        if loc.x >= chunk.size().x {
-            // Stop rendering if beyond chunk width
+    for (i, (text, style)) in parts.into_iter().enumerate().take(4) {
+        if x >= chunk_width {
             break;
         }
-        // Render each part, adding " -> " separator if it's not the first part
-        loc = render!(chunk, loc => [if i != 0 {" -> "} else {""}, theme.apply(text)]);
+        let prefix = if i != 0 { " -> " } else { "" };
+        if !prefix.is_empty() {
+            chunk.set_string(base_x + x, base_y, prefix, Style::default());
+            x += prefix.chars().count() as u16;
+        }
+        chunk.set_string(base_x + x, base_y, &text, style);
+        x += text.chars().count() as u16;
     }
 
     // Build right-aligned content
     let cur_buf = buffers.get().await.cur_buffer().await;
-    let mut right_parts = vec![];
+    let mut right_parts: Vec<(String, Style)> = vec![];
 
     // Add repeat count if present
     if !input.repeat_count.is_empty() {
         let repeat_style = theme.get_fallback_default(["statusline.repeat"]);
-        tracing::error!("{}", input.repeat_count);
-        right_parts.push(repeat_style.apply(input.repeat_count.clone()));
+        right_parts.push((input.repeat_count.clone(), repeat_style));
     }
 
     // Add cursor/selection count
@@ -105,27 +108,29 @@ pub async fn render_statusline(
     if cursor_count == 1 {
         let sel_style =
             theme.get_fallback_default(["statusline.selections.one", "statusline.selections"]);
-        right_parts.push(sel_style.apply("1 sel".to_string()));
+        right_parts.push(("1 sel".to_string(), sel_style));
     } else {
         let sel_style =
             theme.get_fallback_default(["statusline.selections.multi", "statusline.selections"]);
-        let primary_cursor = cur_buf.primary_cursor + 1; // Display as 1-indexed
-        right_parts.push(sel_style.apply(format!("{}/{} sels", primary_cursor, cursor_count)));
+        let primary_cursor = cur_buf.primary_cursor + 1;
+        right_parts.push((format!("{}/{} sels", primary_cursor, cursor_count), sel_style));
     }
 
     // Calculate total width needed for right-aligned content
     let spacing = if right_parts.len() > 1 { 3 } else { 0 }; // " | " separator
-    let right_width: usize = right_parts.iter().map(|s| s.content().len()).sum::<usize>() + spacing;
+    let right_width: usize = right_parts.iter().map(|(s, _)| s.chars().count()).sum::<usize>() + spacing;
 
     // Render right-aligned content if it fits
     if right_width <= chunk_width as usize {
-        let mut right_loc = vec2(chunk_width.saturating_sub(right_width as u16), 0);
+        let mut right_x = chunk_width.saturating_sub(right_width as u16);
 
-        for (i, part) in right_parts.into_iter().enumerate() {
+        for (i, (text, style)) in right_parts.into_iter().enumerate() {
             if i != 0 {
-                right_loc = render!(chunk, right_loc => [" | "]);
+                chunk.set_string(base_x + right_x, base_y, " | ", Style::default());
+                right_x += 3;
             }
-            right_loc = render!(chunk, right_loc => [part]);
+            chunk.set_string(base_x + right_x, base_y, &text, style);
+            right_x += text.chars().count() as u16;
         }
     }
 }

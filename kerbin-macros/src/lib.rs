@@ -233,7 +233,7 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                         let ty = &f.ty;
                         let is_bool_flag = is_bool_type(ty)
                             || get_option_inner_type(ty)
-                                .map(|t| is_bool_type(t))
+                                .map(is_bool_type)
                                 .unwrap_or(false);
 
                         if is_bool_flag {
@@ -324,7 +324,7 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                                     });
                                 }
                             } else if get_option_inner_type(ty)
-                                .map(|t| is_bool_type(t))
+                                .map(is_bool_type)
                                 .unwrap_or(false)
                             {
                                 // --flag → Some(true), absent → None
@@ -339,7 +339,7 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                                 }
                             } else if let Some(inner_ty) = get_option_inner_type(ty)
                                 && get_vec_inner_type(inner_ty)
-                                    .map(|v| is_token_type(v))
+                                    .map(is_token_type)
                                     .unwrap_or(false)
                             {
                                 // --flag [tokens] → Some(items), absent → None
@@ -362,7 +362,7 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                                     };
                                 }
                             } else if get_vec_inner_type(ty)
-                                .map(|v| is_token_type(v))
+                                .map(is_token_type)
                                 .unwrap_or(false)
                             {
                                 // --flag [tokens] → items (required)
@@ -509,7 +509,7 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
 
                             if let Some(inner) = get_option_inner_type(ty)
                                 && get_vec_inner_type(inner)
-                                    .map(|v| is_token_type(v))
+                                    .map(is_token_type)
                                     .unwrap_or(false)
                             {
                                 quote! {
@@ -522,7 +522,7 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                                     };
                                 }
                             } else if get_vec_inner_type(ty)
-                                .map(|v| is_token_type(v))
+                                .map(is_token_type)
                                 .unwrap_or(false)
                             {
                                 quote! {
@@ -640,7 +640,7 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                         let idx_usize = arg_idx as usize;
 
                         let parser = if let Some(inner) = get_option_inner_type(ty)
-                            && get_vec_inner_type(inner).map(|v| is_token_type(v)).unwrap_or(false)
+                            && get_vec_inner_type(inner).map(is_token_type).unwrap_or(false)
                         {
                             // Option<Vec<Token>>: match List or absent, never parse
                             quote! {
@@ -649,7 +649,7 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                                     _ => None,
                                 };
                             }
-                        } else if get_vec_inner_type(ty).map(|v| is_token_type(v)).unwrap_or(false) {
+                        } else if get_vec_inner_type(ty).map(is_token_type).unwrap_or(false) {
                             // Vec<Token>: clone items directly from Token::List
                             quote! {
                                 let #var = match val.get(#idx_usize) {
@@ -786,19 +786,19 @@ fn get_option_inner_type(ty: &Type) -> Option<&Type> {
 }
 
 fn is_bool_type(ty: &Type) -> bool {
-    if let Type::Path(tp) = ty {
-        if let Some(seg) = tp.path.segments.last() {
-            return seg.ident == "bool";
-        }
+    if let Type::Path(tp) = ty
+        && let Some(seg) = tp.path.segments.last()
+    {
+        return seg.ident == "bool";
     }
     false
 }
 
 fn is_token_type(ty: &Type) -> bool {
-    if let Type::Path(tp) = ty {
-        if let Some(seg) = tp.path.segments.last() {
-            return seg.ident == "Token";
-        }
+    if let Type::Path(tp) = ty
+        && let Some(seg) = tp.path.segments.last()
+    {
+        return seg.ident == "Token";
     }
     false
 }

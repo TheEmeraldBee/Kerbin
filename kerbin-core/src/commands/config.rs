@@ -269,7 +269,7 @@ impl Command for ConfigCommand {
                     )
                 };
 
-                let style = build_content_style(eff_fg, eff_bg, eff_ul, &eff_attrs, &palette);
+                let style = build_style(eff_fg, eff_bg, eff_ul, &eff_attrs, &palette);
                 state.lock_state::<Theme>().await.register(key.clone(), style);
             }
 

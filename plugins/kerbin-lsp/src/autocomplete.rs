@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
-use kerbin_core::{
-    TextBuffer,
-    ascii_forge::{prelude::*, widgets::Border},
-    theme::Theme,
-    *,
-};
+use kerbin_core::*;
 use lsp_types::{
     CompletionItem, CompletionParams, CompletionResponse, Position, TextDocumentIdentifier,
     TextDocumentPositionParams, WorkDoneProgressParams,
+};
+use ratatui::{
+    layout::Rect,
+    prelude::*,
+    widgets::{Block, BorderType, Paragraph},
 };
 
 use ropey::RopeSlice;
@@ -21,7 +21,7 @@ pub struct CompletionInfo {
     pub items: Vec<CompletionItem>,
     pub position: usize,
     pub selected_index: usize,
-    pub cached_doc_buffer: Option<(usize, Arc<Buffer>)>,
+    pub cached_doc_buffer: Option<(usize, Arc<ratatui::buffer::Buffer>)>,
 }
 
 #[derive(State, Default)]
@@ -115,17 +115,184 @@ fn get_ranked_items<'a>(
             (Some(a), Some(b)) => a.cmp(b),
             (Some(_), None) => std::cmp::Ordering::Less,
             (None, Some(_)) => std::cmp::Ordering::Greater,
-            (None, None) => {
-                // Fallback to match quality (Higher is better)
-                quality_b.cmp(quality_a)
-            }
+            (None, None) => quality_b.cmp(quality_a),
         }
     });
 
     matched_items
         .into_iter()
-        .map(|(item, _, _)| (item, 0)) // Score is unused by callers
+        .map(|(item, _, _)| (item, 0))
         .collect()
+}
+
+fn get_match_indices(ranker: &str, text: &str) -> Vec<usize> {
+    if ranker.is_empty() || text.is_empty() {
+        return vec![];
+    }
+
+    let mut indices = vec![];
+    let mut i = 0;
+
+    let ranker_chars: Vec<char> = ranker.to_lowercase().chars().collect();
+    let text_chars: Vec<char> = text.to_lowercase().chars().collect();
+
+    for (idx, chr) in text_chars.iter().enumerate() {
+        if i < ranker_chars.len() && *chr == ranker_chars[i] {
+            indices.push(idx);
+            i += 1;
+        }
+    }
+
+    if i == ranker_chars.len() {
+        indices
+    } else {
+        vec![]
+    }
+}
+
+struct ListPopupStyles {
+    window: Style,
+    selected: Style,
+    match_hl: Style,
+}
+
+/// Build a bordered ratatui Buffer containing a list of completion items.
+fn build_list_popup(
+    items_to_show: &[(&CompletionItem, i32)],
+    start_index: usize,
+    selected_idx: usize,
+    query: &str,
+    max_label_width: usize,
+    max_kind_width: usize,
+    styles: ListPopupStyles,
+) -> ratatui::buffer::Buffer {
+    let window_style = styles.window;
+    let selected_style = styles.selected;
+    let match_style = styles.match_hl;
+    let inner_w = (max_label_width + if max_kind_width > 0 { max_kind_width + 1 } else { 0 }) as u16;
+    let inner_h = items_to_show.len() as u16;
+    let popup_rect = Rect::new(0, 0, inner_w + 2, inner_h + 2);
+    let mut buf = ratatui::buffer::Buffer::empty(popup_rect);
+
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .style(window_style);
+    let inner = block.inner(popup_rect);
+    block.render(popup_rect, &mut buf);
+
+    let lines: Vec<Line<'static>> = items_to_show
+        .iter()
+        .enumerate()
+        .map(|(i, (item, _))| {
+            let abs_idx = start_index + i;
+            let is_selected = abs_idx == selected_idx;
+            let row_style = if is_selected { selected_style } else { window_style };
+
+            let kind_str = item.kind.map(|k| format!("{:?}", k)).unwrap_or_default();
+            let line_str = if max_kind_width > 0 {
+                format!(
+                    "{:<lw$} {:>kw$}",
+                    item.label,
+                    kind_str,
+                    lw = max_label_width,
+                    kw = max_kind_width
+                )
+            } else {
+                format!("{:<lw$}", item.label, lw = max_label_width)
+            };
+
+            let match_indices = get_match_indices(query, &item.label);
+            Line::from(
+                line_str
+                    .chars()
+                    .enumerate()
+                    .map(|(x, ch)| {
+                        let char_style =
+                            if x < item.label.len() && match_indices.contains(&x) {
+                                match_style
+                            } else {
+                                row_style
+                            };
+                        Span::styled(ch.to_string(), char_style)
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect();
+
+    Paragraph::new(Text::from(lines)).render(inner, &mut buf);
+
+    buf
+}
+
+/// Build a bordered ratatui Buffer with documentation text.
+fn build_doc_popup(
+    lines: &[Vec<(String, Style)>],
+    doc_height: usize,
+    doc_width: usize,
+    window_style: Style,
+) -> ratatui::buffer::Buffer {
+    let popup_rect = Rect::new(0, 0, doc_width as u16 + 2, doc_height as u16 + 2);
+    let mut buf = ratatui::buffer::Buffer::empty(popup_rect);
+
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .style(window_style);
+    let inner = block.inner(popup_rect);
+    block.render(popup_rect, &mut buf);
+
+    let text_lines: Vec<Line<'static>> = lines
+        .iter()
+        .take(doc_height)
+        .map(|line| {
+            Line::from(
+                line.iter()
+                    .flat_map(|(text, style)| {
+                        text.chars()
+                            .map(|ch| Span::styled(ch.to_string(), *style))
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect();
+
+    Paragraph::new(Text::from(text_lines)).render(inner, &mut buf);
+
+    buf
+}
+
+/// Combine two buffers side by side into one.
+fn combine_side_by_side(
+    left: ratatui::buffer::Buffer,
+    right: ratatui::buffer::Buffer,
+) -> ratatui::buffer::Buffer {
+    let combined_w = left.area.width + right.area.width;
+    let combined_h = left.area.height.max(right.area.height);
+    let combined_rect = Rect::new(0, 0, combined_w, combined_h);
+    let mut combined = ratatui::buffer::Buffer::empty(combined_rect);
+
+    for y in 0..left.area.height {
+        for x in 0..left.area.width {
+            if let (Some(src), Some(dst)) =
+                (left.cell((x, y)), combined.cell_mut((x, y)))
+            {
+                *dst = src.clone();
+            }
+        }
+    }
+    let offset = left.area.width;
+    for y in 0..right.area.height {
+        for x in 0..right.area.width {
+            if let (Some(src), Some(dst)) =
+                (right.cell((x, y)), combined.cell_mut((offset + x, y)))
+            {
+                *dst = src.clone();
+            }
+        }
+    }
+
+    combined
 }
 
 #[async_trait::async_trait]
@@ -140,20 +307,16 @@ impl Command for CompletionCommand {
 
                 let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
 
-                // Check if there's already an active completion
                 let mut state = buf.get_or_insert_state_mut(CompletionState::default).await;
 
                 if let Some(existing_info) = &state.info {
                     let pos = existing_info.position.min(buf.len());
-                    // Check if cursor is out of range of current completion
                     let start_line = buf.byte_to_line_clamped(pos);
                     let current_line = buf.byte_to_line_clamped(cursor_byte);
 
                     if cursor_byte < pos || start_line != current_line {
-                        // Cancel the old completion if cursor moved out of range
                         state.info = None;
                     } else {
-                        // There's already an active completion in valid range, don't start a new one
                         return true;
                     }
                 }
@@ -171,7 +334,6 @@ impl Command for CompletionCommand {
                         current_char_idx -= 1;
                     }
 
-                    // 1-char requirement check
                     if cursor_char_idx <= current_char_idx {
                         return true;
                     }
@@ -210,18 +372,15 @@ impl Command for CompletionCommand {
                             String::new()
                         };
 
-                        // Use the exact same ranking logic as render
                         let ranked_items = get_ranked_items(&info.items, &query);
 
                         if !ranked_items.is_empty() {
                             let idx = info.selected_index % ranked_items.len();
-                            // Get the item from ranked items using selected_index
                             if let Some((item, _)) = ranked_items.get(idx) {
                                 let (start_byte, end_byte, text) =
                                     if let Some(lsp_types::CompletionTextEdit::Edit(e)) =
                                         &item.text_edit
                                     {
-                                        // Helper to calculate line content length excluding line endings
                                         let line_content_len = |line_slice: &RopeSlice| {
                                             let mut len = line_slice.len_chars();
                                             if len > 0 {
@@ -270,7 +429,6 @@ impl Command for CompletionCommand {
                                         )
                                     };
 
-                                // Delete old text if needed
                                 if end_byte > start_byte {
                                     let len_chars = buf.byte_to_char_clamped(end_byte)
                                         - buf.byte_to_char_clamped(start_byte);
@@ -280,13 +438,11 @@ impl Command for CompletionCommand {
                                     });
                                 }
 
-                                // Insert new text
                                 buf.action(kerbin_core::buffer::action::Insert {
                                     byte: start_byte,
                                     content: text.clone(),
                                 });
 
-                                // Move cursor to end of inserted text
                                 buf.primary_cursor_mut()
                                     .set_sel(start_byte + text.len()..=start_byte + text.len());
                             }
@@ -305,7 +461,6 @@ impl Command for CompletionCommand {
                 let mut completion_state =
                     buf.get_or_insert_state_mut(CompletionState::default).await;
 
-                // Clear completion state
                 completion_state.info = None;
                 resolver_engine_mut().await.trash_template("lsp_items");
             }
@@ -317,6 +472,7 @@ impl Command for CompletionCommand {
 
                 if let Some(info) = &mut completion_state.info {
                     info.selected_index += 1;
+                    info.cached_doc_buffer = None;
                 }
             }
             Self::SelectPrevious => {
@@ -329,6 +485,7 @@ impl Command for CompletionCommand {
                     && info.selected_index > 0
                 {
                     info.selected_index -= 1;
+                    info.cached_doc_buffer = None;
                 }
             }
         }
@@ -378,6 +535,7 @@ pub async fn handle_completion(state: &State, msg: &JsonRpcMessage) {
         }
 
         info.selected_index = 0;
+        info.cached_doc_buffer = None;
 
         let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
         let pos = info.position.min(buf.len());
@@ -412,13 +570,11 @@ pub async fn update_completions(bufs: ResMut<Buffers>, lsps: ResMut<LspManager>)
         && state.just_accepted
     {
         state.just_accepted = false;
-        // Clear info on acceptance update to be safe
         state.info = None;
         resolver_engine_mut().await.trash_template("lsp_items");
         return;
     }
 
-    // Check criteria: at least 1 real non-whitespace character before cursor
     let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
     let cursor_char_idx = buf.byte_to_char_clamped(cursor_byte);
 
@@ -431,9 +587,7 @@ pub async fn update_completions(bufs: ResMut<Buffers>, lsps: ResMut<LspManager>)
         current_char_idx -= 1;
     }
 
-    // Check length of word being typed
     if cursor_char_idx <= current_char_idx {
-        // Empty word or just whitespace/separator
         if let Some(mut state) = buf.get_state_mut::<CompletionState>().await {
             state.info = None;
             resolver_engine_mut().await.trash_template("lsp_items");
@@ -441,12 +595,10 @@ pub async fn update_completions(bufs: ResMut<Buffers>, lsps: ResMut<LspManager>)
         return;
     }
 
-    // Check if completion is active
     let mut pending_id = None;
     if let Some(state) = buf.get_state::<CompletionState>().await
         && state.info.is_some()
     {
-        // Re-request
         pending_id = trigger_completion_request(&mut buf, &mut lsps).await;
     }
 
@@ -455,32 +607,6 @@ pub async fn update_completions(bufs: ResMut<Buffers>, lsps: ResMut<LspManager>)
         && let Some(info) = &mut state.info
     {
         info.pending_request = id;
-    }
-}
-
-fn get_match_indices(ranker: &str, text: &str) -> Vec<usize> {
-    if ranker.is_empty() || text.is_empty() {
-        return vec![];
-    }
-
-    let mut indices = vec![];
-    let mut i = 0;
-
-    let ranker_chars: Vec<char> = ranker.to_lowercase().chars().collect();
-    let text_chars: Vec<char> = text.to_lowercase().chars().collect();
-
-    for (idx, chr) in text_chars.iter().enumerate() {
-        if i < ranker_chars.len() && *chr == ranker_chars[i] {
-            indices.push(idx);
-            i += 1;
-        }
-    }
-
-    // Only return if full match found (ranking logic implies this)
-    if i == ranker_chars.len() {
-        indices
-    } else {
-        vec![]
     }
 }
 
@@ -501,286 +627,191 @@ pub async fn render_completions(
         return;
     };
 
-    let (final_render, cache_update) = {
-        let Some(info) = state.info.as_ref() else {
-            return;
-        };
-
-        // Check if cursor moved before start position (cancelled)
-        let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
-        let pos = info.position.min(buf.len());
-
-        let start_line = buf.byte_to_line_clamped(pos);
-        let current_line = buf.byte_to_line_clamped(cursor_byte);
-
-        if cursor_byte < pos || start_line != current_line {
-            state.info = None;
-            resolver_engine_mut().await.trash_template("lsp_items");
-
-            return;
-        }
-
-        let query = if cursor_byte > pos {
-            buf.slice_to_string(pos, cursor_byte).unwrap_or_default()
-        } else {
-            String::new()
-        };
-
-        if info.items.is_empty() {
-            // Block ends, returns (None, None)
-            (None, None)
-        } else {
-            // Rank and filter using the shared function
-            let ranked_items = get_ranked_items(&info.items, &query);
-
-            if ranked_items.is_empty() {
-                (None, None)
-            } else {
-                // Styles
-                let window_style =
-                    theme.get_fallback_default(["lsp.autocomplete.window", "ui.window"]);
-                let selected_style =
-                    theme.get_fallback_default(["lsp.autocomplete.selected", "ui.selection"]);
-                let match_style =
-                    theme.get_fallback_default(["lsp.autocomplete.match", "ui.match"]);
-
-                // Calculate window
-                let window_height = 5;
-                let total_items = ranked_items.len();
-                let selected_idx = info.selected_index % total_items;
-
-                let half_window = window_height / 2;
-                let start_index = if total_items <= window_height || selected_idx <= half_window {
-                    0
-                } else if selected_idx + half_window >= total_items {
-                    total_items - window_height
-                } else {
-                    selected_idx - half_window
-                };
-
-                let items_to_show = ranked_items
-                    .iter()
-                    .skip(start_index)
-                    .take(window_height)
-                    .collect::<Vec<_>>();
-
-                let max_label_width = items_to_show
-                    .iter()
-                    .map(|(i, _)| i.label.len())
-                    .max()
-                    .unwrap_or(0)
-                    .max(10);
-
-                let max_kind_width = items_to_show
-                    .iter()
-                    .map(|(i, _)| i.kind.map(|k| format!("{:?}", k).len()).unwrap_or(0))
-                    .max()
-                    .unwrap_or(0);
-
-                let total_width = max_label_width
-                    + if max_kind_width > 0 {
-                        max_kind_width + 1
-                    } else {
-                        0
-                    };
-
-                let mut list_buf =
-                    Buffer::new(vec2(total_width as u16, items_to_show.len() as u16));
-
-                for (i, (item, _)) in items_to_show.iter().enumerate() {
-                    let abs_idx = start_index + i;
-                    let is_selected = abs_idx == selected_idx;
-                    let style = if is_selected {
-                        selected_style
-                    } else {
-                        window_style
-                    };
-
-                    let kind_str = item.kind.map(|k| format!("{:?}", k)).unwrap_or_default();
-                    let line = if max_kind_width > 0 {
-                        format!(
-                            "{:<width$} {:>kind_width$}",
-                            item.label,
-                            kind_str,
-                            width = max_label_width,
-                            kind_width = max_kind_width
-                        )
-                    } else {
-                        format!("{:<width$}", item.label, width = max_label_width)
-                    };
-
-                    for (x, ch) in line.chars().enumerate() {
-                        list_buf.set(vec2(x as u16, i as u16), Cell::new(ch.to_string(), style));
-                    }
-
-                    let indices = get_match_indices(&query, &item.label);
-                    for char_idx in indices {
-                        if let Some(cell) = list_buf.get_mut(vec2(char_idx as u16, i as u16)) {
-                            if let Some(fg) = match_style.foreground_color {
-                                cell.style_mut().foreground_color = Some(fg);
-                            } else {
-                                cell.style_mut().foreground_color = Some(Color::Blue);
-                            }
-                        }
-                    }
-                }
-
-                let mut final_render = Buffer::new(list_buf.size() + vec2(2, 2));
-                let mut border = Border::rounded(list_buf.size().x + 2, list_buf.size().y + 2);
-                border.style = window_style;
-                render!(final_render,
-                    (0, 0) => [ border ],
-                    (1, 1) => [ list_buf ]
-                );
-
-                // Documentation
-                let mut doc_rendered = None;
-                let mut new_cache_entry = None;
-
-                if let Some((selected_item, _)) = ranked_items.get(selected_idx) {
-                    if let Some((idx, buffer)) = &info.cached_doc_buffer
-                        && *idx == selected_idx
-                    {
-                        doc_rendered = Some(buffer.clone());
-                    }
-
-                    if doc_rendered.is_none() {
-                        let doc = selected_item.documentation.as_ref().map(|d| match d {
-                            lsp_types::Documentation::String(s) => s.clone(),
-                            lsp_types::Documentation::MarkupContent(m) => m.value.clone(),
-                        });
-
-                        let doc_max_width = 40;
-                        let mut lines = Vec::new();
-
-                        if let Some(detail) = &selected_item.detail
-                            && !detail.is_empty()
-                        {
-                            lines.push(vec![(detail.clone(), window_style)]);
-                            lines.push(vec![]); // Separator
-                        }
-
-                        if let Some(doc_text) = doc
-                            && !doc_text.is_empty()
-                        {
-                            let highlighted = highlight_text(
-                                &doc_text,
-                                "markdown",
-                                &mut grammars,
-                                &config.0,
-                                &theme,
-                                &log,
-                            );
-
-                            let mut current_line = Vec::new();
-                            let mut current_width = 0;
-
-                            for (text, style) in highlighted {
-                                for char in text.chars() {
-                                    if char == '\n' {
-                                        lines.push(current_line);
-                                        current_line = Vec::new();
-                                        current_width = 0;
-                                        continue;
-                                    }
-
-                                    if current_width >= doc_max_width {
-                                        lines.push(current_line);
-                                        current_line = Vec::new();
-                                        current_width = 0;
-                                    }
-
-                                    current_line.push((char.to_string(), style));
-                                    current_width += 1;
-                                }
-                            }
-                            if !current_line.is_empty() {
-                                lines.push(current_line);
-                            }
-                        }
-
-                        let doc_height = lines.len().min(15);
-                        let doc_width = lines
-                            .iter()
-                            .take(doc_height)
-                            .map(|l| l.iter().map(|x| x.0.width()).sum())
-                            .max()
-                            .unwrap_or(0);
-
-                        // Always create the doc_buf and doc_box with a border
-                        let mut doc_buf = Buffer::new(vec2(doc_width as u16, doc_height as u16));
-                        for (y, line) in lines.iter().take(doc_height).enumerate() {
-                            for (x, (ch, style)) in line.iter().enumerate() {
-                                doc_buf
-                                    .set(vec2(x as u16, y as u16), Cell::new(ch.clone(), *style));
-                            }
-                        }
-
-                        let mut doc_box = Buffer::new(doc_buf.size() + vec2(2, 2));
-                        let mut doc_border =
-                            Border::rounded(doc_buf.size().x + 2, doc_buf.size().y + 2);
-                        doc_border.style = window_style;
-                        render!(doc_box,
-                           (0, 0) => [ doc_border ],
-                           (1, 1) => [ doc_buf ]
-                        );
-
-                        let rendered = Arc::new(doc_box);
-                        doc_rendered = Some(rendered.clone());
-                        new_cache_entry = Some((selected_idx, rendered));
-                    }
-                }
-
-                if let Some(doc_box) = doc_rendered {
-                    let old_size = final_render.size();
-                    let new_width = old_size.x + doc_box.size().x;
-                    let new_height = old_size.y.max(doc_box.size().y);
-
-                    let mut new_final = Buffer::new(vec2(new_width, new_height));
-                    render!(new_final,
-                       (0, 0) => [ final_render ],
-                       (old_size.x, 0) => [ doc_box.as_ref() ]
-                    );
-                    final_render = new_final;
-                }
-
-                (Some(final_render), new_cache_entry)
-            }
-        }
+    let Some(info) = state.info.as_ref() else {
+        return;
     };
 
-    // Handle clearing state if invalid (repeated check, but safe)
-    if let Some(info) = &state.info {
-        let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
-        let pos = info.position.min(buf.len());
+    let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
+    let pos = info.position.min(buf.len());
 
-        let start_line = buf.byte_to_line_clamped(pos);
-        let current_line = buf.byte_to_line_clamped(cursor_byte);
+    let start_line = buf.byte_to_line_clamped(pos);
+    let current_line = buf.byte_to_line_clamped(cursor_byte);
 
-        if cursor_byte < pos || start_line != current_line {
-            state.info = None;
-            return;
-        }
+    if cursor_byte < pos || start_line != current_line {
+        state.info = None;
+        resolver_engine_mut().await.trash_template("lsp_items");
+        return;
     }
 
-    if let Some((idx, buffer)) = cache_update
+    let query = if cursor_byte > pos {
+        buf.slice_to_string(pos, cursor_byte).unwrap_or_default()
+    } else {
+        String::new()
+    };
+
+    let ranked_items = get_ranked_items(&info.items, &query);
+
+    if ranked_items.is_empty() {
+        return;
+    }
+
+    let window_style = theme.get_fallback_default(["lsp.autocomplete.window", "ui.window"]);
+    let selected_style = theme.get_fallback_default(["lsp.autocomplete.selected", "ui.selection"]);
+    let match_style = theme.get_fallback_default(["lsp.autocomplete.match", "ui.match"]);
+
+    let window_height = 5;
+    let total_items = ranked_items.len();
+    let selected_idx = info.selected_index % total_items;
+
+    let half_window = window_height / 2;
+    let start_index = if total_items <= window_height || selected_idx <= half_window {
+        0
+    } else if selected_idx + half_window >= total_items {
+        total_items - window_height
+    } else {
+        selected_idx - half_window
+    };
+
+    let items_to_show: Vec<_> = ranked_items
+        .iter()
+        .skip(start_index)
+        .take(window_height)
+        .collect();
+
+    let max_label_width = items_to_show
+        .iter()
+        .map(|(i, _)| i.label.len())
+        .max()
+        .unwrap_or(0)
+        .max(10);
+
+    let max_kind_width = items_to_show
+        .iter()
+        .map(|(i, _)| i.kind.map(|k| format!("{:?}", k).len()).unwrap_or(0))
+        .max()
+        .unwrap_or(0);
+
+    let list_popup = build_list_popup(
+        &items_to_show
+            .iter()
+            .map(|&&(item, score)| (item, score))
+            .collect::<Vec<_>>(),
+        start_index,
+        selected_idx,
+        &query,
+        max_label_width,
+        max_kind_width,
+        ListPopupStyles {
+            window: window_style,
+            selected: selected_style,
+            match_hl: match_style,
+        },
+    );
+
+    // Build or retrieve cached doc popup
+    let (final_popup, cache_update) = {
+        let mut doc_rendered: Option<Arc<ratatui::buffer::Buffer>> = None;
+        let mut new_cache = None;
+
+        if let Some((selected_item, _)) = ranked_items.get(selected_idx) {
+            // Check cache
+            if let Some((cached_idx, ref cached_buf)) = info.cached_doc_buffer
+                && cached_idx == selected_idx
+            {
+                doc_rendered = Some(cached_buf.clone());
+            }
+
+            if doc_rendered.is_none() {
+                let doc_text = selected_item.documentation.as_ref().map(|d| match d {
+                    lsp_types::Documentation::String(s) => s.clone(),
+                    lsp_types::Documentation::MarkupContent(m) => m.value.clone(),
+                });
+
+                let doc_max_width = 40usize;
+                let mut lines: Vec<Vec<(String, Style)>> = Vec::new();
+
+                if let Some(detail) = &selected_item.detail
+                    && !detail.is_empty()
+                {
+                    lines.push(vec![(detail.clone(), window_style)]);
+                    lines.push(vec![]);
+                }
+
+                if let Some(text) = doc_text
+                    && !text.is_empty()
+                {
+                    let highlighted =
+                        highlight_text(&text, "markdown", &mut grammars, &config.0, &theme, &log);
+
+                    let mut current_line: Vec<(String, Style)> = Vec::new();
+                    let mut current_width = 0;
+
+                    for (part, style) in highlighted {
+                        for ch in part.chars() {
+                            if ch == '\n' {
+                                lines.push(current_line);
+                                current_line = Vec::new();
+                                current_width = 0;
+                                continue;
+                            }
+                            if current_width >= doc_max_width {
+                                lines.push(current_line);
+                                current_line = Vec::new();
+                                current_width = 0;
+                            }
+                            current_line.push((ch.to_string(), style));
+                            current_width += 1;
+                        }
+                    }
+                    if !current_line.is_empty() {
+                        lines.push(current_line);
+                    }
+                }
+
+                if !lines.is_empty() {
+                    let doc_height = lines.len().min(15);
+                    let doc_width = lines
+                        .iter()
+                        .take(doc_height)
+                        .map(|l| l.iter().map(|(s, _)| s.chars().count()).sum::<usize>())
+                        .max()
+                        .unwrap_or(0)
+                        .max(1);
+
+                    let doc_buf =
+                        build_doc_popup(&lines, doc_height, doc_width, window_style);
+                    let doc_arc = Arc::new(doc_buf);
+                    doc_rendered = Some(doc_arc.clone());
+                    new_cache = Some((selected_idx, doc_arc));
+                }
+            }
+        }
+
+        let final_popup = if let Some(doc) = doc_rendered {
+            combine_side_by_side(list_popup, Arc::try_unwrap(doc).unwrap_or_else(|arc| (*arc).clone()))
+        } else {
+            list_popup
+        };
+
+        (final_popup, new_cache)
+    };
+
+    let position = pos;
+
+    if let Some((idx, buf_arc)) = cache_update
         && let Some(info) = &mut state.info
     {
-        info.cached_doc_buffer = Some((idx, buffer));
+        info.cached_doc_buffer = Some((idx, buf_arc));
     }
 
-    if let Some(rendered) = final_render {
-        let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
-        buf.add_extmark(
-            ExtmarkBuilder::new("lsp::completion", cursor_byte) // Use current cursor position
-                .with_priority(6) // Higher than hover
-                .with_decoration(ExtmarkDecoration::OverlayElement {
-                    offset: vec2(0, 1), // Render below the line
-                    elem: Arc::new(rendered),
-                    z_index: 6,
-                    clip_to_viewport: true,
-                    positioning: OverlayPositioning::RelativeToLine,
-                }),
-        );
-    }
+    buf.add_extmark(
+        ExtmarkBuilder::new("lsp::completion", position)
+            .with_priority(6)
+            .with_kind(ExtmarkKind::Overlay {
+                content: Arc::new(final_popup),
+                offset_x: 0,
+                offset_y: 1,
+                z_index: 6,
+            }),
+    );
 }

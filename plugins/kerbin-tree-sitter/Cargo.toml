@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 kerbin-core = { path = "../../kerbin-core" }
+ratatui.workspace = true
 libloading = "0.8.9"
 tree-sitter = "0.25.10"
 

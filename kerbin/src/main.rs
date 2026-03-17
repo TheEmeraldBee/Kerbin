@@ -1,6 +1,9 @@
-use std::{panic, path::PathBuf, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
-use ascii_forge::prelude::*;
+use ratatui::{
+    crossterm::execute,
+    layout::{Constraint, Layout, Position},
+};
 
 use kerbin_core::*;
 
@@ -54,74 +57,107 @@ pub struct QueryArgs {
 pub async fn register_default_chunks(chunks: ResMut<Chunks>, window: Res<WindowState>) {
     get!(mut chunks, window);
 
-    let layout = Layout::new()
-        .row(fixed(1), vec![flexible()])
-        .row(flexible(), vec![fixed(5), fixed(2), flexible()])
-        .row(fixed(1), vec![flexible()])
-        .row(fixed(1), vec![flexible()])
-        .calculate(window.size())
-        .unwrap();
+    let size = window.size();
 
-    chunks.register_chunk::<BufferlineChunk>(0, layout[0][0]);
-    chunks.register_chunk::<BufferGutterChunk>(0, layout[1][0]);
-    chunks.register_chunk::<BufferChunk>(0, layout[1][2]);
-    chunks.register_chunk::<StatuslineChunk>(0, layout[2][0]);
+    let [bufferline, main_area, statusline] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Fill(1),
+        Constraint::Length(1),
+    ])
+    .areas(size);
+
+    let [gutter, _pad, buffer] = Layout::horizontal([
+        Constraint::Length(5),
+        Constraint::Length(2),
+        Constraint::Fill(1),
+    ])
+    .areas(main_area);
+
+    chunks.register_chunk::<BufferlineChunk>(0, bufferline);
+    chunks.register_chunk::<BufferGutterChunk>(0, gutter);
+    chunks.register_chunk::<BufferChunk>(0, buffer);
+    chunks.register_chunk::<StatuslineChunk>(0, statusline);
 }
 
 pub async fn render_chunks(chunks: Res<Chunks>, window: ResMut<WindowState>) {
     get!(chunks, mut window);
 
-    let mut best_cursor = None;
+    let mut best_cursor: Option<(usize, u16, u16, CursorShape)> = None;
 
+    // Collect best cursor from all chunk layers
     for layer in &chunks.buffers {
-        for buffer in layer {
-            let buf = buffer.1.read().await;
-            if let Some(cur) = buf.get_full_cursor() {
-                let replace = match best_cursor {
-                    Some((i, _, _)) => cur.0 > i,
-                    None => true,
-                };
-
+        for chunk_arc in layer {
+            let chunk = chunk_arc.read().await;
+            if let Some(cur) = chunk.get_cursor() {
+                let replace = best_cursor
+                    .map(|(priority, _, _, _)| cur.0 > priority)
+                    .unwrap_or(true);
                 if replace {
-                    // Add the buffer offset to the cursor pos
-                    let x = cur.1.x.min(buf.size().x) + buffer.0.x;
-                    let y = cur.1.y.min(buf.size().y) + buffer.0.y;
-                    best_cursor = Some((cur.0, vec2(x, y), cur.2));
+                    best_cursor = Some(*cur);
                 }
-            }
-
-            buf.render(buffer.0, window.buffer_mut());
-
-            for (offset, item) in &buf.render_items {
-                let absolute_pos = buffer.0 + *offset;
-
-                item(&mut window, absolute_pos);
             }
         }
     }
 
-    if let Some((_, pos, sty)) = best_cursor {
-        window.set_cursor_visible(true);
-        window.set_cursor(pos);
-        window.set_cursor_style(sty);
-    } else {
-        window.set_cursor_visible(false);
+    tokio::task::block_in_place(|| {
+        window.0.draw(|frame| {
+            // Blit all chunk buffers into frame
+            for layer in &chunks.buffers {
+                for chunk_arc in layer {
+                    let chunk = chunk_arc.blocking_read();
+                    blit(&chunk, frame.buffer_mut());
+                }
+            }
+
+            if let Some((_, x, y, _)) = best_cursor {
+                frame.set_cursor_position(Position::new(x, y));
+            }
+        })
+    })
+    .ok();
+
+    // Apply cursor shape after draw
+    if let Some((_, _, _, shape)) = best_cursor {
+        execute!(std::io::stdout(), shape.to_crossterm_style()).ok();
+    }
+}
+
+fn blit(src: &ratatui::buffer::Buffer, dst: &mut ratatui::buffer::Buffer) {
+    let src_area = src.area;
+    for y in src_area.top()..src_area.bottom() {
+        for x in src_area.left()..src_area.right() {
+            if let Some(src_cell) = src.cell((x, y))
+                && let Some(dst_cell) = dst.cell_mut((x, y))
+            {
+                *dst_cell = src_cell.clone();
+            }
+        }
     }
 }
 
 async fn update(state: &mut State) {
-    // Update all states
-    state.hook(hooks::Update).call().await;
+    // Poll crossterm events and store in CrosstermEvents state
+    {
+        let mut events_state = state.lock_state::<CrosstermEvents>().await;
+        events_state.0.clear();
+        while ratatui::crossterm::event::poll(Duration::ZERO).unwrap_or(false) {
+            if let Ok(event) = ratatui::crossterm::event::read() {
+                if let ratatui::crossterm::event::Event::Resize(_, _) = &event {
+                    // autoresize handled by terminal on next draw
+                }
+                events_state.0.push(event);
+            }
+        }
+    }
 
+    state.hook(hooks::Update).call().await;
     state.hook(hooks::PostUpdate).call().await;
 
-    // Clear the chunks for the next frame (allows for conditional chunks)
+    // Clear chunks for the next frame
     state.lock_state::<Chunks>().await.clear();
 
-    // Register all chunks for rendering
     state.hook(hooks::ChunkRegister).call().await;
 
-    // Call the file renderer
     let filetype = {
         let bufs = state.lock_state::<Buffers>().await;
         bufs.cur_buffer().await.ext.clone()
@@ -136,21 +172,14 @@ async fn update(state: &mut State) {
 
     state.hook(hooks::PreLines).call().await;
 
-    state
-        .hook(hooks::CreateRenderLines)
-        .hook(hooks::PreRender)
-        .call()
-        .await;
+    state.hook(hooks::PreRender).call().await;
 
     state.hook(hooks::Render).call().await;
 
-    // Render all chunks to the window
     state.hook(hooks::RenderChunks).call().await;
 
-    // Handle general IPC messages
     handle_ipc_messages(state).await;
 
-    // Call out to recently emited events
     EVENT_BUS.resolve(state).await;
 }
 
@@ -167,14 +196,10 @@ async fn main() {
             handle_query(query_args).await;
             return;
         }
-        None => {
-            // Start the editor
-        }
+        None => {}
     }
 
-    // Editor startup logic
     let session_id = Uuid::new_v4();
-
     let server_ipc = ServerIpc::new(&session_id.to_string());
 
     let config_path = match args.config {
@@ -213,20 +238,20 @@ async fn main() {
         .set_template("session", [session_id]);
 
     init_log();
-    let window = Window::init().unwrap();
-    handle_panics();
 
+    let terminal = ratatui::init();
+
+    // Initialize terminal
     let (command_sender, mut command_reciever) = unbounded_channel();
 
     let mut state = init_state(
-        window,
+        terminal,
         command_sender,
         config_path.clone(),
         session_id,
         server_ipc,
     );
 
-    // Register command types BEFORE loading config so commands are available to .kb files
     {
         let mut commands = state.lock_state::<CommandRegistry>().await;
 
@@ -284,10 +309,6 @@ async fn main() {
     state.on_hook(hooks::PostUpdate).system(post_update_buffer);
 
     state
-        .on_hook(hooks::CreateRenderLines)
-        .system(build_buffer_lines);
-
-    state
         .on_hook(hooks::PreLines)
         .system(update_buffer_horizontal_scroll)
         .system(update_buffer_vertical_scroll);
@@ -310,19 +331,16 @@ async fn main() {
     loop {
         let frame_start = tokio::time::Instant::now();
 
-        // Process all available commands with blocking
         while let Ok(cmd) = command_reciever.try_recv() {
             cmd.apply(&mut state).await;
         }
 
-        // Run the update cycle
         update(&mut state).await;
 
         if !state.lock_state::<Running>().await.0 {
             break;
         }
 
-        // Sleep for remaining time while handling commands
         let target_frame_time = Duration::from_millis(ms_per_frame);
         let deadline = frame_start + target_frame_time;
 
@@ -337,23 +355,10 @@ async fn main() {
                 }
             }
         }
-
-        {
-            let mut window = state.lock_state::<WindowState>().await;
-            match window.update(Duration::from_millis(0)) {
-                Ok(_) => {}
-                Err(e) => {
-                    tracing::error!("Window failed to update: {e:?}");
-                }
-            }
-        }
     }
 
-    state
-        .lock_state::<WindowState>()
-        .await
-        .restore()
-        .expect("Window should restore fine");
+    // Restore terminal
+    ratatui::restore();
 }
 
 async fn handle_exec(args: ExecArgs) {

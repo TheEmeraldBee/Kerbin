@@ -1029,6 +1029,7 @@ name = "kerbin-core"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "crossterm",
  "dirs",
  "ipmpsc",
  "kerbin-input",
@@ -1065,6 +1066,7 @@ dependencies = [
  "kerbin-core",
  "kerbin-tree-sitter",
  "lsp-types",
+ "ratatui",
  "ropey",
  "serde",
  "serde_json",
@@ -1099,6 +1101,7 @@ version = "0.1.0"
 dependencies = [
  "kerbin-core",
  "libloading",
+ "ratatui",
  "ropey",
  "serde",
  "thiserror 2.0.17",

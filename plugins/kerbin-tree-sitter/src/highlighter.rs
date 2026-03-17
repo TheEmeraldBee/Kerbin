@@ -5,7 +5,8 @@ use crate::{
 };
 use std::{cmp::Ordering, collections::BinaryHeap, ops::Range};
 
-use kerbin_core::{ascii_forge::window::ContentStyle, *};
+use kerbin_core::*;
+use ratatui::style::Style;
 use tree_sitter::QueryProperty;
 
 pub fn get_capture_priority(query: &tree_sitter::Query, pattern_index: usize) -> i64 {
@@ -29,7 +30,7 @@ fn capture_specificity(name: &str) -> usize {
 }
 
 /// Translates a capture name into a style
-pub fn translate_name_to_style(theme: &Theme, mut name: &str) -> ContentStyle {
+pub fn translate_name_to_style(theme: &Theme, mut name: &str) -> Style {
     loop {
         if let Some(value) = theme.get(&format!("ts.{name}")) {
             return value;
@@ -298,7 +299,7 @@ pub async fn highlight_file(
             buf.add_extmark(
                 ExtmarkBuilder::new_range(namespace, span.byte_range.clone())
                     .with_priority(span.priority as i32)
-                    .with_decoration(ExtmarkDecoration::Highlight { hl: hl_style }),
+                    .with_kind(ExtmarkKind::Highlight { style: hl_style }),
             );
         }
     } else {
@@ -319,7 +320,7 @@ pub async fn highlight_file(
             buf.add_extmark(
                 ExtmarkBuilder::new_range(namespace, span.byte_range.clone())
                     .with_priority(span.priority as i32)
-                    .with_decoration(ExtmarkDecoration::Highlight { hl: hl_style }),
+                    .with_kind(ExtmarkKind::Highlight { style: hl_style }),
             );
         }
     }

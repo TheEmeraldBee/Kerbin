@@ -1,9 +1,14 @@
 use std::sync::Arc;
 
 use crate::*;
-use ascii_forge::prelude::*;
-use kerbin_core::{ascii_forge::widgets::Border, *};
+use kerbin_core::*;
 use lsp_types::*;
+use ratatui::{
+    layout::Rect,
+    prelude::*,
+    style::{Color, Modifier},
+    widgets::{Block, BorderType, Paragraph},
+};
 
 #[derive(Default, State)]
 pub struct Diagnostics(pub Vec<Diagnostic>);
@@ -55,37 +60,63 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
 
             // Choose color based on severity
             let (style, priority) = match diagnostic.severity {
-                Some(DiagnosticSeverity::ERROR) => {
-                    (ContentStyle::new().underline_red().underlined(), 3)
-                }
-                Some(DiagnosticSeverity::WARNING) => {
-                    (ContentStyle::new().underline_yellow().underlined(), 2)
-                }
-                Some(DiagnosticSeverity::INFORMATION) => {
-                    (ContentStyle::new().underline_blue().underlined(), 1)
-                }
-                Some(DiagnosticSeverity::HINT) => (ContentStyle::new().underline_dark_green(), 0),
-                _ => (ContentStyle::new().underline_red().underlined(), 3),
+                Some(DiagnosticSeverity::ERROR) => (
+                    Style::default()
+                        .underline_color(Color::Red)
+                        .add_modifier(Modifier::UNDERLINED),
+                    3,
+                ),
+                Some(DiagnosticSeverity::WARNING) => (
+                    Style::default()
+                        .underline_color(Color::Yellow)
+                        .add_modifier(Modifier::UNDERLINED),
+                    2,
+                ),
+                Some(DiagnosticSeverity::INFORMATION) => (
+                    Style::default()
+                        .underline_color(Color::Blue)
+                        .add_modifier(Modifier::UNDERLINED),
+                    1,
+                ),
+                Some(DiagnosticSeverity::HINT) => (
+                    Style::default().underline_color(Color::DarkGray),
+                    0,
+                ),
+                _ => (
+                    Style::default()
+                        .underline_color(Color::Red)
+                        .add_modifier(Modifier::UNDERLINED),
+                    3,
+                ),
             };
 
+            // Show floating diagnostic message when cursor is inside the range
             if (start_byte..end_byte).contains(&buf.primary_cursor().get_cursor_byte()) {
-                let buffer = Buffer::sized_element(diagnostic.message.as_str().red());
-                let mut render = Buffer::new(buffer.size() + vec2(2, 2));
+                let msg = diagnostic.message.as_str();
+                let popup_w = (msg.len() + 4).min(60) as u16;
+                let popup_h = 3u16;
+                let popup_rect = Rect::new(0, 0, popup_w, popup_h);
+                let mut popup_buf = ratatui::buffer::Buffer::empty(popup_rect);
 
-                render!(render,
-                    (0, 0) => [Border::rounded(buffer.size().x + 2, buffer.size().y + 2).with_title("Diagnostics".grey())],
-                    (1, 1) => [buffer]
-                );
+                let block = Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .title("Diagnostics");
+                let inner = block.inner(popup_rect);
+                block.render(popup_rect, &mut popup_buf);
+
+                let truncated: String = msg.chars().take(inner.width as usize).collect();
+                Paragraph::new(truncated)
+                    .style(style)
+                    .render(inner, &mut popup_buf);
 
                 buf.add_extmark(
                     ExtmarkBuilder::new("lsp::diagnostics", start_byte)
                         .with_priority(priority)
-                        .with_decoration(ExtmarkDecoration::OverlayElement {
-                            offset: vec2(1, 1),
-                            elem: Arc::new(render),
+                        .with_kind(ExtmarkKind::Overlay {
+                            content: Arc::new(popup_buf),
+                            offset_x: 0,
+                            offset_y: 1,
                             z_index: priority,
-                            clip_to_viewport: true,
-                            positioning: OverlayPositioning::RelativeToLine,
                         }),
                 );
             }
@@ -93,7 +124,7 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
             buf.add_extmark(
                 ExtmarkBuilder::new_range("lsp::diagnostics", start_byte..end_byte)
                     .with_priority(priority)
-                    .with_decoration(ExtmarkDecoration::Highlight { hl: style }),
+                    .with_kind(ExtmarkKind::Highlight { style }),
             );
         }
     }

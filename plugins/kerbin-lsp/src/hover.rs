@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
-use kerbin_core::{
-    ascii_forge::{prelude::*, widgets::Border},
-    *,
-};
+use kerbin_core::*;
 use lsp_types::{
     Hover, HoverContents, HoverParams, LanguageString, MarkedString, Position,
     TextDocumentIdentifier, TextDocumentPositionParams, WorkDoneProgressParams,
+};
+use ratatui::{
+    layout::Rect,
+    prelude::*,
+    widgets::{Block, BorderType, Paragraph},
 };
 
 use crate::{JsonRpcMessage, LspManager, OpenedFile};
@@ -137,9 +139,8 @@ pub async fn render_hover(
             .iter()
             .map(|x| extract_hover_markup(x, &mut grammars, &config.0, &theme, &log))
             .fold(vec![], |mut l, r| {
-                l.push(("\n\n".to_string(), ContentStyle::default()));
+                l.push(("\n\n".to_string(), Style::default()));
                 l.extend(r);
-
                 l
             }),
         HoverContents::Markup(m) => {
@@ -150,79 +151,67 @@ pub async fn render_hover(
     const MAX_WIDTH: usize = 80;
     const MAX_HEIGHT: usize = 20;
 
-    struct StyledChar {
-        char: char,
-        style: ContentStyle,
-    }
+    // Convert (String, Style) segments into wrapped Lines, splitting on newlines
+    let mut all_lines: Vec<Vec<(char, Style)>> = Vec::new();
+    let mut current_line: Vec<(char, Style)> = Vec::new();
 
-    let mut chars: Vec<StyledChar> = Vec::new();
     for (part, style) in text {
-        for char in part.chars() {
-            chars.push(StyledChar { char, style });
+        for ch in part.chars() {
+            if ch == '\n' {
+                all_lines.push(std::mem::take(&mut current_line));
+                continue;
+            }
+            if current_line.len() >= MAX_WIDTH {
+                all_lines.push(std::mem::take(&mut current_line));
+            }
+            current_line.push((ch, style));
         }
-    }
-
-    let mut lines: Vec<Vec<StyledChar>> = Vec::new();
-    let mut current_line: Vec<StyledChar> = Vec::new();
-
-    for sc in chars {
-        if sc.char == '\n' {
-            lines.push(current_line);
-            current_line = Vec::new();
-            continue;
-        }
-
-        if current_line.len() >= MAX_WIDTH {
-            lines.push(current_line);
-            current_line = Vec::new();
-        }
-
-        current_line.push(sc);
     }
     if !current_line.is_empty() {
-        lines.push(current_line);
+        all_lines.push(current_line);
     }
 
-    if lines.is_empty() {
+    if all_lines.is_empty() {
         return;
     }
 
-    if info.scroll_y >= lines.len() {
-        info.scroll_y = lines.len().saturating_sub(1);
+    if info.scroll_y >= all_lines.len() {
+        info.scroll_y = all_lines.len().saturating_sub(1);
     }
     let scroll_y = info.scroll_y;
+    let height = all_lines.len().min(MAX_HEIGHT);
 
-    let height = lines.len().min(MAX_HEIGHT);
+    let text_lines: Vec<Line<'static>> = all_lines
+        .iter()
+        .skip(scroll_y)
+        .take(height)
+        .map(|line| {
+            Line::from(
+                line.iter()
+                    .map(|(ch, style)| Span::styled(ch.to_string(), *style))
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect();
 
-    let visible_lines: Vec<&Vec<StyledChar>> = lines.iter().skip(scroll_y).take(height).collect();
+    let popup_w = (MAX_WIDTH + 2) as u16;
+    let popup_h = (height + 2) as u16;
+    let popup_rect = Rect::new(0, 0, popup_w, popup_h);
+    let mut popup_buf = ratatui::buffer::Buffer::empty(popup_rect);
 
-    let mut text_buf = Buffer::new(vec2(MAX_WIDTH as u16, height as u16));
-
-    for (y, line) in visible_lines.iter().enumerate() {
-        for (x, sc) in line.iter().enumerate() {
-            text_buf.set(
-                vec2(x as u16, y as u16),
-                Cell::new(sc.char.to_string(), sc.style),
-            );
-        }
-    }
-
-    let mut render = Buffer::new(text_buf.size() + vec2(2, 2));
-
-    render!(render,
-        (0, 0) => [ Border::rounded(text_buf.size().x + 2, text_buf.size().y + 2) ],
-        (1, 1) => [ text_buf ]
-    );
+    let block = Block::bordered().border_type(BorderType::Rounded).title("Hover");
+    let inner = block.inner(popup_rect);
+    block.render(popup_rect, &mut popup_buf);
+    Paragraph::new(Text::from(text_lines)).render(inner, &mut popup_buf);
 
     buf.add_extmark(
         ExtmarkBuilder::new("lsp::hover", info.position)
             .with_priority(5)
-            .with_decoration(ExtmarkDecoration::OverlayElement {
-                offset: vec2(1, 1),
-                elem: Arc::new(render),
+            .with_kind(ExtmarkKind::Overlay {
+                content: Arc::new(popup_buf),
+                offset_x: 0,
+                offset_y: 1,
                 z_index: 5,
-                clip_to_viewport: true,
-                positioning: OverlayPositioning::RelativeToLine,
             }),
     );
 }
@@ -233,7 +222,7 @@ fn extract_hover_markup(
     config_path: &str,
     theme: &Theme,
     log: &LogSender,
-) -> Vec<(String, ContentStyle)> {
+) -> Vec<(String, Style)> {
     match markup {
         MarkedString::String(s) => highlight_text(s, "markdown", grammars, config_path, theme, log),
         MarkedString::LanguageString(LanguageString { language, value }) => {

@@ -1,11 +1,6 @@
 use std::{ops::Range, sync::Arc};
 
-use ascii_forge::{
-    math::Vec2,
-    window::{crossterm::cursor::SetCursorStyle, Buffer, ContentStyle},
-};
-
-use crate::OverlayPositioning;
+use ratatui::{buffer::Buffer as RatatuiBuffer, style::Style};
 
 /// Determines how the extmark moves when text is edited
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
@@ -31,34 +26,86 @@ pub enum ExtmarkAdjustment {
     DeleteOnDelete,
 }
 
-/// Types of decorations that can be attached to an [`Extmark`]
-pub enum ExtmarkDecoration {
-    /// Highlight a region of text with a named highlight group
-    Highlight { hl: ContentStyle },
-
-    /// Insert “virtual” text inline after buffer byte position
-    VirtText {
-        text: String,
-        hl: Option<ContentStyle>,
-    },
-
-    /// Given the byte position of the decoration, render this element with an offset
-    OverlayElement {
-        offset: Vec2,
-        elem: Arc<Buffer>,
-        z_index: i32,
-        clip_to_viewport: bool,
-        positioning: OverlayPositioning,
-    },
-
-    /// Display a cursor (block/bar/underline), only one of these can exist on the state at a time
-    Cursor { style: SetCursorStyle },
-
-    /// Reserve the given lines after the buf
-    FullElement { elem: Arc<Buffer> },
+/// The shape of a terminal cursor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum CursorShape {
+    #[default]
+    Block,
+    BlinkingBlock,
+    Bar,
+    BlinkingBar,
+    UnderScore,
+    BlinkingUnderScore,
 }
 
-/// An anchored “mark” in a buffer, augmented with one or more decorations
+impl CursorShape {
+    pub fn to_crossterm_style(self) -> crossterm::cursor::SetCursorStyle {
+        use crossterm::cursor::SetCursorStyle;
+        match self {
+            CursorShape::Block => SetCursorStyle::SteadyBlock,
+            CursorShape::BlinkingBlock => SetCursorStyle::BlinkingBlock,
+            CursorShape::Bar => SetCursorStyle::SteadyBar,
+            CursorShape::BlinkingBar => SetCursorStyle::BlinkingBar,
+            CursorShape::UnderScore => SetCursorStyle::SteadyUnderScore,
+            CursorShape::BlinkingUnderScore => SetCursorStyle::BlinkingUnderScore,
+        }
+    }
+}
+
+/// A chunk of styled text used for virtual text display.
+#[derive(Clone, Debug)]
+pub struct StyledChunk {
+    pub text: String,
+    pub style: Style,
+}
+
+/// Where virtual text is rendered relative to its anchor position.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VirtTextPos {
+    /// After the end of the line
+    Eol,
+    /// Overlay on top of existing text at the position
+    Overlay,
+    /// Inserted inline, shifting subsequent content
+    Inline,
+    /// Right-aligned in the viewport
+    RightAlign,
+}
+
+/// The kind of decoration applied to an extmark.
+#[derive(Clone, Debug)]
+pub enum ExtmarkKind {
+    /// A cursor mark at a single byte position
+    Cursor { style: Style, shape: CursorShape },
+
+    /// A highlight over the byte range encoded in `Extmark::byte_range`
+    Highlight { style: Style },
+
+    /// Virtual text anchored to `byte_range.start`
+    VirtualText {
+        chunks: Vec<StyledChunk>,
+        pos: VirtTextPos,
+    },
+
+    /// Conceal the byte range — hide or replace text visually
+    Conceal {
+        replacement: Option<String>,
+        style: Option<Style>,
+    },
+
+    /// A floating popup anchored to `byte_range.start`.
+    ///
+    /// `offset_x`/`offset_y` are character offsets from the anchor's screen position.
+    /// The popup is clipped to the viewport.
+    Overlay {
+        content: Arc<RatatuiBuffer>,
+        offset_x: i32,
+        offset_y: i32,
+        z_index: i32,
+    },
+}
+
+/// An anchored "mark" in a buffer, augmented with a decoration kind
 pub struct Extmark {
     /// An identifier for the file version for which the extmark was registered
     pub file_version: u128,
@@ -74,8 +121,8 @@ pub struct Extmark {
     /// Priority controls layer ordering
     pub priority: i32,
 
-    /// List of one or more decorations applied at this mark
-    pub decorations: Vec<ExtmarkDecoration>,
+    /// The decoration kind applied at this mark
+    pub kind: ExtmarkKind,
 
     pub gravity: ExtmarkGravity,
     pub adjustment: ExtmarkAdjustment,
@@ -90,7 +137,7 @@ pub struct ExtmarkBuilder {
 
     priority: i32,
 
-    decorations: Vec<ExtmarkDecoration>,
+    kind: Option<ExtmarkKind>,
 
     gravity: ExtmarkGravity,
     adjustment: ExtmarkAdjustment,
@@ -105,7 +152,7 @@ impl ExtmarkBuilder {
             byte_range: byte..byte + 1,
             priority: 0,
 
-            decorations: vec![],
+            kind: None,
 
             gravity: ExtmarkGravity::default(),
             adjustment: ExtmarkAdjustment::default(),
@@ -120,7 +167,7 @@ impl ExtmarkBuilder {
             byte_range,
             priority: 0,
 
-            decorations: vec![],
+            kind: None,
 
             gravity: ExtmarkGravity::default(),
             adjustment: ExtmarkAdjustment::default(),
@@ -134,16 +181,8 @@ impl ExtmarkBuilder {
         self
     }
 
-    pub fn with_decoration(mut self, decoration: ExtmarkDecoration) -> Self {
-        self.decorations.push(decoration);
-        self
-    }
-
-    pub fn with_decorations(
-        mut self,
-        decorations: impl IntoIterator<Item = ExtmarkDecoration>,
-    ) -> Self {
-        self.decorations.extend(decorations);
+    pub fn with_kind(mut self, kind: ExtmarkKind) -> Self {
+        self.kind = Some(kind);
         self
     }
 
@@ -170,7 +209,9 @@ impl ExtmarkBuilder {
             byte_range: self.byte_range,
             priority: self.priority,
 
-            decorations: self.decorations,
+            kind: self.kind.unwrap_or(ExtmarkKind::Highlight {
+                style: Style::default(),
+            }),
 
             adjustment: self.adjustment,
             gravity: self.gravity,

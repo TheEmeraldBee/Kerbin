@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::*;
-use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
+use ratatui::style::{Color, Style};
 
 pub async fn render_cursors_and_selections(
     bufs: ResMut<Buffers>,
@@ -44,29 +44,29 @@ pub async fn render_cursors_and_selections(
 
     let sel_style = theme
         .get("ui.selection")
-        .unwrap_or(ContentStyle::new().on_grey());
+        .unwrap_or(Style::default().bg(Color::Gray));
 
     let primary_cursor = buf.primary_cursor;
     for (i, cursor) in buf.cursors.clone().into_iter().enumerate() {
         let caret_byte = cursor.get_cursor_byte();
 
         if primary_cursor == i {
-            let cursor_style = match modes.get_mode() {
-                'i' => SetCursorStyle::BlinkingBar,
-                _ => SetCursorStyle::SteadyBlock,
+            let shape = match modes.get_mode() {
+                'i' => CursorShape::BlinkingBar,
+                _ => CursorShape::Block,
             };
 
             buf.add_extmark(
-                ExtmarkBuilder::new("inner::cursor", caret_byte).with_decoration(
-                    ExtmarkDecoration::Cursor {
+                ExtmarkBuilder::new("inner::cursor", caret_byte)
+                    .with_kind(ExtmarkKind::Cursor {
                         style: cursor_style,
-                    },
-                ),
+                        shape,
+                    }),
             );
         } else {
             buf.add_extmark(
                 ExtmarkBuilder::new("inner::cursor", caret_byte)
-                    .with_decoration(ExtmarkDecoration::Highlight { hl: cursor_style }),
+                    .with_kind(ExtmarkKind::Highlight { style: cursor_style }),
             );
         }
 
@@ -76,7 +76,7 @@ pub async fn render_cursors_and_selections(
                     "inner::selection",
                     *cursor.sel().start()..*cursor.sel().end(),
                 )
-                .with_decoration(ExtmarkDecoration::Highlight { hl: sel_style }),
+                .with_kind(ExtmarkKind::Highlight { style: sel_style }),
             );
         }
     }
@@ -118,7 +118,7 @@ pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<Wind
     let selected_tab_start = tab_starts[selected_idx];
     let selected_tab_end = selected_tab_start + tab_widths[selected_idx];
 
-    let view_width = window.size().x as usize;
+    let view_width = window.size().width as usize;
     let view_start = buffers.tab_scroll;
     let view_end = view_start + view_width;
 
