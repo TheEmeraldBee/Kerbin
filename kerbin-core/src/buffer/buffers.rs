@@ -139,16 +139,15 @@ impl Buffers {
         }
 
         if let Some(buffer_id) = found_buffer_id {
-            self.set_selected_buffer(buffer_id);
-            buffer_id
-        } else {
-            let new_buffer = Arc::new(RwLock::new(buffer));
-            self.buffers.push(new_buffer);
-            let new_buffer_id = self.buffers.len() - 1;
-            self.set_selected_buffer(new_buffer_id);
-
-            new_buffer_id
+            self.close_buffer(buffer_id).await;
         }
+
+        let new_buffer = Arc::new(RwLock::new(buffer));
+        self.buffers.push(new_buffer);
+        let new_buffer_id = self.buffers.len() - 1;
+        self.set_selected_buffer(new_buffer_id);
+
+        new_buffer_id
     }
 
     /// Renders the bufferline (tab bar) into the provided `Buffer`

@@ -25,6 +25,7 @@ tree-sitter-define comment --exts [] --url https://github.com/stsewd/tree-sitter
 tree-sitter-define markdown --exts [md] --url https://github.com/tree-sitter-grammars/tree-sitter-markdown.git --sub_dir tree-sitter-markdown
 tree-sitter-define markdown_inline --exts [] --url https://github.com/tree-sitter-grammars/tree-sitter-markdown.git --sub_dir tree-sitter-markdown-inline --build_name markdown-inline
 tree-sitter-alias markdown markdown_rustdoc
+tree-sitter-alias markdown tutor --exts [<tutor>]
 
 # Nushell
 tree-sitter-define nu --exts [nu] --url https://github.com/nushell/tree-sitter-nu.git

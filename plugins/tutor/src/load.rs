@@ -74,7 +74,7 @@ pub async fn open_default_buffer(bufs: ResMut<Buffers>, log: Res<LogSender>) {
     buffer.redo_stack.clear();
 
     buffer.path = "<tutor>".to_string();
-    buffer.ext = "md".to_string();
+    buffer.ext = "<tutor>".to_string();
 
     let state = TutorState {
         step: 0,
@@ -83,13 +83,14 @@ pub async fn open_default_buffer(bufs: ResMut<Buffers>, log: Res<LogSender>) {
 
     buffer.set_state(state);
 
+    buffer.dirty = false;
+
     log.critical(
         "tutor",
         "Welcome to tutor! This is a tutor that will step you through using your default config, as well as helping you to remove me!",
     );
 
     bufs.push_new(buffer).await;
-    bufs.close_buffer(0).await;
 }
 
 pub async fn update_buffer(bufs: ResMut<Buffers>, log: Res<LogSender>) {
@@ -101,6 +102,8 @@ pub async fn update_buffer(bufs: ResMut<Buffers>, log: Res<LogSender>) {
     if buf.byte_changes.is_empty() {
         return;
     }
+
+    buf.dirty = false;
 
     // Get all bracket contents in order
     let content = buf.to_string();

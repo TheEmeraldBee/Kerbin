@@ -17,12 +17,14 @@ pub async fn render_buffer_default(
     gutter_chunk: Chunk<BufferGutterChunk>,
     chunk: Chunk<BufferChunk>,
     buffers: Res<Buffers>,
+
+    theme: Res<Theme>,
 ) {
     let Some(mut chunk) = chunk.get().await else {
         return;
     };
 
-    get!(buffers);
+    get!(buffers, theme);
 
     let buf = buffers.cur_buffer().await;
 
@@ -45,7 +47,7 @@ pub async fn render_buffer_default(
     // Render gutter
     if let Some(mut gutter) = gutter_chunk.get().await {
         let gutter_area = gutter.area();
-        GutterWidget::new(buf.renderer.byte_scroll, buf.len_lines())
+        GutterWidget::new(buf.renderer.byte_scroll, buf.len_lines(), &theme)
             .render(gutter_area, &mut gutter);
     }
 }

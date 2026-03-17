@@ -92,6 +92,7 @@ theme ui.commandline.match_highlight --fg yellow --attrs [bold]
 theme ui.commandline.icon sky
 theme ui.bufferline.selected --fg teal --attrs [bold italic]
 theme ui.bufferline text
+theme ui.gutter --fg overlay0 --attrs [italic]
 theme ui.cursor --bg overlay0
 theme ui.log.critical mauve
 theme ui.log.high flamingo
