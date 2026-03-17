@@ -67,6 +67,17 @@ impl<'a> Resolver<'a> {
 
     /// Expand a list of tokens by resolving variables and command substitutions.
     pub fn expand_tokens(&self, tokens: Vec<Token>, allow_run: bool) -> Vec<Token> {
+        self.expand_tokens_reporting(tokens, allow_run, &mut vec![])
+    }
+
+    /// Like [`expand_tokens`], but appends human-readable error messages to `errors` for
+    /// unknown templates and failed command substitutions instead of silently swallowing them.
+    pub fn expand_tokens_reporting(
+        &self,
+        tokens: Vec<Token>,
+        allow_run: bool,
+        errors: &mut Vec<String>,
+    ) -> Vec<Token> {
         tokens
             .into_iter()
             .flat_map(|t| match t {
@@ -76,16 +87,15 @@ impl<'a> Resolver<'a> {
                     if let Some(values) = self.templates.get(&name) {
                         values.iter().map(|v| Token::Word(v.clone())).collect()
                     } else {
-                        // Unknown variable: keep as-is
-                        vec![Token::Variable(name)]
+                        errors.push(format!("Unknown template: %{name}"));
+                        vec![]
                     }
                 }
 
                 Token::CommandSubst(inner) if allow_run => {
                     tracing::info!(%inner, %allow_run);
-                    // Tokenize and expand the inner command string, then execute
                     let cmd_tokens = tokenize(&inner).unwrap_or_default();
-                    let expanded = self.expand_tokens(cmd_tokens, allow_run);
+                    let expanded = self.expand_tokens_reporting(cmd_tokens, allow_run, errors);
                     let parts: Vec<String> = expanded
                         .into_iter()
                         .filter_map(|t| {
@@ -100,7 +110,10 @@ impl<'a> Resolver<'a> {
                     if let Some((cmd, args)) = parts.split_first() {
                         match (self.command_executor)(cmd, args) {
                             Ok(output) => output.into_iter().map(Token::Word).collect(),
-                            Err(_) => vec![Token::CommandSubst(inner)],
+                            Err(e) => {
+                                errors.push(format!("Command `{inner}` failed: {e}"));
+                                vec![]
+                            }
                         }
                     } else {
                         vec![]
@@ -109,11 +122,12 @@ impl<'a> Resolver<'a> {
 
                 Token::CommandSubst(inner) => vec![Token::CommandSubst(inner)],
 
-                Token::List(inner) => vec![Token::List(self.expand_tokens(inner, allow_run))],
+                Token::List(inner) => vec![Token::List(
+                    self.expand_tokens_reporting(inner, allow_run, errors),
+                )],
 
                 Token::Interpolated(parts) => {
-                    // Expand each part, then concatenate into a single Word
-                    let expanded = self.expand_tokens(parts, allow_run);
+                    let expanded = self.expand_tokens_reporting(parts, allow_run, errors);
                     let joined = expanded
                         .into_iter()
                         .map(|t| match t {

@@ -17,11 +17,22 @@ pub struct ResolverEngine {
 impl ResolverEngine {
     pub fn as_resolver(&self) -> Resolver<'_> {
         let default_fn = move |cmd: &str, args: &[String]| {
-            std::process::Command::new(cmd)
+            let output = std::process::Command::new(cmd)
                 .args(args)
                 .output()
-                .map_err(|e| ParseError::Custom(e.to_string()))
-                .map(|o| o.stdout.lines().map(|l| l.unwrap()).collect::<Vec<_>>())
+                .map_err(|e| ParseError::Custom(e.to_string()))?;
+
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                let msg = if stderr.is_empty() {
+                    format!("exited with {}", output.status)
+                } else {
+                    format!("exited with {}: {}", output.status, stderr)
+                };
+                return Err(ParseError::Custom(msg));
+            }
+
+            Ok(output.stdout.lines().map(|l| l.unwrap()).collect::<Vec<_>>())
         };
 
         Resolver::new(

@@ -25,6 +25,20 @@ impl CommandRegistry {
         modes: &ModeStack,
     ) -> bool {
         let tokens = tokenize(input).unwrap_or_default();
+
+        // Expand without running — CommandSubst tokens remain if not yet resolvable.
+        let expanded = if let Some(r) = resolver {
+            r.expand_tokens(tokens.clone(), false)
+        } else {
+            tokens.clone()
+        };
+
+        // If any dynamic tokens remain unresolved we can't statically validate;
+        // optimistically treat the input as valid.
+        if has_dynamic_tokens(&expanded) {
+            return true;
+        }
+
         self.parse_command(
             tokens,
             false,
@@ -174,4 +188,12 @@ impl CommandRegistry {
         }
         None
     }
+}
+
+fn has_dynamic_tokens(tokens: &[Token]) -> bool {
+    tokens.iter().any(|t| match t {
+        Token::CommandSubst(_) | Token::Variable(_) => true,
+        Token::List(inner) | Token::Interpolated(inner) => has_dynamic_tokens(inner),
+        Token::Word(_) => false,
+    })
 }

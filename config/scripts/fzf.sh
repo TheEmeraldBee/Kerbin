@@ -5,5 +5,5 @@ SESSION="$1"
 FILE=$(rg --files --ignore | fzf)
 
 if [[ -n "$FILE" ]]; then
-    kerbin command -s "$SESSION" "o $FILE"
+    booster exec -s "$SESSION" "o $FILE"
 fi

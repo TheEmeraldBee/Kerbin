@@ -53,11 +53,31 @@ impl Command for PaletteCommand {
             Self::ExecutePalette => {
                 let content = palette.input.clone();
                 drop(palette);
+
+                let tokens = tokenize(&content).unwrap_or_default();
+                let resolver = resolver_engine().await;
+                let resolver = resolver.as_resolver();
+
+                let mut expansion_errors: Vec<String> = Vec::new();
+                let expanded = resolver.expand_tokens_reporting(tokens, true, &mut expansion_errors);
+
+                let log = state.lock_state::<LogSender>().await;
+                for err in &expansion_errors {
+                    log.high("palette", err);
+                }
+                drop(log);
+
+                if !expansion_errors.is_empty() {
+                    return false;
+                }
+
+                drop(resolver);
+
                 let command = state.lock_state::<CommandRegistry>().await.parse_command(
-                    tokenize(&content).unwrap_or_default(),
+                    expanded,
                     true,
                     false,
-                    Some(&resolver_engine().await.as_resolver()),
+                    None,
                     true,
                     &*state.lock_state::<CommandPrefixRegistry>().await,
                     &*state.lock_state::<ModeStack>().await,
