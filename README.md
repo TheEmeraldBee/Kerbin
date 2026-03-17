@@ -42,7 +42,7 @@ comes from commands within the `.kb` files in your configuration
 
 Install `booster`, kerbin's installation and update manager
 ```bash
-cargo install kerbin-booster 
+cargo install kerbin-booster --git https://github.com/EmeraldPandaTurtle/Kerbin.git
 ```
 
 Run the interactive installation system

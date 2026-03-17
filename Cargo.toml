@@ -3,7 +3,7 @@ resolver = "3"
 members = ["booster", "kerbin", "kerbin-core", "kerbin-input", "kerbin-macros", "kerbin-state-machine", "plugins/*"]
 
 [workspace.package]
-version = "0.1.1"
+version = "0.0.0"
 edition = "2024"
 
 [workspace.dependencies]
