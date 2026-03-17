@@ -1,4 +1,5 @@
 lsp-register rust --exts [rs] --cmd rust-analyzer --roots [Cargo.toml Cargo.lock]
+lsp-register go --exts [go] --cmd gopls --roots [go.mod]
 
 bind [space k] [hover] --desc "Show Hover"
 bind [tab] [snlc] --modes [i] --required [lsp_items] --desc "Select next LSP change"
