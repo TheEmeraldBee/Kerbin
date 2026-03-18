@@ -116,7 +116,8 @@ fn calculate_indent(
         .with_injected_queries(injected)
         .build();
 
-    let mut deepest_capture: Option<(usize, usize, String)> = None; // (depth, start_line, indent_type)
+    let mut deepest_capture: Option<(usize, usize, String)> = None; // (start_byte, start_line, indent_type)
+    let mut outdent_on_cursor_line = false;
 
     walker.walk(|entry| {
         // Check predicates first
@@ -130,13 +131,20 @@ fn calculate_indent(
             let start = range.start + entry.byte_offset;
             let end = range.end + entry.byte_offset;
 
-            if cursor_byte >= start && cursor_byte <= end {
+            if cursor_byte >= start && cursor_byte < end {
                 let capture_name = entry.query.capture_names()[capture.index as usize];
 
                 if capture_name == "indent"
                     || capture_name == "indent.begin"
                     || capture_name == "indent.always"
+                    || capture_name == "extend"
                 {
+                    // Skip if cursor is ON the closing delimiter (last byte) of this node
+                    let node_last_byte = end.saturating_sub(1);
+                    if cursor_byte >= node_last_byte {
+                        continue;
+                    }
+
                     if let Some((current_depth, _, _)) = deepest_capture {
                         if start > current_depth {
                             deepest_capture =
@@ -146,6 +154,12 @@ fn calculate_indent(
                         deepest_capture =
                             Some((start, node.start_position().row, "indent".to_string()));
                     }
+                } else if capture_name == "outdent" {
+                    let token_line = node.start_position().row;
+                    let cursor_line = buf.byte_to_line_clamped(cursor_byte);
+                    if token_line == cursor_line {
+                        outdent_on_cursor_line = true;
+                    }
                 }
             }
         }
@@ -154,6 +168,9 @@ fn calculate_indent(
 
     if let Some((_, start_line, _)) = deepest_capture {
         let base_indent = get_line_indent(buf, start_line);
+        if outdent_on_cursor_line {
+            return base_indent;
+        }
         let indent_unit = "    ";
         return format!("{}{}", base_indent, indent_unit);
     }
