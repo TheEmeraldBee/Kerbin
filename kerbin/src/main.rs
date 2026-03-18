@@ -235,7 +235,16 @@ async fn main() {
         commands.register::<RegisterCommand>();
 
         commands.register::<ConfigCommand>();
+
+        commands.register::<AutoPairsCommand>();
     }
+
+    state
+        .lock_state::<CommandInterceptorRegistry>()
+        .await
+        .on_command::<BufferCommand>(|cmd, state| {
+            Box::pin(auto_pairs_intercept(cmd, state))
+        });
 
     config::init(&mut state).await;
 
@@ -264,7 +273,10 @@ async fn main() {
         .system(update_palette_suggestions)
         .system(render_cursors_and_selections);
 
-    state.on_hook(hooks::PostUpdate).system(post_update_buffer);
+    state
+        .on_hook(hooks::PostUpdate)
+        .system(post_update_buffer)
+        .system(update_tab_width_template);
 
     state
         .on_hook(hooks::PreLines)
@@ -295,7 +307,7 @@ async fn main() {
         let frame_start = tokio::time::Instant::now();
 
         while let Ok(cmd) = command_reciever.try_recv() {
-            cmd.apply(&mut state).await;
+            dispatch_command(cmd, &mut state).await;
         }
 
         update(&mut state).await;
@@ -311,7 +323,7 @@ async fn main() {
             let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
             tokio::select! {
                 Some(cmd) = command_reciever.recv() => {
-                    cmd.apply(&mut state).await;
+                    dispatch_command(cmd, &mut state).await;
                 }
                 _ = tokio::time::sleep(remaining) => {
                     break;

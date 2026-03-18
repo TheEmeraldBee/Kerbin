@@ -749,9 +749,21 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
         }
     };
 
+    let command_any_impl = {
+        let ident = &info.ident;
+        quote! {
+            impl CommandAny for #ident {
+                fn as_any(&self) -> &(dyn std::any::Any + Send + Sync) {
+                    self
+                }
+            }
+        }
+    };
+
     let expanded = quote! {
         #as_command_info_impl
         #command_from_str_impl
+        #command_any_impl
     };
 
     expanded.into()

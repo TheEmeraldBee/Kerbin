@@ -31,10 +31,70 @@ pub use render::*;
 pub mod text_rope_handlers;
 pub use text_rope_handlers::*;
 
-use ropey::Rope;
+use ropey::{LineType, Rope};
 use tokio::sync::{OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
 
 use crate::EVENT_BUS;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum IndentStyle {
+    Tabs,
+    Spaces(usize),
+}
+
+impl Default for IndentStyle {
+    fn default() -> Self {
+        IndentStyle::Spaces(4)
+    }
+}
+
+impl IndentStyle {
+    pub fn tab_width(&self) -> usize {
+        match self {
+            IndentStyle::Tabs => 4,
+            IndentStyle::Spaces(n) => *n,
+        }
+    }
+}
+
+/// Detect the indentation style of a rope by analysing leading-whitespace deltas.
+pub fn detect_indent(rope: &Rope) -> IndentStyle {
+    for line in rope.lines(LineType::LF_CR) {
+        if line.chars().next() == Some('\t') {
+            return IndentStyle::Tabs;
+        }
+    }
+
+    let mut counts = [0usize; 9];
+    let mut prev_indent = 0usize;
+
+    for line in rope.lines(LineType::LF_CR) {
+        let s: String = line.chars().collect();
+        let trimmed = s.trim_end_matches(['\n', '\r']);
+        if trimmed.trim().is_empty() {
+            continue;
+        }
+
+        let indent = trimmed.chars().take_while(|c| *c == ' ').count();
+        if indent > prev_indent {
+            let delta = indent - prev_indent;
+            if delta <= 8 {
+                counts[delta] += 1;
+            }
+        }
+        prev_indent = indent;
+    }
+
+    let tab_size = counts[1..]
+        .iter()
+        .enumerate()
+        .max_by_key(|&(_, &n)| n)
+        .filter(|&(_, &n)| n > 0)
+        .map(|(i, _)| i + 1)
+        .unwrap_or(4);
+
+    IndentStyle::Spaces(tab_size)
+}
 
 /// Used internally for defining a set of actions that were applied together as a single undo/redo unit
 #[derive(Default)]
@@ -62,6 +122,9 @@ pub struct TextBuffer {
 
     /// The file extension derived from the `path`
     pub ext: String,
+
+    /// The detected indentation style of the file
+    pub indent_style: IndentStyle,
 
     /// A vector of all active `Cursor`s in this buffer
     pub cursors: Vec<Cursor>,
@@ -102,6 +165,7 @@ impl Default for TextBuffer {
 
             path: "<scratch>".into(),
             ext: "".into(),
+            indent_style: IndentStyle::default(),
 
             cursors: vec![Cursor::default()],
             primary_cursor: 0,
@@ -152,6 +216,8 @@ impl TextBuffer {
             found_ext = ext.to_string();
         }
 
+        let indent_style = detect_indent(&rope);
+
         Ok(Self {
             save_point: 0,
 
@@ -160,6 +226,7 @@ impl TextBuffer {
             rope,
             path: path.to_str().map(|x| x.to_string()).unwrap_or_default(),
             ext: found_ext,
+            indent_style,
 
             ..Default::default()
         })

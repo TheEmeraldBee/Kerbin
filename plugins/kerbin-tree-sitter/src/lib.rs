@@ -31,5 +31,12 @@ pub async fn init(state: &mut State) {
     commands.register::<TreeSitterCommand>();
     commands.register::<InstallCommand>();
     commands.register::<ScopeInfoCommand>();
-    commands.register::<crate::indent::IndentCommand>();
+    drop(commands);
+
+    state
+        .lock_state::<CommandInterceptorRegistry>()
+        .await
+        .on_command::<BufferCommand>(|cmd, state| {
+            Box::pin(crate::indent::newline_intercept(cmd, state))
+        });
 }

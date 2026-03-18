@@ -4,6 +4,12 @@ use kerbin_core::*;
 /// Command to process LSP events for all active clients
 pub struct ProcessLspEventsCommand;
 
+impl kerbin_core::CommandAny for ProcessLspEventsCommand {
+    fn as_any(&self) -> &(dyn std::any::Any + Send + Sync) {
+        self
+    }
+}
+
 #[async_trait::async_trait]
 impl kerbin_core::Command for ProcessLspEventsCommand {
     async fn apply(&self, state: &mut State) -> bool {

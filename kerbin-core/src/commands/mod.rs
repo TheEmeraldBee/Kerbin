@@ -53,9 +53,14 @@ pub struct CommandPrefix {
     pub list: Vec<String>,
 }
 
+/// Allows downcasting a `Box<dyn Command>` to a concrete type for typed interception.
+pub trait CommandAny {
+    fn as_any(&self) -> &(dyn std::any::Any + Send + Sync);
+}
+
 /// An applyable command that will change the whole state in some way
 #[async_trait::async_trait]
-pub trait Command: Send + Sync {
+pub trait Command: CommandAny + Send + Sync {
     async fn apply(&self, state: &mut State) -> bool;
 }
 

@@ -8,23 +8,14 @@ use crate::{
     state::TreeSitterState,
 };
 
-#[derive(Command)]
-pub enum IndentCommand {
-    #[command(drop_ident, name = "tree_sitter_newline", name = "ts_nl")]
-    /// Inserts a newline and uses tree-sitter to calculate indentation
-    Newline,
-}
-
-#[async_trait::async_trait]
-impl Command for IndentCommand {
-    async fn apply(&self, state: &mut State) -> bool {
-        match self {
-            Self::Newline => {
-                newline_and_indent(state).await;
-            }
-        }
-        false
+pub async fn newline_intercept(cmd: &BufferCommand, state: &mut State) -> InterceptorResult {
+    match cmd {
+        BufferCommand::Append { text, extend: false } if text == "\n" => {}
+        _ => return InterceptorResult::Allow,
     }
+
+    newline_and_indent(state).await;
+    InterceptorResult::Cancel
 }
 
 async fn newline_and_indent(state: &mut State) {

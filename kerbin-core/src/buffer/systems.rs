@@ -153,6 +153,19 @@ pub async fn post_update_buffer(buffers: ResMut<Buffers>) {
     buf.post_update();
 }
 
+pub async fn update_tab_width_template(buffers: Res<Buffers>) {
+    get!(buffers);
+    if buffers.buffers.is_empty() {
+        return;
+    }
+
+    let tab_unit = match &buffers.cur_buffer().await.indent_style {
+        IndentStyle::Tabs => "\t".to_string(),
+        IndentStyle::Spaces(n) => " ".repeat(*n),
+    };
+    resolver_engine_mut().await.set_template("tab_unit", [tab_unit]);
+}
+
 pub async fn cleanup_buffers(buffers: ResMut<Buffers>) {
     get!(mut buffers);
 

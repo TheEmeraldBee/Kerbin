@@ -134,3 +134,6 @@ pub use debounce::*;
 
 pub mod kb;
 pub use kb::*;
+
+pub mod auto_pairs;
+pub use auto_pairs::*;

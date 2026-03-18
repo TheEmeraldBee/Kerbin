@@ -12,6 +12,9 @@ pub use command_registry::*;
 pub mod command_prefix_registry;
 pub use command_prefix_registry::*;
 
+pub mod command_interceptor_registry;
+pub use command_interceptor_registry::*;
+
 pub mod mode_stack;
 pub use mode_stack::*;
 
@@ -64,6 +67,8 @@ pub fn init_state(
         .state(ModeStack(vec!['n']))
         .state(CommandRegistry(vec![]))
         .state(CommandPrefixRegistry(vec![]))
+        .state(CommandInterceptorRegistry::new())
+        .state(AutoPairs::default())
         .state(Chunks::default())
         .state(DebounceConfig::default())
         .state(StatuslineConfig::default());
