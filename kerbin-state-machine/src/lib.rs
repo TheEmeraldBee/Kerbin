@@ -103,10 +103,15 @@ impl HookInfo {
     }
 }
 
+pub struct NamedSystem {
+    pub id: &'static str,
+    pub inner: Box<dyn System + Send + Sync>,
+}
+
 #[derive(Default)]
 pub struct State {
     pub storage: StateStorage,
-    hooks: Vec<(HookInfo, Vec<Box<dyn System + Send + Sync>>)>,
+    hooks: Vec<(HookInfo, Vec<NamedSystem>)>,
 }
 
 impl State {
@@ -144,15 +149,32 @@ impl State {
         guarentee_params(&system);
         let hook_info = hook.info();
         let entry = self.hooks.iter_mut().find(|x| x.0.path == hook_info.path);
+        let named = NamedSystem { id: "", inner: Box::new(system) };
 
         if let Some(entry) = entry {
             entry.1.clear();
-            entry.1.push(Box::new(system));
+            entry.1.push(named);
         } else {
-            self.hooks.push((hook_info, vec![Box::new(system)]));
+            self.hooks.push((hook_info, vec![named]));
         }
 
         self
+    }
+
+    pub fn remove_hook_system<H: Hook>(&mut self, hook: H, id: &'static str) {
+        let hook_info = hook.info();
+        if let Some(entry) = self.hooks.iter_mut().find(|x| x.0.path == hook_info.path) {
+            entry.1.retain(|ns| ns.id != id);
+        }
+    }
+
+    pub fn has_hook_system<H: Hook>(&self, hook: H, id: &'static str) -> bool {
+        let hook_info = hook.info();
+        self.hooks
+            .iter()
+            .find(|x| x.0.path == hook_info.path)
+            .map(|entry| entry.1.iter().any(|ns| ns.id == id))
+            .unwrap_or(false)
     }
 
     pub fn on_hook<H: Hook>(&mut self, hook: H) -> HookBuilder<'_, H> {
@@ -212,13 +234,13 @@ impl<'a> HookCallBuilder<'a> {
     }
 }
 
-pub async fn run_system_groups(systems: &[Box<dyn System + Send + Sync>], storage: &StateStorage) {
+pub async fn run_system_groups(systems: &[NamedSystem], storage: &StateStorage) {
     let indices = group_concurrent_system_indices(systems);
 
     for group in indices {
         let (_, res) = async_scoped::TokioScope::scope_and_block(|s| {
             for indice in group {
-                let system_future = systems[indice].call(storage);
+                let system_future = systems[indice].inner.call(storage);
                 s.spawn(system_future);
             }
         });
@@ -241,6 +263,14 @@ impl<'a, H: Hook> HookBuilder<'a, H> {
         &mut self,
         sys: impl IntoSystem<I, D, System = S>,
     ) -> &mut Self {
+        self.system_named("", sys)
+    }
+
+    pub fn system_named<I, D, S: System + Send + Sync + 'static>(
+        &mut self,
+        id: &'static str,
+        sys: impl IntoSystem<I, D, System = S>,
+    ) -> &mut Self {
         let system = sys.into_system();
         guarentee_params(&system);
         let hook_info = self.hook.info();
@@ -249,20 +279,19 @@ impl<'a, H: Hook> HookBuilder<'a, H> {
             .hooks
             .iter_mut()
             .find(|x| x.0.path == hook_info.path);
+        let named = NamedSystem { id, inner: Box::new(system) };
 
         if let Some(entry) = entry {
-            entry.1.push(Box::new(system))
+            entry.1.push(named)
         } else {
-            self.state.hooks.push((hook_info, vec![Box::new(system)]));
+            self.state.hooks.push((hook_info, vec![named]));
         }
 
         self
     }
 }
 
-pub fn group_concurrent_system_indices(
-    systems: &[Box<dyn System + Send + Sync>],
-) -> Vec<Vec<usize>> {
+pub fn group_concurrent_system_indices(systems: &[NamedSystem]) -> Vec<Vec<usize>> {
     let mut remaining_indices: Vec<usize> = (0..systems.len()).collect();
     let mut groups: Vec<Vec<usize>> = Vec::new();
 
@@ -273,7 +302,7 @@ pub fn group_concurrent_system_indices(
         let mut indices_to_remove = Vec::new();
 
         for (pos, &system_idx) in remaining_indices.iter().enumerate() {
-            let system_params = systems[system_idx].params();
+            let system_params = systems[system_idx].inner.params();
 
             let has_reserved = system_params.iter().any(|p| p.reserved);
 
@@ -290,7 +319,7 @@ pub fn group_concurrent_system_indices(
             if !current_group.is_empty() {
                 let group_has_reserved = current_group
                     .iter()
-                    .any(|&idx| systems[idx].params().iter().any(|p| p.reserved));
+                    .any(|&idx| systems[idx].inner.params().iter().any(|p| p.reserved));
                 if group_has_reserved {
                     continue;
                 }
@@ -426,13 +455,12 @@ mod tests {
         }
     }
 
-    fn create_systems(
-        system_configs: Vec<Vec<(&str, bool, bool)>>,
-    ) -> Vec<Box<dyn System + Send + Sync + 'static>> {
+    fn create_systems(system_configs: Vec<Vec<(&str, bool, bool)>>) -> Vec<NamedSystem> {
         system_configs
             .into_iter()
-            .map(|config| {
-                Box::new(MockSystem::new(config)) as Box<dyn System + Send + Sync + 'static>
+            .map(|config| NamedSystem {
+                id: "",
+                inner: Box::new(MockSystem::new(config)) as Box<dyn System + Send + Sync + 'static>,
             })
             .collect()
     }
@@ -595,7 +623,7 @@ mod tests {
 
     #[test]
     fn test_empty_systems() {
-        let systems: Vec<Box<dyn System + Send + Sync>> = vec![];
+        let systems: Vec<NamedSystem> = vec![];
         let groups = group_concurrent_system_indices(&systems);
         assert_eq!(groups.len(), 0);
     }

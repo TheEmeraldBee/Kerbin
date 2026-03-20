@@ -71,7 +71,8 @@ pub fn init_state(
         .state(AutoPairs::default())
         .state(Chunks::default())
         .state(DebounceConfig::default())
-        .state(StatuslineConfig::default());
+        .state(StatuslineConfig::default())
+        .state(LayoutConfig::default());
 
     state
 }

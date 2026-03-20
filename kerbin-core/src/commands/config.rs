@@ -357,8 +357,37 @@ impl Command for ConfigCommand {
                         state.lock_state::<CoreConfig>().await.framerate = n;
                     }
                 }
+                "auto_pairs" => match value.as_str() {
+                    "enable" => {
+                        state.lock_state::<CoreConfig>().await.disable_auto_pairs = false;
+                        // Remove any existing registration to avoid duplicates, then re-add.
+                        let mut registry = state.lock_state::<CommandInterceptorRegistry>().await;
+                        registry.remove_command_interceptor::<BufferCommand>("core::auto_pairs");
+                        registry.on_command_named::<BufferCommand>(
+                            "core::auto_pairs",
+                            0,
+                            |cmd, state| Box::pin(auto_pairs_intercept(cmd, state)),
+                        );
+                    }
+                    "disable" => {
+                        state.lock_state::<CoreConfig>().await.disable_auto_pairs = true;
+                        state
+                            .lock_state::<CommandInterceptorRegistry>()
+                            .await
+                            .remove_command_interceptor::<BufferCommand>("core::auto_pairs");
+                    }
+                    _ => {
+                        state.lock_state::<LogSender>().await.critical(
+                            "commands::core",
+                            format!("Expected `enable` or `disable`, found: {}", value),
+                        );
+                    }
+                },
                 _ => {
-                    tracing::warn!("core: unknown key '{}'", key);
+                    state.lock_state::<LogSender>().await.critical(
+                        "commands::core",
+                        format!("Unknown key for core config: {}", key),
+                    );
                 }
             },
 

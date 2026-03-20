@@ -26,21 +26,25 @@ pub struct KerbinArgs {
     files: Vec<PathBuf>,
 }
 
-pub async fn register_default_chunks(chunks: ResMut<Chunks>, window: Res<WindowState>) {
-    get!(mut chunks, window);
+pub async fn register_default_chunks(
+    chunks: ResMut<Chunks>,
+    window: Res<WindowState>,
+    layout: Res<LayoutConfig>,
+) {
+    get!(mut chunks, window, layout);
 
     let size = window.size();
 
     let [bufferline, main_area, statusline] = Layout::vertical([
-        Constraint::Length(1),
+        Constraint::Length(layout.bufferline_height),
         Constraint::Fill(1),
-        Constraint::Length(1),
+        Constraint::Length(layout.statusline_height),
     ])
     .areas(size);
 
     let [gutter, _pad, buffer] = Layout::horizontal([
-        Constraint::Length(5),
-        Constraint::Length(2),
+        Constraint::Length(layout.gutter_width),
+        Constraint::Length(layout.gutter_pad),
         Constraint::Fill(1),
     ])
     .areas(main_area);
@@ -240,11 +244,6 @@ async fn main() {
         commands.register::<AutoPairsCommand>();
     }
 
-    state
-        .lock_state::<CommandInterceptorRegistry>()
-        .await
-        .on_command::<BufferCommand>(|cmd, state| Box::pin(auto_pairs_intercept(cmd, state)));
-
     config::init(&mut state).await;
 
     let kb_path = PathBuf::from(format!("{config_path}/config/config.kb"));
@@ -255,45 +254,59 @@ async fn main() {
             .critical("core::config_load", e);
     }
 
-    let framerate = state.lock_state::<CoreConfig>().await.framerate;
+    let (framerate, disable_auto_pairs) = {
+        let cfg = state.lock_state::<CoreConfig>().await;
+        (cfg.framerate, cfg.disable_auto_pairs)
+    };
     let ms_per_frame = 1000 / framerate;
+
+    if !disable_auto_pairs {
+        state
+            .lock_state::<CommandInterceptorRegistry>()
+            .await
+            .on_command_named::<BufferCommand>(
+                "core::auto_pairs",
+                0,
+                |cmd, state| Box::pin(auto_pairs_intercept(cmd, state)),
+            );
+    }
 
     state
         .on_hook(hooks::ChunkRegister)
-        .system(register_default_chunks)
-        .system(register_command_palette_chunks)
-        .system(register_log_chunk)
-        .system(register_help_menu_chunk);
+        .system_named("core::layout", register_default_chunks)
+        .system_named("core::command_palette_chunks", register_command_palette_chunks)
+        .system_named("core::log_chunk", register_log_chunk)
+        .system_named("core::help_menu_chunk", register_help_menu_chunk);
 
     state
         .on_hook(hooks::Update)
-        .system(update_debounce)
-        .system(handle_inputs)
-        .system(update_palette_suggestions)
-        .system(render_cursors_and_selections);
+        .system_named("core::update_debounce", update_debounce)
+        .system_named("core::handle_inputs", handle_inputs)
+        .system_named("core::update_palette_suggestions", update_palette_suggestions)
+        .system_named("core::render_cursors_and_selections", render_cursors_and_selections);
 
     state
         .on_hook(hooks::PostUpdate)
-        .system(post_update_buffer)
-        .system(update_tab_width_template);
+        .system_named("core::post_update_buffer", post_update_buffer)
+        .system_named("core::update_tab_width_template", update_tab_width_template);
 
     state
         .on_hook(hooks::PreLines)
-        .system(update_buffer_horizontal_scroll)
-        .system(update_buffer_vertical_scroll);
+        .system_named("core::update_buffer_horizontal_scroll", update_buffer_horizontal_scroll)
+        .system_named("core::update_buffer_vertical_scroll", update_buffer_vertical_scroll);
 
     state
         .on_hook(hooks::Render)
-        .system(render_statusline)
-        .system(render_command_palette)
-        .system(render_help_menu)
-        .system(render_bufferline)
-        .system(render_log)
-        .system(render_buffer_default);
+        .system_named("core::render_statusline", render_statusline)
+        .system_named("core::render_command_palette", render_command_palette)
+        .system_named("core::render_help_menu", render_help_menu)
+        .system_named("core::render_bufferline", render_bufferline)
+        .system_named("core::render_log", render_log)
+        .system_named("core::render_buffer", render_buffer_default);
 
-    state.on_hook(hooks::UpdateCleanup).system(cleanup_buffers);
+    state.on_hook(hooks::UpdateCleanup).system_named("core::cleanup_buffers", cleanup_buffers);
 
-    state.on_hook(hooks::RenderChunks).system(render_chunks);
+    state.on_hook(hooks::RenderChunks).system_named("core::render_chunks", render_chunks);
 
     state.hook(hooks::PostInit).call().await;
 

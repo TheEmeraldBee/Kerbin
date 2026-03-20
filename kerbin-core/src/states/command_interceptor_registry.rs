@@ -42,10 +42,16 @@ impl<C: Any + Send + Sync + 'static> ErasedInterceptor for TypedInterceptorFn<C>
     }
 }
 
+struct NamedInterceptor {
+    id: &'static str,
+    priority: i32,
+    inner: Arc<dyn ErasedInterceptor>,
+}
+
 /// Registry for pre-dispatch command interceptors, keyed by concrete command type.
 #[derive(State)]
 pub struct CommandInterceptorRegistry {
-    interceptors: HashMap<TypeId, Vec<Arc<dyn ErasedInterceptor>>>,
+    interceptors: HashMap<TypeId, Vec<NamedInterceptor>>,
 }
 
 impl CommandInterceptorRegistry {
@@ -55,9 +61,23 @@ impl CommandInterceptorRegistry {
         }
     }
 
-    /// Register an interceptor for commands of type `C`.
+    /// Register an anonymous interceptor for commands of type `C`.
     pub fn on_command<C>(
         &mut self,
+        f: impl for<'a> Fn(&'a C, &'a mut State) -> InterceptorFuture<'a> + Send + Sync + 'static,
+    ) where
+        C: Command + Any + Send + Sync + 'static,
+    {
+        self.on_command_named::<C>("", 0, f);
+    }
+
+    /// Register a named interceptor with a priority for commands of type `C`.
+    /// Lower priority values run first. Interceptors with equal priority run in
+    /// registration order.
+    pub fn on_command_named<C>(
+        &mut self,
+        id: &'static str,
+        priority: i32,
         f: impl for<'a> Fn(&'a C, &'a mut State) -> InterceptorFuture<'a> + Send + Sync + 'static,
     ) where
         C: Command + Any + Send + Sync + 'static,
@@ -65,11 +85,26 @@ impl CommandInterceptorRegistry {
         self.interceptors
             .entry(TypeId::of::<C>())
             .or_default()
-            .push(Arc::new(TypedInterceptorFn { f: Box::new(f) }));
+            .push(NamedInterceptor {
+                id,
+                priority,
+                inner: Arc::new(TypedInterceptorFn { f: Box::new(f) }),
+            });
+    }
+
+    /// Remove all interceptors registered under `id` for command type `C`.
+    pub fn remove_command_interceptor<C: Any + 'static>(&mut self, id: &'static str) {
+        if let Some(vec) = self.interceptors.get_mut(&TypeId::of::<C>()) {
+            vec.retain(|ni| ni.id != id);
+        }
     }
 
     fn get_for(&self, type_id: TypeId) -> Option<Vec<Arc<dyn ErasedInterceptor>>> {
-        self.interceptors.get(&type_id).cloned()
+        self.interceptors.get(&type_id).map(|vec| {
+            let mut sorted: Vec<&NamedInterceptor> = vec.iter().collect();
+            sorted.sort_by_key(|ni| ni.priority);
+            sorted.into_iter().map(|ni| ni.inner.clone()).collect()
+        })
     }
 }
 

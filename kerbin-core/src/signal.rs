@@ -1,5 +1,5 @@
 use kerbin_state_machine::{
-    State, run_system_groups,
+    NamedSystem, State, run_system_groups,
     system::{System, into_system::IntoSystem},
 };
 use std::{
@@ -14,7 +14,7 @@ use crate::*;
 
 struct EventEntry {
     active: bool,
-    subscribers: Vec<Box<dyn System + Send + Sync>>,
+    subscribers: Vec<NamedSystem>,
     data: Option<Box<dyn Any + Send + Sync>>,
 }
 
@@ -100,7 +100,7 @@ impl<'a> SubscriberBuilder<'a> {
                 data: None,
             })
             .subscribers
-            .push(Box::new(system.into_system()))
+            .push(NamedSystem { id: "", inner: Box::new(system.into_system()) as Box<dyn System + Send + Sync> })
     }
 }
 

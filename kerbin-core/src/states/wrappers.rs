@@ -48,11 +48,33 @@ pub struct ConfigDir(pub PathBuf);
 #[derive(State)]
 pub struct CoreConfig {
     pub framerate: u64,
+    pub disable_auto_pairs: bool,
 }
 
 impl Default for CoreConfig {
     fn default() -> Self {
-        Self { framerate: 60 }
+        Self { framerate: 60, disable_auto_pairs: false }
+    }
+}
+
+/// Layout dimensions for the editor's chrome (gutter, statusline, bufferline).
+/// Plugins may mutate these during init (before `PostInit`) to resize or hide chrome areas.
+#[derive(State)]
+pub struct LayoutConfig {
+    pub bufferline_height: u16,
+    pub statusline_height: u16,
+    pub gutter_width: u16,
+    pub gutter_pad: u16,
+}
+
+impl Default for LayoutConfig {
+    fn default() -> Self {
+        Self {
+            bufferline_height: 1,
+            statusline_height: 1,
+            gutter_width: 5,
+            gutter_pad: 2,
+        }
     }
 }
 
