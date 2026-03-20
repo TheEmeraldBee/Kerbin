@@ -30,6 +30,9 @@ pub use hover::*;
 pub mod autocomplete;
 pub use autocomplete::*;
 
+pub mod navigation;
+pub use navigation::*;
+
 // Re-Exports
 pub use lsp_types::*;
 
@@ -84,6 +87,7 @@ pub async fn init(state: &mut State) {
         command_registry.register::<LspCommand>();
         command_registry.register::<HoverCommand>();
         command_registry.register::<CompletionCommand>();
+        command_registry.register::<NavigationCommand>();
     }
 
     // Setup global state handlers
@@ -102,6 +106,22 @@ pub async fn init(state: &mut State) {
 
         handler_manager.on_global_response("textDocument/completion", |state, msg| {
             Box::pin(handle_completion(state, msg))
+        });
+
+        handler_manager.on_global_response("textDocument/definition", |state, msg| {
+            Box::pin(handle_navigation(state, msg))
+        });
+        handler_manager.on_global_response("textDocument/references", |state, msg| {
+            Box::pin(handle_navigation(state, msg))
+        });
+        handler_manager.on_global_response("textDocument/implementation", |state, msg| {
+            Box::pin(handle_navigation(state, msg))
+        });
+        handler_manager.on_global_response("textDocument/typeDefinition", |state, msg| {
+            Box::pin(handle_navigation(state, msg))
+        });
+        handler_manager.on_global_response("textDocument/declaration", |state, msg| {
+            Box::pin(handle_navigation(state, msg))
         });
     }
 }

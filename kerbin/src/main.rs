@@ -23,7 +23,7 @@ pub struct KerbinArgs {
 
     /// Files to open on startup
     #[clap(value_name = "FILE")]
-    files: Vec<std::path::PathBuf>,
+    files: Vec<PathBuf>,
 }
 
 pub async fn register_default_chunks(chunks: ResMut<Chunks>, window: Res<WindowState>) {
@@ -235,6 +235,7 @@ async fn main() {
         commands.register::<RegisterCommand>();
 
         commands.register::<ConfigCommand>();
+        commands.register::<DebugCommand>();
 
         commands.register::<AutoPairsCommand>();
     }
@@ -242,9 +243,7 @@ async fn main() {
     state
         .lock_state::<CommandInterceptorRegistry>()
         .await
-        .on_command::<BufferCommand>(|cmd, state| {
-            Box::pin(auto_pairs_intercept(cmd, state))
-        });
+        .on_command::<BufferCommand>(|cmd, state| Box::pin(auto_pairs_intercept(cmd, state)));
 
     config::init(&mut state).await;
 

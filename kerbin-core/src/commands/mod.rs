@@ -33,6 +33,9 @@ pub use input::*;
 mod config;
 pub use config::*;
 
+mod debug;
+pub use debug::*;
+
 /// Type alias for a command parsing function.
 type CommandFn = Box<dyn Fn(&[Token]) -> Option<Result<Box<dyn Command>, String>> + Send + Sync>;
 
@@ -165,14 +168,10 @@ impl CommandInfo {
                 "ui.commandline.names",
                 "ui.text",
             ]);
-            let bracket_style =
-                theme.get_fallback_default(["ui.commandline.bracket", "ui.text"]);
+            let bracket_style = theme.get_fallback_default(["ui.commandline.bracket", "ui.text"]);
 
             spans.push(Span::styled("(", bracket_style));
-            spans.push(Span::styled(
-                self.valid_names[1..].join(", "),
-                alias_style,
-            ));
+            spans.push(Span::styled(self.valid_names[1..].join(", "), alias_style));
             spans.push(Span::styled(") ", bracket_style));
         }
 

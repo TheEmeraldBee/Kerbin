@@ -2,7 +2,7 @@ use std::time::{Duration, SystemTime};
 
 use crate::*;
 use ratatui::prelude::*;
-use ratatui::widgets::{Block, BorderType, Paragraph};
+use ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 pub async fn register_log_chunk(
@@ -21,15 +21,16 @@ pub async fn register_log_chunk(
 
     get!(mut chunks, window);
 
-    // Calculate total height needed for all notifications
-    let max_width = window.size().width as usize;
-    let notification_width = (max_width.saturating_sub(4)).min(60);
+    let chunk_width = (window.size().width / 4) as usize;
+    let notification_width = (chunk_width.saturating_sub(4)).min(60);
     let text_width = notification_width.saturating_sub(4);
 
     let mut total_height = 0u16;
     for msg in log.entries().iter() {
-        let wrapped_lines = wrap_text(&msg.message.message, text_width);
-        let notification_height = 2 + wrapped_lines.len() as u16 + 1;
+        let line_count = Paragraph::new(msg.message.message.as_str())
+            .wrap(Wrap { trim: false })
+            .line_count(text_width as u16);
+        let notification_height = 2 + line_count as u16 + 1;
         total_height += notification_height + 1;
     }
 
@@ -84,10 +85,22 @@ fn render_notification(
     let margin = 2;
     let notification_width = (max_width.saturating_sub(margin * 2)).min(60) as u16;
 
-    let text_width = (notification_width.saturating_sub(4)) as usize;
-    let wrapped_lines = wrap_text(&msg.message.message, text_width);
+    let text_width = notification_width.saturating_sub(4);
+    let paragraph = Paragraph::new(msg.message.message.as_str())
+        .style(style)
+        .wrap(Wrap { trim: false });
+    let line_count = paragraph.line_count(text_width);
 
-    let notification_height = 2 + wrapped_lines.len() as u16;
+    let start_y = chunk_area.y + top_y + 1;
+
+    // Nothing to render if we're already past the bottom
+    if start_y >= chunk_area.bottom() {
+        return 2 + line_count as u16;
+    }
+
+    // Clamp height to remaining space so tall messages still render (truncated)
+    let max_height = chunk_area.bottom() - start_y;
+    let notification_height = (2 + line_count as u16).min(max_height);
 
     let start_x = chunk_area
         .width
@@ -95,15 +108,10 @@ fn render_notification(
 
     let notification_rect = Rect::new(
         chunk_area.x + start_x,
-        chunk_area.y + top_y + 1,
+        start_y,
         notification_width,
         notification_height,
     );
-
-    // Render notification only if it fits in chunk area
-    if notification_rect.bottom() > chunk_area.bottom() {
-        return notification_height;
-    }
 
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
@@ -114,30 +122,9 @@ fn render_notification(
 
     block.render(notification_rect, buf);
 
-    let lines: Vec<Line<'static>> = wrapped_lines
-        .iter()
-        .map(|line| Line::from(Span::styled(line.clone(), style)))
-        .collect();
-
-    Paragraph::new(lines).render(inner, buf);
+    paragraph.render(inner, buf);
 
     notification_height
-}
-
-pub fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
-    text.split_whitespace()
-        .fold(vec![String::new()], |mut lines, word| {
-            let current_line = lines.last_mut().unwrap();
-            if current_line.len() + word.len() + 1 > max_width {
-                lines.push(word.to_string());
-            } else {
-                if !current_line.is_empty() {
-                    current_line.push(' ');
-                }
-                current_line.push_str(word);
-            }
-            lines
-        })
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]

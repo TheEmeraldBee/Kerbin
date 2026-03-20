@@ -88,7 +88,7 @@ impl<'a> Resolver<'a> {
                         values.iter().map(|v| Token::Word(v.clone())).collect()
                     } else {
                         errors.push(format!("Unknown template: %{name}"));
-                        vec![]
+                        vec![Token::Variable(name)]
                     }
                 }
 
@@ -128,6 +128,14 @@ impl<'a> Resolver<'a> {
 
                 Token::Interpolated(parts) => {
                     let expanded = self.expand_tokens_reporting(parts, allow_run, errors);
+                    // If any inner token is still unresolved, preserve this Interpolated
+                    // so it can be expanded again later when the template is populated.
+                    if expanded
+                        .iter()
+                        .any(|t| matches!(t, Token::Variable(_) | Token::Interpolated(_)))
+                    {
+                        return vec![Token::Interpolated(expanded)];
+                    }
                     let joined = expanded
                         .into_iter()
                         .map(|t| match t {

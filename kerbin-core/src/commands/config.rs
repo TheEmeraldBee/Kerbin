@@ -239,19 +239,32 @@ impl Command for ConfigCommand {
 
                 let log = state.lock_state::<LogSender>().await;
 
-                let mut keys = resolver_engine()
-                    .await
-                    .templates()
-                    .keys()
-                    .cloned()
-                    .filter(|x| filter.iter().any(|f| x.contains(f)))
-                    .collect::<Vec<_>>();
+                if filter.is_empty() {
+                    log.high(
+                        "list-templates",
+                        resolver_engine()
+                            .await
+                            .templates()
+                            .iter()
+                            .map(|x| x.0.clone())
+                            .reduce(|l, r| format!("{l}, {r}"))
+                            .unwrap_or_default(),
+                    );
+                } else {
+                    let mut keys = resolver_engine()
+                        .await
+                        .templates()
+                        .keys()
+                        .cloned()
+                        .filter(|x| filter.iter().any(|f| x.contains(f)))
+                        .collect::<Vec<_>>();
 
-                keys.sort();
+                    keys.sort();
 
-                let out = keys.join(", ");
+                    let out = keys.join(", ");
 
-                log.high("list-templates", out);
+                    log.high("list-templates", out);
+                }
             }
 
             ConfigCommand::Palette { name, value } => {

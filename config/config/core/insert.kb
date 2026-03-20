@@ -1,7 +1,7 @@
 # Insert mode keybindings
 
 bind [i] [pm i] --invalid [i] --desc "Insert Mode"
-bind [enter] [a '\n'] --modes [i] --desc "Insert Newline"
+bind [enter] [a "\n"] --modes [i] --desc "Insert Newline"
 bind [tab] [[a %tab_unit] [gse] [cs]] --modes [i]
 bind [%alphabet] [a %0] --modes [i] --desc "Insert character"
 bind [%cap_alphabet] [a %0] --modes [i] --desc "Insert character"

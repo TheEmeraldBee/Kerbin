@@ -37,6 +37,25 @@ impl<W: AsyncWrite + Unpin + Send + 'static> ClientFacade for LspClient<W> {
                         dynamic_registration: None,
                         content_format: Some(vec![MarkupKind::Markdown]),
                     }),
+                    definition: Some(GotoCapability {
+                        dynamic_registration: Some(false),
+                        link_support: Some(false),
+                    }),
+                    declaration: Some(GotoCapability {
+                        dynamic_registration: Some(false),
+                        link_support: Some(false),
+                    }),
+                    type_definition: Some(GotoCapability {
+                        dynamic_registration: Some(false),
+                        link_support: Some(false),
+                    }),
+                    implementation: Some(GotoCapability {
+                        dynamic_registration: Some(false),
+                        link_support: Some(false),
+                    }),
+                    references: Some(DynamicRegistrationClientCapabilities {
+                        dynamic_registration: Some(false),
+                    }),
                     completion: Some(CompletionClientCapabilities {
                         dynamic_registration: None,
 
