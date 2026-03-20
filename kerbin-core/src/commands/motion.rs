@@ -163,8 +163,9 @@ impl Command for MotionCommand {
 
                 let line_idx = cur_buffer.byte_to_line_clamped(current_caret_byte);
                 let line_end_byte = cur_buffer
-                    .line_to_byte_clamped(line_idx + 1)
-                    .saturating_sub(1);
+                    .line_to_byte(line_idx + 1)
+                    .map(|b| b.saturating_sub(1))
+                    .unwrap_or_else(|| cur_buffer.len());
 
                 let new_caret_byte = line_end_byte;
 

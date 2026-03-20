@@ -335,4 +335,3 @@ async fn main() {
     // Restore terminal
     ratatui::restore();
 }
-
