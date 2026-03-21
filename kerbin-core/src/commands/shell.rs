@@ -81,7 +81,7 @@ impl Command for ShellCommand {
                     }
                 };
 
-                resolver_engine_mut().await.set_template("out", [text]);
+                resolver_engine_mut().await.set_template("out", text);
 
                 let command = state.lock_state::<CommandRegistry>().await.parse_command(
                     cmd.clone(),

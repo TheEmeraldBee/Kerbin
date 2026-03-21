@@ -75,12 +75,7 @@ pub enum ConfigCommand {
 
     /// Register a template expansion.
     #[command]
-    Template {
-        name: String,
-
-        #[command(type_name = "[any]")]
-        values: Vec<Token>,
-    },
+    Template { name: String, value: Token },
 
     /// List all available templates to the log
     ///
@@ -225,26 +220,23 @@ impl Command for ConfigCommand {
                 }
             }
 
-            ConfigCommand::Template { name, values } => {
+            ConfigCommand::Template { name, value } => {
+                let items = match value {
+                    Token::List(items) => items.clone(),
+                    other => vec![other.clone()],
+                };
+
                 let resolver = resolver_engine().await;
                 let r = resolver.as_resolver();
-
-                // Expand tokens
-                let strs: Vec<String> = r
-                    .expand_tokens(values.to_vec(), true)
-                    .iter()
-                    .filter_map(|t| {
-                        if let Token::Word(s) = t {
-                            Some(s.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
+                let expanded = r.expand_tokens(items, true);
                 drop(resolver);
 
-                resolver_engine_mut().await.set_template(name, strs);
+                let token = match expanded.len() {
+                    1 => expanded.into_iter().next().unwrap(),
+                    _ => Token::List(expanded),
+                };
+
+                resolver_engine_mut().await.set_template(name, token);
             }
 
             ConfigCommand::ListTemplates(filter) => {

@@ -4,14 +4,14 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
-use kerbin_input::{CommandExecutor, ParseError, Resolver};
+use kerbin_input::{CommandExecutor, ParseError, Resolver, Token};
 use tokio::sync::{OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
 
 #[derive(Default)]
 pub struct ResolverEngine {
     custom_fn: Option<Arc<CommandExecutor>>,
 
-    map: HashMap<String, Vec<String>>,
+    map: HashMap<String, Token>,
 }
 
 impl ResolverEngine {
@@ -45,7 +45,7 @@ impl ResolverEngine {
         )
     }
 
-    pub fn templates(&self) -> &HashMap<String, Vec<String>> {
+    pub fn templates(&self) -> &HashMap<String, Token> {
         &self.map
     }
 
@@ -53,27 +53,20 @@ impl ResolverEngine {
         self.custom_fn = solver;
     }
 
-    pub fn extend_map(&mut self, map: HashMap<String, Vec<String>>) {
+    pub fn extend_map(&mut self, map: HashMap<String, Token>) {
         self.map.extend(map);
     }
 
-    pub fn set_template(
-        &mut self,
-        template: impl ToString,
-        value: impl IntoIterator<Item = impl ToString>,
-    ) {
-        self.map.insert(
-            template.to_string(),
-            value.into_iter().map(|x| x.to_string()).collect(),
-        );
+    pub fn set_template(&mut self, name: impl ToString, value: impl Into<Token>) {
+        self.map.insert(name.to_string(), value.into());
     }
 
-    pub fn trash_template(&mut self, template: impl AsRef<str>) {
+    pub fn remove_template(&mut self, template: impl AsRef<str>) {
         self.map.remove(template.as_ref());
     }
 
-    pub fn get_template(&self, template: impl AsRef<str>) -> Option<&[String]> {
-        self.map.get(template.as_ref()).map(|x| &**x)
+    pub fn get_template(&self, template: impl AsRef<str>) -> Option<&Token> {
+        self.map.get(template.as_ref())
     }
 
     pub fn has_template(&self, template: impl AsRef<str>) -> bool {

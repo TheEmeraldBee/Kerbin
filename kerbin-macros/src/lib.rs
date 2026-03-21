@@ -552,6 +552,17 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                                         _ => return None,
                                     };
                                 }
+                            } else if is_token_type(ty) {
+                                // Token: accept any token at this position
+                                quote! {
+                                    let #var = match _positional
+                                        .get(#current_pos_idx)
+                                        .and_then(|&_i| val.get(_i))
+                                    {
+                                        Some(t) => t.clone(),
+                                        None => return None,
+                                    };
+                                }
                             } else if let Some(inner_ty) = get_option_inner_type(ty) {
                                 quote! {
                                     let #var = if let Some(&_pi) = _positional.get(#current_pos_idx) {
@@ -671,6 +682,14 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                                         }).collect::<Vec<#inner_ty>>()
                                     }
                                     _ => return None,
+                                };
+                            }
+                        } else if is_token_type(ty) {
+                            // Token: accept any token at this position
+                            quote! {
+                                let #var = match val.get(#idx_usize) {
+                                    Some(t) => t.clone(),
+                                    None => return None,
                                 };
                             }
                         } else if let Some(inner_ty) = get_option_inner_type(ty) {

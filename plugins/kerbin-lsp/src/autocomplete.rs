@@ -58,7 +58,11 @@ async fn trigger_completion_request(buf: &mut TextBuffer, lsps: &mut LspManager)
     let cursor_byte = cursor.get_cursor_byte().min(buf.len());
 
     let line = buf.byte_to_line_clamped(cursor_byte);
-    let character = cursor_byte - buf.line_to_byte_clamped(line);
+    let line_start = buf.line_to_byte_clamped(line);
+    let character: usize = buf
+        .slice(line_start, cursor_byte)
+        .map(|s| s.chars().map(|c| c.len_utf16()).sum())
+        .unwrap_or(0);
 
     let params = CompletionParams {
         text_document_position: TextDocumentPositionParams {
@@ -466,7 +470,7 @@ impl Command for CompletionCommand {
 
                 completion_state.info = None;
                 completion_state.just_accepted = true;
-                resolver_engine_mut().await.trash_template("lsp_items");
+                resolver_engine_mut().await.remove_template("lsp_items");
             }
             Self::Trash => {
                 let mut bufs = state.lock_state::<Buffers>().await;
@@ -476,7 +480,7 @@ impl Command for CompletionCommand {
                     buf.get_or_insert_state_mut(CompletionState::default).await;
 
                 completion_state.info = None;
-                resolver_engine_mut().await.trash_template("lsp_items");
+                resolver_engine_mut().await.remove_template("lsp_items");
             }
             Self::SelectNext => {
                 let mut bufs = state.lock_state::<Buffers>().await;
@@ -567,7 +571,7 @@ pub async fn handle_completion(state: &State, msg: &JsonRpcMessage) {
             .map(|i| i.label.clone())
             .collect();
 
-        resolver_engine_mut().await.set_template("lsp_items", items);
+        resolver_engine_mut().await.set_template("lsp_items", Token::list_from(items));
     }
 }
 
@@ -585,7 +589,7 @@ pub async fn update_completions(bufs: ResMut<Buffers>, lsps: ResMut<LspManager>)
     {
         state.just_accepted = false;
         state.info = None;
-        resolver_engine_mut().await.trash_template("lsp_items");
+        resolver_engine_mut().await.remove_template("lsp_items");
         return;
     }
 
@@ -604,7 +608,7 @@ pub async fn update_completions(bufs: ResMut<Buffers>, lsps: ResMut<LspManager>)
     if cursor_char_idx <= current_char_idx {
         if let Some(mut state) = buf.get_state_mut::<CompletionState>().await {
             state.info = None;
-            resolver_engine_mut().await.trash_template("lsp_items");
+            resolver_engine_mut().await.remove_template("lsp_items");
         }
         return;
     }
@@ -653,7 +657,7 @@ pub async fn render_completions(
 
     if cursor_byte < pos || start_line != current_line {
         state.info = None;
-        resolver_engine_mut().await.trash_template("lsp_items");
+        resolver_engine_mut().await.remove_template("lsp_items");
         return;
     }
 

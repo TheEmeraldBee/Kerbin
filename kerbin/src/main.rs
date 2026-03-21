@@ -195,11 +195,11 @@ async fn main() {
 
     resolver_engine_mut()
         .await
-        .set_template("cfg_folder", [&config_path]);
+        .set_template("cfg_folder", &config_path);
 
     resolver_engine_mut()
         .await
-        .set_template("session", [session_id]);
+        .set_template("session", session_id.to_string());
 
     init_log();
 
@@ -207,7 +207,7 @@ async fn main() {
     execute!(std::io::stdout(), EnableMouseCapture).ok();
 
     // Initialize terminal
-    let (command_sender, mut command_reciever) = unbounded_channel();
+    let (command_sender, mut command_receiver) = unbounded_channel();
 
     let mut state = init_state(
         terminal,
@@ -241,8 +241,47 @@ async fn main() {
 
         commands.register::<ConfigCommand>();
         commands.register::<DebugCommand>();
+        commands.register::<IfCommand>();
 
         commands.register::<AutoPairsCommand>();
+    }
+
+    {
+        let mut reg = state.lock_state::<IfCheckRegistry>().await;
+        reg.register("mode", |tokens| {
+            let c = tokens.first().and_then(|t| {
+                if let Token::Word(w) = t {
+                    w.chars().next()
+                } else {
+                    None
+                }
+            })?;
+            Some(Box::new(ModeExistsCheck(c)))
+        });
+        reg.register("template", |tokens| {
+            let name = tokens.first().and_then(|t| {
+                if let Token::Word(w) = t {
+                    Some(w.clone())
+                } else {
+                    None
+                }
+            })?;
+            Some(Box::new(TemplateExistsCheck(name)))
+        });
+        reg.register("text", |tokens| {
+            let text = tokens
+                .iter()
+                .filter_map(|t| {
+                    if let Token::Word(w) = t {
+                        Some(w.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+            Some(Box::new(TextExistsCheck(text)))
+        });
     }
 
     config::init(&mut state).await;
@@ -336,7 +375,7 @@ async fn main() {
     loop {
         let frame_start = tokio::time::Instant::now();
 
-        while let Ok(cmd) = command_reciever.try_recv() {
+        while let Ok(cmd) = command_receiver.try_recv() {
             dispatch_command(cmd, &mut state).await;
         }
 
@@ -352,7 +391,7 @@ async fn main() {
         while tokio::time::Instant::now() < deadline {
             let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
             tokio::select! {
-                Some(cmd) = command_reciever.recv() => {
+                Some(cmd) = command_receiver.recv() => {
                     dispatch_command(cmd, &mut state).await;
                 }
                 _ = tokio::time::sleep(remaining) => {

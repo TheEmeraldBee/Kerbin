@@ -26,6 +26,30 @@ pub enum LexError {
     UnclosedList,
 }
 
+impl Token {
+    pub fn list_from(items: impl IntoIterator<Item = impl Into<Token>>) -> Self {
+        Token::List(items.into_iter().map(|x| x.into()).collect())
+    }
+}
+
+impl From<String> for Token {
+    fn from(s: String) -> Self {
+        Token::Word(s)
+    }
+}
+
+impl<'a> From<&'a str> for Token {
+    fn from(s: &'a str) -> Self {
+        Token::Word(s.to_owned())
+    }
+}
+
+impl<'a> From<&'a String> for Token {
+    fn from(s: &'a String) -> Self {
+        Token::Word(s.clone())
+    }
+}
+
 /// Process a backslash escape sequence, returning the resolved character.
 ///
 /// - `\n` → newline, `\t` → tab, `\r` → carriage return, `\0` → null
@@ -302,7 +326,7 @@ fn consume_until_close_bracket(
 }
 
 /// Serialize a single token back to a string that re-tokenizes to the same token.
-fn token_to_string(token: &Token) -> String {
+pub fn token_to_string(token: &Token) -> String {
     match token {
         Token::Word(s) => {
             if s.is_empty() {

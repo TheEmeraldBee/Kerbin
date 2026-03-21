@@ -157,10 +157,14 @@ impl CommandRegistry {
                         continue;
                     }
 
-                    let mut new_tokens = tokenize(&prefix.prefix_cmd).unwrap_or_default();
-                    new_tokens.push(Token::List(tokens));
-
-                    tokens = new_tokens;
+                    let template = tokenize(&prefix.prefix_cmd).unwrap_or_default();
+                    tokens = if has_cmd_placeholder(&template) {
+                        apply_cmd_template(template, tokens)
+                    } else {
+                        let mut t = template;
+                        t.push(Token::List(tokens));
+                        t
+                    };
                 }
             }
         }
@@ -192,4 +196,37 @@ fn has_dynamic_tokens(tokens: &[Token]) -> bool {
         Token::List(inner) | Token::Interpolated(inner) => has_dynamic_tokens(inner),
         Token::Word(_) => false,
     })
+}
+
+/// Returns true if `tokens` contain a `%cmd` placeholder anywhere in the tree.
+fn has_cmd_placeholder(tokens: &[Token]) -> bool {
+    tokens.iter().any(|t| match t {
+        Token::Variable(name) if name == "cmd" => true,
+        Token::List(inner) | Token::Interpolated(inner) => has_cmd_placeholder(inner),
+        _ => false,
+    })
+}
+
+/// Recursively substitutes `%cmd` in `template` with the original `cmd_tokens`,
+/// spreading them inline so `[%cmd]` becomes `[tok1 tok2 ...]`.
+fn apply_cmd_template(template: Vec<Token>, cmd_tokens: Vec<Token>) -> Vec<Token> {
+    let mut result = Vec::new();
+    for tok in template {
+        match tok {
+            Token::Variable(ref name) if name == "cmd" => {
+                result.extend(cmd_tokens.iter().cloned());
+            }
+            Token::List(inner) => {
+                result.push(Token::List(apply_cmd_template(inner, cmd_tokens.clone())));
+            }
+            Token::Interpolated(inner) => {
+                result.push(Token::Interpolated(apply_cmd_template(
+                    inner,
+                    cmd_tokens.clone(),
+                )));
+            }
+            other => result.push(other),
+        }
+    }
+    result
 }

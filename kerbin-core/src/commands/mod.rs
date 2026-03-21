@@ -36,6 +36,9 @@ pub use config::*;
 mod debug;
 pub use debug::*;
 
+mod if_cmd;
+pub use if_cmd::*;
+
 /// Type alias for a command parsing function.
 type CommandFn = Box<dyn Fn(&[Token]) -> Option<Result<Box<dyn Command>, String>> + Send + Sync>;
 

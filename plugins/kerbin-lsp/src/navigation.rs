@@ -98,7 +98,7 @@ async fn send_goto_request(
     };
 
     // Clear stale locations
-    resolver_engine_mut().await.trash_template("lsp_locations");
+    resolver_engine_mut().await.remove_template("lsp_locations");
 
     let method = match kind {
         NavigationKind::Definition => "textDocument/definition",
@@ -180,7 +180,7 @@ impl Command for NavigationCommand {
                     return false;
                 }
 
-                resolver_engine_mut().await.set_template("lsp_diagnostics", entries);
+                resolver_engine_mut().await.set_template("lsp_diagnostics", Token::list_from(entries));
 
                 if let Some(tokens) = multi.clone() {
                     let token_lists: Vec<Vec<Token>> =
@@ -252,7 +252,27 @@ impl Command for NavigationCommand {
 
                 let mut buf = bufs.cur_buffer_mut().await;
                 let line_byte = buf.line_to_byte_clamped(line);
-                let byte = (line_byte + col).min(buf.len());
+                let line_end_byte = buf.line_to_byte_clamped(line + 1);
+                let byte = buf
+                    .slice(line_byte, line_end_byte)
+                    .map(|s| {
+                        let mut utf16_rem = col;
+                        let mut byte_off = 0usize;
+                        for ch in s.chars() {
+                            if utf16_rem == 0 {
+                                break;
+                            }
+                            let w = ch.len_utf16();
+                            if utf16_rem < w {
+                                break;
+                            }
+                            utf16_rem -= w;
+                            byte_off += ch.len_utf8();
+                        }
+                        line_byte + byte_off
+                    })
+                    .unwrap_or(line_byte)
+                    .min(buf.len());
                 buf.primary_cursor_mut().set_sel(byte..=byte);
 
                 true
@@ -366,7 +386,7 @@ pub async fn handle_navigation(state: &State, msg: &JsonRpcMessage) {
         let formatted: Vec<String> = locations.iter().map(format_location).collect();
         resolver_engine_mut()
             .await
-            .set_template("lsp_locations", formatted);
+            .set_template("lsp_locations", Token::list_from(formatted));
 
         // If --multi was provided, parse and send those commands.
         // Supports [[cmd1] [cmd2]] (all-list) or [cmd] (single command).

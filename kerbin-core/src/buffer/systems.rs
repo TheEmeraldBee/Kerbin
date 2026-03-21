@@ -102,7 +102,11 @@ pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<Wind
     }
 
     // Calculate width of each tab (path + padding)
-    let tab_widths: Vec<usize> = buffers.buffer_paths.iter().map(|p| p.len() + 6).collect();
+    let tab_widths: Vec<usize> = buffers
+        .buffer_paths
+        .iter()
+        .map(|p| p.width() + 6)
+        .collect();
 
     // Calculate starting character offset for each tab
     let tab_starts: Vec<usize> = tab_widths
@@ -152,7 +156,7 @@ pub async fn post_update_buffer(buffers: ResMut<Buffers>) {
 
     resolver_engine_mut()
         .await
-        .set_template("cur_buf", &[buf.path.clone()]);
+        .set_template("cur_buf", buf.path.clone());
 
     buf.post_update();
 }
@@ -169,7 +173,7 @@ pub async fn update_tab_width_template(buffers: Res<Buffers>) {
     };
     resolver_engine_mut()
         .await
-        .set_template("tab_unit", [tab_unit]);
+        .set_template("tab_unit", tab_unit);
 }
 
 pub async fn cleanup_buffers(buffers: ResMut<Buffers>) {

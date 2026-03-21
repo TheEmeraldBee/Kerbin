@@ -1,0 +1,3 @@
+bind [v] [pm v] --invalid [v]
+
+bind [v] [rm] --modes [v]

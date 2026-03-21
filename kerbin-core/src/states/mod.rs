@@ -9,6 +9,9 @@ pub use wrappers::*;
 pub mod command_registry;
 pub use command_registry::*;
 
+pub mod if_check_registry;
+pub use if_check_registry::*;
+
 pub mod command_prefix_registry;
 pub use command_prefix_registry::*;
 
@@ -68,6 +71,7 @@ pub fn init_state(
         .state(CommandRegistry(vec![]))
         .state(CommandPrefixRegistry(vec![]))
         .state(CommandInterceptorRegistry::new())
+        .state(IfCheckRegistry::default())
         .state(AutoPairs::default())
         .state(Chunks::default())
         .state(DebounceConfig::default())

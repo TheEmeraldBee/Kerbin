@@ -192,7 +192,7 @@ pub async fn handle_inputs(
 
                 let mut resolver = resolver_engine_mut().await;
                 for (i, key) in sequence.iter().enumerate() {
-                    resolver.set_template(i, [key.to_string()]);
+                    resolver.set_template(i, key.to_string());
                 }
 
                 let mut repeat = 1;

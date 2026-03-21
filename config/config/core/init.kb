@@ -9,7 +9,9 @@ source history.kb
 source nav.kb
 source motions.kb
 
-source normal.kd
+source normal.kb
+
+source visual.kb
 
 # Bind a file exiting command
 bind [esc] [rm]

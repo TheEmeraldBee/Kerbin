@@ -4,20 +4,20 @@ use crossterm::event::KeyModifiers;
 
 use crate::{
     Matchable, ParsableKey, ParseError, ResolvedKeyBind, Token, UnresolvedKeyBind,
-    UnresolvedKeyElement, flatten_tokens, tokenize,
+    UnresolvedKeyElement, flatten_tokens, token_to_string, tokenize,
 };
 
 pub type CommandExecutor =
     dyn Fn(&str, &[String]) -> Result<Vec<String>, ParseError> + Send + Sync + 'static;
 
 pub struct Resolver<'a> {
-    templates: &'a HashMap<String, Vec<String>>,
+    templates: &'a HashMap<String, Token>,
     command_executor: Arc<CommandExecutor>,
 }
 
 impl<'a> Resolver<'a> {
     pub fn new(
-        templates: &'a HashMap<String, Vec<String>>,
+        templates: &'a HashMap<String, Token>,
         executor: Arc<CommandExecutor>,
     ) -> Self {
         Self {
@@ -84,8 +84,12 @@ impl<'a> Resolver<'a> {
                 Token::Word(s) => vec![Token::Word(s)],
 
                 Token::Variable(name) => {
-                    if let Some(values) = self.templates.get(&name) {
-                        values.iter().map(|v| Token::Word(v.clone())).collect()
+                    if let Some(value) = self.templates.get(&name) {
+                        let items = match value {
+                            Token::List(items) => items.clone(),
+                            other => vec![other.clone()],
+                        };
+                        self.expand_tokens_reporting(items, allow_run, errors)
                     } else {
                         errors.push(format!("Unknown template: %{name}"));
                         vec![Token::Variable(name)]
@@ -171,13 +175,25 @@ impl<'a> Resolver<'a> {
             UnresolvedKeyElement::OneOf(values) => Ok(values),
 
             UnresolvedKeyElement::Template(template_name) => {
-                let template_values = self.templates.get(&template_name).ok_or_else(|| {
+                let token = self.templates.get(&template_name).ok_or_else(|| {
                     ParseError::Custom(format!("Template '{}' not found", template_name))
                 })?;
 
+                let raw_items = match token {
+                    Token::List(items) => items.clone(),
+                    other => vec![other.clone()],
+                };
+
+                let mut errors = Vec::new();
+                let expanded = self.expand_tokens_reporting(raw_items, false, &mut errors);
+
                 let mut results = Vec::new();
-                for value_str in template_values {
-                    results.push(T::parse_from_str(value_str)?);
+                for t in &expanded {
+                    let s = match t {
+                        Token::Word(s) => s.as_str(),
+                        other => &token_to_string(other),
+                    };
+                    results.push(T::parse_from_str(s)?);
                 }
                 Ok(results)
             }

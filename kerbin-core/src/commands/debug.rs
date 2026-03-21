@@ -13,21 +13,6 @@ pub enum DebugCommand {
         #[command(flag)]
         level: Option<String>,
     },
-
-    #[command]
-    /// Executes the given commands, only if the condition string is not empty
-    ///
-    /// The `--invert` flag makes it check if it's empty
-    If {
-        #[command(type_name = "[string]")]
-        cond: Vec<String>,
-
-        #[command(flag)]
-        invert: bool,
-
-        #[command(flag, type_name = "[command]")]
-        cmds: Vec<Token>,
-    },
 }
 
 #[async_trait::async_trait]
@@ -47,50 +32,6 @@ impl Command for DebugCommand {
                     };
                 } else {
                     log.medium("echo", text);
-                }
-
-                true
-            }
-            Self::If { cond, invert, cmds } => {
-                let cond = cond.join(" ");
-                if (!cond.is_empty() && *invert) || (cond.is_empty() && !*invert) {
-                    return false;
-                }
-
-                let token_lists: Vec<Vec<Token>> = if cmds
-                    .iter()
-                    .all(|t| matches!(t, Token::List(_)))
-                {
-                    cmds.iter()
-                        .filter_map(|t| {
-                            if let Token::List(items) = t {
-                                Some(tokenize(&tokens_to_command_string(items)).unwrap_or_default())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect()
-                } else {
-                    vec![cmds.clone()]
-                };
-
-                for token_list in token_lists {
-                    let command = state.lock_state::<CommandRegistry>().await.parse_command(
-                        token_list,
-                        true,
-                        false,
-                        Some(&resolver_engine().await.as_resolver()),
-                        true,
-                        &*state.lock_state::<CommandPrefixRegistry>().await,
-                        &*state.lock_state::<ModeStack>().await,
-                    );
-                    if let Some(command) = command {
-                        state
-                            .lock_state::<CommandSender>()
-                            .await
-                            .send(command)
-                            .unwrap();
-                    }
                 }
 
                 true
