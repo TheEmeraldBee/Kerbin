@@ -80,7 +80,14 @@ fn get_ranked_items<'a>(
     query: &str,
 ) -> Vec<(&'a CompletionItem, i32)> {
     if query.is_empty() {
-        return items.iter().map(|item| (item, 0)).collect();
+        let mut all: Vec<_> = items.iter().map(|item| (item, 0)).collect();
+        all.sort_by(|(a, _), (b, _)| match (&a.sort_text, &b.sort_text) {
+            (Some(x), Some(y)) => x.cmp(y),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        });
+        return all;
     }
 
     #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
@@ -111,12 +118,12 @@ fn get_ranked_items<'a>(
         .collect();
 
     matched_items.sort_by(|(item_a, quality_a, _), (item_b, quality_b, _)| {
-        match (&item_a.sort_text, &item_b.sort_text) {
+        quality_b.cmp(quality_a).then_with(|| match (&item_a.sort_text, &item_b.sort_text) {
             (Some(a), Some(b)) => a.cmp(b),
             (Some(_), None) => std::cmp::Ordering::Less,
             (None, Some(_)) => std::cmp::Ordering::Greater,
-            (None, None) => quality_b.cmp(quality_a),
-        }
+            (None, None) => std::cmp::Ordering::Equal,
+        })
     });
 
     matched_items
