@@ -1,1 +1,7 @@
 source grammars.kb
+source language-servers.kb
+
+category [g r] --desc "Goto References"
+
+source tree-sitter.kb
+source lsp.kb

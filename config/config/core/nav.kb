@@ -1,0 +1,9 @@
+bind [up] [ml -1] --desc "Up"
+bind [down] [ml 1] --desc "Down"
+bind [left] [mc -1] --desc "Left"
+bind [right] [mc 1] --desc "Right"
+
+bind [k] [ml -1] --desc "Up"
+bind [j] [ml 1] --desc "Down"
+bind [h] [mc -1] --desc "Left"
+bind [l] [mc 1] --desc "Right"

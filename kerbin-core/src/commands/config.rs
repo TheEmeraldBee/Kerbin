@@ -75,7 +75,12 @@ pub enum ConfigCommand {
 
     /// Register a template expansion.
     #[command]
-    Template { name: String, values: Vec<Token> },
+    Template {
+        name: String,
+
+        #[command(type_name = "[any]")]
+        values: Vec<Token>,
+    },
 
     /// List all available templates to the log
     ///
@@ -221,7 +226,12 @@ impl Command for ConfigCommand {
             }
 
             ConfigCommand::Template { name, values } => {
-                let strs: Vec<String> = values
+                let resolver = resolver_engine().await;
+                let r = resolver.as_resolver();
+
+                // Expand tokens
+                let strs: Vec<String> = r
+                    .expand_tokens(values.to_vec(), true)
                     .iter()
                     .filter_map(|t| {
                         if let Token::Word(s) = t {
@@ -231,6 +241,9 @@ impl Command for ConfigCommand {
                         }
                     })
                     .collect();
+
+                drop(resolver);
+
                 resolver_engine_mut().await.set_template(name, strs);
             }
 

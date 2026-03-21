@@ -1,4 +1,2 @@
-category [g r] --desc "Goto References"
-
 bind [g r n] [tsnr] --desc "Goto Next Reference"
 bind [g r p] [tspr] --desc "Goto Next Reference"

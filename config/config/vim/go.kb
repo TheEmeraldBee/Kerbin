@@ -1,4 +1,0 @@
-bind [g g] [ml -32000] --desc "Goto Top Line"
-bind [shift-g] [ml 32000] --desc "Goto Bottom Line"
-bind [g h] [[sfw] [sc]] --desc "Goto first Non-Whitespace"
-bind [g l] [[sle] [gse] [sc]] --desc "Goto line end"

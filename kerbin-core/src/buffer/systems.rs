@@ -150,6 +150,10 @@ pub async fn post_update_buffer(buffers: ResMut<Buffers>) {
 
     let mut buf = buffers.cur_buffer_mut().await;
 
+    resolver_engine_mut()
+        .await
+        .set_template("cur_buf", &[buf.path.clone()]);
+
     buf.post_update();
 }
 

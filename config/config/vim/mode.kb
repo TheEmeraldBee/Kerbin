@@ -1,3 +1,0 @@
-bind [':'] [pm c] --invalid [c] --desc "Enter Command Mode"
-bind [i] [[start_change] [pm i]] --invalid [i] --desc "Enter Insert Mode"
-bind [esc] [[commit_change] [rm]] --desc "Pop Mode From Stack"

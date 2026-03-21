@@ -1,11 +1,15 @@
 source special_templates.kb
-source core/insert.kb
-source core/command_palette.kb
-source core/repeat.kb
+
+source core/init.kb
+
+# Default theme (catppuccin)
 source theme.kb
-source vim/init.kb
-source utils/init.kb
+
 source plugins/init.kb
 
+source misc.kb
+
 core framerate 60
-template shell [nu]
+
+# Set shell value (what are shell commands run with)
+template shell [bash]

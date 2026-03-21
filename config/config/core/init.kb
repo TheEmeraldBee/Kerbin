@@ -1,0 +1,15 @@
+source command_palette.kb
+source insert.kb
+source repeat.kb
+
+source files.kb
+
+source history.kb
+
+source nav.kb
+source motions.kb
+
+source normal.kd
+
+# Bind a file exiting command
+bind [esc] [rm]

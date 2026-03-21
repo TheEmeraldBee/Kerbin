@@ -1,0 +1,2 @@
+bind [u] [undo] --desc "Undo"
+bind [U] [redo] --desc "Redo"

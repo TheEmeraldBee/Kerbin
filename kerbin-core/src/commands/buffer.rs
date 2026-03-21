@@ -155,6 +155,14 @@ pub enum BufferCommand {
     #[command(name = "r")]
     /// Reverts the last undo, pushing to (and clearing) the undo stack
     Redo,
+
+    #[command(name = "tgl_case")]
+    /// Toggles the case of all characters in selection
+    ToggleCase,
+
+    #[command(name = "jl")]
+    /// Joins the current line with the next by replacing the trailing newline with a space
+    JoinLine,
 }
 
 #[async_trait::async_trait]
@@ -367,6 +375,63 @@ impl Command for BufferCommand {
             }
             BufferCommand::Redo => {
                 cur_buffer.redo();
+                true
+            }
+
+            BufferCommand::ToggleCase => {
+                let sel = cur_buffer.primary_cursor().sel().clone();
+                let sel_start = *sel.start();
+                let sel_end = *sel.end();
+
+                let text = cur_buffer
+                    .slice_to_string(sel_start, sel_end + 1)
+                    .unwrap_or_default();
+
+                let toggled: String = text
+                    .chars()
+                    .map(|c| {
+                        if c.is_uppercase() {
+                            c.to_lowercase().next().unwrap_or(c)
+                        } else if c.is_lowercase() {
+                            c.to_uppercase().next().unwrap_or(c)
+                        } else {
+                            c
+                        }
+                    })
+                    .collect();
+
+                if text != toggled {
+                    let char_count = text.chars().count();
+                    cur_buffer.action(Delete {
+                        byte: sel_start,
+                        len: char_count,
+                    });
+                    cur_buffer.action(Insert {
+                        byte: sel_start,
+                        content: toggled,
+                    });
+                }
+
+                true
+            }
+
+            BufferCommand::JoinLine => {
+                let line_idx = cur_buffer.byte_to_line_clamped(byte);
+                if line_idx + 1 >= cur_buffer.len_lines() {
+                    return false;
+                }
+                let next_line_start = cur_buffer.line_to_byte_clamped(line_idx + 1);
+                let newline_byte = next_line_start.saturating_sub(1);
+                if newline_byte < next_line_start {
+                    cur_buffer.action(Delete {
+                        byte: newline_byte,
+                        len: 1,
+                    });
+                    cur_buffer.action(Insert {
+                        byte: newline_byte,
+                        content: " ".to_string(),
+                    });
+                }
                 true
             }
 

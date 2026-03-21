@@ -1,0 +1,9 @@
+# WORD/word
+bind [w] [[sc] [rxc %word --advance] [mc 1 --extend]] --desc "Select word"
+bind [W] [[sc] [rxc %WORD --advance] [mc 1 --extend]] --desc "Select WORD"
+bind [b] [[sc] [mc -1 --extend] [rxcb %word --extend]] --desc "Select word backwards"
+bind [B] [[sc] [mc -1 --extend] [rxcb %WORD --extend]] --desc "Select WORD backwards"
+
+# END/end
+bind [e] [[sc] [rxc %end --advance]] --desc "Select word"
+bind [E] [[sc] [rxc %END --advance]] --desc "Select WORD"

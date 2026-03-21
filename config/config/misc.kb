@@ -1,0 +1,5 @@
+bind [';' Q] [quit] --desc "Quit"
+bind [';' q] [bc] --desc "Close current buffer"
+bind [';' w] [write_file] --desc "Save file"
+bind [g n] [bm 1] --desc "Next Buffer"
+bind [g p] [bm -1] --desc "Previous Buffer"

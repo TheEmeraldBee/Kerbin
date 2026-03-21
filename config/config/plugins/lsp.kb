@@ -1,6 +1,3 @@
-lsp-register rust --exts [rs] --cmd rust-analyzer --roots [Cargo.toml Cargo.lock]
-lsp-register go --exts [go] --cmd gopls --roots [go.mod]
-
 bind [space k] [hover] --desc "Show Hover"
 bind [tab] [snlc] --modes [i] --required [lsp_items] --desc "Select next LSP change"
 bind [down] [snlc] --modes [i] --required [lsp_items] --desc "Select next LSP change"
@@ -12,8 +9,8 @@ bind [ctrl-(k|up)] [hs -1] --desc "Scroll Hover Up 1"
 
 bind [g r r] [lsp-goto-references --multi [ship [sh "%cfg_folder/scripts/goto.sh" %session %lsp_locations]]] --desc "Goto LSP references"
 bind [g d] [lsp-goto-definition --multi [ship [sh "%cfg_folder/scripts/goto.sh" %session %lsp_locations]]] --desc "Goto LSP definition"
-bind [g D] [lsp-goto-type-definition --multi [ship [sh "%cfg_folder/scripts/goto.sh" %session %lsp_locations]]] --desc "Goto LSP definition"
-bind [g i] [lsp-goto-implementation --multi [ship [sh "%cfg_folder/scripts/goto.sh" %session %lsp_locations]]] --desc "Goto LSP definition"
+bind [g D] [lsp-goto-type-definition --multi [ship [sh "%cfg_folder/scripts/goto.sh" %session %lsp_locations]]] --desc "Goto LSP type definition"
+bind [g i] [lsp-goto-implementation --multi [ship [sh "%cfg_folder/scripts/goto.sh" %session %lsp_locations]]] --desc "Goto LSP implementation"
 bind [space d] [lsp-goto-diagnostics --multi [ship [sh "%cfg_folder/scripts/diagnostics.sh" %session %lsp_diagnostics]]] --desc "Browse workspace diagnostics"
 
 # Make lsp start autocompletion on debounce of 100ms
