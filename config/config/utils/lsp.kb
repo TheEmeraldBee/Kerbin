@@ -14,6 +14,7 @@ bind [g r r] [lsp-goto-references --multi [ship [sh "%cfg_folder/scripts/goto.sh
 bind [g d] [lsp-goto-definition --multi [ship [sh "%cfg_folder/scripts/goto.sh" %session %lsp_locations]]] --desc "Goto LSP definition"
 bind [g D] [lsp-goto-type-definition --multi [ship [sh "%cfg_folder/scripts/goto.sh" %session %lsp_locations]]] --desc "Goto LSP definition"
 bind [g i] [lsp-goto-implementation --multi [ship [sh "%cfg_folder/scripts/goto.sh" %session %lsp_locations]]] --desc "Goto LSP definition"
+bind [space d] [lsp-goto-diagnostics --multi [ship [sh "%cfg_folder/scripts/diagnostics.sh" %session %lsp_diagnostics]]] --desc "Browse workspace diagnostics"
 
 # Make lsp start autocompletion on debounce of 100ms
 debounce_event [sla] --min_ms 100 --modes [i]
