@@ -28,7 +28,16 @@ ropey = { version = "=2.0.0-beta.1", features = ["metric_chars", "metric_lines_l
 
 crossterm = "0.29.0"
 
-[profile.dev.package."*"]
+[profile.dev.package.tokio]
+opt-level = 3
+
+[profile.dev.package.ratatui]
+opt-level = 3
+
+[profile.dev.package.ropey]
+opt-level = 3
+
+[profile.dev.package.crossterm]
 opt-level = 3
 
 [profile.dev]
