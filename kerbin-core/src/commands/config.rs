@@ -254,9 +254,7 @@ impl Command for ConfigCommand {
                     let mut keys = resolver_engine()
                         .await
                         .templates()
-                        .keys()
-                        .cloned()
-                        .filter(|x| filter.iter().any(|f| x.contains(f)))
+                        .keys().filter(|&x| filter.iter().any(|f| x.contains(f))).cloned()
                         .collect::<Vec<_>>();
 
                     keys.sort();

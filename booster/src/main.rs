@@ -405,11 +405,10 @@ fn resolve_session(input: &str) -> String {
             let filename = entry.file_name().into_string().unwrap_or_default();
             if let Some(session_id) = filename.strip_suffix(".name") {
                 let name_path = format!("{}/{}", dir, filename);
-                if let Ok(stored) = std::fs::read_to_string(&name_path) {
-                    if stored.trim() == input {
+                if let Ok(stored) = std::fs::read_to_string(&name_path)
+                    && stored.trim() == input {
                         return session_id.to_string();
                     }
-                }
             }
         }
     }

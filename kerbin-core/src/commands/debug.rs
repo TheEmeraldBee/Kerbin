@@ -53,29 +53,26 @@ impl Command for DebugCommand {
             }
             Self::If { cond, invert, cmds } => {
                 let cond = cond.join(" ");
-                if cond != "" && *invert {
-                    return false;
-                } else if cond == "" && !*invert {
+                if (!cond.is_empty() && *invert) || (cond.is_empty() && !*invert) {
                     return false;
                 }
 
-                let token_lists: Vec<Vec<Token>> =
-                    if cmds.iter().all(|t| matches!(t, Token::List(_))) {
-                        cmds.iter()
-                            .filter_map(|t| {
-                                if let Token::List(items) = t {
-                                    Some(
-                                        tokenize(&tokens_to_command_string(&items))
-                                            .unwrap_or_default(),
-                                    )
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect()
-                    } else {
-                        vec![cmds.clone()]
-                    };
+                let token_lists: Vec<Vec<Token>> = if cmds
+                    .iter()
+                    .all(|t| matches!(t, Token::List(_)))
+                {
+                    cmds.iter()
+                        .filter_map(|t| {
+                            if let Token::List(items) = t {
+                                Some(tokenize(&tokens_to_command_string(items)).unwrap_or_default())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect()
+                } else {
+                    vec![cmds.clone()]
+                };
 
                 for token_list in token_lists {
                     let command = state.lock_state::<CommandRegistry>().await.parse_command(

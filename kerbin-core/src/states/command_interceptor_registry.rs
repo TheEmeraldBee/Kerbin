@@ -28,9 +28,8 @@ trait ErasedInterceptor: Send + Sync {
     async fn call(&self, cmd: &(dyn Any + Send + Sync), state: &mut State) -> InterceptorResult;
 }
 
-struct TypedInterceptorFn<C> {
-    f: Box<dyn for<'a> Fn(&'a C, &'a mut State) -> InterceptorFuture<'a> + Send + Sync>,
-}
+type TypedInterceptorFn<C> =
+    Box<dyn for<'a> Fn(&'a C, &'a mut State) -> InterceptorFuture<'a> + Send + Sync>;
 
 #[async_trait::async_trait]
 impl<C: Any + Send + Sync + 'static> ErasedInterceptor for TypedInterceptorFn<C> {
@@ -38,7 +37,7 @@ impl<C: Any + Send + Sync + 'static> ErasedInterceptor for TypedInterceptorFn<C>
         let typed = cmd
             .downcast_ref::<C>()
             .expect("CommandInterceptorRegistry: TypeId matched but downcast failed");
-        (self.f)(typed, state).await
+        (self)(typed, state).await
     }
 }
 
@@ -52,6 +51,12 @@ struct NamedInterceptor {
 #[derive(State)]
 pub struct CommandInterceptorRegistry {
     interceptors: HashMap<TypeId, Vec<NamedInterceptor>>,
+}
+
+impl Default for CommandInterceptorRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CommandInterceptorRegistry {
@@ -88,7 +93,7 @@ impl CommandInterceptorRegistry {
             .push(NamedInterceptor {
                 id,
                 priority,
-                inner: Arc::new(TypedInterceptorFn { f: Box::new(f) }),
+                inner: Arc::new(Box::new(f) as TypedInterceptorFn<C>),
             });
     }
 
