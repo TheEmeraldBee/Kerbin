@@ -149,7 +149,10 @@ impl State {
         guarentee_params(&system);
         let hook_info = hook.info();
         let entry = self.hooks.iter_mut().find(|x| x.0.path == hook_info.path);
-        let named = NamedSystem { id: "", inner: Box::new(system) };
+        let named = NamedSystem {
+            id: "",
+            inner: Box::new(system),
+        };
 
         if let Some(entry) = entry {
             entry.1.clear();
@@ -279,7 +282,10 @@ impl<'a, H: Hook> HookBuilder<'a, H> {
             .hooks
             .iter_mut()
             .find(|x| x.0.path == hook_info.path);
-        let named = NamedSystem { id, inner: Box::new(system) };
+        let named = NamedSystem {
+            id,
+            inner: Box::new(system),
+        };
 
         if let Some(entry) = entry {
             entry.1.push(named)

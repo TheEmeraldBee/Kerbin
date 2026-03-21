@@ -39,16 +39,8 @@ impl CommandRegistry {
             return true;
         }
 
-        self.parse_command(
-            tokens,
-            false,
-            true,
-            resolver,
-            false,
-            prefix_registry,
-            modes,
-        )
-        .is_some()
+        self.parse_command(tokens, false, true, resolver, false, prefix_registry, modes)
+            .is_some()
     }
 
     /// Retrieves command suggestions and theming for the palette
@@ -56,7 +48,11 @@ impl CommandRegistry {
         &self,
         input: &str,
         theme: &Theme,
-    ) -> (Vec<Line<'static>>, Option<String>, Option<Vec<Line<'static>>>) {
+    ) -> (
+        Vec<Line<'static>>,
+        Option<String>,
+        Option<Vec<Line<'static>>>,
+    ) {
         let resolver = resolver_engine().await;
         resolver.as_resolver().expand_str(input, false);
 

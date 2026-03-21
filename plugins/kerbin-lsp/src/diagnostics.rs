@@ -78,10 +78,9 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
                         .add_modifier(Modifier::UNDERLINED),
                     1,
                 ),
-                Some(DiagnosticSeverity::HINT) => (
-                    Style::default().underline_color(Color::DarkGray),
-                    0,
-                ),
+                Some(DiagnosticSeverity::HINT) => {
+                    (Style::default().underline_color(Color::DarkGray), 0)
+                }
                 _ => (
                     Style::default()
                         .underline_color(Color::Red)

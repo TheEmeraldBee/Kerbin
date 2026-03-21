@@ -86,6 +86,17 @@ pub enum BufferCommand {
         extend: bool,
     },
 
+    #[command(drop_ident, name = "goto")]
+    /// Navigates to the given row and column
+    /// Clamps both values to the max positions
+    GoTo {
+        col: usize,
+        row: usize,
+
+        #[command(flag)]
+        extend: bool,
+    },
+
     #[command(name = "write", name = "w")]
     /// Writes the given file to disk
     /// An optional path can be given to write the file to a different name
@@ -161,6 +172,27 @@ impl Command for BufferCommand {
             BufferCommand::MoveBytes { bytes, extend } => cur_buffer.move_bytes(*bytes, *extend),
             BufferCommand::MoveLines { lines, extend } => cur_buffer.move_lines(*lines, *extend),
             BufferCommand::MoveChars { chars, extend } => cur_buffer.move_chars(*chars, *extend),
+            BufferCommand::GoTo { row, col, extend } => {
+                let target_byte = row.saturating_add(*col).min(cur_buffer.len());
+                let cursor_mut = cur_buffer.primary_cursor_mut();
+                if *extend {
+                    let anchor_byte = if cursor_mut.at_start {
+                        *cursor_mut.sel.end()
+                    } else {
+                        *cursor_mut.sel.start()
+                    };
+                    let start = anchor_byte.min(target_byte);
+                    let end = anchor_byte.max(target_byte);
+                    cursor_mut.set_sel(start..=end);
+                    cursor_mut.set_at_start(target_byte < anchor_byte);
+                } else {
+                    cursor_mut.set_sel(target_byte..=target_byte);
+                    cursor_mut.set_at_start(false);
+                }
+
+                // This can't be repeated anyways
+                false
+            }
 
             BufferCommand::WriteFile { path } => {
                 let current_path = if let Some(new_path) = path {

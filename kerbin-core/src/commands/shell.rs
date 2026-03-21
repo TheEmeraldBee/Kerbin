@@ -103,8 +103,6 @@ impl Command for ShellCommand {
                 true
             }
             Self::InPlace(args) => {
-                tracing::error!("{:#?}", args);
-
                 // Tear down terminal
                 crossterm::terminal::disable_raw_mode().ok();
                 execute!(std::io::stdout(), crossterm::terminal::LeaveAlternateScreen).ok();

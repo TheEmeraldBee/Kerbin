@@ -100,7 +100,10 @@ impl<'a> SubscriberBuilder<'a> {
                 data: None,
             })
             .subscribers
-            .push(NamedSystem { id: "", inner: Box::new(system.into_system()) as Box<dyn System + Send + Sync> })
+            .push(NamedSystem {
+                id: "",
+                inner: Box::new(system.into_system()) as Box<dyn System + Send + Sync>,
+            })
     }
 }
 

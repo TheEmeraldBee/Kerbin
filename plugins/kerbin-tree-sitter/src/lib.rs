@@ -1,6 +1,8 @@
 use kerbin_core::*;
 
-use crate::{install_command::InstallCommand, motions::TreeSitterMotion, scope_info::ScopeInfoCommand};
+use crate::{
+    install_command::InstallCommand, motions::TreeSitterMotion, scope_info::ScopeInfoCommand,
+};
 
 pub mod commands;
 pub use commands::TreeSitterCommand;
@@ -25,6 +27,8 @@ pub mod scope_info;
 pub mod indent;
 
 pub mod motions;
+
+pub mod locals;
 
 pub async fn init(state: &mut State) {
     state.state(GrammarManager::default());

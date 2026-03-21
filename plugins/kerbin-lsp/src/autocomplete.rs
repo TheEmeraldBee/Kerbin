@@ -118,12 +118,14 @@ fn get_ranked_items<'a>(
         .collect();
 
     matched_items.sort_by(|(item_a, quality_a, _), (item_b, quality_b, _)| {
-        quality_b.cmp(quality_a).then_with(|| match (&item_a.sort_text, &item_b.sort_text) {
-            (Some(a), Some(b)) => a.cmp(b),
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (None, Some(_)) => std::cmp::Ordering::Greater,
-            (None, None) => std::cmp::Ordering::Equal,
-        })
+        quality_b
+            .cmp(quality_a)
+            .then_with(|| match (&item_a.sort_text, &item_b.sort_text) {
+                (Some(a), Some(b)) => a.cmp(b),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (None, None) => std::cmp::Ordering::Equal,
+            })
     });
 
     matched_items
@@ -176,7 +178,12 @@ fn build_list_popup(
     let window_style = styles.window;
     let selected_style = styles.selected;
     let match_style = styles.match_hl;
-    let inner_w = (max_label_width + if max_kind_width > 0 { max_kind_width + 1 } else { 0 }) as u16;
+    let inner_w = (max_label_width
+        + if max_kind_width > 0 {
+            max_kind_width + 1
+        } else {
+            0
+        }) as u16;
     let inner_h = items_to_show.len() as u16;
     let popup_rect = Rect::new(0, 0, inner_w + 2, inner_h + 2);
     let mut buf = ratatui::buffer::Buffer::empty(popup_rect);
@@ -193,7 +200,11 @@ fn build_list_popup(
         .map(|(i, (item, _))| {
             let abs_idx = start_index + i;
             let is_selected = abs_idx == selected_idx;
-            let row_style = if is_selected { selected_style } else { window_style };
+            let row_style = if is_selected {
+                selected_style
+            } else {
+                window_style
+            };
 
             let kind_str = item.kind.map(|k| format!("{:?}", k)).unwrap_or_default();
             let line_str = if max_kind_width > 0 {
@@ -214,12 +225,11 @@ fn build_list_popup(
                     .chars()
                     .enumerate()
                     .map(|(x, ch)| {
-                        let char_style =
-                            if x < item.label.len() && match_indices.contains(&x) {
-                                match_style
-                            } else {
-                                row_style
-                            };
+                        let char_style = if x < item.label.len() && match_indices.contains(&x) {
+                            match_style
+                        } else {
+                            row_style
+                        };
                         Span::styled(ch.to_string(), char_style)
                     })
                     .collect::<Vec<_>>(),
@@ -281,9 +291,7 @@ fn combine_side_by_side(
 
     for y in 0..left.area.height {
         for x in 0..left.area.width {
-            if let (Some(src), Some(dst)) =
-                (left.cell((x, y)), combined.cell_mut((x, y)))
-            {
+            if let (Some(src), Some(dst)) = (left.cell((x, y)), combined.cell_mut((x, y))) {
                 *dst = src.clone();
             }
         }
@@ -291,8 +299,7 @@ fn combine_side_by_side(
     let offset = left.area.width;
     for y in 0..right.area.height {
         for x in 0..right.area.width {
-            if let (Some(src), Some(dst)) =
-                (right.cell((x, y)), combined.cell_mut((offset + x, y)))
+            if let (Some(src), Some(dst)) = (right.cell((x, y)), combined.cell_mut((offset + x, y)))
             {
                 *dst = src.clone();
             }
@@ -785,8 +792,7 @@ pub async fn render_completions(
                         .unwrap_or(0)
                         .max(1);
 
-                    let doc_buf =
-                        build_doc_popup(&lines, doc_height, doc_width, window_style);
+                    let doc_buf = build_doc_popup(&lines, doc_height, doc_width, window_style);
                     let doc_arc = Arc::new(doc_buf);
                     doc_rendered = Some(doc_arc.clone());
                     new_cache = Some((selected_idx, doc_arc));
@@ -795,7 +801,10 @@ pub async fn render_completions(
         }
 
         let final_popup = if let Some(doc) = doc_rendered {
-            combine_side_by_side(list_popup, Arc::try_unwrap(doc).unwrap_or_else(|arc| (*arc).clone()))
+            combine_side_by_side(
+                list_popup,
+                Arc::try_unwrap(doc).unwrap_or_else(|arc| (*arc).clone()),
+            )
         } else {
             list_popup
         };

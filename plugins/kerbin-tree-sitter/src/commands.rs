@@ -70,7 +70,9 @@ impl Command for TreeSitterCommand {
                 {
                     let mut manager = state.lock_state::<GrammarManager>().await;
                     for ext in &ext_strings {
-                        manager.ext_map.insert(ext.to_lowercase(), normalized.clone());
+                        manager
+                            .ext_map
+                            .insert(ext.to_lowercase(), normalized.clone());
                     }
                     manager.lang_map.insert(normalized, def);
                 }
@@ -80,7 +82,8 @@ impl Command for TreeSitterCommand {
                         .on_hook(hooks::UpdateFiletype::new(&ext))
                         .system(crate::state::open_files)
                         .system(crate::state::update_trees)
-                        .system(crate::highlighter::highlight_file);
+                        .system(crate::highlighter::highlight_file)
+                        .system(crate::locals::update_locals);
                 }
             }
 
@@ -109,7 +112,9 @@ impl Command for TreeSitterCommand {
                 new_def.exts = ext_strings.clone();
                 manager.lang_map.insert(normalized_new.clone(), new_def);
                 for ext in &ext_strings {
-                    manager.ext_map.insert(ext.to_lowercase(), normalized_new.clone());
+                    manager
+                        .ext_map
+                        .insert(ext.to_lowercase(), normalized_new.clone());
                 }
                 drop(manager);
 
@@ -118,7 +123,8 @@ impl Command for TreeSitterCommand {
                         .on_hook(hooks::UpdateFiletype::new(&ext))
                         .system(crate::state::open_files)
                         .system(crate::state::update_trees)
-                        .system(crate::highlighter::highlight_file);
+                        .system(crate::highlighter::highlight_file)
+                        .system(crate::locals::update_locals);
                 }
             }
         }

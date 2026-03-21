@@ -9,10 +9,7 @@ use std::path::Path;
 /// so that nested `source` commands resolve paths correctly.
 pub async fn load_kb(path: &Path, state: &mut State) -> Result<(), Box<dyn Error>> {
     let content = std::fs::read_to_string(path)?;
-    let base_dir = path
-        .parent()
-        .unwrap_or_else(|| Path::new(""))
-        .to_path_buf();
+    let base_dir = path.parent().unwrap_or_else(|| Path::new("")).to_path_buf();
 
     // Save and update ConfigDir to this file's directory
     let old_dir = {
@@ -31,7 +28,12 @@ pub async fn load_kb(path: &Path, state: &mut State) -> Result<(), Box<dyn Error
         let tokens = match tokenize(line) {
             Ok(t) => t,
             Err(e) => {
-                tracing::error!("kb parse error in '{}' on line {:?}: {}", path.display(), line, e);
+                tracing::error!(
+                    "kb parse error in '{}' on line {:?}: {}",
+                    path.display(),
+                    line,
+                    e
+                );
                 continue;
             }
         };
@@ -50,7 +52,11 @@ pub async fn load_kb(path: &Path, state: &mut State) -> Result<(), Box<dyn Error
         if let Some(cmd) = command {
             cmd.apply(state).await;
         } else {
-            tracing::warn!("kb [{}] unrecognized command on line: {:?}", path.display(), line);
+            tracing::warn!(
+                "kb [{}] unrecognized command on line: {:?}",
+                path.display(),
+                line
+            );
         }
     }
 

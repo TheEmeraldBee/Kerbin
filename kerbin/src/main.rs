@@ -1,7 +1,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use ratatui::{
-    crossterm::execute,
+    crossterm::{event::EnableMouseCapture, execute},
     layout::{Constraint, Layout, Position},
 };
 
@@ -204,6 +204,7 @@ async fn main() {
     init_log();
 
     let terminal = ratatui::init();
+    execute!(std::io::stdout(), EnableMouseCapture).ok();
 
     // Initialize terminal
     let (command_sender, mut command_reciever) = unbounded_channel();
@@ -264,17 +265,18 @@ async fn main() {
         state
             .lock_state::<CommandInterceptorRegistry>()
             .await
-            .on_command_named::<BufferCommand>(
-                "core::auto_pairs",
-                0,
-                |cmd, state| Box::pin(auto_pairs_intercept(cmd, state)),
-            );
+            .on_command_named::<BufferCommand>("core::auto_pairs", 0, |cmd, state| {
+                Box::pin(auto_pairs_intercept(cmd, state))
+            });
     }
 
     state
         .on_hook(hooks::ChunkRegister)
         .system_named("core::layout", register_default_chunks)
-        .system_named("core::command_palette_chunks", register_command_palette_chunks)
+        .system_named(
+            "core::command_palette_chunks",
+            register_command_palette_chunks,
+        )
         .system_named("core::log_chunk", register_log_chunk)
         .system_named("core::help_menu_chunk", register_help_menu_chunk);
 
@@ -282,8 +284,14 @@ async fn main() {
         .on_hook(hooks::Update)
         .system_named("core::update_debounce", update_debounce)
         .system_named("core::handle_inputs", handle_inputs)
-        .system_named("core::update_palette_suggestions", update_palette_suggestions)
-        .system_named("core::render_cursors_and_selections", render_cursors_and_selections);
+        .system_named(
+            "core::update_palette_suggestions",
+            update_palette_suggestions,
+        )
+        .system_named(
+            "core::render_cursors_and_selections",
+            render_cursors_and_selections,
+        );
 
     state
         .on_hook(hooks::PostUpdate)
@@ -292,8 +300,14 @@ async fn main() {
 
     state
         .on_hook(hooks::PreLines)
-        .system_named("core::update_buffer_horizontal_scroll", update_buffer_horizontal_scroll)
-        .system_named("core::update_buffer_vertical_scroll", update_buffer_vertical_scroll);
+        .system_named(
+            "core::update_buffer_horizontal_scroll",
+            update_buffer_horizontal_scroll,
+        )
+        .system_named(
+            "core::update_buffer_vertical_scroll",
+            update_buffer_vertical_scroll,
+        );
 
     state
         .on_hook(hooks::Render)
@@ -304,9 +318,13 @@ async fn main() {
         .system_named("core::render_log", render_log)
         .system_named("core::render_buffer", render_buffer_default);
 
-    state.on_hook(hooks::UpdateCleanup).system_named("core::cleanup_buffers", cleanup_buffers);
+    state
+        .on_hook(hooks::UpdateCleanup)
+        .system_named("core::cleanup_buffers", cleanup_buffers);
 
-    state.on_hook(hooks::RenderChunks).system_named("core::render_chunks", render_chunks);
+    state
+        .on_hook(hooks::RenderChunks)
+        .system_named("core::render_chunks", render_chunks);
 
     state.hook(hooks::PostInit).call().await;
 

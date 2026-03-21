@@ -56,18 +56,18 @@ pub async fn render_cursors_and_selections(
                 _ => CursorShape::Block,
             };
 
-            buf.add_extmark(
-                ExtmarkBuilder::new("inner::cursor", caret_byte)
-                    .with_kind(ExtmarkKind::Cursor {
-                        style: cursor_style,
-                        shape,
-                    }),
-            );
+            buf.add_extmark(ExtmarkBuilder::new("inner::cursor", caret_byte).with_kind(
+                ExtmarkKind::Cursor {
+                    style: cursor_style,
+                    shape,
+                },
+            ));
         } else {
-            buf.add_extmark(
-                ExtmarkBuilder::new("inner::cursor", caret_byte)
-                    .with_kind(ExtmarkKind::Highlight { style: cursor_style }),
-            );
+            buf.add_extmark(ExtmarkBuilder::new("inner::cursor", caret_byte).with_kind(
+                ExtmarkKind::Highlight {
+                    style: cursor_style,
+                },
+            ));
         }
 
         if cursor.sel().start() != cursor.sel().end() {
@@ -163,7 +163,9 @@ pub async fn update_tab_width_template(buffers: Res<Buffers>) {
         IndentStyle::Tabs => "\t".to_string(),
         IndentStyle::Spaces(n) => " ".repeat(*n),
     };
-    resolver_engine_mut().await.set_template("tab_unit", [tab_unit]);
+    resolver_engine_mut()
+        .await
+        .set_template("tab_unit", [tab_unit]);
 }
 
 pub async fn cleanup_buffers(buffers: ResMut<Buffers>) {

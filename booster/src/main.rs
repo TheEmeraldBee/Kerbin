@@ -1,7 +1,7 @@
 use clap::*;
 use dialoguer::*;
-use kerbin_core::{ClientIpc, session_name_path, session_pid_path, sessions_dir};
 use indicatif::*;
+use kerbin_core::{ClientIpc, session_name_path, session_pid_path, sessions_dir};
 use serde::{Deserialize, Serialize};
 use std::{
     io::{BufRead, BufReader},
@@ -406,9 +406,10 @@ fn resolve_session(input: &str) -> String {
             if let Some(session_id) = filename.strip_suffix(".name") {
                 let name_path = format!("{}/{}", dir, filename);
                 if let Ok(stored) = std::fs::read_to_string(&name_path)
-                    && stored.trim() == input {
-                        return session_id.to_string();
-                    }
+                    && stored.trim() == input
+                {
+                    return session_id.to_string();
+                }
             }
         }
     }
@@ -618,11 +619,9 @@ fn main() {
                             .filter_map(|e| {
                                 let filename = e.file_name().into_string().ok()?;
                                 let id = filename.strip_suffix(".in")?.to_string();
-                                let name = std::fs::read_to_string(
-                                    format!("{}/{}.name", dir, id)
-                                )
-                                .ok()
-                                .map(|s| s.trim().to_string());
+                                let name = std::fs::read_to_string(format!("{}/{}.name", dir, id))
+                                    .ok()
+                                    .map(|s| s.trim().to_string());
                                 Some((id, name))
                             })
                             .collect()
@@ -638,7 +637,7 @@ fn main() {
                     for (id, name) in sessions {
                         match name {
                             Some(n) => println!("  {}  ({})", id, n),
-                            None    => println!("  {}", id),
+                            None => println!("  {}", id),
                         }
                     }
                 }
@@ -670,7 +669,9 @@ fn main() {
                         match status {
                             Ok(s) if s.success() => {}
                             Ok(_) => {
-                                eprintln!("kill returned non-zero (process may have already exited).");
+                                eprintln!(
+                                    "kill returned non-zero (process may have already exited)."
+                                );
                                 std::process::exit(1);
                             }
                             Err(e) => {

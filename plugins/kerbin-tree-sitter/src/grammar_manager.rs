@@ -45,7 +45,8 @@ impl GrammarManager {
                 .on_hook(hooks::UpdateFiletype::new(ext))
                 .system(crate::state::open_files)
                 .system(crate::state::update_trees)
-                .system(crate::highlighter::highlight_file);
+                .system(crate::highlighter::highlight_file)
+                .system(crate::locals::update_locals);
         }
     }
 

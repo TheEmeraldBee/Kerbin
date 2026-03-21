@@ -102,6 +102,8 @@ theme ui.cursor.x.i --bg green --attrs [bold]
 theme ui.cursor.x.v --bg sky --attrs [bold italic]
 theme ui.cursor.x --bg lavender
 theme ui.selection --bg surface1 --attrs [italic]
+theme ts.local.reference --fg maroon
+theme ts.local.ref-highlight --fg sky --attrs [bold underlined]
 theme statusline.selections.one --fg sky --attrs [italic]
 theme statusline.selections.multi --fg sapphire --attrs [bold italic]
 theme statusline.mode.n --fg mantle --bg green --attrs [bold]

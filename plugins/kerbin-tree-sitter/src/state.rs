@@ -6,6 +6,7 @@ use tree_sitter::{Parser, Tree};
 use crate::{
     grammar_manager::GrammarManager,
     highlighter::{Highlighter, merge_overlapping_spans},
+    locals::LocalsAnalysis,
     query_walker::QueryWalkerBuilder,
 };
 
@@ -39,6 +40,8 @@ pub struct TreeSitterState {
     pub parser: Parser,
     pub tree: Option<Tree>,
     pub injected_trees: Vec<InjectedTree>,
+    pub locals_analysis: Option<LocalsAnalysis>,
+    pub locals_cursor_byte: Option<usize>,
 }
 
 pub async fn update_trees(
@@ -128,7 +131,11 @@ pub async fn update_trees(
         parser: Parser::new(),
         tree: state.tree.clone(),
         injected_trees: vec![],
+        locals_analysis: None,
+        locals_cursor_byte: None,
     };
+    // Invalidate locals analysis since content changed
+    state.locals_analysis = None;
 
     let injected_trees =
         load_injected_trees(&temp_state, &mut grammars, &config_path.0, buf.get_rope());
@@ -210,6 +217,8 @@ pub async fn open_files(
         parser,
         tree: Some(tree),
         injected_trees: vec![],
+        locals_analysis: None,
+        locals_cursor_byte: None,
     };
 
     // Load injected trees using the initial state
@@ -226,6 +235,8 @@ pub async fn open_files(
         parser: initial_state.parser,
         tree: initial_state.tree,
         injected_trees,
+        locals_analysis: None,
+        locals_cursor_byte: None,
     });
 
     let state = buf
@@ -431,6 +442,8 @@ pub fn highlight_text(
         parser,
         tree: Some(tree),
         injected_trees: vec![],
+        locals_analysis: None,
+        locals_cursor_byte: None,
     };
 
     // Load injected trees (using the existing private function)

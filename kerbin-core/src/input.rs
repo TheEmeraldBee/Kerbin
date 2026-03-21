@@ -97,7 +97,12 @@ pub async fn render_help_menu(chunk: Chunk<HelpChunk>, input: Res<InputState>) {
         let key_str = data.0.to_string();
         let desc_str = data.1.as_ref().map(|x| x.desc.as_str()).unwrap_or_default();
         let line_text = format!("{}   {}", key_str, desc_str);
-        chunk.set_string(area.x + 1, area.y + 1 + i as u16, &line_text, Style::default());
+        chunk.set_string(
+            area.x + 1,
+            area.y + 1 + i as u16,
+            &line_text,
+            Style::default(),
+        );
     }
 }
 

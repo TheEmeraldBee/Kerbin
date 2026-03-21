@@ -10,7 +10,7 @@ bind [esc] [[tla] [rm]] --modes [i] --required [lsp_items] --desc "Trash LSP cha
 bind [ctrl-(j|down)] [hs 1] --desc "Scroll Hover Down 1"
 bind [ctrl-(k|up)] [hs -1] --desc "Scroll Hover Up 1"
 
-bind [g r] [lsp-goto-references --multi [ship [sh "%cfg_folder/scripts/goto.sh" %session %lsp_locations]]] --desc "Goto LSP references"
+bind [g r r] [lsp-goto-references --multi [ship [sh "%cfg_folder/scripts/goto.sh" %session %lsp_locations]]] --desc "Goto LSP references"
 bind [g d] [lsp-goto-definition --multi [ship [sh "%cfg_folder/scripts/goto.sh" %session %lsp_locations]]] --desc "Goto LSP definition"
 bind [g D] [lsp-goto-type-definition --multi [ship [sh "%cfg_folder/scripts/goto.sh" %session %lsp_locations]]] --desc "Goto LSP definition"
 bind [g i] [lsp-goto-implementation --multi [ship [sh "%cfg_folder/scripts/goto.sh" %session %lsp_locations]]] --desc "Goto LSP definition"

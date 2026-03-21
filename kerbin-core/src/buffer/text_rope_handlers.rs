@@ -1,7 +1,7 @@
-use ropey::{iter::Lines, LineType, RopeSlice};
+use ropey::{LineType, RopeSlice, iter::Lines};
 
-use crate::rope_exts::RopeExts;
 use crate::TextBuffer;
+use crate::rope_exts::RopeExts;
 
 /// Extension trait for safe rope operations on TextBuffer
 pub trait SafeRopeAccess {

@@ -1,6 +1,6 @@
 use kerbin_core::*;
 
-use crate::state::TreeSitterState;
+use crate::{locals::find_highlight_ranges, state::TreeSitterState};
 
 #[derive(Command)]
 pub enum TreeSitterMotion {
@@ -32,6 +32,14 @@ pub enum TreeSitterMotion {
         #[command(flag)]
         extend: bool,
     },
+
+    #[command(drop_ident, name = "ts_next_ref", name = "tsnr")]
+    /// Jump to the next occurrence of the local symbol under the cursor.
+    NextRef,
+
+    #[command(drop_ident, name = "ts_prev_ref", name = "tspr")]
+    /// Jump to the previous occurrence of the local symbol under the cursor.
+    PrevRef,
 }
 
 #[async_trait::async_trait]
@@ -42,6 +50,8 @@ impl Command for TreeSitterMotion {
             Self::ParentNode { extend } => ts_parent_node(state, *extend).await,
             Self::NextSibling { extend } => ts_next_sibling(state, *extend).await,
             Self::PrevSibling { extend } => ts_prev_sibling(state, *extend).await,
+            Self::NextRef => ts_next_ref(state).await,
+            Self::PrevRef => ts_prev_ref(state).await,
         }
         true
     }
@@ -160,6 +170,75 @@ async fn ts_next_sibling(state: &mut State, extend: bool) {
     };
 
     apply_selection(&mut buf, final_range, extend);
+}
+
+async fn ts_next_ref(state: &mut State) {
+    let mut buffers = state.lock_state::<Buffers>().await;
+    let mut buf = buffers.cur_buffer_mut().await;
+
+    let cursor_byte = buf.primary_cursor().get_cursor_byte();
+
+    let target = {
+        let Some(ts_state) = buf.get_state_mut::<TreeSitterState>().await else {
+            return;
+        };
+        let Some(analysis) = ts_state.locals_analysis.as_ref() else {
+            return;
+        };
+
+        let mut ranges = find_highlight_ranges(cursor_byte, analysis);
+        if ranges.is_empty() {
+            return;
+        }
+        ranges.sort_by_key(|r| r.start);
+
+        // Find the first range that starts strictly after the cursor
+        ranges
+            .iter()
+            .find(|r| r.start > cursor_byte)
+            .or_else(|| ranges.first()) // wrap around
+            .map(|r| r.start..r.end.saturating_sub(1))
+    };
+
+    if let Some(range) = target {
+        buf.primary_cursor_mut().set_sel(range.start..=range.end);
+        buf.primary_cursor_mut().set_at_start(false);
+    }
+}
+
+async fn ts_prev_ref(state: &mut State) {
+    let mut buffers = state.lock_state::<Buffers>().await;
+    let mut buf = buffers.cur_buffer_mut().await;
+
+    let cursor_byte = buf.primary_cursor().get_cursor_byte();
+
+    let target = {
+        let Some(ts_state) = buf.get_state_mut::<TreeSitterState>().await else {
+            return;
+        };
+        let Some(analysis) = ts_state.locals_analysis.as_ref() else {
+            return;
+        };
+
+        let mut ranges = find_highlight_ranges(cursor_byte, analysis);
+        if ranges.is_empty() {
+            return;
+        }
+        ranges.sort_by_key(|r| r.start);
+
+        // Find the last range that ends strictly before the cursor
+        ranges
+            .iter()
+            .rev()
+            .find(|r| r.end <= cursor_byte)
+            .or_else(|| ranges.last()) // wrap around
+            .map(|r| r.start..r.end.saturating_sub(1))
+    };
+
+    if let Some(range) = target {
+        buf.primary_cursor_mut().set_sel(range.start..=range.end);
+        buf.primary_cursor_mut().set_at_start(false);
+    }
 }
 
 async fn ts_prev_sibling(state: &mut State, extend: bool) {

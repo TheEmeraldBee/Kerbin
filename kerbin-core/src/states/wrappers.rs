@@ -53,7 +53,10 @@ pub struct CoreConfig {
 
 impl Default for CoreConfig {
     fn default() -> Self {
-        Self { framerate: 60, disable_auto_pairs: false }
+        Self {
+            framerate: 60,
+            disable_auto_pairs: false,
+        }
     }
 }
 

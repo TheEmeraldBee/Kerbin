@@ -101,10 +101,7 @@ impl Theme {
     }
 
     /// Retrieves a `Style` based on an iterator of names, falling back to a default style
-    pub fn get_fallback_default(
-        &self,
-        names: impl IntoIterator<Item = impl ToString>,
-    ) -> Style {
+    pub fn get_fallback_default(&self, names: impl IntoIterator<Item = impl ToString>) -> Style {
         for name in names.into_iter().map(|x| x.to_string()) {
             if let Some(theme) = self.get(&name) {
                 return theme;

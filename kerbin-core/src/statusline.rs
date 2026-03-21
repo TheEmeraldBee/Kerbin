@@ -113,12 +113,19 @@ pub async fn render_statusline(
         let sel_style =
             theme.get_fallback_default(["statusline.selections.multi", "statusline.selections"]);
         let primary_cursor = cur_buf.primary_cursor + 1;
-        right_parts.push((format!("{}/{} sels", primary_cursor, cursor_count), sel_style));
+        right_parts.push((
+            format!("{}/{} sels", primary_cursor, cursor_count),
+            sel_style,
+        ));
     }
 
     // Calculate total width needed for right-aligned content
     let spacing = if right_parts.len() > 1 { 3 } else { 0 }; // " | " separator
-    let right_width: usize = right_parts.iter().map(|(s, _)| s.chars().count()).sum::<usize>() + spacing;
+    let right_width: usize = right_parts
+        .iter()
+        .map(|(s, _)| s.chars().count())
+        .sum::<usize>()
+        + spacing;
 
     // Render right-aligned content if it fits
     if right_width <= chunk_width as usize {

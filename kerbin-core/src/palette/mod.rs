@@ -1,7 +1,7 @@
 use crate::*;
+use kerbin_macros::State;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, BorderType, Paragraph};
-use kerbin_macros::State;
 
 pub mod ranking;
 pub use ranking::*;
@@ -188,8 +188,7 @@ pub async fn render_command_palette(
             .border_style(border_style)
             .render(sug_area, &mut suggestions_chunk);
 
-        let max_display =
-            suggestion_count.min((sug_area.height.saturating_sub(2)) as usize);
+        let max_display = suggestion_count.min((sug_area.height.saturating_sub(2)) as usize);
         let inner_width = sug_area.width.saturating_sub(6);
 
         for i in 0..max_display {
@@ -202,8 +201,7 @@ pub async fn render_command_palette(
             }
 
             let sug_rect = Rect::new(sug_x, sug_y, inner_width, 1);
-            Paragraph::new(palette.suggestions[i].clone())
-                .render(sug_rect, &mut suggestions_chunk);
+            Paragraph::new(palette.suggestions[i].clone()).render(sug_rect, &mut suggestions_chunk);
         }
     }
 

@@ -641,8 +641,7 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
 
             // Whether the last line has no trailing newline — we render one extra space
             // so cursors at the EOF position (end+1) have a cell to occupy.
-            let extra_eof_space =
-                line_end_byte == rope.len() && visible_len == line_char_count;
+            let extra_eof_space = line_end_byte == rope.len() && visible_len == line_char_count;
 
             // Filter viewport marks for this line (by byte range)
             let marks: Vec<&Extmark> = all_viewport_marks
@@ -710,7 +709,11 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
             );
 
             let full_line_text: String = {
-                let base = rope_line.to_string().chars().take(visible_len).collect::<String>();
+                let base = rope_line
+                    .to_string()
+                    .chars()
+                    .take(visible_len)
+                    .collect::<String>();
                 if extra_eof_space { base + " " } else { base }
             };
 

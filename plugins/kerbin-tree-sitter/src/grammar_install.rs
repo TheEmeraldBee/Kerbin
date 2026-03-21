@@ -5,7 +5,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::grammar::{normalize_lang_name, GrammarDefinition};
+use crate::grammar::{GrammarDefinition, normalize_lang_name};
 
 #[derive(thiserror::Error, Debug)]
 pub enum GrammarInstallError {

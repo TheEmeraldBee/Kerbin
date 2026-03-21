@@ -59,7 +59,8 @@ impl Command for PaletteCommand {
                 let resolver = resolver.as_resolver();
 
                 let mut expansion_errors: Vec<String> = Vec::new();
-                let expanded = resolver.expand_tokens_reporting(tokens, true, &mut expansion_errors);
+                let expanded =
+                    resolver.expand_tokens_reporting(tokens, true, &mut expansion_errors);
 
                 let log = state.lock_state::<LogSender>().await;
                 for err in &expansion_errors {

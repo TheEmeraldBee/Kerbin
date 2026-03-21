@@ -10,7 +10,7 @@ use crate::*;
 pub struct Chunks {
     /// Layered storage for drawing chunks, keyed by z-index then slot index
     pub buffers: Vec<Vec<Arc<RwLock<InnerChunk>>>>,
-    chunk_idx_map: HashMap<String, (usize, usize)>,
+    chunk_idx_map: HashMap<String, (usize, usize, Rect)>,
 }
 
 impl Chunks {
@@ -26,10 +26,14 @@ impl Chunks {
             self.buffers.resize(z_index + 1, Vec::default());
         }
 
+        let name = C::static_name();
+        let slot = self.buffers[z_index].len();
         let coords = self
             .chunk_idx_map
-            .entry(C::static_name())
-            .or_insert((z_index, self.buffers[z_index].len()));
+            .entry(name)
+            .or_insert((z_index, slot, rect));
+        // Update the stored rect each time the chunk is re-registered (layout may change)
+        coords.2 = rect;
 
         // Create empty buffer covering the rect (position encoded in buffer.area)
         let buffer = Buffer::empty(rect);
@@ -44,7 +48,12 @@ impl Chunks {
     /// Retrieves a registered chunk by its state name
     pub fn get_chunk<C: StateName + StaticState>(&self) -> Option<Arc<RwLock<InnerChunk>>> {
         let id = C::static_name();
-        let (ia, ib) = self.chunk_idx_map.get(&id)?;
+        let (ia, ib, _) = self.chunk_idx_map.get(&id)?;
         Some(self.buffers[*ia][*ib].clone())
+    }
+
+    /// Returns the last-registered rect for a chunk by name, if any
+    pub fn rect_for_chunk(&self, name: &str) -> Option<Rect> {
+        self.chunk_idx_map.get(name).map(|(_, _, rect)| *rect)
     }
 }

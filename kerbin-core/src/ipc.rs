@@ -46,7 +46,11 @@ impl ServerIpc {
         // Create queue
         let in_queue = Receiver::new(SharedRingBuffer::create(&in_file, 16000).unwrap());
 
-        Self { in_queue, in_file, pid_file }
+        Self {
+            in_queue,
+            in_file,
+            pid_file,
+        }
     }
 
     pub fn try_recv(&self) -> Option<ClientMessage> {
@@ -106,10 +110,10 @@ pub async fn handle_ipc_messages(state: &mut State) {
                     true,
                     &prefix_registry,
                     &modes,
-                )
-                    && let Err(e) = command_sender.send(cmd) {
-                        log.medium("IPC", format!("Failed to send command: {:?}", e));
-                    }
+                ) && let Err(e) = command_sender.send(cmd)
+                {
+                    log.medium("IPC", format!("Failed to send command: {:?}", e));
+                }
             }
         }
     }

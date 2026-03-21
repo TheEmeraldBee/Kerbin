@@ -199,7 +199,9 @@ pub async fn render_hover(
     let popup_rect = Rect::new(0, 0, popup_w, popup_h);
     let mut popup_buf = ratatui::buffer::Buffer::empty(popup_rect);
 
-    let block = Block::bordered().border_type(BorderType::Rounded).title("Hover");
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .title("Hover");
     let inner = block.inner(popup_rect);
     block.render(popup_rect, &mut popup_buf);
     Paragraph::new(Text::from(text_lines)).render(inner, &mut popup_buf);

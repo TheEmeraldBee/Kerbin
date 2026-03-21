@@ -19,10 +19,7 @@ pub async fn update_buffer_horizontal_scroll(chunk: Chunk<BufferChunk>, buffers:
     let line_text = buf
         .slice_to_string(line_start_byte, cursor_byte)
         .unwrap_or_default();
-    let cursor_col: usize = line_text
-        .chars()
-        .map(|c| c.width().unwrap_or(0))
-        .sum();
+    let cursor_col: usize = line_text.chars().map(|c| c.width().unwrap_or(0)).sum();
 
     const H_SCROLL_PADDING: usize = 5;
 
@@ -74,8 +71,8 @@ pub async fn update_buffer_vertical_scroll(chunk: Chunk<BufferChunk>, buffers: R
 
     // If cursor is below the viewport, scroll down
     if cursor_viewport_position >= viewport_height.saturating_sub(SCROLL_PADDING) {
-        buf.renderer.byte_scroll = cursor_line_idx
-            .saturating_sub(viewport_height.saturating_sub(SCROLL_PADDING + 1));
+        buf.renderer.byte_scroll =
+            cursor_line_idx.saturating_sub(viewport_height.saturating_sub(SCROLL_PADDING + 1));
     }
 
     buf.renderer.visual_scroll = 0;
