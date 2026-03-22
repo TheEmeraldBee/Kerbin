@@ -3,6 +3,12 @@ use std::sync::Arc;
 use crate::*;
 use kerbin_core::*;
 use lsp_types::*;
+
+/// Global store of all diagnostics received via publishDiagnostics,
+/// keyed by file path. Includes files not currently open as buffers.
+#[derive(State, Default)]
+pub struct GlobalDiagnostics(pub std::collections::HashMap<String, Vec<Diagnostic>>);
+
 use ratatui::{
     layout::Rect,
     prelude::*,
@@ -174,15 +180,25 @@ pub async fn publish_diagnostics(state: &State, msg: &JsonRpcMessage) {
     if let crate::JsonRpcMessage::Notification(notif) = msg
         && let Ok(params) = serde_json::from_value::<PublishDiagnosticsParams>(notif.params.clone())
     {
-        let Some(mut buf) = state
+        let path = params.uri.path().to_string();
+
+        // Always store in the global map so workspace diagnostics work for
+        // files that are not currently open as buffers.
+        state
+            .lock_state::<GlobalDiagnostics>()
+            .await
+            .0
+            .insert(path.clone(), params.diagnostics.clone());
+
+        // Also push onto the open buffer if there is one.
+        if let Some(mut buf) = state
             .lock_state::<Buffers>()
             .await
-            .get_mut_path(params.uri.path().as_str())
+            .get_mut_path(&path)
             .await
-        else {
-            return;
-        };
-
-        buf.set_state(Diagnostics(params.diagnostics));
+        {
+            buf.set_state(Diagnostics(params.diagnostics));
+        }
     }
 }
+

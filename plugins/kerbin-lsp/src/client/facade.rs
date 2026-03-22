@@ -82,6 +82,12 @@ impl<W: AsyncWrite + Unpin + Send + 'static> ClientFacade for LspClient<W> {
                     }),
                     ..Default::default()
                 }),
+                workspace: Some(WorkspaceClientCapabilities {
+                    diagnostic: Some(DiagnosticWorkspaceClientCapabilities {
+                        refresh_support: Some(true),
+                    }),
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
             workspace_folders: Some(vec![WorkspaceFolder {

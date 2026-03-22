@@ -62,6 +62,8 @@ pub enum NavigationCommand {
     GotoDiagnostics {
         #[command(flag, name = "multi", type_name = "[command]?")]
         multi: Option<Vec<Token>>,
+        #[command(flag, name = "workspace")]
+        workspace: bool,
     },
 }
 
@@ -160,69 +162,127 @@ impl Command for NavigationCommand {
             Self::GotoDeclaration { multi } => {
                 send_goto_request(state, NavigationKind::Declaration, multi.clone()).await
             }
-            Self::GotoDiagnostics { multi } => {
-                let bufs = state.lock_state::<Buffers>().await;
-                let mut entries: Vec<String> = Vec::new();
+            Self::GotoDiagnostics { multi, workspace } => {
+                if *workspace {
+                    // Workspace-wide diagnostics from the global push-model store.
+                    // publishDiagnostics notifications are stored for all files,
+                    // including those not currently open as buffers.
+                    let global = state.lock_state::<crate::GlobalDiagnostics>().await;
+                    let mut entries: Vec<String> = Vec::new();
 
-                for buf in &bufs.buffers {
-                    let buf = buf.read().await;
-                    let Some(file) = buf.get_state::<OpenedFile>().await else { continue };
-                    let path = file.uri.path().to_string();
-                    let Some(diagnostics) = buf.get_state::<Diagnostics>().await else { continue };
-                    for diag in &diagnostics.0 {
-                        entries.push(crate::diagnostics::format_diagnostic(&path, diag));
-                    }
-                }
-                drop(bufs);
-
-                if entries.is_empty() {
-                    state.lock_state::<LogSender>().await.low("lsp", "No Diagnostics");
-                    return false;
-                }
-
-                resolver_engine_mut().await.set_template("lsp_diagnostics", Token::list_from(entries));
-
-                if let Some(tokens) = multi.clone() {
-                    let token_lists: Vec<Vec<Token>> =
-                        if tokens.iter().all(|t| matches!(t, Token::List(_))) {
-                            tokens
-                                .into_iter()
-                                .filter_map(|t| {
-                                    if let Token::List(items) = t {
-                                        Some(
-                                            tokenize(&tokens_to_command_string(&items))
-                                                .unwrap_or_default(),
-                                        )
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .collect()
-                        } else {
-                            vec![tokens]
-                        };
-
-                    for token_list in token_lists {
-                        let command = state.lock_state::<CommandRegistry>().await.parse_command(
-                            token_list,
-                            true,
-                            false,
-                            Some(&resolver_engine().await.as_resolver()),
-                            true,
-                            &*state.lock_state::<CommandPrefixRegistry>().await,
-                            &*state.lock_state::<ModeStack>().await,
-                        );
-                        if let Some(command) = command {
-                            state
-                                .lock_state::<CommandSender>()
-                                .await
-                                .send(command)
-                                .unwrap();
+                    for (path, diags) in &global.0 {
+                        for diag in diags {
+                            entries.push(crate::diagnostics::format_diagnostic(path, diag));
                         }
                     }
-                }
+                    drop(global);
 
-                true
+                    if entries.is_empty() {
+                        state.lock_state::<LogSender>().await.low("lsp", "No Diagnostics");
+                        return false;
+                    }
+
+                    resolver_engine_mut().await.set_template("lsp_diagnostics", Token::list_from(entries));
+
+                    if let Some(tokens) = multi.clone() {
+                        let token_lists: Vec<Vec<Token>> =
+                            if tokens.iter().all(|t| matches!(t, Token::List(_))) {
+                                tokens
+                                    .into_iter()
+                                    .filter_map(|t| {
+                                        if let Token::List(items) = t {
+                                            Some(tokenize(&tokens_to_command_string(&items)).unwrap_or_default())
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect()
+                            } else {
+                                vec![tokens]
+                            };
+
+                        for token_list in token_lists {
+                            let command = state.lock_state::<CommandRegistry>().await.parse_command(
+                                token_list,
+                                true,
+                                false,
+                                Some(&resolver_engine().await.as_resolver()),
+                                true,
+                                &*state.lock_state::<CommandPrefixRegistry>().await,
+                                &*state.lock_state::<ModeStack>().await,
+                            );
+                            if let Some(command) = command {
+                                state.lock_state::<CommandSender>().await.send(command).unwrap();
+                            }
+                        }
+                    }
+
+                    true
+                } else {
+                    // Open-buffer diagnostics (existing behaviour)
+                    let bufs = state.lock_state::<Buffers>().await;
+                    let mut entries: Vec<String> = Vec::new();
+
+                    for buf in &bufs.buffers {
+                        let buf = buf.read().await;
+                        let Some(file) = buf.get_state::<OpenedFile>().await else { continue };
+                        let path = file.uri.path().to_string();
+                        let Some(diagnostics) = buf.get_state::<Diagnostics>().await else { continue };
+                        for diag in &diagnostics.0 {
+                            entries.push(crate::diagnostics::format_diagnostic(&path, diag));
+                        }
+                    }
+                    drop(bufs);
+
+                    if entries.is_empty() {
+                        state.lock_state::<LogSender>().await.low("lsp", "No Diagnostics");
+                        return false;
+                    }
+
+                    resolver_engine_mut().await.set_template("lsp_diagnostics", Token::list_from(entries));
+
+                    if let Some(tokens) = multi.clone() {
+                        let token_lists: Vec<Vec<Token>> =
+                            if tokens.iter().all(|t| matches!(t, Token::List(_))) {
+                                tokens
+                                    .into_iter()
+                                    .filter_map(|t| {
+                                        if let Token::List(items) = t {
+                                            Some(
+                                                tokenize(&tokens_to_command_string(&items))
+                                                    .unwrap_or_default(),
+                                            )
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect()
+                            } else {
+                                vec![tokens]
+                            };
+
+                        for token_list in token_lists {
+                            let command = state.lock_state::<CommandRegistry>().await.parse_command(
+                                token_list,
+                                true,
+                                false,
+                                Some(&resolver_engine().await.as_resolver()),
+                                true,
+                                &*state.lock_state::<CommandPrefixRegistry>().await,
+                                &*state.lock_state::<ModeStack>().await,
+                            );
+                            if let Some(command) = command {
+                                state
+                                    .lock_state::<CommandSender>()
+                                    .await
+                                    .send(command)
+                                    .unwrap();
+                            }
+                        }
+                    }
+
+                    true
+                }
             }
             Self::GotoLocation { location } => {
                 // Parse "path:line:col" — use rsplitn(3) to handle Unix paths with colons

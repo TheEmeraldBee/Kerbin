@@ -34,6 +34,9 @@ pub struct LspClient<W: AsyncWrite + Unpin + Send + 'static> {
     ignore_ids: Vec<i32>,
 
     message_rx: UnboundedReceiver<JsonRpcMessage>,
+
+    /// Server capabilities received from the initialize response
+    pub server_capabilities: Option<lsp_types::ServerCapabilities>,
 }
 
 impl LspClient<ChildStdin> {
@@ -84,6 +87,7 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
             request_info: std::collections::HashMap::new(),
             ignore_ids: vec![],
             message_rx,
+            server_capabilities: None,
         })
     }
 
@@ -311,6 +315,18 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
 
                     // Get the method from request info for pattern matching
                     if let Some(req_info) = self.request_info.get(&val.id) {
+                        // Cache server capabilities from the initialize response
+                        if req_info.method == "initialize"
+                            && let Some(result) = &val.result
+                                && let Ok(init_result) =
+                                    serde_json::from_value::<lsp_types::InitializeResult>(
+                                        result.clone(),
+                                    )
+                                {
+                                    self.server_capabilities =
+                                        Some(init_result.capabilities);
+                                }
+
                         let handlers = handler_manager.iter_response_handlers(&self.lang_id);
                         Self::call_matching_handlers(handlers, &req_info.method, state, &msg).await;
                     }

@@ -68,7 +68,8 @@ pub async fn register_lang(
 pub async fn init(state: &mut State) {
     state
         .state(LspHandlerManager::default())
-        .state(LspManager::default());
+        .state(LspManager::default())
+        .state(GlobalDiagnostics::default());
 
     // Setup reaction to file save event
     EVENT_BUS
@@ -123,5 +124,6 @@ pub async fn init(state: &mut State) {
         handler_manager.on_global_response("textDocument/declaration", |state, msg| {
             Box::pin(handle_navigation(state, msg))
         });
+
     }
 }
