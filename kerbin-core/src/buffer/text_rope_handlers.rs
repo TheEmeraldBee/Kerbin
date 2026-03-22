@@ -80,7 +80,6 @@ impl SafeRopeAccess for TextBuffer {
         if byte > self.rope.len() {
             None
         } else {
-            // byte_to_line_idx panics if byte > len, so check first
             Some(self.rope.byte_to_line_idx(byte, LineType::LF_CR))
         }
     }
@@ -94,7 +93,6 @@ impl SafeRopeAccess for TextBuffer {
         if line >= self.rope.len_lines(LineType::LF_CR) {
             None
         } else {
-            // line_to_byte_idx panics if line >= len_lines
             Some(self.rope.line_to_byte_idx(line, LineType::LF_CR))
         }
     }
@@ -141,13 +139,7 @@ impl SafeRopeAccess for TextBuffer {
 
     fn char_clamped(&self, char_idx: usize) -> char {
         let char_idx = char_idx.min(self.rope.len_chars().saturating_sub(1));
-        // Rope::char panics if index out of bounds, so ensure we handle empty rope or clamp
         if self.rope.len_chars() == 0 {
-            // Assuming empty rope has no chars. Return \0 or panic?
-            // ropey panics on index out of bounds.
-            // If rope is empty, char_idx 0 is out of bounds.
-            // We should probably return a safe default or handle empty.
-            // Defaulting to null char for safety in clamped contexts.
             '\0'
         } else {
             self.rope.char(char_idx)
@@ -185,9 +177,6 @@ impl SafeRopeAccess for TextBuffer {
         if byte > self.rope.len() {
             None
         } else {
-            // Emulate chunk_at_byte using slicing to be safe and compatible
-            // Returning (chunk, byte, 0, 0) means the chunk starts exactly at `byte`.
-            // The consumer in state.rs uses (byte - start_byte) which becomes 0.
             let slice = self.rope.slice(byte..self.rope.len());
             let chunk = slice.chunks().next()?;
             Some((chunk, byte, 0, 0))

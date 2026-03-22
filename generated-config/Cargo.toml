@@ -5,8 +5,8 @@ edition = "2024"
 
 [dependencies]
 kerbin-core = { path = "../kerbin-core" }
-
-# Plugins
-kerbin-tree-sitter = { path = "../plugins/kerbin-tree-sitter" }
 kerbin-lsp = { path = "../plugins/kerbin-lsp" }
+kerbin-tree-sitter = { path = "../plugins/kerbin-tree-sitter" }
 tutor = { path = "../plugins/tutor" }
+
+[workspace]

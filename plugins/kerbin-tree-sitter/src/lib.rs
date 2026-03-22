@@ -30,6 +30,12 @@ pub mod motions;
 
 pub mod locals;
 
+async fn reset_config_state(grammar_manager: ResMut<GrammarManager>) {
+    let mut manager = grammar_manager.get().await;
+    manager.ext_map.clear();
+    manager.lang_map.clear();
+}
+
 pub async fn init(state: &mut State) {
     state.state(GrammarManager::default());
 
@@ -46,4 +52,8 @@ pub async fn init(state: &mut State) {
         .on_command::<BufferCommand>(|cmd, state| {
             Box::pin(crate::indent::newline_intercept(cmd, state))
         });
+
+    state
+        .on_hook(hooks::ResetState)
+        .system(reset_config_state);
 }

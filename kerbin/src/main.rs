@@ -175,7 +175,17 @@ async fn main() {
             }
         }
         None => {
-            if let Ok(home) = std::env::var("XDG_CONFIG_HOME") {
+            // Check if booster has saved a custom config path in kerbin-info.json
+            let booster_path = dirs::home_dir()
+                .map(|h| h.join(".kerbin").join("kerbin-info.json"))
+                .filter(|p| p.exists())
+                .and_then(|p| std::fs::read_to_string(p).ok())
+                .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+                .and_then(|v| v["config_path"].as_str().map(|s| s.to_string()));
+
+            if let Some(path) = booster_path {
+                path
+            } else if let Ok(home) = std::env::var("XDG_CONFIG_HOME") {
                 let mut path = std::path::PathBuf::from(home);
                 path.push("kerbin");
                 path.to_string_lossy().to_string()
@@ -286,12 +296,17 @@ async fn main() {
 
     config::init(&mut state).await;
 
-    let kb_path = PathBuf::from(format!("{config_path}/config/config.kb"));
-    if let Err(e) = load_kb(&kb_path, &mut state).await {
-        state
-            .lock_state::<LogSender>()
-            .await
-            .critical("core::config_load", e);
+    let kb_path = PathBuf::from(format!("{config_path}/init.kb"));
+    let errors = load_kb(&kb_path, &mut state).await;
+    *state.lock_state::<ConfigErrors>().await = ConfigErrors(errors.clone());
+    if !errors.is_empty() {
+        state.lock_state::<LogSender>().await.critical(
+            "core::config_load",
+            format!(
+                "{} config error(s) on startup — run `config-errors` to review",
+                errors.len()
+            ),
+        );
     }
 
     let (framerate, disable_auto_pairs) = {

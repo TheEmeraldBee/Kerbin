@@ -146,6 +146,14 @@ pub enum ConfigCommand {
     /// Source another .kb file relative to the current config directory.
     #[command(drop_ident, name = "source")]
     Source { path: String },
+
+    /// Show all config errors from the last load or reload.
+    #[command(drop_ident, name = "config-errors")]
+    ShowConfigErrors,
+
+    /// Reload runtime config (.kb files) without restarting the editor.
+    #[command(drop_ident, name = "reload-config")]
+    ReloadConfig,
 }
 
 #[async_trait::async_trait]
@@ -437,8 +445,61 @@ impl Command for ConfigCommand {
                 let config_dir = state.lock_state::<ConfigDir>().await.0.clone();
                 let resolved = config_dir.join(path);
                 drop(config_dir);
-                if let Err(e) = crate::load_kb(&resolved, state).await {
-                    tracing::error!("source: failed to load '{}': {}", path, e);
+                let errors = crate::load_kb(&resolved, state).await;
+                state.lock_state::<ConfigErrors>().await.0.extend(errors);
+            }
+
+            ConfigCommand::ShowConfigErrors => {
+                let errors = state.lock_state::<ConfigErrors>().await.0.clone();
+                let log = state.lock_state::<LogSender>().await;
+                if errors.is_empty() {
+                    log.high("config-errors", "No config errors");
+                } else {
+                    for err in &errors {
+                        let msg = if err.line.is_empty() {
+                            format!("{}: {}", err.path.display(), err.message)
+                        } else {
+                            format!("{}: {:?}: {}", err.path.display(), err.line, err.message)
+                        };
+                        log.high("config-errors", msg);
+                    }
+                }
+            }
+
+            ConfigCommand::ReloadConfig => {
+                let config_path = state.lock_state::<ConfigFolder>().await.0.clone();
+                let kb_path = std::path::PathBuf::from(format!("{config_path}/init.kb"));
+
+                crate::reset_config_state(state).await;
+
+                let errors = crate::load_kb(&kb_path, state).await;
+
+                // Mirror the startup auto_pairs default logic (auto_pairs is on by default).
+                let disable_auto_pairs =
+                    state.lock_state::<CoreConfig>().await.disable_auto_pairs;
+                if !disable_auto_pairs {
+                    let mut registry =
+                        state.lock_state::<CommandInterceptorRegistry>().await;
+                    registry.remove_command_interceptor::<BufferCommand>("core::auto_pairs");
+                    registry.on_command_named::<BufferCommand>(
+                        "core::auto_pairs",
+                        0,
+                        |cmd, state| Box::pin(auto_pairs_intercept(cmd, state)),
+                    );
+                }
+
+                *state.lock_state::<ConfigErrors>().await = ConfigErrors(errors.clone());
+                let log = state.lock_state::<LogSender>().await;
+                if errors.is_empty() {
+                    log.low("config", "Config reloaded successfully");
+                } else {
+                    log.critical(
+                        "config",
+                        format!(
+                            "Config reloaded with {} error(s) — run `config-errors` to review",
+                            errors.len()
+                        ),
+                    );
                 }
             }
         }

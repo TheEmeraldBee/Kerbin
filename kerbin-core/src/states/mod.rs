@@ -76,7 +76,8 @@ pub fn init_state(
         .state(Chunks::default())
         .state(DebounceConfig::default())
         .state(StatuslineConfig::default())
-        .state(LayoutConfig::default());
+        .state(LayoutConfig::default())
+        .state(ConfigErrors::default());
 
     state
 }

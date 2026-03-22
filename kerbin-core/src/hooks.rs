@@ -101,3 +101,13 @@ impl Hook for UpdateCleanup {
         HookInfo::new("update_cleanup")
     }
 }
+
+/// Fired by `reload-config` immediately before re-loading `.kb` files.
+/// Plugins should register a system here to clear any state that is
+/// populated by config commands (e.g. registered languages, grammars).
+pub struct ResetState;
+impl Hook for ResetState {
+    fn info(&self) -> HookInfo {
+        HookInfo::new("reset_state")
+    }
+}

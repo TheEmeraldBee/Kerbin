@@ -9,4 +9,9 @@ impl CommandPrefixRegistry {
     pub fn register(&mut self, prefix: CommandPrefix) {
         self.0.push(prefix)
     }
+
+    /// Clears all registered command prefixes.
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
 }

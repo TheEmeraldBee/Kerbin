@@ -80,13 +80,14 @@ pub fn build_locals_analysis(
     let root_scope = build_scope_tree(raw_scopes, raw_defs, file_len);
 
     if raw_refs.is_empty()
-        && let Some(tree) = &state.tree {
-            let mut scope_defs: Vec<(String, Range<usize>)> = Vec::new();
-            collect_scope_definitions(&root_scope, &mut scope_defs);
-            if !scope_defs.is_empty() {
-                synthesize_references(tree.root_node(), rope, &scope_defs, &mut raw_refs);
-            }
+        && let Some(tree) = &state.tree
+    {
+        let mut scope_defs: Vec<(String, Range<usize>)> = Vec::new();
+        collect_scope_definitions(&root_scope, &mut scope_defs);
+        if !scope_defs.is_empty() {
+            synthesize_references(tree.root_node(), rope, &scope_defs, &mut raw_refs);
         }
+    }
 
     LocalsAnalysis {
         root_scope,
@@ -133,7 +134,9 @@ fn synthesize_references(
 fn extract_text(rope: &Rope, start_byte: usize, end_byte: usize) -> String {
     let char_start = rope.byte_to_char_idx(start_byte);
     let char_end = rope.byte_to_char_idx(end_byte);
-    rope.slice(char_start..char_end).to_string()
+    let start = rope.char_to_byte_idx(char_start);
+    let end = rope.char_to_byte_idx(char_end);
+    rope.slice(start..end).to_string()
 }
 
 fn build_scope_tree(
@@ -271,10 +274,12 @@ fn find_definition_at_cursor(
     cursor_byte: usize,
 ) -> Option<(&Definition, Range<usize>)> {
     for child in &scope.children {
-        if child.byte_range.start <= cursor_byte && cursor_byte < child.byte_range.end
-            && let Some(r) = find_definition_at_cursor(child, cursor_byte) {
-                return Some(r);
-            }
+        if child.byte_range.start <= cursor_byte
+            && cursor_byte < child.byte_range.end
+            && let Some(r) = find_definition_at_cursor(child, cursor_byte)
+        {
+            return Some(r);
+        }
     }
 
     for def in &scope.definitions {

@@ -190,7 +190,7 @@ impl State {
         system.call(&self.storage).await;
     }
 
-    pub fn hook(&self, hook: impl Hook + 'static) -> HookCallBuilder<'_> {
+    pub fn hook(&self, hook: impl Hook + Send + 'static) -> HookCallBuilder<'_> {
         HookCallBuilder {
             state: self,
             hooks: vec![Box::new(hook)],
@@ -200,11 +200,11 @@ impl State {
 
 pub struct HookCallBuilder<'a> {
     state: &'a State,
-    hooks: Vec<Box<dyn Hook>>,
+    hooks: Vec<Box<dyn Hook + Send>>,
 }
 
 impl<'a> HookCallBuilder<'a> {
-    pub fn hook(mut self, hook: impl Hook + 'static) -> Self {
+    pub fn hook(mut self, hook: impl Hook + Send + 'static) -> Self {
         self.hooks.push(Box::new(hook));
         self
     }

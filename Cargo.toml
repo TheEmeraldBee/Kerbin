@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["booster", "kerbin", "kerbin-core", "kerbin-input", "kerbin-macros", "kerbin-state-machine", "plugins/*"]
+exclude = ["generated-config"]
 
 [workspace.package]
 version = "0.0.0"

@@ -1,4 +1,5 @@
-use kerbin_core::{CloseEvent, CommandRegistry, EVENT_BUS, LogSender, SaveEvent, State};
+use kerbin_core::{CloseEvent, CommandRegistry, EVENT_BUS, LogSender, ResMut, SaveEvent, State};
+use kerbin_core::SystemParam;
 
 pub mod commands;
 pub use commands::LspCommand;
@@ -65,11 +66,21 @@ pub async fn register_lang(
     }
 }
 
+async fn reset_config_state(lsp_manager: ResMut<LspManager>) {
+    let mut manager = lsp_manager.get().await;
+    manager.lang_info_map.clear();
+    manager.ext_map.clear();
+}
+
 pub async fn init(state: &mut State) {
     state
         .state(LspHandlerManager::default())
         .state(LspManager::default())
         .state(GlobalDiagnostics::default());
+
+    state
+        .on_hook(kerbin_core::hooks::ResetState)
+        .system(reset_config_state);
 
     // Setup reaction to file save event
     EVENT_BUS

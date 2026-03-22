@@ -1,0 +1,10 @@
+# Kerbin plugin configuration
+# Edit this file and run `booster rebuild` to apply changes.
+#
+# plugin core <name>        — built-in plugin (from the kerbin plugins/ directory)
+# plugin git <name> <url>   — external plugin from a git repository
+# plugin path <path>        — local plugin from a filesystem path
+
+plugin core kerbin-lsp
+plugin core kerbin-tree-sitter
+plugin core tutor

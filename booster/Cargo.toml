@@ -15,6 +15,7 @@ path = "./src/main.rs"
 [dependencies]
 clap = { version = "4.5.53", features = ["derive"] }
 kerbin-core.workspace = true
+kerbin-input.workspace = true
 
 serde = { workspace = true, features = ["derive"] }
 dialoguer = "0.12.0"
