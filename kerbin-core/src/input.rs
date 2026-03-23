@@ -125,23 +125,14 @@ pub async fn handle_inputs(
 
     for event in &events.0 {
         if let Event::Paste(text) = event {
-            let registry = prefix_registry.get().await;
-            let command = command_registry.get().await.parse_command(
-                vec![
-                    Token::Word("a".to_string()),
-                    Token::Word(text.to_string()),
-                    Token::Word("false".to_string()),
-                ],
-                true,
-                false,
-                None,
-                false,
-                &registry,
-                &modes,
-            );
-            if let Some(command) = command {
-                command_sender.get().await.send(command).unwrap();
-            }
+            command_sender
+                .get()
+                .await
+                .send(Box::new(BufferCommand::Append {
+                    text: text.clone(),
+                    extend: false,
+                }))
+                .unwrap();
         }
     }
 

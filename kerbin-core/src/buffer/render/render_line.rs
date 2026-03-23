@@ -2,6 +2,19 @@ use std::sync::Arc;
 
 use crate::*;
 use ascii_forge::prelude::*;
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
+
+/// Returns the display width of a grapheme cluster in terminal columns.
+///
+/// U+FE0F (VARIATION SELECTOR-16) forces emoji presentation, which terminals
+/// render as 2 columns regardless of the base character's declared width.
+pub fn grapheme_display_width(g: &str) -> usize {
+    if g.contains('\u{FE0F}') {
+        return 2;
+    }
+    UnicodeWidthStr::width(g)
+}
 
 /// Information about an overlay that needs to be rendered
 #[derive(Clone)]
@@ -285,8 +298,10 @@ pub enum OverlayPositioning {
 
 /// A Renderable element for a RenderLine to render to the screen
 pub enum RenderLineElement {
-    /// A character from the byte line with a style applied
-    RopeChar(char, usize, ContentStyle),
+    /// A grapheme cluster from the rope with a style applied.
+    /// Stored as a String so multi-codepoint clusters (e.g. emoji + variation
+    /// selector) are kept together and their display width is computed correctly.
+    RopeChar(String, usize, ContentStyle),
 
     /// A text element with a style
     Text(String, ContentStyle),
@@ -336,8 +351,8 @@ impl RenderLineElement {
     /// Takes the element and returns it's width in visual columns
     pub fn compute_size(&self) -> usize {
         match self {
-            Self::RopeChar(ch, _, _) => ch.width().unwrap_or(1),
-            Self::Text(t, _) => t.width(),
+            Self::RopeChar(g, _, _) => grapheme_display_width(g),
+            Self::Text(t, _) => t.graphemes(true).map(|g| grapheme_display_width(g)).sum(),
             Self::ReservedSpace(w) => *w,
             Self::Element(w) => w.size().x as usize,
             Self::OverlayElement { .. } => 0, // Takes no space in layout
@@ -354,53 +369,51 @@ impl RenderLineElement {
     /// Render the element with clipping support for scrolling
     pub fn render(&self, chunk: &mut InnerChunk, pos: Vec2, skip: usize, max_width: usize) {
         match self {
-            Self::RopeChar(ch, _, st) => {
-                let char_width = ch.width().unwrap_or(1);
+            Self::RopeChar(g, _, st) => {
+                let g_width = grapheme_display_width(g);
 
-                // If skip is within this char, we can't render it (would show partial char)
-                if skip > 0 && skip < char_width {
+                // If skip is within this grapheme, we can't render it (would show partial)
+                if skip > 0 && skip < g_width {
                     return;
                 }
 
-                // If we're past the skip, render the char
-                if skip == 0 && char_width <= max_width {
-                    render!(chunk, pos => [ st.apply(ch) ]);
+                // If we're past the skip, render the grapheme
+                if skip == 0 && g_width <= max_width {
+                    render!(chunk, pos => [ st.apply(g.as_str()) ]);
                 }
             }
             Self::Text(txt, st) => {
-                // Calculate which part of the text to show
-                let chars: Vec<char> = txt.chars().collect();
                 let mut current_col = 0;
-                let mut visible_chars = String::new();
+                let mut visible = String::new();
 
-                for ch in chars {
-                    let ch_width = ch.width().unwrap_or(1);
-                    let ch_start = current_col;
-                    let ch_end = current_col + ch_width;
+                for g in txt.graphemes(true) {
+                    let g_width = grapheme_display_width(g);
+                    let g_start = current_col;
+                    let g_end = current_col + g_width;
 
-                    // Skip chars before the skip point
-                    if ch_end <= skip {
-                        current_col += ch_width;
+                    // Skip graphemes before the skip point
+                    if g_end <= skip {
+                        current_col += g_width;
                         continue;
                     }
 
                     // Stop if we've reached max_width
-                    if ch_start >= skip + max_width {
+                    if g_start >= skip + max_width {
                         break;
                     }
 
-                    // Partial char at start - skip it
-                    if ch_start < skip && ch_end > skip {
-                        current_col += ch_width;
+                    // Partial grapheme at start — skip it
+                    if g_start < skip && g_end > skip {
+                        current_col += g_width;
                         continue;
                     }
 
-                    visible_chars.push(ch);
-                    current_col += ch_width;
+                    visible.push_str(g);
+                    current_col += g_width;
                 }
 
-                if !visible_chars.is_empty() {
-                    render!(chunk, pos => [ st.apply(&visible_chars) ]);
+                if !visible.is_empty() {
+                    render!(chunk, pos => [ st.apply(&visible) ]);
                 }
             }
             Self::Element(buf) => {

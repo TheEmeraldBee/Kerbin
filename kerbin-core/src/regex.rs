@@ -24,7 +24,7 @@ impl<'a> RopeyCursor<'a> {
             current: &[],
             iter,
             pos: Pos::ChunkEnd, // Initialize to ChunkEnd to force an initial advance
-            len: slice.len(),   // Use len_bytes for total bytes
+            len: slice.len_bytes(),
             offset: 0,
         };
         res.advance(); // Advance to the first actual chunk
@@ -33,8 +33,8 @@ impl<'a> RopeyCursor<'a> {
 
     /// Creates a new RopeyCursor positioned at a specific byte offset within the RopeSlice
     pub fn at(slice: ropey::RopeSlice<'a>, at: usize) -> Self {
-        let (iter, offset_in_chunk) = slice.chunks_at(at);
-        let len = slice.len();
+        let (iter, chunk_byte_start, _, _) = slice.chunks_at_byte(at);
+        let len = slice.len_bytes();
 
         if at == len {
             // If `at` is exactly at the end, backtrack to get the last chunk
@@ -54,7 +54,7 @@ impl<'a> RopeyCursor<'a> {
                 iter,
                 pos: Pos::ChunkEnd, // Force advance to find the next chunk
                 len,
-                offset: at - offset_in_chunk, // Adjust offset to chunk start
+                offset: chunk_byte_start, // Chunk start byte offset
             };
             res.advance(); // Advance to the correct chunk
             res

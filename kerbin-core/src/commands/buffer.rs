@@ -5,8 +5,6 @@ use kerbin_state_machine::State;
 
 use crate::*;
 
-pub use ropey::LineType;
-
 #[derive(Clone, Debug, Command)]
 pub enum CommitCommand {
     /// Commits the command after it as a change
@@ -19,6 +17,8 @@ impl Command for CommitCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             CommitCommand::Commit(after) => {
+                let mut res = true;
+
                 // Begin the change
                 state
                     .lock_state::<Buffers>()
@@ -37,12 +37,9 @@ impl Command for CommitCommand {
                         &*state.lock_state::<CommandPrefixRegistry>().await,
                         &*state.lock_state::<ModeStack>().await,
                     );
+
                     if let Some(command) = command {
-                        state
-                            .lock_state::<CommandSender>()
-                            .await
-                            .send(command)
-                            .unwrap();
+                        res = command.apply(state).await;
                     }
                 }
 
@@ -54,7 +51,7 @@ impl Command for CommitCommand {
                     .await
                     .commit_change_group();
 
-                true
+                res
             }
         }
     }
@@ -366,7 +363,7 @@ impl Command for BufferCommand {
                     byte,
                     content: text.clone(),
                 });
-                cur_buffer.move_chars(text.len() as isize, *extend)
+                cur_buffer.move_chars(text.chars().count() as isize, *extend)
             }
 
             BufferCommand::Undo => {

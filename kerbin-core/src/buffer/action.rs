@@ -57,9 +57,9 @@ impl BufferAction for Insert {
             let start_byte = *cursor.sel.start();
             let end_byte = *cursor.sel.end();
 
-            if start_byte > self.byte {
+            if start_byte > actual_byte {
                 cursor.sel = (start_byte + content_len)..=(end_byte + content_len);
-            } else if end_byte >= self.byte {
+            } else if end_byte >= actual_byte {
                 cursor.sel = start_byte..=(end_byte + content_len);
             }
         }
@@ -70,7 +70,7 @@ impl BufferAction for Insert {
 
         let inverse = Box::new(Delete {
             byte: self.byte,
-            len: self.content.len(),
+            len: self.content.chars().count(),
         });
 
         ActionResult::new(true, inverse)

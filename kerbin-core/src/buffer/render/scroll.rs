@@ -1,5 +1,13 @@
 use crate::*;
-use unicode_width::UnicodeWidthChar;
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
+
+fn grapheme_display_width(g: &str) -> usize {
+    if g.contains('\u{FE0F}') {
+        return 2;
+    }
+    UnicodeWidthStr::width(g)
+}
 
 pub async fn update_buffer_horizontal_scroll(chunk: Chunk<BufferChunk>, buffers: ResMut<Buffers>) {
     let Some(chunk) = chunk.get().await else {
@@ -19,7 +27,7 @@ pub async fn update_buffer_horizontal_scroll(chunk: Chunk<BufferChunk>, buffers:
     let line_text = buf
         .slice_to_string(line_start_byte, cursor_byte)
         .unwrap_or_default();
-    let cursor_col: usize = line_text.chars().map(|c| c.width().unwrap_or(0)).sum();
+    let cursor_col: usize = line_text.graphemes(true).map(grapheme_display_width).sum();
 
     const H_SCROLL_PADDING: usize = 5;
 

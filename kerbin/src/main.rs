@@ -1,7 +1,10 @@
 use std::{path::PathBuf, time::Duration};
 
 use ratatui::{
-    crossterm::{event::EnableMouseCapture, execute},
+    crossterm::{
+        event::{EnableBracketedPaste, EnableMouseCapture},
+        execute,
+    },
     layout::{Constraint, Layout, Position},
 };
 
@@ -214,7 +217,7 @@ async fn main() {
     init_log();
 
     let terminal = ratatui::init();
-    execute!(std::io::stdout(), EnableMouseCapture).ok();
+    execute!(std::io::stdout(), EnableMouseCapture, EnableBracketedPaste).ok();
 
     // Initialize terminal
     let (command_sender, mut command_receiver) = unbounded_channel();

@@ -8,18 +8,16 @@ impl<'a> TextProvider<&'a [u8]> for &'a TextProviderRope<'a> {
     fn text(&mut self, node: tree_sitter::Node) -> Self::I {
         let mut byte_range = node.byte_range();
 
-        if self.0.len() <= byte_range.start {
+        if self.0.len_bytes() <= byte_range.start {
             return ChunksBytes(None);
         }
 
-        byte_range.end = byte_range.end.min(self.0.len());
+        byte_range.end = byte_range.end.min(self.0.len_bytes());
 
-        let char_start = self.0.byte_to_char_idx(byte_range.start);
-        let char_end = self.0.byte_to_char_idx(byte_range.end);
-        let start = self.0.char_to_byte_idx(char_start);
-        let end = self.0.char_to_byte_idx(char_end);
+        let char_start = self.0.byte_to_char(byte_range.start);
+        let char_end = self.0.byte_to_char(byte_range.end);
 
-        ChunksBytes(Some(self.0.slice(start..end).chunks()))
+        ChunksBytes(Some(self.0.slice(char_start..char_end).chunks()))
     }
 }
 

@@ -370,7 +370,7 @@ fn parse_injection(
                 if adjusted_byte >= end_byte {
                     return &[] as &[u8];
                 }
-                let (chunk, chunk_start) = rope.chunk(adjusted_byte);
+                let (chunk, chunk_start, _, _) = rope.chunk_at_byte(adjusted_byte);
                 let offset = adjusted_byte - chunk_start;
                 let chunk_bytes = chunk.as_bytes();
                 let available = (end_byte - adjusted_byte).min(chunk_bytes.len() - offset);

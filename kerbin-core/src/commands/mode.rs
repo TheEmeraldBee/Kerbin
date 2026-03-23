@@ -23,13 +23,17 @@ impl Command for ModeCommand {
 
         match *self {
             ModeCommand::ChangeMode(new) => modes.set_mode(new),
-            ModeCommand::PushMode(new) => modes.push_mode(new),
+            ModeCommand::PushMode(new) => {
+                if modes.mode_on_stack(new) {
+                    return false;
+                }
+                modes.push_mode(new);
+            }
             ModeCommand::PopMode => {
                 modes.pop_mode();
             }
         }
 
-        // Always return false, as this should never be repeated
-        false
+        true
     }
 }

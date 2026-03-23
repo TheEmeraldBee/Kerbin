@@ -7,7 +7,7 @@ pub trait RopeExts {
 
 impl RopeExts for Rope {
     fn byte_to_char_boundary_byte(&self, byte: usize) -> usize {
-        let char_idx = self.byte_to_char_idx(byte);
-        self.char_to_byte_idx(char_idx)
+        let char_idx = self.byte_to_char(byte);
+        self.char_to_byte(char_idx)
     }
 }

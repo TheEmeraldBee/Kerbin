@@ -1,5 +1,6 @@
 use crate::*;
 use ascii_forge::{prelude::*, window::crossterm::cursor::SetCursorStyle};
+use unicode_segmentation::UnicodeSegmentation;
 
 fn process_extmarks(
     exts: &[&Extmark],
@@ -119,29 +120,34 @@ pub async fn build_buffer_lines(
         let line_start_byte = buf.line_to_byte_clamped(line_idx);
         let line_end_byte = buf.line_to_byte_clamped(line_idx + 1);
 
-        let mut line_chars: Vec<(usize, char)> = line.chars().enumerate().collect();
+        // Collect grapheme clusters with their char offsets.
+        let line_str = line.to_string();
+        let mut char_offset = 0usize;
+        let mut line_graphemes: Vec<(usize, &str)> = line_str
+            .graphemes(true)
+            .map(|g| {
+                let off = char_offset;
+                char_offset += g.chars().count();
+                (off, g)
+            })
+            .collect();
 
-        if let Some((_, ch)) = line_chars.last()
-            && (*ch == '\n' || *ch == '\r')
+        // Strip trailing newline graphemes (CRLF or LF).
+        if let Some((_, g)) = line_graphemes.last()
+            && (*g == "\r\n" || *g == "\n" || *g == "\r")
         {
-            line_chars.pop();
-            if let Some((_, ch)) = line_chars.last()
-                && (*ch == '\r')
-            {
-                line_chars.pop();
-            }
+            line_graphemes.pop();
         }
 
         let is_last_line = line_idx == total_lines.saturating_sub(1);
 
-        if line_chars.is_empty() {
-            line_chars.push((0, ' '));
+        let sentinel_char_off = if line_graphemes.is_empty() {
+            0
         } else if is_last_line {
-            // For the last line, add space at the actual end (EOF position)
-            line_chars.push((line.len_chars(), ' '));
+            line.len_chars()
         } else {
-            line_chars.push((line.len_chars().saturating_sub(1).max(1), ' '));
-        }
+            line.len_chars().saturating_sub(1).max(1)
+        };
 
         let exts = buf
             .renderer
@@ -149,17 +155,50 @@ pub async fn build_buffer_lines(
 
         let mut post_line_elems = vec![];
 
-        for (byte, ch) in line_chars.into_iter() {
-            let absolute_byte_idx = byte_offset + buf.char_to_byte_clamped(byte);
-
+        // Render a placeholder space when the line is empty so the cursor has a cell.
+        if line_graphemes.is_empty() {
+            let absolute_byte_idx = byte_offset + buf.char_to_byte_clamped(0);
             let (style, after_elems, mut post_elems) =
                 process_extmarks(&exts, absolute_byte_idx, default_style, &mut cursor);
-
             post_line_elems.append(&mut post_elems);
+            render.element(RenderLineElement::RopeChar(
+                " ".to_string(),
+                absolute_byte_idx,
+                style,
+            ));
+            for elem in after_elems {
+                render.element(elem);
+            }
+        } else {
+            for (char_off, g) in line_graphemes.into_iter() {
+                let absolute_byte_idx = byte_offset + buf.char_to_byte_clamped(char_off);
 
-            // Add the resulting character to the buffer
-            render.element(RenderLineElement::RopeChar(ch, absolute_byte_idx, style));
+                let (style, after_elems, mut post_elems) =
+                    process_extmarks(&exts, absolute_byte_idx, default_style, &mut cursor);
 
+                post_line_elems.append(&mut post_elems);
+
+                render.element(RenderLineElement::RopeChar(
+                    g.to_string(),
+                    absolute_byte_idx,
+                    style,
+                ));
+
+                for elem in after_elems {
+                    render.element(elem);
+                }
+            }
+
+            // Sentinel space for cursor-at-EOL / EOF.
+            let absolute_byte_idx = byte_offset + buf.char_to_byte_clamped(sentinel_char_off);
+            let (style, after_elems, mut post_elems) =
+                process_extmarks(&exts, absolute_byte_idx, default_style, &mut cursor);
+            post_line_elems.append(&mut post_elems);
+            render.element(RenderLineElement::RopeChar(
+                " ".to_string(),
+                absolute_byte_idx,
+                style,
+            ));
             for elem in after_elems {
                 render.element(elem);
             }

@@ -1,3 +1,5 @@
+template ifclear [if [mode v] --else_cmds [sc]]
+
 source command_palette.kb
 source insert.kb
 source repeat.kb
@@ -13,5 +15,5 @@ source normal.kb
 
 source visual.kb
 
-# Bind a file exiting command
+# Bind a mode exiting command
 bind [esc] [rm]

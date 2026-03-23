@@ -2,7 +2,15 @@ use std::sync::Arc;
 
 use crate::{CursorShape, Extmark, ExtmarkKind, StyledChunk, TextBuffer, VirtTextPos};
 use ratatui::prelude::*;
-use ropey::LineType;
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
+
+fn grapheme_display_width(g: &str) -> usize {
+    if g.contains('\u{FE0F}') {
+        return 2;
+    }
+    UnicodeWidthStr::width(g)
+}
 
 /// A widget to render from a text buffer onto the screen
 pub struct TextBufferWidget<'a> {
@@ -236,33 +244,30 @@ impl SegmentList {
 
     fn into_spans(self, h_scroll: usize, width: usize) -> Vec<Span<'static>> {
         let mut spans = Vec::new();
-        let mut chars_seen = 0usize;
-        let mut chars_emitted = 0usize;
+        let mut display_col = 0usize;
 
         for seg in &self.segments {
-            if chars_emitted >= width {
+            if display_col >= h_scroll + width {
                 break;
             }
-            let seg_len = seg.text.chars().count();
-            let seg_end = chars_seen + seg_len;
 
-            if seg_end <= h_scroll {
-                chars_seen = seg_end;
-                continue;
+            let mut visible = String::new();
+            for g in seg.text.graphemes(true) {
+                let g_w = grapheme_display_width(g);
+                if display_col + g_w <= h_scroll {
+                    display_col += g_w;
+                    continue;
+                }
+                if display_col >= h_scroll + width {
+                    break;
+                }
+                visible.push_str(g);
+                display_col += g_w;
             }
 
-            let start = h_scroll.saturating_sub(chars_seen);
-            let remaining = width - chars_emitted;
-            let end = seg_len.min(start + remaining);
-
-            if start < end {
-                let byte_start = char_to_byte_offset(&seg.text, start);
-                let byte_end = char_to_byte_offset(&seg.text, end);
-                let text = seg.text[byte_start..byte_end].to_string();
-                spans.push(Span::styled(text, seg.style));
-                chars_emitted += end - start;
+            if !visible.is_empty() {
+                spans.push(Span::styled(visible, seg.style));
             }
-            chars_seen = seg_end;
         }
 
         spans
@@ -590,19 +595,19 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
         let mut pending_overlays: Vec<(u16, u16, Arc<ratatui::buffer::Buffer>, i32, i32, i32)> =
             Vec::new();
 
-        let total_lines = rope.len_lines(LineType::LF_CR);
+        let total_lines = rope.len_lines();
 
         // Get byte range for visible viewport
         let viewport_start_byte = if self.line_scroll < total_lines {
-            rope.line_to_byte_idx(self.line_scroll, LineType::LF_CR)
+            rope.char_to_byte(rope.line_to_char(self.line_scroll))
         } else {
-            rope.len()
+            rope.len_bytes()
         };
         let viewport_end_line = (self.line_scroll + area.height as usize).min(total_lines);
         let viewport_end_byte = if viewport_end_line < total_lines {
-            rope.line_to_byte_idx(viewport_end_line, LineType::LF_CR)
+            rope.char_to_byte(rope.line_to_char(viewport_end_line))
         } else {
-            rope.len()
+            rope.len_bytes()
         };
 
         let all_viewport_marks = self
@@ -612,20 +617,20 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
 
         while lines.len() < area.height as usize {
             let line_idx = self.line_scroll + lines.len();
-            let Some(rope_line) = rope.get_line(line_idx, LineType::LF_CR) else {
+            let Some(rope_line) = rope.get_line(line_idx) else {
                 break;
             };
 
-            let line_start_byte = rope.line_to_byte_idx(line_idx, LineType::LF_CR);
-            let line_start_char = rope.byte_to_char_idx(line_start_byte);
+            let line_start_byte = rope.char_to_byte(rope.line_to_char(line_idx));
+            let line_start_char = rope.byte_to_char(line_start_byte);
             let line_char_count = rope_line.len_chars();
             let line_end_char = line_start_char + line_char_count;
 
             // Compute line end in bytes for extmark filtering
             let line_end_byte = if line_end_char <= rope.len_chars() {
-                rope.char_to_byte_idx(line_end_char)
+                rope.char_to_byte(line_end_char)
             } else {
-                rope.len()
+                rope.len_bytes()
             };
 
             let visible_len = {
@@ -641,7 +646,7 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
 
             // Whether the last line has no trailing newline — we render one extra space
             // so cursors at the EOF position (end+1) have a cell to occupy.
-            let extra_eof_space = line_end_byte == rope.len() && visible_len == line_char_count;
+            let extra_eof_space = line_end_byte == rope.len_bytes() && visible_len == line_char_count;
 
             // Filter viewport marks for this line (by byte range)
             let marks: Vec<&Extmark> = all_viewport_marks
@@ -658,17 +663,26 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
                 .collect();
 
             if marks.is_empty() {
-                let end = (self.h_scroll + area.width as usize).min(visible_len);
                 let line_str = rope_line.to_string();
-                let text = if self.h_scroll < visible_len {
-                    line_str
-                        .chars()
-                        .skip(self.h_scroll)
-                        .take(end.saturating_sub(self.h_scroll))
-                        .collect::<String>()
-                } else {
-                    String::new()
-                };
+                let mut text = String::new();
+                let mut col = 0usize;
+                let width = area.width as usize;
+                for g in line_str.graphemes(true) {
+                    let g_w = grapheme_display_width(g);
+                    if col + g_w <= self.h_scroll {
+                        col += g_w;
+                        continue;
+                    }
+                    if col >= self.h_scroll + width {
+                        break;
+                    }
+                    // Skip newlines
+                    if g == "\n" || g == "\r\n" || g == "\r" {
+                        break;
+                    }
+                    text.push_str(g);
+                    col += g_w;
+                }
                 lines.push(Line::from(vec![Span::raw(text)]));
                 continue;
             }
@@ -678,11 +692,11 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
             let char_marks: Vec<Extmark> = marks
                 .iter()
                 .map(|mark| {
-                    let start_char = rope.byte_to_char_idx(mark.byte_range.start.min(rope.len()));
+                    let start_char = rope.byte_to_char(mark.byte_range.start.min(rope.len_bytes()));
                     // For the EOF extra-space case, allow end_char to extend one past
                     // rope.len_chars() so marks at the EOF position have non-zero width.
-                    let end_char = rope.byte_to_char_idx(mark.byte_range.end.min(rope.len()))
-                        + usize::from(extra_eof_space && mark.byte_range.end > rope.len());
+                    let end_char = rope.byte_to_char(mark.byte_range.end.min(rope.len_bytes()))
+                        + usize::from(extra_eof_space && mark.byte_range.end > rope.len_bytes());
                     Extmark {
                         file_version: mark.file_version,
                         id: mark.id,

@@ -1,4 +1,4 @@
-use ropey::{LineType, RopeSlice, iter::Lines};
+use ropey::{RopeSlice, iter::Lines};
 
 use crate::TextBuffer;
 use crate::rope_exts::RopeExts;
@@ -77,56 +77,56 @@ pub trait SafeRopeAccess {
 
 impl SafeRopeAccess for TextBuffer {
     fn byte_to_line(&self, byte: usize) -> Option<usize> {
-        if byte > self.rope.len() {
+        if byte > self.rope.len_bytes() {
             None
         } else {
-            Some(self.rope.byte_to_line_idx(byte, LineType::LF_CR))
+            Some(self.rope.byte_to_line(byte))
         }
     }
 
     fn byte_to_line_clamped(&self, byte: usize) -> usize {
-        let byte = byte.min(self.rope.len());
-        self.rope.byte_to_line_idx(byte, LineType::LF_CR)
+        let byte = byte.min(self.rope.len_bytes());
+        self.rope.byte_to_line(byte)
     }
 
     fn line_to_byte(&self, line: usize) -> Option<usize> {
-        if line >= self.rope.len_lines(LineType::LF_CR) {
+        if line >= self.rope.len_lines() {
             None
         } else {
-            Some(self.rope.line_to_byte_idx(line, LineType::LF_CR))
+            Some(self.rope.char_to_byte(self.rope.line_to_char(line)))
         }
     }
 
     fn line_to_byte_clamped(&self, line: usize) -> usize {
-        let total_lines = self.rope.len_lines(LineType::LF_CR);
+        let total_lines = self.rope.len_lines();
         let line = line.min(total_lines.saturating_sub(1));
-        self.rope.line_to_byte_idx(line, LineType::LF_CR)
+        self.rope.char_to_byte(self.rope.line_to_char(line))
     }
 
     fn byte_to_char(&self, byte: usize) -> Option<usize> {
-        if byte > self.rope.len() {
+        if byte > self.rope.len_bytes() {
             None
         } else {
-            Some(self.rope.byte_to_char_idx(byte))
+            Some(self.rope.byte_to_char(byte))
         }
     }
 
     fn byte_to_char_clamped(&self, byte: usize) -> usize {
-        let byte = byte.min(self.rope.len());
-        self.rope.byte_to_char_idx(byte)
+        let byte = byte.min(self.rope.len_bytes());
+        self.rope.byte_to_char(byte)
     }
 
     fn char_to_byte(&self, char_idx: usize) -> Option<usize> {
         if char_idx > self.rope.len_chars() {
             None
         } else {
-            Some(self.rope.char_to_byte_idx(char_idx))
+            Some(self.rope.char_to_byte(char_idx))
         }
     }
 
     fn char_to_byte_clamped(&self, char_idx: usize) -> usize {
         let char_idx = char_idx.min(self.rope.len_chars());
-        self.rope.char_to_byte_idx(char_idx)
+        self.rope.char_to_byte(char_idx)
     }
 
     fn char(&self, char_idx: usize) -> Option<char> {
@@ -147,61 +147,66 @@ impl SafeRopeAccess for TextBuffer {
     }
 
     fn line(&self, line_idx: usize) -> Option<RopeSlice<'_>> {
-        if line_idx >= self.rope.len_lines(LineType::LF_CR) {
+        if line_idx >= self.rope.len_lines() {
             None
         } else {
-            Some(self.rope.line(line_idx, LineType::LF_CR))
+            Some(self.rope.line(line_idx))
         }
     }
 
     fn line_clamped(&self, line_idx: usize) -> RopeSlice<'_> {
-        let total_lines = self.rope.len_lines(LineType::LF_CR);
+        let total_lines = self.rope.len_lines();
         let line_idx = line_idx.min(total_lines.saturating_sub(1));
-        self.rope.line(line_idx, LineType::LF_CR)
+        self.rope.line(line_idx)
     }
 
     fn lines_at(&self, byte: usize) -> Option<Lines<'_>> {
-        if byte > self.rope.len() {
+        if byte > self.rope.len_bytes() {
             None
         } else {
-            Some(self.rope.lines_at(byte, LineType::LF_CR))
+            Some(self.rope.lines_at(self.rope.byte_to_char(byte)))
         }
     }
 
     fn lines_at_clamped(&self, byte: usize) -> Lines<'_> {
-        let byte = byte.min(self.rope.len());
-        self.rope.lines_at(byte, LineType::LF_CR)
+        let byte = byte.min(self.rope.len_bytes());
+        self.rope.lines_at(self.rope.byte_to_char(byte))
     }
 
     fn chunk_at(&self, byte: usize) -> Option<(&str, usize, usize, usize)> {
-        if byte > self.rope.len() {
+        if byte > self.rope.len_bytes() {
             None
         } else {
-            let slice = self.rope.slice(byte..self.rope.len());
+            let start_char = self.rope.byte_to_char(byte);
+            let slice = self.rope.slice(start_char..self.rope.len_chars());
             let chunk = slice.chunks().next()?;
             Some((chunk, byte, 0, 0))
         }
     }
 
     fn byte_to_char_boundary(&self, byte: usize) -> usize {
-        let byte = byte.min(self.rope.len());
+        let byte = byte.min(self.rope.len_bytes());
         self.rope.byte_to_char_boundary_byte(byte)
     }
 
     fn slice_to_string(&self, start: usize, end: usize) -> Option<String> {
-        let len = self.rope.len();
+        let len = self.rope.len_bytes();
         if start > len || end > len || start > end {
             return None;
         }
-        Some(self.rope.slice(start..end).to_string())
+        Some(
+            self.rope
+                .slice(self.rope.byte_to_char(start)..self.rope.byte_to_char(end))
+                .to_string(),
+        )
     }
 
     fn slice(&self, start: usize, end: usize) -> Option<RopeSlice<'_>> {
-        let len = self.rope.len();
+        let len = self.rope.len_bytes();
         if start > len || end > len || start > end {
             return None;
         }
-        Some(self.rope.slice(start..end))
+        Some(self.rope.slice(self.rope.byte_to_char(start)..self.rope.byte_to_char(end)))
     }
 
     fn to_string(&self) -> String {
@@ -209,11 +214,11 @@ impl SafeRopeAccess for TextBuffer {
     }
 
     fn len(&self) -> usize {
-        self.rope.len()
+        self.rope.len_bytes()
     }
 
     fn is_empty(&self) -> bool {
-        self.rope.len() == 0
+        self.rope.len_bytes() == 0
     }
 
     fn len_chars(&self) -> usize {
@@ -221,6 +226,6 @@ impl SafeRopeAccess for TextBuffer {
     }
 
     fn len_lines(&self) -> usize {
-        self.rope.len_lines(LineType::LF_CR)
+        self.rope.len_lines()
     }
 }

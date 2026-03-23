@@ -76,7 +76,7 @@ pub fn build_locals_analysis(
     });
 
     // Build scope tree
-    let file_len = rope.len();
+    let file_len = rope.len_bytes();
     let root_scope = build_scope_tree(raw_scopes, raw_defs, file_len);
 
     if raw_refs.is_empty()
@@ -126,17 +126,15 @@ fn synthesize_references(
         }
     } else {
         for i in 0..node.child_count() {
-            synthesize_references(node.child(i).unwrap(), rope, scope_defs, refs);
+            synthesize_references(node.child(i as u32).unwrap(), rope, scope_defs, refs);
         }
     }
 }
 
 fn extract_text(rope: &Rope, start_byte: usize, end_byte: usize) -> String {
-    let char_start = rope.byte_to_char_idx(start_byte);
-    let char_end = rope.byte_to_char_idx(end_byte);
-    let start = rope.char_to_byte_idx(char_start);
-    let end = rope.char_to_byte_idx(char_end);
-    rope.slice(start..end).to_string()
+    let char_start = rope.byte_to_char(start_byte);
+    let char_end = rope.byte_to_char(end_byte);
+    rope.slice(char_start..char_end).to_string()
 }
 
 fn build_scope_tree(

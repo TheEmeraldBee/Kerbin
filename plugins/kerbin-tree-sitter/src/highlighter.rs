@@ -203,25 +203,25 @@ fn calculate_affected_range(
     }
 
     // Clamp to rope length to avoid panics
-    min_start = min_start.min(rope.len());
-    max_end = max_end.min(rope.len());
+    min_start = min_start.min(rope.len_bytes());
+    max_end = max_end.min(rope.len_bytes());
 
     // Expand the range to include complete lines for better context
     // This helps catch cases where syntax depends on line boundaries
-    let start_line = rope.byte_to_line_idx(min_start, ropey::LineType::LF_CR);
-    let end_line = rope.byte_to_line_idx(max_end, ropey::LineType::LF_CR);
+    let start_line = rope.byte_to_line(min_start);
+    let end_line = rope.byte_to_line(max_end);
 
     // Add some padding lines for context (e.g., 5 lines before and after)
     let padding_lines = 5;
     let start_line_with_padding = start_line.saturating_sub(padding_lines);
     let end_line_with_padding =
-        (end_line + padding_lines).min(rope.len_lines(ropey::LineType::LF_CR).saturating_sub(1));
+        (end_line + padding_lines).min(rope.len_lines().saturating_sub(1));
 
-    let range_start = rope.line_to_byte_idx(start_line_with_padding, ropey::LineType::LF_CR);
-    let range_end = if end_line_with_padding + 1 < rope.len_lines(ropey::LineType::LF_CR) {
-        rope.line_to_byte_idx(end_line_with_padding + 1, ropey::LineType::LF_CR)
+    let range_start = rope.line_to_byte(start_line_with_padding);
+    let range_end = if end_line_with_padding + 1 < rope.len_lines() {
+        rope.line_to_byte(end_line_with_padding + 1)
     } else {
-        rope.len()
+        rope.len_bytes()
     };
 
     Some(range_start..range_end)

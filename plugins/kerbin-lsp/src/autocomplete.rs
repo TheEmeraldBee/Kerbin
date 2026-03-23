@@ -427,13 +427,13 @@ impl Command for CompletionCommand {
                                         let start_char = (e.range.start.character as usize)
                                             .min(line_content_len(&start_line_slice));
                                         let start = buf.line_to_byte_clamped(start_line)
-                                            + start_line_slice.char_to_byte_idx(start_char);
+                                            + start_line_slice.char_to_byte(start_char);
 
                                         let end_line_slice = buf.line_clamped(end_line);
                                         let end_char = (e.range.end.character as usize)
                                             .min(line_content_len(&end_line_slice));
                                         let end = buf.line_to_byte_clamped(end_line)
-                                            + end_line_slice.char_to_byte_idx(end_char);
+                                            + end_line_slice.char_to_byte(end_char);
 
                                         (start, end, e.new_text.clone())
                                     } else {

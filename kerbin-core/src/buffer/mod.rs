@@ -31,7 +31,7 @@ pub use render::*;
 pub mod text_rope_handlers;
 pub use text_rope_handlers::*;
 
-use ropey::{LineType, Rope};
+use ropey::Rope;
 use tokio::sync::{OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
 
 use crate::EVENT_BUS;
@@ -59,7 +59,7 @@ impl IndentStyle {
 
 /// Detect the indentation style of a rope by analysing leading-whitespace deltas.
 pub fn detect_indent(rope: &Rope) -> IndentStyle {
-    for line in rope.lines(LineType::LF_CR) {
+    for line in rope.lines() {
         if line.chars().next() == Some('\t') {
             return IndentStyle::Tabs;
         }
@@ -68,7 +68,7 @@ pub fn detect_indent(rope: &Rope) -> IndentStyle {
     let mut counts = [0usize; 9];
     let mut prev_indent = 0usize;
 
-    for line in rope.lines(LineType::LF_CR) {
+    for line in rope.lines() {
         let s: String = line.chars().collect();
         let trimmed = s.trim_end_matches(['\n', '\r']);
         if trimmed.trim().is_empty() {
@@ -602,7 +602,7 @@ impl TextBuffer {
         let line_slice = self.line_clamped(target_line_idx);
         let line_len_with_ending = line_slice.len_chars();
         let endline_text = line_slice
-            .chars_at(line_slice.char_to_byte_idx(line_len_with_ending.saturating_sub(2)))
+            .chars_at(line_len_with_ending.saturating_sub(2))
             .collect::<String>();
 
         let line_ending_len = if endline_text.ends_with("\r\n") {
@@ -619,7 +619,7 @@ impl TextBuffer {
         let new_caret_byte = self.line_to_byte_clamped(target_line_idx)
             + self
                 .line_clamped(target_line_idx)
-                .char_to_byte_idx(final_col_char_idx);
+                .char_to_byte(final_col_char_idx);
 
         let cursor_mut = self.primary_cursor_mut();
 
@@ -727,12 +727,13 @@ impl TextBuffer {
 
     /// Inserts text at the specified byte offset
     pub fn insert(&mut self, byte: usize, text: &str) {
-        self.rope.insert(byte, text);
+        self.rope.insert(self.rope.byte_to_char(byte), text);
     }
 
     /// Removes text within the specified byte range
     pub fn remove_range(&mut self, range: std::ops::Range<usize>) {
-        self.rope.remove(range);
+        self.rope
+            .remove(self.rope.byte_to_char(range.start)..self.rope.byte_to_char(range.end));
     }
 
     pub fn get_rope(&self) -> &Rope {
