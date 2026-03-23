@@ -20,7 +20,6 @@ pub struct TextBufferWidget<'a> {
 }
 
 impl<'a> TextBufferWidget<'a> {
-    /// Creates a new Widget from a TextBuffer
     pub fn new(buf: &'a TextBuffer) -> Self {
         Self {
             buf,
@@ -279,6 +278,7 @@ struct LineMarks<'a> {
     highlights: Vec<(usize, usize, Style, i32)>,
     cursors: Vec<(usize, Style, i32, CursorShape)>,
     newline_highlights: Vec<(Style, i32)>,
+    eol_highlights: Vec<(Style, i32)>,
     eol_chunks: Vec<(&'a StyledChunk, i32)>,
     overlay_marks: Vec<(usize, &'a [StyledChunk])>,
     inline_marks: Vec<(usize, &'a [StyledChunk])>,
@@ -300,6 +300,7 @@ impl<'a> LineMarks<'a> {
             highlights: Vec::new(),
             cursors: Vec::new(),
             newline_highlights: Vec::new(),
+            eol_highlights: Vec::new(),
             eol_chunks: Vec::new(),
             overlay_marks: Vec::new(),
             inline_marks: Vec::new(),
@@ -308,13 +309,7 @@ impl<'a> LineMarks<'a> {
         };
 
         for mark in marks {
-            // Convert byte positions to char columns relative to line start
-            // mark.byte_range.start and end are absolute byte positions
-            // We need to convert them to char columns within the line
-            // Since the rope stores char-indexed lines, we use byte positions
-            // but treat them as relative to line_start_char conceptually.
-            // Here we store absolute char positions; rendering subtracts line_start_char.
-            let mark_start_char = mark.byte_range.start; // treated as char col below
+            let mark_start_char = mark.byte_range.start;
             let mark_end_char = mark.byte_range.end;
 
             match &mark.kind {
@@ -325,7 +320,6 @@ impl<'a> LineMarks<'a> {
                     }
                 }
                 ExtmarkKind::Highlight { style } => {
-                    // Clip the highlight to this line
                     let start_col = mark_start_char.saturating_sub(line_start_char);
                     let end_col = if mark_end_char <= line_end_char {
                         mark_end_char - line_start_char
@@ -336,9 +330,9 @@ impl<'a> LineMarks<'a> {
                     if (end_col == start_col && end_col <= visible_len)
                         || (visible_len == 0 && start_col == 0 && end_col >= 1)
                     {
-                        // Zero-width highlight or highlight on an empty line: render
-                        // as a synthetic space at the newline/empty-line position.
                         result.newline_highlights.push((*style, mark.priority));
+                    } else if start_col >= visible_len && visible_len > 0 {
+                        result.eol_highlights.push((*style, mark.priority));
                     } else if end_col > start_col {
                         result
                             .highlights
@@ -393,7 +387,6 @@ impl<'a> LineMarks<'a> {
             }
         }
 
-        // Sort conceals by start position
         result.conceals.sort_by_key(|(s, _, _, _)| *s);
         result
     }
@@ -419,7 +412,6 @@ fn build_concealed_segments<'a>(
     let chars: Vec<(usize, char)> = line_text.char_indices().collect();
 
     for &(c_start, c_end, replacement, style) in conceals {
-        // Add text before conceal
         if char_pos < c_start && char_pos < total_chars {
             let from_byte = chars
                 .get(char_pos)
@@ -437,11 +429,9 @@ fn build_concealed_segments<'a>(
             }
         }
 
-        // Record the display range before replacement
         let display_start = char_pos.min(c_start);
         let rep_len = replacement.map(|r| r.chars().count()).unwrap_or(0);
 
-        // Add replacement
         if let Some(rep) = replacement {
             segments.push(StyledSegment {
                 text: rep.to_string(),
@@ -455,7 +445,6 @@ fn build_concealed_segments<'a>(
         char_pos = c_end;
     }
 
-    // Add remaining text after last conceal
     if char_pos < total_chars {
         let from_byte = chars
             .get(char_pos)
@@ -481,7 +470,6 @@ fn apply_highlights(
     highlights.sort_by_key(|(_, _, _, p)| *p);
 
     for &(hl_start, hl_end, style, _) in highlights.iter() {
-        // Convert buffer column positions to display positions accounting for conceals
         let display_start = buffer_to_display(hl_start, conceals);
         let display_end = buffer_to_display(hl_end, conceals);
         if display_start >= display_end {
@@ -499,10 +487,8 @@ fn apply_highlights(
             let overlap_end = display_end.min(seg_end);
 
             if overlap_start >= overlap_end {
-                // No overlap
                 new_segments.push(seg);
             } else {
-                // Before highlight
                 if overlap_start > char_pos {
                     let byte_end = char_to_byte_offset(&seg.text, overlap_start - char_pos);
                     new_segments.push(StyledSegment {
@@ -510,14 +496,12 @@ fn apply_highlights(
                         style: seg.style,
                     });
                 }
-                // Highlighted part
                 let byte_start = char_to_byte_offset(&seg.text, overlap_start - char_pos);
                 let byte_end = char_to_byte_offset(&seg.text, overlap_end - char_pos);
                 new_segments.push(StyledSegment {
                     text: seg.text[byte_start..byte_end].to_string(),
                     style: seg.style.patch(style),
                 });
-                // After highlight
                 if overlap_end < seg_end {
                     let byte_start = char_to_byte_offset(&seg.text, overlap_end - char_pos);
                     new_segments.push(StyledSegment {
@@ -533,7 +517,6 @@ fn apply_highlights(
         segments = new_segments;
     }
 
-    // Apply newline highlights (empty line synthetic space)
     if !newline_highlights.is_empty() && visible_len == 0 {
         let mut nl_sorted: Vec<_> = newline_highlights.to_vec();
         nl_sorted.sort_by_key(|(_, p)| *p);
@@ -591,13 +574,11 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
 
         let rope = &self.buf.rope;
         let mut lines = vec![];
-        // (anchor_screen_x, anchor_screen_y, content, offset_x, offset_y, z_index)
         let mut pending_overlays: Vec<(u16, u16, Arc<ratatui::buffer::Buffer>, i32, i32, i32)> =
             Vec::new();
 
         let total_lines = rope.len_lines();
 
-        // Get byte range for visible viewport
         let viewport_start_byte = if self.line_scroll < total_lines {
             rope.char_to_byte(rope.line_to_char(self.line_scroll))
         } else {
@@ -626,7 +607,6 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
             let line_char_count = rope_line.len_chars();
             let line_end_char = line_start_char + line_char_count;
 
-            // Compute line end in bytes for extmark filtering
             let line_end_byte = if line_end_char <= rope.len_chars() {
                 rope.char_to_byte(line_end_char)
             } else {
@@ -644,11 +624,11 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
                 vl
             };
 
-            // Whether the last line has no trailing newline — we render one extra space
-            // so cursors at the EOF position (end+1) have a cell to occupy.
-            let extra_eof_space = line_end_byte == rope.len_bytes() && visible_len == line_char_count;
+            // Last line with no trailing newline — render one extra space so cursors
+            // at the EOF position have a cell to occupy.
+            let extra_eof_space =
+                line_end_byte == rope.len_bytes() && visible_len == line_char_count;
 
-            // Filter viewport marks for this line (by byte range)
             let marks: Vec<&Extmark> = all_viewport_marks
                 .iter()
                 .filter(|mark| {
@@ -676,7 +656,6 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
                     if col >= self.h_scroll + width {
                         break;
                     }
-                    // Skip newlines
                     if g == "\n" || g == "\r\n" || g == "\r" {
                         break;
                     }
@@ -687,8 +666,6 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
                 continue;
             }
 
-            // Convert byte extmarks to char-column-based marks for this line
-            // We use char positions relative to line_start_char
             let char_marks: Vec<Extmark> = marks
                 .iter()
                 .map(|mark| {
@@ -742,14 +719,24 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
                 visible_len + eof_extra,
             );
 
-            // Apply inline virtual text (reverse order to preserve positions)
+            if !lm.eol_highlights.is_empty() {
+                lm.eol_highlights.sort_by_key(|(_, p)| *p);
+                let mut eol_style = Style::default();
+                for (s, _) in &lm.eol_highlights {
+                    eol_style = eol_style.patch(*s);
+                }
+                segments.push(StyledSegment {
+                    text: " ".to_string(),
+                    style: eol_style,
+                });
+            }
+
             lm.inline_marks.sort_by_key(|(col, _)| *col);
             for (col, chunks) in lm.inline_marks.iter().rev() {
                 let display_col = buffer_to_display(*col, &lm.conceals);
                 segments.insert_at(display_col, chunks);
             }
 
-            // Apply overlay virtual text
             for (col, chunks) in &lm.overlay_marks {
                 let display_col = buffer_to_display(*col, &lm.conceals);
                 segments.overlay_at(display_col, chunks);
@@ -758,7 +745,6 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
             let width = area.width as usize;
             let mut spans = segments.into_spans(self.h_scroll, width);
 
-            // Track cursor screen position
             let current_line_index = lines.len();
             for &(cursor_col, _, _, shape) in &lm.cursors {
                 let display_col = buffer_to_display(cursor_col, &lm.conceals);
@@ -776,7 +762,6 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
                 width,
             );
 
-            // Collect pending overlays with computed screen anchor positions
             for (anchor_col, content, offset_x, offset_y, z_index) in lm.popups {
                 let display_col = buffer_to_display(anchor_col, &lm.conceals);
                 let screen_x = if display_col >= self.h_scroll {
@@ -793,7 +778,6 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
 
         Text::from(lines).render(area, buf);
 
-        // Blit overlays sorted by z_index (lowest first, so higher z paints on top)
         pending_overlays.sort_by_key(|(_, _, _, _, _, z)| *z);
         for (anchor_x, anchor_y, content, offset_x, offset_y, _) in pending_overlays {
             let dst_x0 = (anchor_x as i32 + offset_x).max(area.x as i32) as u16;
