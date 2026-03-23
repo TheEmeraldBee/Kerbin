@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 
 use crate::*;
 use ratatui::style::{Color, Style};
+use unicode_segmentation::UnicodeSegmentation;
 
 pub async fn render_cursors_and_selections(
     bufs: ResMut<Buffers>,
@@ -102,11 +103,7 @@ pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<Wind
     }
 
     // Calculate width of each tab (path + padding)
-    let tab_widths: Vec<usize> = buffers
-        .buffer_paths
-        .iter()
-        .map(|p| p.width() + 6)
-        .collect();
+    let tab_widths: Vec<usize> = buffers.buffer_paths.iter().map(|p| p.width() + 6).collect();
 
     // Calculate starting character offset for each tab
     let tab_starts: Vec<usize> = tab_widths
@@ -184,4 +181,112 @@ pub async fn cleanup_buffers(buffers: ResMut<Buffers>) {
     let mut buffer = buffers.cur_buffer_mut().await;
 
     buffer.update_cleanup();
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn handle_mouse_events(
+    events: Res<CrosstermEvents>,
+    chunks: Res<Chunks>,
+    buffers: Res<Buffers>,
+    mouse_bindings: Res<MouseBindings>,
+    command_registry: Res<CommandRegistry>,
+    prefix_registry: Res<CommandPrefixRegistry>,
+    command_sender: ResMut<CommandSender>,
+    modes: Res<ModeStack>,
+) {
+    use crossterm::event::{MouseButton, MouseEventKind};
+
+    get!(events, chunks, buffers, mouse_bindings, modes);
+
+    if events.0.is_empty() {
+        return;
+    }
+
+    for event in &events.0 {
+        let crossterm::event::Event::Mouse(mouse_ev) = event else {
+            continue;
+        };
+
+        let trigger = match mouse_ev.kind {
+            MouseEventKind::Down(MouseButton::Left) => MouseTrigger::LeftDown,
+            MouseEventKind::Up(MouseButton::Left) => MouseTrigger::LeftUp,
+            MouseEventKind::Down(MouseButton::Right) => MouseTrigger::RightDown,
+            MouseEventKind::Up(MouseButton::Right) => MouseTrigger::RightUp,
+            MouseEventKind::Down(MouseButton::Middle) => MouseTrigger::MiddleDown,
+            MouseEventKind::ScrollUp => MouseTrigger::ScrollUp,
+            MouseEventKind::ScrollDown => MouseTrigger::ScrollDown,
+            _ => continue,
+        };
+
+        let col = mouse_ev.column;
+        let row = mouse_ev.row;
+
+        let area_opt = chunks.rect_for_chunk(&BufferChunk::static_name());
+
+        if let Some(area) = area_opt {
+            let buf = buffers.cur_buffer().await;
+
+            let line_idx = (row.saturating_sub(area.y) as usize)
+                .saturating_add(buf.renderer.byte_scroll)
+                .min(buf.len_lines().saturating_sub(1));
+
+            let line_start_byte = buf.line_to_byte_clamped(line_idx);
+            let line_end_byte = buf.line_to_byte_clamped(line_idx + 1);
+            let target_display_col =
+                (col.saturating_sub(area.x) as usize).saturating_add(buf.renderer.h_scroll);
+
+            let line_text = buf
+                .slice_to_string(line_start_byte, line_end_byte)
+                .unwrap_or_default();
+
+            let mut byte_offset = 0usize;
+            let mut current_width = 0usize;
+            for g in line_text.graphemes(true) {
+                if g == "\n" || g == "\r\n" || g == "\r" {
+                    break;
+                }
+                if current_width >= target_display_col {
+                    break;
+                }
+                let w = if g.contains('\u{FE0F}') {
+                    2
+                } else {
+                    UnicodeWidthStr::width(g)
+                };
+                current_width += w;
+                byte_offset += g.len();
+            }
+
+            drop(buf);
+
+            let mut engine = resolver_engine_mut().await;
+            engine.set_template("mouse_line", line_start_byte.to_string());
+            engine.set_template("mouse_col", byte_offset.to_string());
+            drop(engine);
+        }
+
+        let Some(commands) = mouse_bindings.bindings.get(&trigger) else {
+            continue;
+        };
+        let commands = commands.clone();
+
+        let resolver = resolver_engine().await;
+        let resolver = resolver.as_resolver();
+
+        let registry = prefix_registry.get().await;
+        for cmd_str in &commands {
+            let command = command_registry.get().await.parse_command(
+                tokenize(cmd_str).unwrap_or_default(),
+                true,
+                false,
+                Some(&resolver),
+                true,
+                &registry,
+                &modes,
+            );
+            if let Some(command) = command {
+                command_sender.get().await.send(command).unwrap();
+            }
+        }
+    }
 }

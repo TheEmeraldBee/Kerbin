@@ -178,7 +178,8 @@ impl Command for BufferCommand {
             BufferCommand::MoveLines { lines, extend } => cur_buffer.move_lines(*lines, *extend),
             BufferCommand::MoveChars { chars, extend } => cur_buffer.move_chars(*chars, *extend),
             BufferCommand::GoTo { row, col, extend } => {
-                let target_byte = row.saturating_add(*col).min(cur_buffer.len());
+                let line_byte = cur_buffer.line_to_byte_clamped(*row);
+                let target_byte = line_byte.saturating_add(*col).min(cur_buffer.len());
                 let cursor_mut = cur_buffer.primary_cursor_mut();
                 if *extend {
                     let anchor_byte = if cursor_mut.at_start {
@@ -246,12 +247,18 @@ impl Command for BufferCommand {
                     }
                 }
 
-                cur_buffer.write_file(path.clone()).await;
+                if let Err(e) = cur_buffer.write_file(path.clone()).await {
+                    log.high("command::write_file", e.to_string());
+                    return false;
+                }
                 true
             }
 
             BufferCommand::WriteFileForce { path } => {
-                cur_buffer.write_file(path.clone()).await;
+                if let Err(e) = cur_buffer.write_file(path.clone()).await {
+                    log.high("command::write_file", e.to_string());
+                    return false;
+                }
                 true
             }
 

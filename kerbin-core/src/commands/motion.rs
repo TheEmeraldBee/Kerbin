@@ -272,26 +272,23 @@ impl Command for MotionCommand {
                 };
 
                 let len = cur_buffer.len();
-                if let Some(slice) = cur_buffer.slice(0, len) {
-                    let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
-                    let x = regex.search(searcher);
+                let slice = cur_buffer.slice_clamped(0, len);
 
-                    if let Some(x) = x {
-                        if *extend {
-                            let existing_selection = cur_buffer.primary_cursor().sel().clone();
-                            let new_start = (*existing_selection.start()).min(x.start());
-                            let new_end =
-                                (*existing_selection.end()).max(x.end().saturating_sub(1));
-                            cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
-                        } else {
-                            cur_buffer
-                                .primary_cursor_mut()
-                                .set_sel(x.start()..=x.end().saturating_sub(1));
-                        }
-                        true
+                let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
+                let x = regex.search(searcher);
+
+                if let Some(x) = x {
+                    if *extend {
+                        let existing_selection = cur_buffer.primary_cursor().sel().clone();
+                        let new_start = (*existing_selection.start()).min(x.start());
+                        let new_end = (*existing_selection.end()).max(x.end().saturating_sub(1));
+                        cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
                     } else {
-                        false
+                        cur_buffer
+                            .primary_cursor_mut()
+                            .set_sel(x.start()..=x.end().saturating_sub(1));
                     }
+                    true
                 } else {
                     false
                 }
@@ -322,8 +319,6 @@ impl Command for MotionCommand {
                 }
 
                 if *advance {
-                    // Advance the search start by one byte at a time until the
-                    // resulting selection end moves past the original cursor position.
                     let original_end = *cur_buffer.primary_cursor().sel().end();
                     let mut search_from = base_cursor;
 
@@ -331,9 +326,9 @@ impl Command for MotionCommand {
                         if search_from >= len {
                             return false;
                         }
-                        let Some(slice) = cur_buffer.slice(search_from, len) else {
-                            return false;
-                        };
+
+                        let slice = cur_buffer.slice_clamped(search_from, len);
+
                         let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
                         let Some(x) = regex.search(searcher) else {
                             return false;
@@ -359,28 +354,26 @@ impl Command for MotionCommand {
                     }
                 }
 
-                if let Some(slice) = cur_buffer.slice(base_cursor, len) {
-                    let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
-                    let x = regex.search(searcher);
+                let slice = cur_buffer.slice_clamped(base_cursor, len);
 
-                    if let Some(x) = x {
-                        let start = x.start() + base_cursor;
-                        let end = x.end() + base_cursor;
+                let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
+                let x = regex.search(searcher);
 
-                        if *extend {
-                            let existing_selection = cur_buffer.primary_cursor().sel().clone();
-                            let new_start = (*existing_selection.start()).min(start);
-                            let new_end = (*existing_selection.end()).max(end.saturating_sub(1));
-                            cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
-                        } else {
-                            cur_buffer
-                                .primary_cursor_mut()
-                                .set_sel(start..=end.saturating_sub(1));
-                        }
-                        true
+                if let Some(x) = x {
+                    let start = x.start() + base_cursor;
+                    let end = x.end() + base_cursor;
+
+                    if *extend {
+                        let existing_selection = cur_buffer.primary_cursor().sel().clone();
+                        let new_start = (*existing_selection.start()).min(start);
+                        let new_end = (*existing_selection.end()).max(end.saturating_sub(1));
+                        cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
                     } else {
-                        false
+                        cur_buffer
+                            .primary_cursor_mut()
+                            .set_sel(start..=end.saturating_sub(1));
                     }
+                    true
                 } else {
                     false
                 }
@@ -414,9 +407,9 @@ impl Command for MotionCommand {
                         if search_ceil == 0 {
                             return false;
                         }
-                        let Some(slice) = cur_buffer.slice(0, search_ceil) else {
-                            return false;
-                        };
+
+                        let slice = cur_buffer.slice_clamped(0, search_ceil);
+
                         let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
                         let Some(x) = regex.find_iter(searcher).last() else {
                             return false;
@@ -443,28 +436,26 @@ impl Command for MotionCommand {
                     }
                 }
 
-                if let Some(slice) = cur_buffer.slice(0, base_cursor) {
-                    let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
-                    let x = regex.find_iter(searcher);
+                let slice = cur_buffer.slice_clamped(0, base_cursor);
 
-                    if let Some(x) = x.last() {
-                        let start = x.start();
-                        let end = x.end();
+                let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
+                let x = regex.find_iter(searcher);
 
-                        if *extend {
-                            let existing_selection = cur_buffer.primary_cursor().sel().clone();
-                            let new_start = (*existing_selection.start()).min(start);
-                            let new_end = (*existing_selection.end()).max(end.saturating_sub(1));
-                            cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
-                        } else {
-                            cur_buffer
-                                .primary_cursor_mut()
-                                .set_sel(start..=end.saturating_sub(1));
-                        }
-                        true
+                if let Some(x) = x.last() {
+                    let start = x.start();
+                    let end = x.end();
+
+                    if *extend {
+                        let existing_selection = cur_buffer.primary_cursor().sel().clone();
+                        let new_start = (*existing_selection.start()).min(start);
+                        let new_end = (*existing_selection.end()).max(end.saturating_sub(1));
+                        cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
                     } else {
-                        false
+                        cur_buffer
+                            .primary_cursor_mut()
+                            .set_sel(start..=end.saturating_sub(1));
                     }
+                    true
                 } else {
                     false
                 }
@@ -483,22 +474,19 @@ impl Command for MotionCommand {
                 let start_idx = *cursor.start();
                 let end_idx = *cursor.end() + 1; // slice is exclusive end
 
-                if let Some(slice) = cur_buffer.slice(start_idx, end_idx) {
-                    let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
-                    let x = regex.search(searcher);
+                let slice = cur_buffer.slice_clamped(start_idx, end_idx);
+                let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
+                let x = regex.search(searcher);
 
-                    if let Some(x) = x {
-                        let start = x.start() + *cursor.start();
-                        let end = x.end() + *cursor.start();
+                if let Some(x) = x {
+                    let start = x.start() + *cursor.start();
+                    let end = x.end() + *cursor.start();
 
-                        cur_buffer
-                            .primary_cursor_mut()
-                            .set_sel(start..=end.saturating_sub(1));
+                    cur_buffer
+                        .primary_cursor_mut()
+                        .set_sel(start..=end.saturating_sub(1));
 
-                        true
-                    } else {
-                        false
-                    }
+                    true
                 } else {
                     false
                 }
@@ -516,29 +504,26 @@ impl Command for MotionCommand {
                 let start_idx = *cursor.start();
                 let end_idx = *cursor.end() + 1;
 
-                if let Some(slice) = cur_buffer.slice(start_idx, end_idx) {
-                    let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
+                let slice = cur_buffer.slice_clamped(start_idx, end_idx);
+                let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
 
-                    let initial_cursor = cur_buffer.primary_cursor;
+                let initial_cursor = cur_buffer.primary_cursor;
 
-                    let mut ranges = vec![];
+                let mut ranges = vec![];
 
-                    for match_ in regex.find_iter(searcher) {
-                        ranges.push(match_.start()..=match_.end().saturating_sub(1));
-                    }
+                for match_ in regex.find_iter(searcher) {
+                    ranges.push(match_.start()..=match_.end().saturating_sub(1));
+                }
 
-                    for range in ranges {
-                        cur_buffer.create_cursor();
-                        cur_buffer.primary_cursor_mut().set_sel(range);
-                    }
+                for range in ranges {
+                    cur_buffer.create_cursor();
+                    cur_buffer.primary_cursor_mut().set_sel(range);
+                }
 
-                    if cur_buffer.primary_cursor != initial_cursor {
-                        cur_buffer.cursors.remove(initial_cursor);
-                        cur_buffer.primary_cursor -= 1;
-                        true
-                    } else {
-                        false
-                    }
+                if cur_buffer.primary_cursor != initial_cursor {
+                    cur_buffer.cursors.remove(initial_cursor);
+                    cur_buffer.primary_cursor -= 1;
+                    true
                 } else {
                     false
                 }

@@ -59,6 +59,9 @@ pub trait SafeRopeAccess {
     /// Safely slices the rope, returning a RopeSlice
     fn slice(&self, start: usize, end: usize) -> Option<RopeSlice<'_>>;
 
+    /// Safely slices the rope, returning a RopeSlice
+    fn slice_clamped(&self, start: usize, end: usize) -> RopeSlice<'_>;
+
     /// Returns the entire buffer content as a String
     fn to_string(&self) -> String;
 
@@ -206,7 +209,17 @@ impl SafeRopeAccess for TextBuffer {
         if start > len || end > len || start > end {
             return None;
         }
-        Some(self.rope.slice(self.rope.byte_to_char(start)..self.rope.byte_to_char(end)))
+        Some(
+            self.rope
+                .slice(self.rope.byte_to_char(start)..self.rope.byte_to_char(end)),
+        )
+    }
+
+    fn slice_clamped(&self, start: usize, end: usize) -> RopeSlice<'_> {
+        let len = self.rope.len_bytes();
+        let end = end.min(len);
+        self.rope
+            .slice(self.rope.byte_to_char(start)..self.rope.byte_to_char(end))
     }
 
     fn to_string(&self) -> String {

@@ -1,0 +1,10 @@
+bind [c] [pm x]
+prefix "aa" --modes [x] --include [mc mb ml rxc rxcb rxs sl sle slb sfw sc d i a gse gsb ts_nl cc]
+
+bind [C] [then [cc] [ml 1]] --desc "Create Cursor Down 1 Line"
+
+bind [n] [cac 1] --desc "Select next cursor"
+bind [N] [cac -1] --desc "Select last cursor"
+bind [,] [[dcs] [sc]] --desc "Collapse cursors and selections"
+
+bind [F %insert] [rxsa %1] --desc "Select all characters in selection"

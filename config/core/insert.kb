@@ -1,12 +1,14 @@
 # Insert mode keybindings
 
-bind [i] [pm i] --invalid [i] --desc "Insert Mode"
+bind [i] [[commit_change] [pm i]] --invalid [i] --desc "Insert Mode"
+bind [o] [[sle] [a \n --extend] [%ifclear] [pm i] [start_change]]
+bind [O] [[ml -1] [sle] [a \n --extend] [%ifclear] [pm i] [start_change]]
 
 # Insertions
-bind [enter] [a "\n"] --modes [i] --desc "Insert Newline"
-bind [tab] [[a %tab_unit] [gse] [cs]] --modes [i]
+bind [enter] [if [mode v] --cmds [a \n --extend] --else_cmds [a \n]] --modes [i] --desc "Insert Newline"
+bind [tab] [if [mode v] --cmds [a %tab_unit --extend] --else_cmds [a %tab_unit]] [gse] [cs]] --modes [i]
 bind [%insert] [if [mode v] --cmds [a %0 --extend] --else_cmds [a %0]] --modes [i] --desc "Insert character"
-bind [space] [a ' '] --modes [i] --desc "Insert character"
+bind [space] [if [mode v] --cmds [a ' ' --extend] --else_cmds [a ' ']] --modes [i] --desc "Insert character"
 
 # Deletions
 bind [backspace] [[mc -1] [d]] --modes [i] --desc "Backspace"

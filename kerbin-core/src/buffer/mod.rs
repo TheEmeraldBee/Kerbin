@@ -474,24 +474,33 @@ impl TextBuffer {
     }
 
     /// Writes the buffer's content to a file on disk
-    pub async fn write_file(&mut self, path: Option<String>) {
+    pub async fn write_file(&mut self, path: Option<String>) -> Result<(), std::io::Error> {
         if let Some(new_path) = path {
             let path = Path::new(&new_path);
 
             if let Some(dir_path) = path.parent() {
-                std::fs::create_dir_all(dir_path).unwrap();
+                std::fs::create_dir_all(dir_path)?;
             }
 
-            if !std::fs::exists(path).unwrap() {
-                std::fs::File::create(path).unwrap().flush().unwrap();
+            if !std::fs::exists(path)? {
+                std::fs::File::create(path)?.flush()?;
             }
 
-            self.path = path.canonicalize().unwrap().to_str().unwrap().to_string();
+            self.path = path
+                .canonicalize()?
+                .to_str()
+                .ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "path contains non-UTF-8 characters",
+                    )
+                })?
+                .to_string();
         }
 
         if self.path.starts_with("<") && self.path.ends_with(">") {
             tracing::error!("Cannot write to special buffer without setting new path");
-            return;
+            return Ok(());
         }
 
         EVENT_BUS
@@ -500,11 +509,11 @@ impl TextBuffer {
             })
             .await;
 
-        if !std::fs::exists(&self.path).unwrap() {
+        if !std::fs::exists(&self.path)? {
             if let Some(dir_path) = Path::new(&self.path).parent() {
-                std::fs::create_dir_all(dir_path).unwrap();
+                std::fs::create_dir_all(dir_path)?;
             }
-            std::fs::File::create(&self.path).unwrap().flush().unwrap();
+            std::fs::File::create(&self.path)?.flush()?;
         }
 
         self.dirty = false;
@@ -518,17 +527,17 @@ impl TextBuffer {
                 Ok(f) => BufWriter::new(f),
                 Err(e) => {
                     tracing::error!("Failed to write to {}: {e}", self.path);
-                    return;
+                    return Err(e);
                 }
             },
         );
 
-        if write_result.is_err() {
+        if let Err(e) = write_result {
             tracing::error!(
                 "Failed to write rope content to file: {:?}",
-                write_result.err()
+                e
             );
-            return;
+            return Err(std::io::Error::other(e.to_string()));
         }
 
         self.dirty = false;
@@ -547,6 +556,8 @@ impl TextBuffer {
                 self.changed = None;
             }
         }
+
+        Ok(())
     }
 
     /// Moves the primary cursor by a given number of bytes

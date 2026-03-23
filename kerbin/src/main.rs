@@ -327,6 +327,19 @@ async fn main() {
             });
     }
 
+    // Default mouse bindings (overridable via `mouse-bind` in config)
+    {
+        let mut mb = state.lock_state::<MouseBindings>().await;
+        mb.bindings.insert(
+            MouseTrigger::LeftDown,
+            vec!["goto %mouse_line %mouse_col".to_string()],
+        );
+        mb.bindings
+            .insert(MouseTrigger::ScrollUp, vec!["ml -3".to_string()]);
+        mb.bindings
+            .insert(MouseTrigger::ScrollDown, vec!["ml 3".to_string()]);
+    }
+
     state
         .on_hook(hooks::ChunkRegister)
         .system_named("core::layout", register_default_chunks)
@@ -341,6 +354,7 @@ async fn main() {
         .on_hook(hooks::Update)
         .system_named("core::update_debounce", update_debounce)
         .system_named("core::handle_inputs", handle_inputs)
+        .system_named("core::handle_mouse_events", handle_mouse_events)
         .system_named(
             "core::update_palette_suggestions",
             update_palette_suggestions,

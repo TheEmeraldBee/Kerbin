@@ -154,6 +154,14 @@ pub enum ConfigCommand {
     /// Reload runtime config (.kb files) without restarting the editor.
     #[command(drop_ident, name = "reload-config")]
     ReloadConfig,
+
+    /// Bind a command to a mouse event.
+    /// Valid event names: left-down, left-up, right-down, right-up, middle, scroll-up, scroll-down
+    #[command(drop_ident, name = "mouse-bind")]
+    MouseBind {
+        event: String,
+        cmds: Vec<Token>,
+    },
 }
 
 #[async_trait::async_trait]
@@ -464,6 +472,40 @@ impl Command for ConfigCommand {
                         log.high("config-errors", msg);
                     }
                 }
+            }
+
+            ConfigCommand::MouseBind { event, cmds } => {
+                let trigger = match event.as_str() {
+                    "left-down" => MouseTrigger::LeftDown,
+                    "left-up" => MouseTrigger::LeftUp,
+                    "right-down" => MouseTrigger::RightDown,
+                    "right-up" => MouseTrigger::RightUp,
+                    "middle" => MouseTrigger::MiddleDown,
+                    "scroll-up" => MouseTrigger::ScrollUp,
+                    "scroll-down" => MouseTrigger::ScrollDown,
+                    other => {
+                        tracing::error!("mouse-bind: unknown event '{}'", other);
+                        return false;
+                    }
+                };
+                let commands = if cmds.iter().all(|t| matches!(t, Token::List(_))) {
+                    cmds.iter()
+                        .filter_map(|t| {
+                            if let Token::List(items) = t {
+                                Some(tokens_to_command_string(items))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect()
+                } else {
+                    vec![tokens_to_command_string(cmds)]
+                };
+                state
+                    .lock_state::<MouseBindings>()
+                    .await
+                    .bindings
+                    .insert(trigger, commands);
             }
 
             ConfigCommand::ReloadConfig => {

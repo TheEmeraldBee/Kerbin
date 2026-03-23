@@ -77,7 +77,8 @@ pub fn init_state(
         .state(DebounceConfig::default())
         .state(StatuslineConfig::default())
         .state(LayoutConfig::default())
-        .state(ConfigErrors::default());
+        .state(ConfigErrors::default())
+        .state(MouseBindings::default());
 
     state
 }

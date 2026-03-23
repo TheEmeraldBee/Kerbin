@@ -15,5 +15,7 @@ source normal.kb
 
 source visual.kb
 
+source cursors.kb
+
 # Bind a mode exiting command
-bind [esc] [rm]
+bind [esc] [[commit_change] [rm]]

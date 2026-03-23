@@ -121,3 +121,23 @@ pub struct CrosstermEvents(pub Vec<Event>);
 /// Accumulates config load errors for user-visible reporting via `config-errors`.
 #[derive(State, Default)]
 pub struct ConfigErrors(pub Vec<KbLoadError>);
+
+/// Identifies a mouse event type for binding purposes.
+/// Named `MouseTrigger` to avoid conflict with `crossterm::event::MouseEvent`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum MouseTrigger {
+    LeftDown,
+    LeftUp,
+    RightDown,
+    RightUp,
+    MiddleDown,
+    ScrollUp,
+    ScrollDown,
+}
+
+/// Mouse event bindings: maps mouse triggers to lists of command strings.
+#[derive(Default, State)]
+pub struct MouseBindings {
+    pub bindings: HashMap<MouseTrigger, Vec<String>>,
+}
+
