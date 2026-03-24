@@ -193,10 +193,11 @@ pub async fn handle_mouse_events(
     prefix_registry: Res<CommandPrefixRegistry>,
     command_sender: ResMut<CommandSender>,
     modes: Res<ModeStack>,
+    core_config: Res<CoreConfig>,
 ) {
     use crossterm::event::{MouseButton, MouseEventKind};
 
-    get!(events, chunks, buffers, mouse_bindings, modes);
+    get!(events, chunks, buffers, mouse_bindings, modes, core_config);
 
     if events.0.is_empty() {
         return;
@@ -231,7 +232,9 @@ pub async fn handle_mouse_events(
                 .min(buf.len_lines().saturating_sub(1));
 
             let line_start_byte = buf.line_to_byte_clamped(line_idx);
-            let line_end_byte = buf.line_to_byte_clamped(line_idx + 1);
+            let line_end_byte = buf
+                .line_to_byte(line_idx + 1)
+                .unwrap_or(buf.rope.len_bytes());
             let target_display_col =
                 (col.saturating_sub(area.x) as usize).saturating_add(buf.renderer.h_scroll);
 
@@ -239,6 +242,7 @@ pub async fn handle_mouse_events(
                 .slice_to_string(line_start_byte, line_end_byte)
                 .unwrap_or_default();
 
+            let tab_w = core_config.tab_display_unit.chars().count();
             let mut byte_offset = 0usize;
             let mut current_width = 0usize;
             for g in line_text.graphemes(true) {
@@ -248,7 +252,9 @@ pub async fn handle_mouse_events(
                 if current_width >= target_display_col {
                     break;
                 }
-                let w = if g.contains('\u{FE0F}') {
+                let w = if g == "\t" {
+                    tab_w
+                } else if g.contains('\u{FE0F}') {
                     2
                 } else {
                     UnicodeWidthStr::width(g)
