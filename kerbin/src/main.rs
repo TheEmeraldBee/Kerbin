@@ -332,7 +332,7 @@ async fn main() {
         let mut mb = state.lock_state::<MouseBindings>().await;
         mb.bindings.insert(
             MouseTrigger::LeftDown,
-            vec!["goto %mouse_line %mouse_col".to_string()],
+            vec!["goto %mouse_col %mouse_line".to_string()],
         );
         mb.bindings
             .insert(MouseTrigger::ScrollUp, vec!["ml -3".to_string()]);
@@ -401,7 +401,8 @@ async fn main() {
 
     for file in args.files {
         let path = file.to_string_lossy().to_string();
-        state.lock_state::<Buffers>().await.open(path).await.ok();
+        let default_tab_unit = state.lock_state::<CoreConfig>().await.default_tab_unit;
+        state.lock_state::<Buffers>().await.open(path, default_tab_unit).await.ok();
     }
 
     loop {

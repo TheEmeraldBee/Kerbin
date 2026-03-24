@@ -49,26 +49,16 @@ impl Command for RegisterCommand {
                 true
             }
             Self::PasteRegister(register, extend) => {
-                let command_sender = state.lock_state::<CommandSender>().await;
                 let text = registers.get(&register.unwrap_or('a')).to_string();
-                match command_sender.send(Box::new(BufferCommand::Append {
+
+                drop(registers);
+
+                BufferCommand::Append {
                     text,
                     extend: *extend,
-                })) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        let logger = state.lock_state::<LogSender>().await;
-
-                        logger.critical(
-                            "core::register_commands",
-                            format!("Failed to send paste command due to error: {e}"),
-                        );
-
-                        return false;
-                    }
                 }
-
-                true
+                .apply(state)
+                .await
             }
             Self::ClipboardCopy => {
                 let buf = state.lock_state::<Buffers>().await.cur_buffer().await;
@@ -100,22 +90,15 @@ impl Command for RegisterCommand {
                         return false;
                     }
                 };
-                let command_sender = state.lock_state::<CommandSender>().await;
-                match command_sender.send(Box::new(BufferCommand::Append {
+
+                drop(registers);
+
+                BufferCommand::Append {
                     text,
                     extend: *extend,
-                })) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        let logger = state.lock_state::<LogSender>().await;
-                        logger.critical(
-                            "core::register_commands",
-                            format!("Failed to send clipboard paste command due to error: {e}"),
-                        );
-                        return false;
-                    }
                 }
-                true
+                .apply(state)
+                .await
             }
         }
     }

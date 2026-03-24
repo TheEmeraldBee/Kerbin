@@ -158,10 +158,7 @@ pub enum ConfigCommand {
     /// Bind a command to a mouse event.
     /// Valid event names: left-down, left-up, right-down, right-up, middle, scroll-up, scroll-down
     #[command(drop_ident, name = "mouse-bind")]
-    MouseBind {
-        event: String,
-        cmds: Vec<Token>,
-    },
+    MouseBind { event: String, cmds: Vec<Token> },
 }
 
 #[async_trait::async_trait]
@@ -404,6 +401,14 @@ impl Command for ConfigCommand {
                         );
                     }
                 },
+                "tab_display_unit" => {
+                    state.lock_state::<CoreConfig>().await.tab_display_unit = value.to_string();
+                }
+                "default_tab_unit" => {
+                    if let Ok(n) = value.parse::<usize>() {
+                        state.lock_state::<CoreConfig>().await.default_tab_unit = n;
+                    }
+                }
                 _ => {
                     state.lock_state::<LogSender>().await.critical(
                         "commands::core",
@@ -517,11 +522,9 @@ impl Command for ConfigCommand {
                 let errors = crate::load_kb(&kb_path, state).await;
 
                 // Mirror the startup auto_pairs default logic (auto_pairs is on by default).
-                let disable_auto_pairs =
-                    state.lock_state::<CoreConfig>().await.disable_auto_pairs;
+                let disable_auto_pairs = state.lock_state::<CoreConfig>().await.disable_auto_pairs;
                 if !disable_auto_pairs {
-                    let mut registry =
-                        state.lock_state::<CommandInterceptorRegistry>().await;
+                    let mut registry = state.lock_state::<CommandInterceptorRegistry>().await;
                     registry.remove_command_interceptor::<BufferCommand>("core::auto_pairs");
                     registry.on_command_named::<BufferCommand>(
                         "core::auto_pairs",

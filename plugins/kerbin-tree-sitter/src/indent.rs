@@ -10,10 +10,7 @@ use crate::{
 
 pub async fn newline_intercept(cmd: &BufferCommand, state: &mut State) -> InterceptorResult {
     match cmd {
-        BufferCommand::Append {
-            text,
-            extend: false,
-        } if text == "\n" => {}
+        BufferCommand::Append { text, .. } if text == "\n" => {}
         _ => return InterceptorResult::Allow,
     }
 

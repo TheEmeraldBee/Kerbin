@@ -260,7 +260,7 @@ pub async fn handle_mouse_events(
             drop(buf);
 
             let mut engine = resolver_engine_mut().await;
-            engine.set_template("mouse_line", line_start_byte.to_string());
+            engine.set_template("mouse_line", line_idx.to_string());
             engine.set_template("mouse_col", byte_offset.to_string());
             drop(engine);
         }

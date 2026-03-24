@@ -95,7 +95,7 @@ impl Buffers {
     }
 
     /// Opens a buffer with the given file path
-    pub async fn open(&mut self, path: String) -> std::io::Result<usize> {
+    pub async fn open(&mut self, path: String, default_tab_unit: usize) -> std::io::Result<usize> {
         let check_path = get_canonical_path_with_non_existent(&path)
             .to_str()
             .unwrap()
@@ -116,7 +116,7 @@ impl Buffers {
             self.set_selected_buffer(buffer_id);
             Ok(buffer_id)
         } else {
-            let new_buffer = Arc::new(RwLock::new(TextBuffer::open(path)?));
+            let new_buffer = Arc::new(RwLock::new(TextBuffer::open(path, default_tab_unit)?));
             self.buffers.push(new_buffer);
             let new_buffer_id = self.buffers.len() - 1;
             self.set_selected_buffer(new_buffer_id);

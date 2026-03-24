@@ -19,22 +19,28 @@ pub async fn render_buffer_default(
     buffers: Res<Buffers>,
 
     theme: Res<Theme>,
+    core_config: Res<CoreConfig>,
 ) {
     let Some(mut chunk) = chunk.get().await else {
         return;
     };
 
-    get!(buffers, theme);
+    get!(buffers, theme, core_config);
 
     let buf = buffers.cur_buffer().await;
 
     let area = chunk.area();
 
     // Render text buffer
+    let tab_style = theme.get_fallback_default(["ui.text.tabs", "ui.text"]);
+    let cursor_on_tab_style = theme.get_fallback_default(["ui.selection"]);
     let mut cursor_state = CursorRenderState::default();
     TextBufferWidget::new(&buf)
         .with_vertical_scroll(buf.renderer.byte_scroll)
         .with_horizontal_scroll(buf.renderer.h_scroll)
+        .with_tab_display_unit(core_config.tab_display_unit.clone())
+        .with_tab_style(tab_style)
+        .with_cursor_on_tab_style(cursor_on_tab_style)
         .render(area, &mut chunk, &mut cursor_state);
 
     // Store cursor into chunk if found

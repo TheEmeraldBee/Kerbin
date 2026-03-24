@@ -17,6 +17,9 @@ pub struct TextBufferWidget<'a> {
     buf: &'a TextBuffer,
     line_scroll: usize,
     h_scroll: usize,
+    tab_display_unit: String,
+    tab_style: Style,
+    cursor_on_tab_style: Style,
 }
 
 impl<'a> TextBufferWidget<'a> {
@@ -25,6 +28,9 @@ impl<'a> TextBufferWidget<'a> {
             buf,
             line_scroll: 0,
             h_scroll: 0,
+            tab_display_unit: "    ".to_string(),
+            tab_style: Style::default(),
+            cursor_on_tab_style: Style::default(),
         }
     }
 
@@ -35,6 +41,21 @@ impl<'a> TextBufferWidget<'a> {
 
     pub fn with_horizontal_scroll(mut self, scroll: usize) -> Self {
         self.h_scroll = scroll;
+        self
+    }
+
+    pub fn with_tab_display_unit(mut self, unit: String) -> Self {
+        self.tab_display_unit = unit;
+        self
+    }
+
+    pub fn with_tab_style(mut self, style: Style) -> Self {
+        self.tab_style = style;
+        self
+    }
+
+    pub fn with_cursor_on_tab_style(mut self, style: Style) -> Self {
+        self.cursor_on_tab_style = style;
         self
     }
 }
@@ -52,6 +73,22 @@ struct StyledSegment {
 
 fn char_to_byte_offset(s: &str, n: usize) -> usize {
     s.char_indices().nth(n).map(|(i, _)| i).unwrap_or(s.len())
+}
+
+fn char_col_to_display_col(line_text: &str, char_col: usize, tab_display_unit: &str) -> usize {
+    let tab_w = tab_display_unit.chars().count();
+    let mut display_col = 0usize;
+    for (i, g) in line_text.graphemes(true).enumerate() {
+        if i >= char_col {
+            break;
+        }
+        if g == "\t" {
+            display_col += tab_w;
+        } else {
+            display_col += grapheme_display_width(g);
+        }
+    }
+    display_col
 }
 
 fn buffer_to_display(
@@ -241,7 +278,7 @@ impl SegmentList {
         self.segments = new_segments;
     }
 
-    fn into_spans(self, h_scroll: usize, width: usize) -> Vec<Span<'static>> {
+    fn into_spans(self, h_scroll: usize, width: usize, tab_display_unit: &str, tab_style: Style, cursor_on_tab_style: Style, cursor_display_cols: &[usize]) -> Vec<Span<'static>> {
         let mut spans = Vec::new();
         let mut display_col = 0usize;
 
@@ -252,6 +289,27 @@ impl SegmentList {
 
             let mut visible = String::new();
             for g in seg.text.graphemes(true) {
+                if g == "\t" {
+                    let unit_w = tab_display_unit.chars().count();
+                    if display_col + unit_w <= h_scroll {
+                        display_col += unit_w;
+                        continue;
+                    }
+                    if display_col >= h_scroll + width {
+                        break;
+                    }
+                    if !visible.is_empty() {
+                        spans.push(Span::styled(std::mem::take(&mut visible), seg.style));
+                    }
+                    let style = if cursor_display_cols.contains(&display_col) {
+                        cursor_on_tab_style
+                    } else {
+                        tab_style
+                    };
+                    spans.push(Span::styled(tab_display_unit.to_owned(), style));
+                    display_col += unit_w;
+                    continue;
+                }
                 let g_w = grapheme_display_width(g);
                 if display_col + g_w <= h_scroll {
                     display_col += g_w;
@@ -644,10 +702,31 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
 
             if marks.is_empty() {
                 let line_str = rope_line.to_string();
+                let mut spans: Vec<Span<'static>> = Vec::new();
                 let mut text = String::new();
                 let mut col = 0usize;
                 let width = area.width as usize;
                 for g in line_str.graphemes(true) {
+                    if g == "\t" {
+                        let unit = &self.tab_display_unit;
+                        let unit_w = unit.chars().count();
+                        if col + unit_w <= self.h_scroll {
+                            col += unit_w;
+                            continue;
+                        }
+                        if col >= self.h_scroll + width {
+                            break;
+                        }
+                        if !text.is_empty() {
+                            spans.push(Span::raw(std::mem::take(&mut text)));
+                        }
+                        spans.push(Span::styled(unit.to_owned(), self.tab_style));
+                        col += unit_w;
+                        continue;
+                    }
+                    if g == "\n" || g == "\r\n" || g == "\r" {
+                        break;
+                    }
                     let g_w = grapheme_display_width(g);
                     if col + g_w <= self.h_scroll {
                         col += g_w;
@@ -656,13 +735,13 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
                     if col >= self.h_scroll + width {
                         break;
                     }
-                    if g == "\n" || g == "\r\n" || g == "\r" {
-                        break;
-                    }
                     text.push_str(g);
                     col += g_w;
                 }
-                lines.push(Line::from(vec![Span::raw(text)]));
+                if !text.is_empty() {
+                    spans.push(Span::raw(text));
+                }
+                lines.push(Line::from(spans));
                 continue;
             }
 
@@ -743,11 +822,18 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
             }
 
             let width = area.width as usize;
-            let mut spans = segments.into_spans(self.h_scroll, width);
+            let cursor_display_cols: Vec<usize> = lm
+                .cursors
+                .iter()
+                .map(|&(col, _, _, _)| {
+                    let char_col = buffer_to_display(col, &lm.conceals);
+                    char_col_to_display_col(&full_line_text, char_col, &self.tab_display_unit)
+                })
+                .collect();
+            let mut spans = segments.into_spans(self.h_scroll, width, &self.tab_display_unit, self.tab_style, self.cursor_on_tab_style, &cursor_display_cols);
 
             let current_line_index = lines.len();
-            for &(cursor_col, _, _, shape) in &lm.cursors {
-                let display_col = buffer_to_display(cursor_col, &lm.conceals);
+            for (&display_col, &(_, _, _, shape)) in cursor_display_cols.iter().zip(lm.cursors.iter()) {
                 if display_col >= self.h_scroll && display_col < self.h_scroll + width {
                     let screen_x = area.x + (display_col - self.h_scroll) as u16;
                     let screen_y = area.y + current_line_index as u16;

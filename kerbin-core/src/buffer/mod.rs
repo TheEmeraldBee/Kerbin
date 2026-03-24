@@ -58,7 +58,7 @@ impl IndentStyle {
 }
 
 /// Detect the indentation style of a rope by analysing leading-whitespace deltas.
-pub fn detect_indent(rope: &Rope) -> IndentStyle {
+pub fn detect_indent(rope: &Rope, default_spaces: usize) -> IndentStyle {
     for line in rope.lines() {
         if line.chars().next() == Some('\t') {
             return IndentStyle::Tabs;
@@ -91,7 +91,7 @@ pub fn detect_indent(rope: &Rope) -> IndentStyle {
         .max_by_key(|&(_, &n)| n)
         .filter(|&(_, &n)| n > 0)
         .map(|(i, _)| i + 1)
-        .unwrap_or(4);
+        .unwrap_or(default_spaces);
 
     IndentStyle::Spaces(tab_size)
 }
@@ -192,7 +192,7 @@ impl TextBuffer {
     }
 
     /// Opens a file with the provided path, loading its content into the buffer
-    pub fn open(path_str: String) -> io::Result<Self> {
+    pub fn open(path_str: String, default_tab_unit: usize) -> io::Result<Self> {
         let mut found_ext = "".to_string();
 
         let path = get_canonical_path_with_non_existent(&path_str);
@@ -216,7 +216,7 @@ impl TextBuffer {
             found_ext = ext.to_string();
         }
 
-        let indent_style = detect_indent(&rope);
+        let indent_style = detect_indent(&rope, default_tab_unit);
 
         Ok(Self {
             save_point: 0,

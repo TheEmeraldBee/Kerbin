@@ -194,10 +194,10 @@ pub async fn handle_inputs(
 
                 let resolver = resolver.as_resolver();
                 'outer: for _ in 0..repeat {
-                    for command in &commands {
+                    for command_str in &commands {
                         let registry = prefix_registry.get().await;
-                        let command = command_registry.get().await.parse_command(
-                            tokenize(command).unwrap_or_default(),
+                        let parsed = command_registry.get().await.parse_command(
+                            tokenize(command_str).unwrap_or_default(),
                             true,
                             false,
                             Some(&resolver),
@@ -205,9 +205,13 @@ pub async fn handle_inputs(
                             &registry,
                             &modes,
                         );
-                        if let Some(command) = command {
+                        if let Some(command) = parsed {
                             command_sender.get().await.send(command).unwrap();
                         } else {
+                            log.critical(
+                                "input",
+                                format!("Invalid command in keybind: {command_str}"),
+                            );
                             break 'outer;
                         }
                     }

@@ -305,8 +305,9 @@ impl Command for NavigationCommand {
                 let line = line_1indexed.saturating_sub(1);
                 let col = col_1indexed.saturating_sub(1);
 
+                let default_tab_unit = state.lock_state::<CoreConfig>().await.default_tab_unit;
                 let mut bufs = state.lock_state::<Buffers>().await;
-                if bufs.open(path.to_string()).await.is_err() {
+                if bufs.open(path.to_string(), default_tab_unit).await.is_err() {
                     return false;
                 }
 
@@ -433,8 +434,9 @@ pub async fn handle_navigation(state: &State, msg: &JsonRpcMessage) {
         let line = loc.range.start.line as usize;
         let col = loc.range.start.character as usize;
 
+        let default_tab_unit = state.lock_state::<CoreConfig>().await.default_tab_unit;
         let mut bufs = state.lock_state::<Buffers>().await;
-        if bufs.open(path).await.is_err() {
+        if bufs.open(path, default_tab_unit).await.is_err() {
             return;
         }
         let mut buf = bufs.cur_buffer_mut().await;

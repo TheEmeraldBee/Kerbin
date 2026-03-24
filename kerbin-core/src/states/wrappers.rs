@@ -49,6 +49,8 @@ pub struct ConfigDir(pub PathBuf);
 pub struct CoreConfig {
     pub framerate: u64,
     pub disable_auto_pairs: bool,
+    pub tab_display_unit: String,
+    pub default_tab_unit: usize,
 }
 
 impl Default for CoreConfig {
@@ -56,6 +58,8 @@ impl Default for CoreConfig {
         Self {
             framerate: 60,
             disable_auto_pairs: false,
+            tab_display_unit: "    ".to_string(),
+            default_tab_unit: 4,
         }
     }
 }

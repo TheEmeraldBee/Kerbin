@@ -490,10 +490,11 @@ impl Command for BuffersCommand {
     async fn apply(&self, state: &mut State) -> bool {
         let mut buffers = state.lock_state::<Buffers>().await;
         let log = state.lock_state::<LogSender>().await;
+        let default_tab_unit = state.lock_state::<CoreConfig>().await.default_tab_unit;
 
         match self {
             Self::OpenFile(path) => {
-                let buffer_id = match buffers.open(path.clone()).await {
+                let buffer_id = match buffers.open(path.clone(), default_tab_unit).await {
                     Ok(t) => t,
                     Err(e) => {
                         match e.kind() {
