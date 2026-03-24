@@ -1,4 +1,1 @@
-category [space f] --desc "File findings"
-bind [space f f] [ship [sh "%cfg_folder/scripts/fzf.sh" %session]] --desc "Run FZF file picker at location editor was run"
-bind [space f t] [ship [sh "%cfg_folder/scripts/yazi.sh" %session %cur_buf]] --desc "Run Yazi file picker"
 bind [';' s] [ship [sh -c %shell]] --desc "Run sh shell session"

@@ -41,7 +41,7 @@ impl Command for RegisterCommand {
 
                 let byte_range = buf.primary_cursor().sel().clone();
                 let text = buf
-                    .slice_to_string(*byte_range.start(), *byte_range.end())
+                    .slice_to_string(*byte_range.start(), (*byte_range.end() + 1).min(buf.len()))
                     .unwrap_or_default();
 
                 registers.set(register.unwrap_or('a'), text);
@@ -64,7 +64,7 @@ impl Command for RegisterCommand {
                 let buf = state.lock_state::<Buffers>().await.cur_buffer().await;
                 let byte_range = buf.primary_cursor().sel().clone();
                 let text = buf
-                    .slice_to_string(*byte_range.start(), *byte_range.end())
+                    .slice_to_string(*byte_range.start(), (*byte_range.end() + 1).min(buf.len()))
                     .unwrap_or_default();
                 match arboard::Clipboard::new().and_then(|mut cb| cb.set_text(text)) {
                     Ok(_) => true,

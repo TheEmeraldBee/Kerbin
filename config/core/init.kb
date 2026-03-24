@@ -17,5 +17,7 @@ source visual.kb
 
 source cursors.kb
 
+source registers.kb
+
 # Bind a mode exiting command
 bind [esc] [[commit_change] [rm]]

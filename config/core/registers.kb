@@ -1,0 +1,5 @@
+bind [y] [copy a] --desc "Copy to register"
+bind [Y] [clipboard_copy] --desc "Copy to system clipboard"
+
+bind [p] [paste a] --desc "Paste from register"
+bind [P] [clipboard_paste] --desc "Paste from system clipboard"

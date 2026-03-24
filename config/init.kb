@@ -9,7 +9,9 @@ source plugins/init.kb
 
 source misc.kb
 
+source shell.kb
+
 core framerate 60
 
 # Set shell value (what are shell commands run with)
-template shell [bash]
+template shell [nu]

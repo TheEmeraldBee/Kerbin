@@ -1,5 +1,6 @@
-bind [c] [pm x]
 prefix "aa" --modes [x] --include [mc mb ml rxc rxcb rxs sl sle slb sfw sc d i a gse gsb ts_nl cc]
+
+bind [c] [pm x]
 
 bind [C] [then [cc] [ml 1]] --desc "Create Cursor Down 1 Line"
 
