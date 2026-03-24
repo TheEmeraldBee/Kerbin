@@ -7,6 +7,18 @@ use tokio::process::ChildStdin;
 
 use crate::{LspClient, UriExt};
 
+#[derive(Clone)]
+pub enum FormatterKind {
+    Lsp,
+    External(String, Vec<String>),
+}
+
+#[derive(Clone)]
+pub struct FormatterConfig {
+    pub kind: FormatterKind,
+    pub format_on_save: bool,
+}
+
 #[derive(Clone, Deserialize)]
 pub struct LangInfo {
     pub command: String,
@@ -15,6 +27,9 @@ pub struct LangInfo {
     /// A list of paths to look for when finding the root file
     /// When empty, PWD is used as the root of the workspace
     pub roots: Vec<String>,
+
+    #[serde(skip)]
+    pub format: Option<FormatterConfig>,
 }
 
 impl LangInfo {
@@ -23,7 +38,29 @@ impl LangInfo {
             command: command.to_string(),
             args: vec![],
             roots: vec![],
+            format: None,
         }
+    }
+
+    pub fn with_lsp_format(mut self, on_save: bool) -> Self {
+        self.format = Some(FormatterConfig {
+            kind: FormatterKind::Lsp,
+            format_on_save: on_save,
+        });
+        self
+    }
+
+    pub fn with_external_format(
+        mut self,
+        cmd: impl ToString,
+        args: Vec<String>,
+        on_save: bool,
+    ) -> Self {
+        self.format = Some(FormatterConfig {
+            kind: FormatterKind::External(cmd.to_string(), args),
+            format_on_save: on_save,
+        });
+        self
     }
 
     /// Add an argument to the command

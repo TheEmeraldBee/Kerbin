@@ -402,7 +402,12 @@ async fn main() {
     for file in args.files {
         let path = file.to_string_lossy().to_string();
         let default_tab_unit = state.lock_state::<CoreConfig>().await.default_tab_unit;
-        state.lock_state::<Buffers>().await.open(path, default_tab_unit).await.ok();
+        state
+            .lock_state::<Buffers>()
+            .await
+            .open(path, default_tab_unit)
+            .await
+            .ok();
     }
 
     loop {

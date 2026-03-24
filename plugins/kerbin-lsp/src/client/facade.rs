@@ -56,6 +56,9 @@ impl<W: AsyncWrite + Unpin + Send + 'static> ClientFacade for LspClient<W> {
                     references: Some(DynamicRegistrationClientCapabilities {
                         dynamic_registration: Some(false),
                     }),
+                    formatting: Some(DynamicRegistrationClientCapabilities {
+                        dynamic_registration: Some(false),
+                    }),
                     completion: Some(CompletionClientCapabilities {
                         dynamic_registration: None,
 

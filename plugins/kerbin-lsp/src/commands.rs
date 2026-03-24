@@ -29,6 +29,12 @@ pub enum LspCommand {
         args: Option<Vec<Token>>,
         #[command(flag)]
         roots: Option<Vec<Token>>,
+        #[command(flag)]
+        format_on_save: bool,
+        #[command(flag)]
+        lsp_format: bool,
+        #[command(flag)]
+        external_formatter: Option<Vec<Token>>,
     },
 }
 
@@ -42,6 +48,9 @@ impl Command for LspCommand {
                 cmd,
                 args,
                 roots,
+                format_on_save,
+                lsp_format,
+                external_formatter,
             } => {
                 let ext_strings = tokens_to_strings(exts);
                 let arg_strings = args.as_deref().map(tokens_to_strings).unwrap_or_default();
@@ -50,6 +59,19 @@ impl Command for LspCommand {
                 let info = LangInfo::new(cmd)
                     .with_args(arg_strings)
                     .with_roots(root_strings);
+
+                let info = if *lsp_format {
+                    info.with_lsp_format(*format_on_save)
+                } else if let Some(tokens) = external_formatter {
+                    let parts = tokens_to_strings(tokens);
+                    if let Some((ext_cmd, ext_args)) = parts.split_first() {
+                        info.with_external_format(ext_cmd, ext_args.to_vec(), *format_on_save)
+                    } else {
+                        info
+                    }
+                } else {
+                    info
+                };
 
                 {
                     let mut manager = state.lock_state::<LspManager>().await;

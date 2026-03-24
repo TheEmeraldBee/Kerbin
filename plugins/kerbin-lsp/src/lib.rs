@@ -34,6 +34,9 @@ pub use autocomplete::*;
 pub mod navigation;
 pub use navigation::*;
 
+pub mod format;
+pub use format::*;
+
 // Re-Exports
 pub use lsp_types::*;
 
@@ -100,6 +103,7 @@ pub async fn init(state: &mut State) {
         command_registry.register::<HoverCommand>();
         command_registry.register::<CompletionCommand>();
         command_registry.register::<NavigationCommand>();
+        command_registry.register::<FormatCommand>();
     }
 
     // Setup global state handlers
@@ -134,6 +138,10 @@ pub async fn init(state: &mut State) {
         });
         handler_manager.on_global_response("textDocument/declaration", |state, msg| {
             Box::pin(handle_navigation(state, msg))
+        });
+
+        handler_manager.on_global_response("textDocument/formatting", |state, msg| {
+            Box::pin(handle_format(state, msg))
         });
 
     }

@@ -17,8 +17,11 @@ pub async fn file_saved(
         return;
     };
 
+    let lang = client_info.lang.clone();
+    let uri = Uri::file_path(&cur_buf.path).expect("File path should be fine");
+
     let client = lsp_manager
-        .get_or_create_client(&client_info.lang)
+        .get_or_create_client(&lang)
         .await
         .unwrap();
 
@@ -26,12 +29,28 @@ pub async fn file_saved(
         .notification(
             "textDocument/didSave",
             DidSaveTextDocumentParams {
-                text_document: TextDocumentIdentifier {
-                    uri: Uri::file_path(&cur_buf.path).expect("File path should be fine"),
-                },
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
                 text: None,
             },
         )
         .await
         .unwrap();
+
+    let fmt_config = lsp_manager
+        .lang_info_map
+        .get(&lang)
+        .and_then(|i| i.format.clone());
+
+    if let Some(fmt) = fmt_config {
+        if fmt.format_on_save {
+            match fmt.kind {
+                FormatterKind::Lsp => {
+                    send_lsp_format_request(&mut cur_buf, &mut lsp_manager, &lang, uri).await;
+                }
+                FormatterKind::External(cmd, args) => {
+                    send_external_format_request(&mut cur_buf, &cmd, &args).await;
+                }
+            }
+        }
+    }
 }
