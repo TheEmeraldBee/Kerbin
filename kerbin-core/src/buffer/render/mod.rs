@@ -31,7 +31,6 @@ pub async fn render_buffer_default(
 
     let area = chunk.area();
 
-    // Render text buffer
     let tab_style = theme.get_fallback_default(["ui.text.tabs", "ui.text"]);
     let cursor_on_tab_style = theme.get_fallback_default(["ui.selection"]);
     let mut cursor_state = CursorRenderState::default();
@@ -43,14 +42,12 @@ pub async fn render_buffer_default(
         .with_cursor_on_tab_style(cursor_on_tab_style)
         .render(area, &mut chunk, &mut cursor_state);
 
-    // Store cursor into chunk if found
     if let Some((cx, cy, shape)) = cursor_state.cursor {
         chunk.set_cursor(0, cx, cy, shape);
     } else {
         chunk.remove_cursor();
     }
 
-    // Render gutter
     if let Some(mut gutter) = gutter_chunk.get().await {
         let gutter_area = gutter.area();
         GutterWidget::new(buf.renderer.byte_scroll, buf.len_lines(), &theme)

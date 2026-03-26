@@ -68,7 +68,6 @@ pub async fn register_command_palette_chunks(
 
     let window_size = window.size();
 
-    // Calculate content heights
     let desc_height = palette
         .desc
         .as_ref()
@@ -83,7 +82,6 @@ pub async fn register_command_palette_chunks(
 
     let input_height = 3u16;
 
-    // Vertical layout: top pad, desc, suggestions, input, bottom pad
     let [_top, desc_row, sug_row, input_row, _bottom] = Layout::vertical([
         Constraint::Fill(1),
         Constraint::Length(desc_height),
@@ -93,7 +91,6 @@ pub async fn register_command_palette_chunks(
     ])
     .areas(window_size);
 
-    // Horizontal centering for each row
     let center_constraints = [
         Constraint::Percentage(20),
         Constraint::Percentage(60),
@@ -128,21 +125,18 @@ pub async fn render_command_palette(
 
     let mut line_chunk = line_chunk.get().await.unwrap();
 
-    // Theme styles
     let border_style = theme.get_fallback_default(["ui.commandline.border", "ui.text"]);
     let title_style = theme.get_fallback_default(["ui.commandline.title", "ui.text"]);
     let icon_style = theme.get_fallback_default(["ui.commandline.icon", "ui.text"]);
 
     let area = line_chunk.area();
 
-    // Render input border
     Block::bordered()
         .border_type(BorderType::Rounded)
         .title(Span::styled(" Command ", title_style))
         .border_style(border_style)
         .render(area, &mut line_chunk);
 
-    // Determine icon and style based on validity
     let (icon, style) = if palette.input.is_empty() {
         (
             "●",
@@ -171,12 +165,10 @@ pub async fn render_command_palette(
     line_chunk.set_string(inner_x + 2, inner_y, " : ", Style::default());
     line_chunk.set_string(inner_x + 5, inner_y, &palette.input, style);
 
-    // Set cursor position inside input
     let cursor_x = area.x + palette.input.len() as u16 + 6;
     let cursor_y = area.y + 1;
     line_chunk.set_cursor(1, cursor_x, cursor_y, CursorShape::BlinkingBar);
 
-    // Render suggestions
     let suggestion_count = palette.suggestions.len();
     if let Some(mut suggestions_chunk) = suggestions_chunk.get().await
         && suggestion_count > 0
@@ -205,7 +197,6 @@ pub async fn render_command_palette(
         }
     }
 
-    // Render description
     if let Some(mut desc_chunk) = desc_chunk.get().await
         && let Some(desc_lines) = &palette.desc
     {

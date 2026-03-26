@@ -134,20 +134,17 @@ fn canon(p: &Path) -> PathBuf {
 }
 
 fn get_default_config_path() -> PathBuf {
-    // Check XDG_CONFIG_HOME environment variable first
     if let Ok(home) = std::env::var("XDG_CONFIG_HOME") {
         let mut path = PathBuf::from(home);
         path.push("kerbin");
         return path;
     }
 
-    // Check if ~/.config/kerbin exists (Common on macOS/Linux dev setups)
     let home_config = dirs::home_dir().map(|h| h.join(".config").join("kerbin"));
     if let Some(path) = home_config.as_ref().filter(|p| p.exists()) {
         return path.clone();
     }
 
-    // Fallback to the OS-native directory (via the `dirs` crate)
     let mut res = dirs::config_dir().expect("Failed to find user config directory");
     res.push("kerbin");
     res
@@ -155,11 +152,10 @@ fn get_default_config_path() -> PathBuf {
 
 fn handle_config_copy(kerbin_dir: &Path) -> Option<PathBuf> {
     let mut default_config_src = kerbin_dir.to_path_buf();
-    default_config_src.push("./build/config"); // Changed from kerbin-config to config
+    default_config_src.push("./build/config");
 
     let default_config_dest = get_default_config_path();
 
-    // Check if config already exists
     let config_exists = default_config_dest.exists();
 
     let prompt_msg = if config_exists {
@@ -207,7 +203,6 @@ fn handle_config_copy(kerbin_dir: &Path) -> Option<PathBuf> {
             }
         }
 
-        // Copy config directory
         let copy_options = fs_extra::dir::CopyOptions::new().overwrite(true);
         fs_extra::dir::copy(
             &default_config_src,
@@ -218,7 +213,7 @@ fn handle_config_copy(kerbin_dir: &Path) -> Option<PathBuf> {
 
         // Rename if needed (fs_extra copies with source name)
         let mut copied_path = default_config_dest.parent().unwrap().to_path_buf();
-        copied_path.push("config"); // Changed from kerbin-config to config
+        copied_path.push("config");
         if copied_path != default_config_dest {
             std::fs::rename(&copied_path, &default_config_dest)
                 .expect("Failed to rename config directory");
@@ -226,7 +221,6 @@ fn handle_config_copy(kerbin_dir: &Path) -> Option<PathBuf> {
 
         println!("✓ Config copied to: {}", canon(&default_config_dest).display());
 
-        // Update the config's Cargo.toml to fix relative paths
         let mut config_cargo_toml = default_config_dest.clone();
         config_cargo_toml.push("Cargo.toml");
 
@@ -239,7 +233,6 @@ fn handle_config_copy(kerbin_dir: &Path) -> Option<PathBuf> {
             build_path.push("build");
             let build_path_str = build_path.to_str().unwrap();
 
-            // Use regex to replace any path = "../something" with absolute paths
             let re =
                 regex::Regex::new(r#"path\s*=\s*"\.\./([^"]*)""#).expect("Failed to create regex");
 
@@ -272,7 +265,6 @@ fn handle_config_copy(kerbin_dir: &Path) -> Option<PathBuf> {
         }
     }
 
-    // Default to the build directory path
     Some(default_config_src)
 }
 
@@ -402,7 +394,6 @@ fn build_kerbin(kerbin_dir: &Path, config_path: Option<PathBuf>, info: &mut Kerb
 
     println!("Using config path: {}", canon(&final_config_path).display());
 
-    // Generate the config crate from build.kb in the user's config directory
     let generated_config_path = generate_config_crate(
         &final_config_path,
         &build_dir,
@@ -416,7 +407,6 @@ fn build_kerbin(kerbin_dir: &Path, config_path: Option<PathBuf>, info: &mut Kerb
         std::process::exit(1);
     }
 
-    // Update kerbin/Cargo.toml to point at the generated config crate
     let cargo_content =
         std::fs::read_to_string(&cargo_toml_path).expect("Failed to read Cargo.toml");
 
@@ -424,7 +414,6 @@ fn build_kerbin(kerbin_dir: &Path, config_path: Option<PathBuf>, info: &mut Kerb
         .to_str()
         .expect("Invalid generated config path");
 
-    // Use regex to find and replace any existing config path
     let re = regex::Regex::new(r#"config\s*=\s*\{\s*path\s*=\s*"[^"]*"\s*\}"#)
         .expect("Failed to create regex");
 
@@ -479,10 +468,9 @@ fn build_kerbin(kerbin_dir: &Path, config_path: Option<PathBuf>, info: &mut Kerb
             .expect("Lines should still exist")
             != 0
         {
-            // Parse cargo build information
             let clean_line = line.trim();
             if clean_line.starts_with("Compiling") {
-                // Extract package name from "Compiling package_name v1.0.0"
+                // "Compiling package_name v1.0.0 ..."
                 if let Some(pkg) = clean_line.split_whitespace().nth(1) {
                     build_bar.set_message(format!("Building: {}", pkg));
                 }
@@ -509,7 +497,6 @@ fn build_kerbin(kerbin_dir: &Path, config_path: Option<PathBuf>, info: &mut Kerb
 
     println!("✓ Successfully built Kerbin");
 
-    // Move binary to ~/.kerbin/bin/kerbin
     let mut bin_dir = kerbin_dir.to_path_buf();
     bin_dir.push("./bin");
     std::fs::create_dir_all(&bin_dir).expect("Failed to create bin directory");
@@ -676,7 +663,6 @@ fn main() {
             }
         }
         SubCommand::Install => {
-            // Fetch available tags from GitHub
             println!("Fetching available versions from GitHub...");
             let tags_output = std::process::Command::new("git")
                 .args([
@@ -726,10 +712,7 @@ fn main() {
 
             println!("Installing version: {}", selected_version);
 
-            // Ensure .kerbin is created
             let _ = std::fs::create_dir_all(&kerbin_dir);
-
-            // Change dir into .kerbin
             std::env::set_current_dir(&kerbin_dir).unwrap();
 
             let mut build_dir = kerbin_dir.clone();
@@ -745,9 +728,7 @@ fn main() {
                 .with_style(style.clone());
             git_bar.enable_steady_tick(Duration::from_millis(100));
 
-            // Determine git arguments based on version
             let git_args = if selected_version == "git" {
-                // Clone master branch
                 vec![
                     "clone",
                     "--depth=1",
@@ -757,7 +738,6 @@ fn main() {
                     "build",
                 ]
             } else {
-                // Clone specific tag
                 vec![
                     "clone",
                     "--depth=1",
@@ -785,7 +765,6 @@ fn main() {
                     .expect("Lines should still exist")
                     != 0
                 {
-                    // Parse git progress information
                     if line.contains("Receiving objects:") || line.contains("Resolving deltas:") {
                         let clean_line = line.trim().replace('\r', "");
                         git_bar.set_message(format!("Cloning Kerbin: {}", clean_line));
@@ -812,7 +791,6 @@ fn main() {
                 panic!("Failed to clone kerbin");
             }
 
-            // Handle config setup
             let config_path = if let Some(ref path) = global_config {
                 println!("Using config path: {}", canon(path).display());
                 Some(path.clone())
@@ -820,7 +798,6 @@ fn main() {
                 handle_config_copy(&kerbin_dir)
             };
 
-            // Create initial info
             let mut info = KerbinInfo {
                 version: selected_version,
                 config_path: config_path.as_ref().unwrap().to_str().unwrap().to_string(),
@@ -828,7 +805,6 @@ fn main() {
                 last_build_date: String::new(),
             };
 
-            // Build kerbin after cloning
             build_kerbin(&kerbin_dir, config_path, &mut info);
 
             println!();
@@ -950,7 +926,6 @@ fn main() {
 
             let mut total_errors = 0usize;
 
-            // Check build.kb
             let build_kb_path = config_dir.join("build.kb");
             match std::fs::read_to_string(&build_kb_path) {
                 Err(e) => {

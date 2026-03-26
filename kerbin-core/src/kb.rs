@@ -31,7 +31,6 @@ pub async fn load_kb(path: &Path, state: &mut State) -> Vec<KbLoadError> {
 
     let base_dir = path.parent().unwrap_or_else(|| Path::new("")).to_path_buf();
 
-    // Save and update ConfigDir to this file's directory
     let old_dir = {
         let mut cfg_dir = state.lock_state::<ConfigDir>().await;
         let old = cfg_dir.0.clone();

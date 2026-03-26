@@ -142,20 +142,17 @@ impl FromStr for UnresolvedKeyBind {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // Parse the string into segments, respecting special constructs
         let segments = parse_segments(s)?;
 
         if segments.is_empty() {
             return Err("Empty keybind string".to_string());
         }
 
-        // The last segment is the key code, everything before is modifiers
+        // Last segment is the key, everything before is modifiers (e.g. "ctrl-shift-a")
         let (mod_segments, key_segment) = segments.split_at(segments.len() - 1);
 
-        // Parse the key code
         let code = parse_key_element(&key_segment[0])?;
 
-        // Parse modifiers
         let mut mods = Vec::new();
         for mod_str in mod_segments {
             mods.push(parse_modifier_element(mod_str)?);
@@ -308,14 +305,12 @@ fn parse_segments(s: &str) -> Result<Vec<String>, String> {
                 }
             }
 
-            // Regular character
             _ => {
                 current.push(ch);
             }
         }
     }
 
-    // Add the last segment
     if !current.is_empty() {
         segments.push(current);
     } else if !segments.is_empty() {
@@ -359,7 +354,6 @@ fn parse_key_element(s: &str) -> Result<UnresolvedKeyElement<ResolvedKeyBind>, S
         return Ok(UnresolvedKeyElement::Template(template_name.to_string()));
     }
 
-    // Otherwise it's a literal
     ResolvedKeyBind::parse_from_str(s)
         .map(UnresolvedKeyElement::Literal)
         .map_err(|e| format!("Failed to parse key '{}': {}", s, e))
@@ -401,7 +395,6 @@ fn parse_modifier_element(
         return Ok(UnresolvedKeyElement::Template(template_name.to_string()));
     }
 
-    // Otherwise it's a literal
     Matchable::<KeyModifiers>::parse_from_str(s)
         .map(UnresolvedKeyElement::Literal)
         .map_err(|e| format!("Failed to parse modifier '{}': {}", s, e))

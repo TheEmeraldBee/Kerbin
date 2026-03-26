@@ -75,7 +75,6 @@ pub fn build_locals_analysis(
         true
     });
 
-    // Build scope tree
     let file_len = rope.len_bytes();
     let root_scope = build_scope_tree(raw_scopes, raw_defs, file_len);
 
@@ -95,7 +94,6 @@ pub fn build_locals_analysis(
     }
 }
 
-/// Collect all (definition_name, owning_scope_range) pairs from the scope tree.
 fn collect_scope_definitions(scope: &Scope, out: &mut Vec<(String, Range<usize>)>) {
     for def in &scope.definitions {
         out.push((def.name.clone(), scope.byte_range.clone()));

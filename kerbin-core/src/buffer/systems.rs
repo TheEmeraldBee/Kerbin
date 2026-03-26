@@ -102,10 +102,9 @@ pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<Wind
         return;
     }
 
-    // Calculate width of each tab (path + padding)
     let tab_widths: Vec<usize> = buffers.buffer_paths.iter().map(|p| p.width() + 6).collect();
 
-    // Calculate starting character offset for each tab
+    // Cumulative start offset for each tab
     let tab_starts: Vec<usize> = tab_widths
         .iter()
         .scan(0, |acc, &w| {
@@ -123,23 +122,19 @@ pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<Wind
     let view_start = buffers.tab_scroll;
     let view_end = view_start + view_width;
 
-    // Adjust scroll if the selected tab extends beyond the right edge
     if selected_tab_end > view_end {
         buffers.tab_scroll = selected_tab_end.saturating_sub(view_width);
     }
 
-    // Adjust scroll if the selected tab starts before the left edge
     if selected_tab_start < view_start {
         buffers.tab_scroll = selected_tab_start;
     }
 
-    // Ensure tab_scroll doesn't allow scrolling past the total content width
     let total_width: usize = tab_widths.iter().sum();
     if total_width < view_width {
-        // If all tabs fit, reset scroll to 0
         buffers.tab_scroll = 0;
     } else {
-        // Otherwise, clamp scroll to prevent empty space on the right
+        // Clamp to prevent empty space on the right
         buffers.tab_scroll = buffers
             .tab_scroll
             .min(total_width.saturating_sub(view_width));

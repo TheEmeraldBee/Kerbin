@@ -37,13 +37,8 @@ impl ServerIpc {
         let in_file = get_queue_path(session_id);
         let pid_file = session_pid_path(session_id);
 
-        // Ensure directory exists
         let _ = std::fs::create_dir_all(sessions_dir());
-
-        // Write PID
         let _ = std::fs::write(&pid_file, std::process::id().to_string());
-
-        // Create queue
         let in_queue = Receiver::new(SharedRingBuffer::create(&in_file, 16000).unwrap());
 
         Self {

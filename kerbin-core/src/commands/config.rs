@@ -315,7 +315,6 @@ impl Command for ConfigCommand {
                 // Full form: `theme key --fg c --bg c --attrs [list]`
                 let (eff_fg, eff_bg, eff_ul, eff_attrs) =
                     if fg.is_none() && bg.is_none() && underline.is_none() && attrs.is_none() {
-                        // Simple form: value is the foreground color
                         (value.as_deref(), None::<&str>, None::<&str>, vec![])
                     } else {
                         (

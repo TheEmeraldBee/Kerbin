@@ -41,7 +41,7 @@ impl Buffers {
             .await
     }
 
-    /// Locates the file and get's it immutably
+    /// Returns a read lock for the buffer at `path`, if open
     pub async fn get_path(&self, path: &str) -> Option<OwnedRwLockReadGuard<TextBuffer>> {
         for buf in &self.buffers {
             if buf.read().await.path.as_str() == path {
@@ -52,7 +52,7 @@ impl Buffers {
         None
     }
 
-    /// Locates the file and get's it mutably
+    /// Returns a write lock for the buffer at `path`, if open
     pub async fn get_mut_path(&mut self, path: &str) -> Option<OwnedRwLockWriteGuard<TextBuffer>> {
         for buf in &self.buffers {
             if buf.read().await.path.as_str() == path {
@@ -155,7 +155,6 @@ impl Buffers {
         let mut current_char_offset = 0;
 
         for (i, short_path) in self.buffer_paths.iter().enumerate() {
-            // Format the title with padding
             let title = format!(
                 "   {} {} ",
                 short_path,
@@ -166,25 +165,20 @@ impl Buffers {
             );
             let title_width = title.chars().count();
 
-            // Calculate the visible range of the bufferline chunk
             let visible_range_start = self.tab_scroll;
             let visible_range_end = self.tab_scroll + buffer.area.width as usize;
-            // Calculate the start and end of the current tab
             let tab_range_start = current_char_offset;
             let tab_range_end = current_char_offset + title_width;
 
-            // Determine the style based on whether this is the selected buffer
             let style = if i == self.selected_buffer {
                 theme.get_fallback_default(["ui.bufferline.selected", "ui.bufferline", "ui.text"])
             } else {
                 theme.get_fallback_default(["ui.bufferline", "ui.text"])
             };
 
-            // Calculate the overlap between the tab and the visible area
             let overlap_start = visible_range_start.max(tab_range_start);
             let overlap_end = visible_range_end.min(tab_range_end);
 
-            // Render only the visible part of the tab
             if overlap_start < overlap_end {
                 let slice_start = overlap_start - tab_range_start;
                 let slice_len = overlap_end - overlap_start;
@@ -255,7 +249,7 @@ fn get_unique_paths(paths: impl Iterator<Item = String>, len: usize) -> Vec<Stri
             let is_unique = path_components
                 .iter()
                 .enumerate()
-                .filter(|(j, _)| *j != i) // Compare only with other paths
+                .filter(|(j, _)| *j != i)
                 .all(|(_, other_components)| {
                     let other_truncated = other_components
                         .iter()
@@ -268,12 +262,11 @@ fn get_unique_paths(paths: impl Iterator<Item = String>, len: usize) -> Vec<Stri
                     truncated != other_truncated
                 });
 
-            // If unique, or we've used all components, stop for this path
             if is_unique || depth >= path_components[i].len() {
                 truncated_paths[i] = truncated;
                 break;
             }
-            depth += 1; // Increase depth (take more components from the end)
+            depth += 1;
         }
     }
 

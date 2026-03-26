@@ -68,7 +68,6 @@ pub async fn update_debounce(
     let mut debounce = buf.get_or_insert_state_mut(Debounce::default).await;
     let current_mode = modes.get_mode();
 
-    // Handle state transitions
     match (debounce.state, !buf.byte_changes.is_empty()) {
         (_, true) => {
             // Changes occurred - reset and wait for idle
@@ -91,7 +90,6 @@ pub async fn update_debounce(
         _ => {}              // Continue to check events
     }
 
-    // Get config and check events
     let events = &debounce_config.0;
     if events.is_empty() {
         return;

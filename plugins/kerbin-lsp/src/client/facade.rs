@@ -5,11 +5,8 @@ use tokio::io::AsyncWrite;
 
 use crate::{LspClient, UriExt};
 
+/// Simplified LSP client operations. Not intended for external implementation.
 #[allow(async_fn_in_trait)]
-/// Internal trait for implementing a simple facade to make
-/// working with the client less clunky
-///
-/// **DO NOT IMPLEMENT**
 pub trait ClientFacade {
     async fn init(&mut self, root_uri: Uri) -> io::Result<i32>;
     async fn open(&self, path: impl ToString) -> io::Result<()>;
@@ -17,7 +14,6 @@ pub trait ClientFacade {
 
 impl<W: AsyncWrite + Unpin + Send + 'static> ClientFacade for LspClient<W> {
     async fn init(&mut self, root_uri: Uri) -> io::Result<i32> {
-        // Initialize
         let init_params = InitializeParams {
             process_id: Some(std::process::id()),
             capabilities: ClientCapabilities {

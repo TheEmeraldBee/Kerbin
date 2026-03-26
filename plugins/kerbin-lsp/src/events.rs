@@ -1,7 +1,6 @@
 use crate::*;
 use kerbin_core::*;
 
-/// Command to process LSP events for all active clients
 pub struct ProcessLspEventsCommand;
 
 impl kerbin_core::CommandAny for ProcessLspEventsCommand {
@@ -16,7 +15,6 @@ impl kerbin_core::Command for ProcessLspEventsCommand {
         let mut lsp_manager = state.lock_state::<LspManager>().await;
         let handler_manager = state.lock_state::<LspHandlerManager>().await;
 
-        // Process events for all active clients
         for (_lang, client) in lsp_manager.client_map.iter_mut() {
             client.process_events(&handler_manager, state).await;
         }
@@ -25,7 +23,6 @@ impl kerbin_core::Command for ProcessLspEventsCommand {
     }
 }
 
-/// System that processes LSP events each frame for any opened files
 pub async fn process_lsp_events(bufs: Res<Buffers>, command_sender: Res<CommandSender>) {
     get!(bufs, command_sender);
 

@@ -64,7 +64,6 @@ impl Command for HoverCommand {
                 let line = buf.byte_to_line_clamped(cursor_byte);
                 let character = cursor_byte - buf.line_to_byte_clamped(line);
 
-                // Create hover request parameters
                 let params = HoverParams {
                     text_document_position_params: TextDocumentPositionParams {
                         text_document: TextDocumentIdentifier {
@@ -75,7 +74,6 @@ impl Command for HoverCommand {
                     work_done_progress_params: WorkDoneProgressParams::default(),
                 };
 
-                // Send the hover request
                 let id = client.request("textDocument/hover", params).await.unwrap();
 
                 let mut state = buf.get_or_insert_state_mut(HoverState::default).await;
@@ -151,7 +149,6 @@ pub async fn render_hover(
     const MAX_WIDTH: usize = 80;
     const MAX_HEIGHT: usize = 20;
 
-    // Convert (String, Style) segments into wrapped Lines, splitting on newlines
     let mut all_lines: Vec<Vec<(char, Style)>> = Vec::new();
     let mut current_line: Vec<(char, Style)> = Vec::new();
 
@@ -243,7 +240,6 @@ pub async fn handle_hover(state: &State, msg: &JsonRpcMessage) {
                 && let Some(info) = &state.info
                 && info.pending_request == response.id
             {
-                // This is the right buffer!
                 buffer = Some(buf.clone());
                 break;
             }
@@ -261,11 +257,9 @@ pub async fn handle_hover(state: &State, msg: &JsonRpcMessage) {
             if let Ok(hover) = serde_json::from_value::<Hover>(result.clone()) {
                 info.hover = Some(hover);
             } else {
-                // Response was null or invalid, clear hover
                 info.hover = None;
             }
         } else {
-            // No hover information available
             info.hover = None;
         }
     }

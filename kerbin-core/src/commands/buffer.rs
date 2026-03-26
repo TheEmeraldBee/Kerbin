@@ -19,7 +19,6 @@ impl Command for CommitCommand {
             CommitCommand::Commit(after) => {
                 let mut res = true;
 
-                // Begin the change
                 state
                     .lock_state::<Buffers>()
                     .await
@@ -43,7 +42,6 @@ impl Command for CommitCommand {
                     }
                 }
 
-                // End the change
                 state
                     .lock_state::<Buffers>()
                     .await

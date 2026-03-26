@@ -14,7 +14,6 @@ impl Command for TutorCommands {
     async fn apply(&self, state: &mut State) -> bool {
         state.call(load::open_default_buffer).await;
 
-        // These functions can never repeat
         false
     }
 }

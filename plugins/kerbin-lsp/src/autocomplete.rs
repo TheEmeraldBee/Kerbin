@@ -169,7 +169,6 @@ struct ListPopupStyles {
     match_hl: Style,
 }
 
-/// Build a bordered ratatui Buffer containing a list of completion items.
 fn build_list_popup(
     items_to_show: &[(&CompletionItem, i32)],
     start_index: usize,
@@ -246,7 +245,6 @@ fn build_list_popup(
     buf
 }
 
-/// Build a bordered ratatui Buffer with documentation text.
 fn build_doc_popup(
     lines: &[Vec<(String, Style)>],
     doc_height: usize,
@@ -283,7 +281,6 @@ fn build_doc_popup(
     buf
 }
 
-/// Combine two buffers side by side into one.
 fn combine_side_by_side(
     left: ratatui::buffer::Buffer,
     right: ratatui::buffer::Buffer,
@@ -726,13 +723,11 @@ pub async fn render_completions(
         },
     );
 
-    // Build or retrieve cached doc popup
     let (final_popup, cache_update) = {
         let mut doc_rendered: Option<Arc<ratatui::buffer::Buffer>> = None;
         let mut new_cache = None;
 
         if let Some((selected_item, _)) = ranked_items.get(selected_idx) {
-            // Check cache
             if let Some((cached_idx, ref cached_buf)) = info.cached_doc_buffer
                 && cached_idx == selected_idx
             {

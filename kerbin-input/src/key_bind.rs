@@ -214,7 +214,6 @@ impl Display for ResolvedKeyBind {
                     };
 
                     if !implicit_shift {
-                        // Check if it's a letter
                         if let Matchable::Specific(Char(c)) = code {
                             if !c.is_ascii_alphabetic() {
                                 parts.push("Shift".to_string());

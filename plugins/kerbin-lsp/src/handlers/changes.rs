@@ -19,8 +19,7 @@ pub async fn apply_changes(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspMana
 
     file.change_id += 1;
 
-    // Send full document content to ensure correct synchronization state
-    // and avoid issues with incremental updates where intermediate text is unavailable.
+    // Avoid race conditions from incremental updates by sending the full document
     let changes = vec![TextDocumentContentChangeEvent {
         range: None,
         range_length: None,

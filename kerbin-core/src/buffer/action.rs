@@ -10,7 +10,6 @@ pub struct ActionResult {
 }
 
 impl ActionResult {
-    /// Creates a new `ActionResult`
     pub fn new(success: bool, action: Box<dyn BufferAction>) -> Self {
         Self { success, action }
     }
@@ -21,18 +20,14 @@ impl ActionResult {
     }
 }
 
-/// A system that treats changes to a `TextBuffer` as inversable actions
+/// Represents a reversible change to a `TextBuffer`
 pub trait BufferAction: Send + Sync {
-    /// Applies the action to the given `TextBuffer`
     fn apply(&self, buf: &mut TextBuffer) -> ActionResult;
 }
 
-/// An action that inserts text at a given byte offset in the `TextBuffer`
+/// Inserts text at a given byte offset
 pub struct Insert {
-    /// The byte offset within the `TextBuffer` where the content should be inserted
     pub byte: usize,
-
-    /// The string content to be inserted at the specified location
     pub content: String,
 }
 
@@ -77,12 +72,10 @@ impl BufferAction for Insert {
     }
 }
 
-/// An action to delete text from a `TextBuffer`
+/// Deletes text from a `TextBuffer`
 pub struct Delete {
-    /// The starting byte offset of the text to be deleted
     pub byte: usize,
-
-    /// The length in **chars** of the text to be deleted
+    /// Length in **chars** (not bytes) of text to delete
     pub len: usize,
 }
 
@@ -124,7 +117,7 @@ impl BufferAction for Delete {
         // Adjust other cursors to account for the deleted text
         for (i, cursor) in buf.cursors.iter_mut().enumerate() {
             if i == buf.primary_cursor {
-                continue; // Skip primary cursor
+                continue;
             }
 
             let start_byte = *cursor.sel.start();
@@ -141,7 +134,6 @@ impl BufferAction for Delete {
                 new_start = del_start_byte;
             }
 
-            // Similarly for the end of the selection
             if end_byte >= del_end_byte {
                 new_end = end_byte.saturating_sub(bytes_removed);
             } else if end_byte >= del_start_byte {

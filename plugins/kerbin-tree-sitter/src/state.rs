@@ -26,14 +26,12 @@ fn translate_name_to_style(theme: &Theme, mut name: &str) -> Style {
     theme.get("ui.text").unwrap_or_default()
 }
 
-/// Tree that was injected into the state
 pub struct InjectedTree {
     pub lang: String,
     pub tree: Tree,
     pub byte_range: std::ops::Range<usize>,
 }
 
-/// State stored in each buffer with the state of tree-sitter
 #[derive(State)]
 pub struct TreeSitterState {
     pub lang: String,
@@ -54,15 +52,12 @@ pub async fn update_trees(
 
     let mut buf = buffers.cur_buffer_mut().await;
 
-    // Only process if buffer has tree-sitter state and byte changes
     if !buf.has_state::<TreeSitterState>() || buf.byte_changes.is_empty() {
         return;
     }
 
-    // Get mutable state reference
     let mut state = buf.get_state_mut::<TreeSitterState>().await.unwrap();
 
-    // Convert byte changes to tree-sitter InputEdit format
     for change in &buf.byte_changes {
         let [start, old_end, new_end] = change;
 
@@ -84,14 +79,12 @@ pub async fn update_trees(
             },
         };
 
-        // Apply edit to main tree
         state
             .tree
             .as_mut()
             .expect("Should only be none during reparse")
             .edit(&input_edit);
 
-        // Apply edit to all injected trees
         for injected in &mut state.injected_trees {
             injected.tree.edit(&input_edit);
         }
@@ -99,7 +92,6 @@ pub async fn update_trees(
 
     let tree = state.tree.take();
 
-    // Reparse main tree
     let new_tree = state.parser.parse_with_options(
         &mut |byte, _| {
             let (chunk, start_byte, _, _) = buf.chunk_at(byte).unwrap_or(("", 0, 0, 0));
@@ -116,15 +108,11 @@ pub async fn update_trees(
         state.tree = Some(new_tree);
     } else {
         log.critical("tree-sitter::update_trees", "Failed to reparse main tree");
-
-        // Return state
         state.tree = tree;
-
         return;
     }
 
-    // Reload injected trees
-    // We need to temporarily take ownership to avoid borrow conflicts
+    // Temporarily take ownership to avoid borrow conflicts when reloading injected trees
     let lang = state.lang.clone();
     let temp_state = TreeSitterState {
         lang: lang.clone(),
@@ -134,13 +122,11 @@ pub async fn update_trees(
         locals_analysis: None,
         locals_cursor_byte: None,
     };
-    // Invalidate locals analysis since content changed
     state.locals_analysis = None;
 
     let injected_trees =
         load_injected_trees(&temp_state, &mut grammars, &config_path.0, buf.get_rope());
 
-    // Update the injected trees
     state.injected_trees = injected_trees;
 }
 
@@ -156,12 +142,10 @@ pub async fn open_files(
 
     let mut buf = buffers.cur_buffer_mut().await;
 
-    // Ignore buffer if it's already open
     if buf.flags.contains("tree-sitter-checked") || buf.has_state::<TreeSitterState>() {
         return;
     }
 
-    // Insert checked flag to prevent re-checks
     buf.flags.insert("tree-sitter-checked");
 
     let Some(lang) = grammars.ext_to_lang(&buf.ext).map(|x| x.to_string()) else {
@@ -272,13 +256,10 @@ fn load_injected_trees(
 ) -> Vec<InjectedTree> {
     let mut injected_trees = Vec::new();
 
-    // Try to load the injections query for this language
     let Some(injections_query) = grammars.get_query(config_path, &state.lang, "injections") else {
-        // No injections query available, return empty vec
         return injected_trees;
     };
 
-    // Capture indices for injection.language and injection.content
     let lang_capture_idx = injections_query
         .capture_names()
         .iter()
@@ -298,7 +279,6 @@ fn load_injected_trees(
 
         for capture in entry.query_match.captures {
             if Some(capture.index as usize) == lang_capture_idx {
-                // Try to extract the language name from the node text
                 let start_byte = capture.node.start_byte();
                 let end_byte = capture.node.end_byte();
                 let text = rope.slice(start_byte..end_byte).to_string();
@@ -334,7 +314,6 @@ fn load_injected_trees(
             }
         }
 
-        // Continue walking
         true
     });
 
@@ -348,7 +327,6 @@ fn parse_injection(
     content_node: tree_sitter::Node,
     rope: &ropey::Rope,
 ) -> Result<InjectedTree, String> {
-    // Load the grammar for the injected language
     let grammar = grammars
         .get_grammar(config_path, lang)
         .map_err(|e| format!("Failed to load grammar: {}", e))?;
@@ -358,11 +336,9 @@ fn parse_injection(
         .set_language(&grammar.lang)
         .map_err(|e| format!("Failed to set language: {}", e))?;
 
-    // Extract the content range
     let start_byte = content_node.start_byte();
     let end_byte = content_node.end_byte();
 
-    // Parse the injected content
     let tree = parser
         .parse_with_options(
             &mut |byte, _| {

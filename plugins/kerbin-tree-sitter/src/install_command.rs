@@ -16,7 +16,6 @@ impl Command for InstallCommand {
             Self::InstallAllGrammars => {
                 let grammars = state.lock_state::<GrammarManager>().await;
 
-                // Spawn threads to install grammars
                 grammars.install_all_grammars(state).await;
             }
         }

@@ -12,7 +12,6 @@ pub async fn register_log_chunk(
 ) {
     get!(mut log);
 
-    // Update internal state from receiver
     log.poll_messages();
 
     if log.entries().is_empty() {

@@ -39,7 +39,6 @@ pub async fn render_statusline(
 
     let mut parts = vec![];
 
-    // Build the mode display parts for the statusline
     for part in &mode_stack.0 {
         if let Some(config) = statusline_config.modes.get(part) {
             parts.push((
@@ -79,7 +78,6 @@ pub async fn render_statusline(
 
     let mut x: u16 = 0;
 
-    // Render the mode parts
     for (i, (text, style)) in parts.into_iter().enumerate().take(4) {
         if x >= chunk_width {
             break;
@@ -93,17 +91,14 @@ pub async fn render_statusline(
         x += text.chars().count() as u16;
     }
 
-    // Build right-aligned content
     let cur_buf = buffers.get().await.cur_buffer().await;
     let mut right_parts: Vec<(String, Style)> = vec![];
 
-    // Add repeat count if present
     if !input.repeat_count.is_empty() {
         let repeat_style = theme.get_fallback_default(["statusline.repeat"]);
         right_parts.push((input.repeat_count.clone(), repeat_style));
     }
 
-    // Add cursor/selection count
     let cursor_count = cur_buf.cursors.len();
     if cursor_count == 1 {
         let sel_style =
@@ -119,15 +114,13 @@ pub async fn render_statusline(
         ));
     }
 
-    // Calculate total width needed for right-aligned content
-    let spacing = if right_parts.len() > 1 { 3 } else { 0 }; // " | " separator
+    let spacing = if right_parts.len() > 1 { 3 } else { 0 }; // " | " separator width
     let right_width: usize = right_parts
         .iter()
         .map(|(s, _)| s.chars().count())
         .sum::<usize>()
         + spacing;
 
-    // Render right-aligned content if it fits
     if right_width <= chunk_width as usize {
         let mut right_x = chunk_width.saturating_sub(right_width as u16);
 

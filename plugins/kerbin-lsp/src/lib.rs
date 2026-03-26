@@ -37,7 +37,6 @@ pub use navigation::*;
 pub mod format;
 pub use format::*;
 
-// Re-Exports
 pub use lsp_types::*;
 
 /// Register a language with its LSP server
@@ -50,12 +49,10 @@ pub async fn register_lang(
     let name = name.to_string();
     let exts: Vec<String> = extensions.into_iter().map(|e| e.to_string()).collect();
 
-    // Register with the manager
     let mut manager = state.lock_state::<LspManager>().await;
     manager.register_language(&name, exts.clone(), info);
     drop(manager);
 
-    // Register systems for each extension
     for ext in exts {
         state
             .on_hook(kerbin_core::hooks::UpdateFiletype::new(ext))
@@ -85,7 +82,6 @@ pub async fn init(state: &mut State) {
         .on_hook(kerbin_core::hooks::ResetState)
         .system(reset_config_state);
 
-    // Setup reaction to file save event
     EVENT_BUS
         .subscribe::<SaveEvent>()
         .await
@@ -106,7 +102,6 @@ pub async fn init(state: &mut State) {
         command_registry.register::<FormatCommand>();
     }
 
-    // Setup global state handlers
     {
         let mut handler_manager = state.lock_state::<LspHandlerManager>().await;
 

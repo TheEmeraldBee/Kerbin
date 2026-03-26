@@ -25,7 +25,6 @@ impl Cursor {
         }
     }
 
-    /// Returns `true` if the cursor's caret is at the start of its selection, `false` otherwise
     pub fn at_start(&self) -> bool {
         self.at_start
     }
@@ -35,12 +34,10 @@ impl Cursor {
         self.at_start = at_start
     }
 
-    /// Returns a reference to the inclusive byte range of the selection for this cursor
     pub fn sel(&self) -> &RangeInclusive<usize> {
         &self.sel
     }
 
-    /// Sets the inclusive byte range of the selection for this cursor
     pub fn set_sel(&mut self, range: RangeInclusive<usize>) {
         self.sel = range;
     }

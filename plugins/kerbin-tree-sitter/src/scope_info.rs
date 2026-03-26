@@ -39,10 +39,8 @@ async fn tree_sitter_scope_info(state: &mut State) {
         return;
     };
 
-    // Get cursor position
     let cursor_pos = buf.primary_cursor().get_cursor_byte();
 
-    // Get the highlights query
     let Some((highlights_query, injected_queries)) =
         grammars.get_query_set(&config_path, "highlights", &ts_state)
     else {
@@ -53,10 +51,8 @@ async fn tree_sitter_scope_info(state: &mut State) {
         return;
     };
 
-    // Collect all captures at cursor position
     let mut captures_at_cursor: Vec<CaptureInfo> = Vec::new();
 
-    // Create a walker with the highlights query
     let mut walker = QueryWalkerBuilder::new(&ts_state, buf.get_rope(), highlights_query)
         .with_injected_queries(injected_queries)
         .build();
@@ -67,17 +63,13 @@ async fn tree_sitter_scope_info(state: &mut State) {
             let adjusted_range =
                 (node_range.start + entry.byte_offset)..(node_range.end + entry.byte_offset);
 
-            // Check if cursor is within this node
             if cursor_pos >= adjusted_range.start && cursor_pos < adjusted_range.end {
                 let capture_name = entry.query.capture_names()[capture.index as usize];
-
-                // Get node information
                 let node_kind = capture.node.kind();
                 let node_text = buf
                     .slice_to_string(adjusted_range.start, adjusted_range.end)
                     .unwrap_or_default();
 
-                // Truncate text if too long
                 let display_text = if node_text.len() > 50 {
                     format!("{}...", &node_text[..47])
                 } else {
@@ -102,17 +94,14 @@ async fn tree_sitter_scope_info(state: &mut State) {
         return;
     }
 
-    // Sort by specificity (most specific first) and then by capture name
     captures_at_cursor.sort_by(|a, b| {
         b.specificity
             .cmp(&a.specificity)
             .then_with(|| a.capture_name.cmp(&b.capture_name))
     });
 
-    // Build the output message
     let mut output = "Tree-Sitter Scope Info at cursor:\n\n".to_string();
 
-    // Show tree structure information
     let primary_capture = &captures_at_cursor[0];
     output.push_str(&format!(
         "Primary Language: {}\n",
@@ -125,7 +114,6 @@ async fn tree_sitter_scope_info(state: &mut State) {
     output.push_str(&format!("Node Type: {}\n", primary_capture.node_kind));
     output.push_str(&format!("Node Text: \"{}\"\n\n", primary_capture.node_text));
 
-    // Show all captures in order of specificity
     output.push_str("Captures (most specific first):\n");
     for (idx, capture) in captures_at_cursor.iter().enumerate() {
         let lang_marker = if capture.is_injected {
@@ -142,7 +130,6 @@ async fn tree_sitter_scope_info(state: &mut State) {
         ));
     }
 
-    // Show syntax tree path (parent hierarchy)
     if let Some(tree) = &ts_state.tree {
         output.push_str("\nSyntax Tree Path:\n");
         let mut node = tree
@@ -164,7 +151,6 @@ async fn tree_sitter_scope_info(state: &mut State) {
             node = current_node.parent();
             depth += 1;
 
-            // Limit depth to prevent excessive output
             if depth > 15 {
                 output.push_str(&format!("{}...\n", "  ".repeat(depth)));
                 break;

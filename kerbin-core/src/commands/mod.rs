@@ -44,9 +44,7 @@ type CommandFn = Box<dyn Fn(&[Token]) -> Option<Result<Box<dyn Command>, String>
 
 /// Represents a set of registered commands, including its parser and command information.
 pub struct RegisteredCommandSet {
-    /// The function responsible for parsing a list of string arguments into a command.
     pub parser: CommandFn,
-    /// A vector of `CommandInfo` structs, providing metadata for the commands handled by this parser.
     pub infos: Vec<CommandInfo>,
 }
 
@@ -64,13 +62,12 @@ pub trait CommandAny {
     fn as_any(&self) -> &(dyn std::any::Any + Send + Sync);
 }
 
-/// An applyable command that will change the whole state in some way
+/// A command that applies a change to the editor state
 #[async_trait::async_trait]
 pub trait Command: CommandAny + Send + Sync {
     async fn apply(&self, state: &mut State) -> bool;
 }
 
-/// The text info of what a command expects and uses
 #[derive(Debug)]
 pub struct CommandInfo {
     pub valid_names: Vec<String>,

@@ -67,7 +67,6 @@ impl OverlayRenderer {
             let line_idx = start_line + line_offset;
             let mut line_overlays = line.extract_overlays();
 
-            // Set the correct line index for each overlay
             for (_, overlay) in &mut line_overlays {
                 overlay.anchor_line = line_idx;
             }
@@ -93,28 +92,17 @@ impl OverlayRenderer {
         let viewport_height = chunk.size().y.saturating_sub(base_loc.y) as usize;
 
         for overlay in &self.overlays {
-            // Calculate the base position of the anchor
             let line_offset = overlay.anchor_line.saturating_sub(start_line);
             let line_y = base_loc.y + (line_offset as u16 * line_height);
 
-            // Calculate horizontal position based on positioning mode
             let base_x = match overlay.positioning {
-                OverlayPositioning::RelativeToChar => {
-                    // Position relative to the character, affected by scroll
+                OverlayPositioning::RelativeToChar | OverlayPositioning::RelativeToLine => {
                     if overlay.anchor_col < horizontal_scroll {
-                        continue; // Anchor is scrolled off-screen
-                    }
-                    base_loc.x + (overlay.anchor_col.saturating_sub(horizontal_scroll) as u16)
-                }
-                OverlayPositioning::RelativeToLine => {
-                    // Position relative to line start, affected by scroll
-                    if overlay.anchor_col < horizontal_scroll {
-                        continue; // Would be off-screen
+                        continue; // Scrolled off-screen
                     }
                     base_loc.x + (overlay.anchor_col.saturating_sub(horizontal_scroll) as u16)
                 }
                 OverlayPositioning::ViewportFixed => {
-                    // Fixed position in viewport, ignoring scroll
                     base_loc.x + overlay.anchor_col as u16
                 }
             };
@@ -122,11 +110,8 @@ impl OverlayRenderer {
             let base_pos = vec2(base_x, line_y);
             let final_pos = base_pos + overlay.offset;
 
-            // Check if overlay is within viewport bounds
             if overlay.clip_to_viewport {
                 let overlay_size = overlay.elem.size();
-
-                // Skip if completely outside viewport
                 if final_pos.x >= base_loc.x + viewport_width as u16
                     || final_pos.y >= base_loc.y + viewport_height as u16
                     || final_pos.x + overlay_size.x <= base_loc.x
@@ -136,7 +121,6 @@ impl OverlayRenderer {
                 }
             }
 
-            // Render the overlay
             render!(chunk, final_pos => [&overlay.elem]);
         }
     }
@@ -197,7 +181,6 @@ impl RenderLine {
         let mut render_col = 0_u16;
 
         for (elem_start_col, elem) in &self.elements {
-            // Skip overlay elements in base rendering
             if elem.is_overlay() {
                 continue;
             }
@@ -205,22 +188,18 @@ impl RenderLine {
             let elem_width = elem.compute_size();
             let elem_end_col = elem_start_col + elem_width;
 
-            // Skip elements entirely before the scroll position
             if elem_end_col <= horizontal_scroll {
                 continue;
             }
 
-            // Stop if we're past the viewport
             if *elem_start_col >= horizontal_scroll + viewport_width {
                 break;
             }
 
-            // Calculate how much of this element is visible
             let visible_start = elem_start_col.max(&horizontal_scroll) - horizontal_scroll;
             let visible_end =
                 elem_end_col.min(horizontal_scroll + viewport_width) - horizontal_scroll;
 
-            // Skip offset within the element
             let skip_in_element = if *elem_start_col < horizontal_scroll {
                 horizontal_scroll - elem_start_col
             } else {

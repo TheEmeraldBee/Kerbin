@@ -63,7 +63,6 @@ pub async fn render_chunks(chunks: Res<Chunks>, window: ResMut<WindowState>) {
 
     let mut best_cursor: Option<(usize, u16, u16, CursorShape)> = None;
 
-    // Collect best cursor from all chunk layers
     for layer in &chunks.buffers {
         for chunk_arc in layer {
             let chunk = chunk_arc.read().await;
@@ -80,7 +79,6 @@ pub async fn render_chunks(chunks: Res<Chunks>, window: ResMut<WindowState>) {
 
     tokio::task::block_in_place(|| {
         window.0.draw(|frame| {
-            // Blit all chunk buffers into frame
             for layer in &chunks.buffers {
                 for chunk_arc in layer {
                     let chunk = chunk_arc.blocking_read();
@@ -95,7 +93,6 @@ pub async fn render_chunks(chunks: Res<Chunks>, window: ResMut<WindowState>) {
     })
     .ok();
 
-    // Apply cursor shape after draw
     if let Some((_, _, _, shape)) = best_cursor {
         execute!(std::io::stdout(), shape.to_crossterm_style()).ok();
     }
@@ -115,7 +112,6 @@ fn blit(src: &ratatui::buffer::Buffer, dst: &mut ratatui::buffer::Buffer) {
 }
 
 async fn update(state: &mut State) {
-    // Poll crossterm events and store in CrosstermEvents state
     {
         let mut events_state = state.lock_state::<CrosstermEvents>().await;
         events_state.0.clear();
@@ -132,7 +128,6 @@ async fn update(state: &mut State) {
     state.hook(hooks::Update).call().await;
     state.hook(hooks::PostUpdate).call().await;
 
-    // Clear chunks for the next frame
     state.lock_state::<Chunks>().await.clear();
 
     state.hook(hooks::ChunkRegister).call().await;

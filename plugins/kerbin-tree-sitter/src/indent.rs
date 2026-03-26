@@ -36,7 +36,6 @@ async fn newline_and_indent(state: &mut State) {
     });
     buf.move_bytes(1, false);
 
-    // 3. Calculate Indent
     let Some(ts_state) = buf.get_state_mut::<TreeSitterState>().await else {
         // Fallback: copy previous line indent
         if !current_line_indent.is_empty() {
@@ -49,7 +48,6 @@ async fn newline_and_indent(state: &mut State) {
         return;
     };
 
-    // Load indent query
     let Some((query, injected)) = grammars.get_query_set(&config_path, "indents", &ts_state) else {
         if !current_line_indent.is_empty() {
             buf.action(Insert {
@@ -71,7 +69,6 @@ async fn newline_and_indent(state: &mut State) {
         &current_line_indent,
     );
 
-    // 4. Insert Indentation
     if !indent_str.is_empty() {
         buf.action(Insert {
             byte: cursor_byte + 1,
@@ -111,7 +108,6 @@ fn calculate_indent(
     let mut outdent_on_cursor_line = false;
 
     walker.walk(|entry| {
-        // Check predicates first
         if !check_predicates(&entry) {
             return true;
         }

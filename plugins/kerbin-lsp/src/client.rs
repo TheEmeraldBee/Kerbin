@@ -30,7 +30,7 @@ pub struct LspClient<W: AsyncWrite + Unpin + Send + 'static> {
     /// Map of request IDs to their original request info
     request_info: std::collections::HashMap<i32, RequestInfo>,
 
-    /// A list of response ids to ignore (Not Propogate into unproccessed_responses)
+    /// Response IDs to drop without processing
     ignore_ids: Vec<i32>,
 
     message_rx: UnboundedReceiver<JsonRpcMessage>,
@@ -73,7 +73,6 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
         let (message_tx, message_rx) = unbounded_channel();
         let writer = input.clone();
 
-        // Spawn task to read messages
         tokio::spawn(async move {
             Self::read_messages(output, message_tx, writer).await;
         });
@@ -124,7 +123,6 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
         let mut reader = BufReader::new(stdout);
 
         loop {
-            // Read headers
             let mut content_length = 0;
             loop {
                 let mut header = String::new();
@@ -146,13 +144,11 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
                 continue;
             }
 
-            // Read content
             let mut content = vec![0u8; content_length];
             if reader.read_exact(&mut content).await.is_err() {
                 return;
             }
 
-            // Parse message
             if let Ok(value) = serde_json::from_slice::<Value>(&content) {
                 let message = Self::parse_message(value, &writer).await;
                 if let Some(msg) = message {
@@ -163,15 +159,12 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
     }
 
     async fn parse_message(value: Value, writer: &Arc<Mutex<W>>) -> Option<JsonRpcMessage> {
-        // Check if it's a response (has id but no method)
         if value.get("id").is_some() {
             if value.get("method").is_none() {
-                // It's a response
                 if let Ok(response) = serde_json::from_value::<JsonRpcResponse>(value) {
                     return Some(JsonRpcMessage::Response(response));
                 }
             } else {
-                // It's a server request
                 if let Ok(request) = serde_json::from_value::<JsonRpcServerRequest>(value.clone()) {
                     // Auto-respond to certain requests
                     Self::handle_server_request(&request, writer).await;
@@ -179,7 +172,6 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
                 }
             }
         } else if value.get("method").is_some() {
-            // It's a notification
             if let Ok(notification) = serde_json::from_value::<JsonRpcNotification>(value) {
                 return Some(JsonRpcMessage::Notification(notification));
             }
@@ -241,7 +233,6 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
             params: params_value.clone(),
         };
 
-        // Store request info
         self.request_info.insert(
             id,
             RequestInfo {
@@ -263,10 +254,8 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
         state: &State,
         msg: &JsonRpcMessage,
     ) {
-        // Parse the method path
         let method_path = HookPathComponent::parse_custom_split(method, "/");
 
-        // Collect handlers with their ranks
         let mut matches: Vec<(&'a HandlerEntry, i8)> = handlers
             .filter_map(|entry| {
                 entry
@@ -279,7 +268,6 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
         // Sort by rank (highest first)
         matches.sort_by(|a, b| b.1.cmp(&a.1));
 
-        // Call handlers in order of rank
         for (entry, _) in matches {
             (entry.handler)(state, msg).await;
         }

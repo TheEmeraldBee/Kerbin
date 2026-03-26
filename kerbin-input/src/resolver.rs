@@ -28,7 +28,6 @@ impl<'a> Resolver<'a> {
 
     /// Resolve a single UnresolvedKeyBind into all possible ResolvedKeyBind permutations
     pub fn resolve(&self, bind: UnresolvedKeyBind) -> Result<Vec<ResolvedKeyBind>, ParseError> {
-        // First, resolve all modifier elements into their possible values
         let mut modifier_options: Vec<Vec<Matchable<KeyModifiers>>> = Vec::new();
 
         for mod_elem in bind.mods {
@@ -36,18 +35,13 @@ impl<'a> Resolver<'a> {
             modifier_options.push(resolved);
         }
 
-        // Resolve the key code element
         // bind.code is UnresolvedKeyElement<ResolvedKeyBind>
         let code_options = self.resolve_element(bind.code)?;
 
-        // Generate all permutations of modifiers
         let mod_permutations = Self::cartesian_product(&modifier_options);
-
-        // Combine each modifier permutation with each key code
         let mut results = Vec::new();
 
         for mod_combo in mod_permutations {
-            // Combine all modifiers
             let combined_mods = mod_combo
                 .into_iter()
                 .fold(Matchable::Specific(KeyModifiers::empty()), |acc, m| acc | m);

@@ -99,7 +99,6 @@ async fn send_goto_request(
         position: Position::new(line as u32, character as u32),
     };
 
-    // Clear stale locations
     resolver_engine_mut().await.remove_template("lsp_locations");
 
     let method = match kind {
@@ -394,7 +393,6 @@ pub async fn handle_navigation(state: &State, msg: &JsonRpcMessage) {
 
     drop(bufs);
 
-    // Clear pending state
     {
         let mut buf = buf.write_owned().await;
         if let Some(mut nav_state) = buf.get_state_mut::<NavigationState>().await {
@@ -444,7 +442,6 @@ pub async fn handle_navigation(state: &State, msg: &JsonRpcMessage) {
         let byte = (line_byte + col).min(buf.len());
         buf.primary_cursor_mut().set_sel(byte..=byte);
     } else {
-        // Populate lsp_locations template
         let formatted: Vec<String> = locations.iter().map(format_location).collect();
         resolver_engine_mut()
             .await

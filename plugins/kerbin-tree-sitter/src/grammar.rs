@@ -5,11 +5,9 @@ use tree_sitter::Language;
 
 #[derive(thiserror::Error, Debug)]
 pub enum GrammarLoadError {
-    /// Wraps a libloading error
     #[error(transparent)]
     LibLoading(#[from] libloading::Error),
 
-    /// Library file not found
     #[error("Library file not found at {path} (excludes .so/.dylib/.dll)")]
     MissingFile { path: String },
 }
@@ -36,31 +34,26 @@ pub enum GrammarEntry {
 
 #[derive(serde::Deserialize, Clone)]
 pub struct GrammarDefinition {
-    /// Custom entrypoint for the lang
+    /// Override for the C entry symbol (defaults to `tree_sitter_{normalized_name}`)
     pub entry: Option<String>,
 
-    /// Custom path to the language
+    /// Override for the library search path
     pub location: Option<String>,
 
-    /// Name of the language
     pub name: String,
 
-    /// Valid extensions for the grammar
     #[serde(default)]
     pub exts: Vec<String>,
 
-    /// Grammar install definition
     #[serde(flatten)]
     pub install: Option<GrammarInstallDefinition>,
 }
 
 impl GrammarDefinition {
-    /// Gets the normalized name used for internal storage
     pub fn normalized_name(&self) -> String {
         normalize_lang_name(&self.name)
     }
 
-    /// Locates the name for the file of the grammar returning its probable location
     pub fn get_file_paths(&self, config_path: &str) -> Vec<String> {
         if let Some(location) = &self.location {
             return vec![location.clone()];
@@ -79,7 +72,6 @@ impl GrammarDefinition {
         paths
     }
 
-    /// Figures out the name of the entry symbol for the grammar
     pub fn get_symbol_name(&self) -> String {
         match &self.entry {
             Some(t) => t.clone(),
@@ -90,25 +82,14 @@ impl GrammarDefinition {
 
 #[derive(serde::Deserialize, Clone)]
 pub struct GrammarInstallDefinition {
-    /// Git URL for the grammar
     pub url: String,
-
-    /// Library file name that is created
     pub build_name: Option<String>,
-
-    /// Sub-directory that should be entered into the git repository
     pub sub_dir: Option<String>,
 }
 
-/// Represents a loaded grammar file
 pub struct Grammar {
-    /// Normalized name of the language for the grammar
     pub name: String,
-
-    /// Loaded language file for the grammar
     pub lang: Language,
-
-    /// Dynamic library for the grammar
     pub lib: Library,
 }
 

@@ -102,54 +102,34 @@ pub struct ChangeGroup(Vec<Cursor>, Vec<Box<dyn BufferAction>>);
 
 /// The core storage of an open text buffer inside of the editor
 pub struct TextBuffer {
-    /// A marker for the text buffer that marks if it is unsaved
     pub dirty: bool,
-
-    /// An optional index into `undo_stack` that marks the point
+    /// Index into `undo_stack` at the last save; used to compute `dirty`
     pub save_point: usize,
-
-    /// A number representing the "version" of an edit
     pub version: u128,
-
-    /// The last stored time that the file was changed
     pub changed: Option<SystemTime>,
 
-    /// Internal storage of the text itself using `ropey::Rope`
     pub(crate) rope: Rope,
 
-    /// The absolute, canonical path of the file associated with this buffer
     pub path: String,
-
-    /// The file extension derived from the `path`
     pub ext: String,
-
-    /// The detected indentation style of the file
     pub indent_style: IndentStyle,
 
-    /// A vector of all active `Cursor`s in this buffer
     pub cursors: Vec<Cursor>,
-
-    /// The index within the `cursors` vector that identifies the primary cursor
     pub primary_cursor: usize,
 
-    /// A set of flags that may be set on a buffer
     pub flags: HashSet<&'static str>,
-
-    /// A set of states stored within a buffer
     pub states: HashMap<String, Box<dyn StateName>>,
 
-    /// A list of data that marks byte changes applied to the rope
+    /// Pending byte-range edits to be flushed to `renderer` at end of frame
     pub byte_changes: Vec<[((usize, usize), usize); 3]>,
 
-    /// An optional `ChangeGroup` currently being built
     pub current_change: Option<ChangeGroup>,
 
-    /// A stack of `ChangeGroup`s representing past changes that can be undone
+    /// Past changes that can be undone
     pub undo_stack: Vec<ChangeGroup>,
-    /// A stack of `ChangeGroup`s representing undone changes that can be redone
+    /// Undone changes that can be redone
     pub redo_stack: Vec<ChangeGroup>,
 
-    /// Stores the current render state of the buffer
     pub renderer: BufferRenderer,
 }
 
@@ -186,7 +166,7 @@ impl Default for TextBuffer {
 }
 
 impl TextBuffer {
-    /// Creates a new "scratch" file, which is an in-memory, unsavable buffer
+    /// Creates an in-memory buffer with no associated file path
     pub fn scratch() -> Self {
         Self::default()
     }
@@ -232,37 +212,33 @@ impl TextBuffer {
         })
     }
 
-    /// Returns the current version of the buffer
     pub fn version(&self) -> &u128 {
         &self.version
     }
 
-    /// Adds an extmark to the renderer, handling file version for you
+    /// Adds an extmark, stamping it with the current file version
     pub fn add_extmark(&mut self, builder: ExtmarkBuilder) -> u64 {
         let file_ver = self.version;
 
         self.renderer.add_extmark(file_ver, builder)
     }
 
-    /// Inserts a state into the buffer, replacing the value if it exists
     pub fn set_state<T: StateName + StaticState>(&mut self, state: T) {
         self.states
             .insert(state.name(), Box::new(Arc::new(RwLock::new(state))));
     }
 
-    /// Returns whether the state is within the buffer or not
     pub fn has_state<T: StateName + StaticState>(&self) -> bool {
         self.states.contains_key(&T::static_name())
     }
 
-    /// Given a function, will do nothing if state exists, or inserts it if it doesn't
+    /// Inserts the state produced by `func` only if the type is not already present
     pub fn maybe_insert_state<T: StateName + StaticState>(&mut self, func: impl FnOnce() -> T) {
         if !self.has_state::<T>() {
             self.set_state(func());
         }
     }
 
-    /// Retrieves state from buffer or inserts if non-existent
     pub async fn get_or_insert_state<T: StateName + StaticState>(
         &mut self,
         func: impl FnOnce() -> T,
@@ -271,7 +247,6 @@ impl TextBuffer {
         self.get_state::<T>().await.unwrap()
     }
 
-    /// Retrieves state mutably from buffer or inserts if non-existent
     pub async fn get_or_insert_state_mut<T: StateName + StaticState>(
         &mut self,
         func: impl FnOnce() -> T,
@@ -280,7 +255,6 @@ impl TextBuffer {
         self.get_state_mut::<T>().await.unwrap()
     }
 
-    /// Retrieves a state from the internal storage, returning None if non-existent
     pub async fn get_state_mut<T: StateName + StaticState>(
         &mut self,
     ) -> Option<OwnedRwLockWriteGuard<T>> {
@@ -295,7 +269,6 @@ impl TextBuffer {
         }
     }
 
-    /// Retrieves a state from the internal storage, returning None if non-existent
     pub async fn get_state<T: StateName + StaticState>(&self) -> Option<OwnedRwLockReadGuard<T>> {
         if let Some(s) = self
             .states
@@ -316,7 +289,6 @@ impl TextBuffer {
         ((line_idx, col), byte)
     }
 
-    /// Registers an edit with the buffer for tracking changes
     pub fn register_input_edit(
         &mut self,
         start: ((usize, usize), usize),
@@ -326,7 +298,6 @@ impl TextBuffer {
         self.byte_changes.push([start, old_end, new_end]);
     }
 
-    /// Applies a given `BufferAction` to the editor
     pub fn action(&mut self, action: impl BufferAction) -> bool {
         if self.current_change.is_none() {
             self.start_change_group();
@@ -362,7 +333,6 @@ impl TextBuffer {
         self.cursors.push(cursor);
     }
 
-    /// Removes the current primary cursor from the buffer
     pub fn drop_primary_cursor(&mut self) {
         if self.cursors.len() <= 1 {
             return;
@@ -376,7 +346,6 @@ impl TextBuffer {
             .clamp(0, self.cursors.len() - 1);
     }
 
-    /// Changes the currently selected primary cursor by an offset
     pub fn change_cursor(&mut self, offset: isize) {
         self.primary_cursor = self
             .primary_cursor
@@ -384,17 +353,14 @@ impl TextBuffer {
             .clamp(0, self.cursors.len() - 1);
     }
 
-    /// Returns an immutable reference to the current primary cursor of the buffer
     pub fn primary_cursor(&self) -> &Cursor {
         &self.cursors[self.primary_cursor]
     }
 
-    /// Returns a mutable reference to the current primary cursor of the buffer
     pub fn primary_cursor_mut(&mut self) -> &mut Cursor {
         &mut self.cursors[self.primary_cursor]
     }
 
-    /// Applies the undo operation of the last `ChangeGroup` on the undo stack
     pub fn undo(&mut self) {
         self.commit_change_group();
         if let Some(group) = self.undo_stack.pop() {
@@ -423,7 +389,6 @@ impl TextBuffer {
         }
     }
 
-    /// Applies the redo operation from the redo stack
     pub fn redo(&mut self) {
         self.commit_change_group();
         if let Some(group) = self.redo_stack.pop() {
@@ -442,23 +407,17 @@ impl TextBuffer {
                 // We have redone past the save point. The buffer is now dirty.
                 self.dirty = true;
             } else {
-                // Push the redone group to the undo stack *before* checking the save point logic
+                // Push before the save-point check so the lengths are accurate
                 self.undo_stack.push(ChangeGroup(undo_cursor, undo_group));
 
-                if self.undo_stack.len() == self.save_point {
-                    // The current state is the save point. It is clean.
-                    self.dirty = false;
-                } else {
-                    self.dirty = true; // Any other state is dirty.
-                }
-                return; // Return early since the push happened inside the if block
+                self.dirty = self.undo_stack.len() != self.save_point;
+                return;
             }
 
             self.undo_stack.push(ChangeGroup(undo_cursor, undo_group));
         }
     }
 
-    /// Starts a new change group for recording subsequent actions
     pub fn start_change_group(&mut self) {
         self.commit_change_group();
         self.current_change = Some(ChangeGroup(self.cursors.clone(), vec![]));
@@ -473,7 +432,6 @@ impl TextBuffer {
         }
     }
 
-    /// Writes the buffer's content to a file on disk
     pub async fn write_file(&mut self, path: Option<String>) -> Result<(), std::io::Error> {
         if let Some(new_path) = path {
             let path = Path::new(&new_path);
@@ -560,7 +518,6 @@ impl TextBuffer {
         Ok(())
     }
 
-    /// Moves the primary cursor by a given number of bytes
     pub fn move_bytes(&mut self, bytes: isize, extend_selection: bool) -> bool {
         if bytes == 0 {
             return false;
@@ -592,7 +549,6 @@ impl TextBuffer {
         new_caret_byte != current_caret_byte
     }
 
-    /// Moves the primary cursor by a given number of lines
     pub fn move_lines(&mut self, rows: isize, extend_selection: bool) -> bool {
         if rows == 0 {
             return false;
@@ -652,7 +608,6 @@ impl TextBuffer {
         new_caret_byte != current_caret_byte
     }
 
-    /// Moves the primary cursor by a given number of characters
     pub fn move_chars(&mut self, chars: isize, extend_selection: bool) -> bool {
         if chars == 0 {
             return false;
@@ -686,7 +641,6 @@ impl TextBuffer {
         new_caret_byte != current_cursor.get_cursor_byte()
     }
 
-    /// Merges any overlapping cursors in the `cursors` list
     pub fn merge_overlapping_cursors(&mut self) {
         if self.cursors.len() <= 1 {
             return;
@@ -736,12 +690,10 @@ impl TextBuffer {
         self.byte_changes.clear();
     }
 
-    /// Inserts text at the specified byte offset
     pub fn insert(&mut self, byte: usize, text: &str) {
         self.rope.insert(self.rope.byte_to_char(byte), text);
     }
 
-    /// Removes text within the specified byte range
     pub fn remove_range(&mut self, range: std::ops::Range<usize>) {
         self.rope
             .remove(self.rope.byte_to_char(range.start)..self.rope.byte_to_char(range.end));

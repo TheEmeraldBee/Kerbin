@@ -7,7 +7,6 @@ pub async fn file_close(event_data: EventData<CloseEvent>, manager: ResMut<LspMa
     get!(Some(event_data), mut manager);
 
     let Some(file) = event_data.buffer.get_state::<OpenedFile>().await else {
-        // LSP not on file, so ignore anyways
         return;
     };
 

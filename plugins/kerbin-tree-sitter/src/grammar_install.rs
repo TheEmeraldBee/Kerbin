@@ -9,19 +9,15 @@ use crate::grammar::{GrammarDefinition, normalize_lang_name};
 
 #[derive(thiserror::Error, Debug)]
 pub enum GrammarInstallError {
-    /// Missing install definition for language
     #[error("Missing install definition for language")]
     MissingInstallDefinition,
 
-    /// Build succeeded but shared lib not found
     #[error("Build succeeded but shared lib not found")]
     NoSharedLibrary,
 
-    /// Missing expected build directory
     #[error("Missing expected build directory")]
     MissingBuildDir,
 
-    /// Command failed with status
     #[error("{command} failed with status: {status} and stderr: {stderr}")]
     CommandFailed {
         command: &'static str,
@@ -29,11 +25,9 @@ pub enum GrammarInstallError {
         stderr: String,
     },
 
-    /// Tree-sitter couldn't be found on your computer
     #[error("tree-sitter couldn't be found on your computer, is it installed?")]
     MissingTreeSitter,
 
-    /// Wraps an IO error
     #[error(transparent)]
     IOError(#[from] io::Error),
 }
@@ -132,7 +126,6 @@ pub fn install_language(
     let temp_final_dir = base_path.join(format!("tree-sitter-{}-{}", def.name, now_nanos));
 
     let result: Result<(), GrammarInstallError> = (|| {
-        // Ensure the build root directory exists
         fs::create_dir_all(&build_root)?;
 
         let output = Command::new("git")
@@ -170,10 +163,7 @@ pub fn install_language(
             });
         }
 
-        // Get the build name (might have -, _, or .)
         let build_name = install_def.build_name.clone().unwrap_or(def.name.clone());
-
-        // Try all variants of the build name
         let build_name_variants = get_name_variants(&build_name);
 
         let mut found_lib = None;
@@ -222,7 +212,6 @@ pub fn install_language(
 
         cleanup_grammar_directory(&temp_final_dir, &normalized_name)?;
 
-        // Atomic rename to final location
         if final_grammar_dir.exists() {
             fs::remove_dir_all(&final_grammar_dir)?;
         }
@@ -231,12 +220,10 @@ pub fn install_language(
         Ok(())
     })();
 
-    // Clean up temp final dir if it still exists (on error)
     if temp_final_dir.exists() {
         fs::remove_dir_all(&temp_final_dir).ok();
     }
 
-    // Always clean up the atomic build directory after installation (success or failure)
     if build_root.exists() {
         fs::remove_dir_all(&build_root).ok();
     }

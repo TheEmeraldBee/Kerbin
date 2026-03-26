@@ -10,7 +10,6 @@ use ratatui::style::Style;
 use tree_sitter::QueryProperty;
 
 pub fn get_capture_priority(query: &tree_sitter::Query, pattern_index: usize) -> i64 {
-    // Default base priority: pattern order
     let mut priority = pattern_index as i64;
 
     for QueryProperty { key, value, .. } in query.property_settings(pattern_index) {
@@ -29,7 +28,6 @@ fn capture_specificity(name: &str) -> usize {
     name.matches('.').count()
 }
 
-/// Translates a capture name into a style
 pub fn translate_name_to_style(theme: &Theme, mut name: &str) -> Style {
     loop {
         if let Some(value) = theme.get(&format!("ts.{name}")) {
@@ -46,7 +44,6 @@ pub fn translate_name_to_style(theme: &Theme, mut name: &str) -> Style {
     theme.get("ui.text").unwrap_or_default()
 }
 
-/// Represents a highlighted span
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HighlightSpan {
     pub byte_range: Range<usize>,
@@ -159,7 +156,6 @@ pub fn merge_overlapping_spans(mut spans: Vec<HighlightSpan>) -> Vec<HighlightSp
             && pos > start
             && let Some(top) = active.peek()
         {
-            // Emit a segment with the currently active top span
             result.push(HighlightSpan {
                 byte_range: start..pos,
                 capture_name: top.span.capture_name.clone(),
@@ -168,7 +164,6 @@ pub fn merge_overlapping_spans(mut spans: Vec<HighlightSpan>) -> Vec<HighlightSp
             });
         }
 
-        // Update active spans
         if is_start {
             active.push(Active { span });
         } else {
@@ -190,7 +185,6 @@ fn calculate_affected_range(
         return None;
     }
 
-    // Find the earliest start and latest end of all changes
     let mut min_start = usize::MAX;
     let mut max_end = 0;
 
@@ -244,12 +238,10 @@ pub async fn highlight_file(
         return;
     };
 
-    // Calculate the affected range
     let affected_range = calculate_affected_range(&buf.byte_changes, buf.get_rope());
 
     let namespace = "tree-sitter::highlights";
 
-    // If we have a specific range to update, only re-highlight that portion
     if let Some(range) = affected_range {
         // Remove extmarks in the affected range
         buf.renderer.remove_extmarks_in_range(namespace, &range);
@@ -292,7 +284,6 @@ pub async fn highlight_file(
             true
         });
 
-        // Add the new extmarks for the affected range
         for span in merge_overlapping_spans(spans) {
             let hl_style = translate_name_to_style(&theme, &span.capture_name);
 

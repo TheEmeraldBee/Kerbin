@@ -67,50 +67,38 @@ pub use kerbin_input::*;
 
 pub use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-/// Module for regular expression utilities
 pub mod regex;
 pub use regex::*;
 
-/// Module containing core editor state definitions
 pub mod states;
 pub use states::*;
 
-/// Module for managing text buffers
 pub mod buffer;
 pub use buffer::*;
 
-/// Module for input handling and keybindings
 pub mod input;
 pub use input::*;
 
-/// Module for command definitions and command execution
 pub mod commands;
 pub use commands::*;
 
-/// Module for theme management
 pub mod theme;
 pub use theme::*;
 
-/// Module for the command palette UI and logic
 pub mod palette;
 pub use palette::*;
 
-/// Module for the statusline rendering and configuration
 pub mod statusline;
 pub use statusline::*;
 
-/// Module for editor hooks and event handling
 pub mod hooks;
 
-/// Module for individual rendering chunks
 pub mod chunk;
 pub use chunk::*;
 
-/// Module for managing multiple rendering chunks
 pub mod chunks;
 pub use chunks::*;
 
-/// Module used to extend the functionality of rope
 pub mod rope_exts;
 pub use rope_exts::*;
 

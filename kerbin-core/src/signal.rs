@@ -28,7 +28,6 @@ impl TypedBus {
     pub async fn emit<T: 'static + Send + Sync>(&self, data: T) {
         let type_id = TypeId::of::<T>();
 
-        // Mark event as active
         let mut map = self.map.write().await;
         let entry = map.entry(type_id).or_insert(EventEntry {
             active: true,

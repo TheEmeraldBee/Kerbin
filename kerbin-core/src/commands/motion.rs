@@ -122,13 +122,8 @@ impl Command for MotionCommand {
                 let old_sel = cur_buffer.primary_cursor().sel().clone();
                 let old_at_start = cur_buffer.primary_cursor().at_start();
 
-                // Get the line containing the cursor
                 let line_idx = cur_buffer.byte_to_line_clamped(current_caret_byte);
-
-                // Get start of the line
                 let line_start = cur_buffer.line_to_byte_clamped(line_idx);
-
-                // Get end of the line (start of next line - 1, or end of buffer)
                 let line_end = if line_idx + 1 >= rope_len_lines {
                     rope_len_bytes
                 } else {
@@ -136,14 +131,12 @@ impl Command for MotionCommand {
                 };
 
                 if *extend {
-                    // When extending, keep the existing selection and extend to include this line
                     let anchor_byte = if old_at_start {
                         *old_sel.end()
                     } else {
                         *old_sel.start()
                     };
 
-                    // Extend selection to include the entire current line
                     let start = anchor_byte.min(line_start);
                     let end = anchor_byte.max(line_end);
 
@@ -152,7 +145,6 @@ impl Command for MotionCommand {
                         .primary_cursor_mut()
                         .set_at_start(line_start < anchor_byte);
                 } else {
-                    // Not extending, select only the current line
                     cur_buffer
                         .primary_cursor_mut()
                         .set_sel(line_start..=line_end);

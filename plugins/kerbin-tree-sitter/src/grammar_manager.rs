@@ -14,31 +14,23 @@ use crate::{
 
 #[derive(thiserror::Error, Debug)]
 pub enum GrammarManagerError {
-    /// Wraps a grammar load error
     #[error(transparent)]
     LoadError(#[from] GrammarLoadError),
 
-    /// Missing definition for grammar
     #[error("Missing definition for grammar {lang}")]
     MissingDefinition { lang: String },
 }
 
 #[derive(State, Default)]
 pub struct GrammarManager {
-    /// Extensions mapping to normalized language names
     pub ext_map: HashMap<String, String>,
-
-    /// Map of normalized languages to their definitions
     pub lang_map: HashMap<String, GrammarDefinition>,
-
-    /// Map of normalized languages to loaded grammars
     pub loaded_grammars: HashMap<String, Arc<Grammar>>,
 
     pub query_map: HashMap<String, HashMap<String, Arc<Query>>>,
 }
 
 impl GrammarManager {
-    /// Registers all handlers for each extension in the map
     pub async fn register_extension_handlers(&self, state: &mut State) {
         for ext in self.ext_map.keys() {
             state
@@ -50,7 +42,6 @@ impl GrammarManager {
         }
     }
 
-    /// Iterates through all grammars attempting to locate their installation
     pub async fn install_all_grammars(&self, state: &State) {
         let config_path = state.lock_state::<ConfigFolder>().await.0.clone();
 
@@ -60,7 +51,6 @@ impl GrammarManager {
             let lib_paths = grammar.get_file_paths(&config_path);
 
             if find_library(&lib_paths).is_none() {
-                // Clone to allow for threading
                 to_load.push(grammar.clone());
             }
         }
@@ -101,7 +91,6 @@ impl GrammarManager {
         }
     }
 
-    /// Creates the Manager by loading in a list of grammar entries
     #[allow(clippy::result_large_err)]
     pub fn from_definitions(
         entries: Vec<GrammarEntry>,
@@ -129,7 +118,6 @@ impl GrammarManager {
             }
         }
 
-        // all entries are created, lets build the aliases now
         for (lang, new, exts) in aliases {
             let normalized_lang = normalize_lang_name(&lang);
             let normalized_new = normalize_lang_name(&new);
@@ -154,12 +142,10 @@ impl GrammarManager {
         Ok(ret)
     }
 
-    /// Translates an extension into a normalized language string
     pub fn ext_to_lang(&self, ext: &str) -> Option<&str> {
         self.ext_map.get(ext).map(|x| x.as_str())
     }
 
-    /// Attempts to return a grammar
     pub fn get_grammar(
         &mut self,
         config_path: &str,
@@ -194,7 +180,6 @@ impl GrammarManager {
             .expect("Just inserted language"))
     }
 
-    /// Gets a query set for all queries in a language
     #[allow(clippy::type_complexity)]
     pub fn get_query_set(
         &mut self,
@@ -222,7 +207,6 @@ impl GrammarManager {
     ) -> Vec<String> {
         let mut paths = Vec::new();
 
-        // Get all name variants (with -, _, .)
         let variants = get_name_variants(normalized_lang);
 
         for variant in variants {
@@ -239,7 +223,6 @@ impl GrammarManager {
         paths
     }
 
-    /// Gets or loads a query for a specific language
     pub fn get_query(
         &mut self,
         config_path: &str,
@@ -248,7 +231,6 @@ impl GrammarManager {
     ) -> Option<Arc<Query>> {
         let normalized = normalize_lang_name(lang);
 
-        // Check if query already exists for this language
         if self.query_map.contains_key(&normalized)
             && self
                 .query_map
@@ -266,7 +248,6 @@ impl GrammarManager {
             );
         }
 
-        // Get the grammar (may need to load it)
         let grammar = self.get_grammar(config_path, &normalized).ok()?;
 
         // Use the grammar's own name for path resolution so aliases fall through
@@ -279,13 +260,11 @@ impl GrammarManager {
 
         let query = Query::new(&grammar.lang, &query_source).ok()?;
 
-        // Insert into query_map using normalized name
         self.query_map
             .entry(normalized.clone())
             .or_default()
             .insert(query_name.to_string(), Arc::new(query));
 
-        // Return reference to the inserted query
         self.query_map.get(&normalized)?.get(query_name).cloned()
     }
 }

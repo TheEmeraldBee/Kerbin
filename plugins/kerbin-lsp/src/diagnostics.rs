@@ -77,13 +77,12 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
 
     let mut buf = buffers.cur_buffer_mut().await;
 
-    // Clone diagnostics so buf is free for mutable use afterward
     let diagnostics: Vec<Diagnostic> = match buf.get_state_mut::<Diagnostics>().await.as_ref() {
         Some(d) => d.0.clone(),
         None => return,
     };
 
-    // Helper to safe-convert (line, col) -> byte index; takes buf explicitly to avoid capturing
+    // Takes buf explicitly to avoid capturing it in the closure (it's borrowed mutably below)
     let to_byte = |buf: &TextBuffer, line: usize, col: usize| -> usize {
         let total_lines = buf.len_lines();
         let line = line.min(total_lines.saturating_sub(1));
@@ -92,21 +91,16 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
         let line_start_char = buf.byte_to_char_clamped(line_start_byte);
 
         let line_len_chars = buf.line_clamped(line).len_chars();
-
-        // Clamp col to line length to avoid crossing into next line
         let col = col.min(line_len_chars);
 
-        let global_char = line_start_char + col;
-        // Clamp to total chars
-        let global_char = global_char.min(buf.len_chars());
+        let global_char = (line_start_char + col).min(buf.len_chars());
 
         buf.char_to_byte_clamped(global_char)
     };
 
     let cursor_byte = buf.primary_cursor().get_cursor_byte();
 
-    // Find the index of the highest-priority diagnostic whose range contains the cursor.
-    // Only this one will get a popup overlay.
+    // Only show overlay for the highest-priority diagnostic at cursor
     let popup_idx = diagnostics
         .iter()
         .enumerate()
@@ -119,10 +113,8 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
         .max_by_key(|(_, prio)| *prio)
         .map(|(i, _)| i);
 
-    // Clear old diagnostic extmarks
     buf.renderer.clear_extmark_ns("lsp::diagnostics");
 
-    // Add new diagnostic highlights
     for (i, diagnostic) in diagnostics.iter().enumerate() {
         let start_byte = to_byte(
             &buf,
@@ -137,7 +129,6 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
 
         let (style, priority) = severity_to_style_priority(diagnostic.severity);
 
-        // Show floating diagnostic message only for the single highest-priority active diagnostic
         if popup_idx == Some(i) {
             let msg = diagnostic.message.as_str();
             let popup_w = (msg.len() + 4).min(60) as u16;

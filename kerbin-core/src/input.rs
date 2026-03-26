@@ -139,7 +139,6 @@ pub async fn handle_inputs(
     let resolver_engine = resolver_engine().await;
     let resolver = resolver_engine.as_resolver();
 
-    // Update the tree
     for event in &events.0 {
         let Event::Key(event) = event else {
             continue;

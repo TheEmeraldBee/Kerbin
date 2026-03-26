@@ -223,7 +223,6 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
             let has_flags = variant.fields.iter().any(|f| f.flag);
 
             if has_flags {
-                // Build pre-scan match arms: skip past each flag (and its value token if applicable).
                 let prescan_arms = variant
                     .fields
                     .iter()
@@ -503,7 +502,6 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                                 }
                             }
                         } else {
-                            // Positional field: index into _positional
                             let current_pos_idx = pos_idx;
                             pos_idx += 1;
 
@@ -553,7 +551,6 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                                     };
                                 }
                             } else if is_token_type(ty) {
-                                // Token: accept any token at this position
                                 quote! {
                                     let #var = match _positional
                                         .get(#current_pos_idx)

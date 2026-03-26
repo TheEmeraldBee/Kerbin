@@ -154,7 +154,6 @@ pub fn find_workspace_root(file_path: &str, lang_info: Option<&LangInfo>) -> Opt
     let path = Path::new(file_path);
     let mut current = path.parent()?;
 
-    // Search upwards for root markers
     loop {
         for root_marker in &lang_info.roots {
             let marker_path = current.join(root_marker);
