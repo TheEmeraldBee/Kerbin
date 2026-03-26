@@ -1,13 +1,5 @@
 use crate::*;
 use unicode_segmentation::UnicodeSegmentation;
-use unicode_width::UnicodeWidthStr;
-
-fn grapheme_display_width(g: &str) -> usize {
-    if g.contains('\u{FE0F}') {
-        return 2;
-    }
-    UnicodeWidthStr::width(g)
-}
 
 pub async fn update_buffer_horizontal_scroll(chunk: Chunk<BufferChunk>, buffers: ResMut<Buffers>) {
     let Some(chunk) = chunk.get().await else {

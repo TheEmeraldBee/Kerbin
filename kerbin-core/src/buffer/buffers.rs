@@ -150,27 +150,51 @@ impl Buffers {
         new_buffer_id
     }
 
-    /// Renders the bufferline (tab bar) into the provided `Buffer`
+    /// Renders the bufferline (tab bar) into the provided `Buffer`.
+    /// Legacy method — shows all global buffers with `selected_buffer` highlighted.
     pub async fn render_bufferline(&self, buffer: &mut Buffer, theme: &Theme) {
+        let indices: Vec<usize> = (0..self.buffers.len()).collect();
+        self.render_bufferline_pane(buffer, theme, &indices, self.selected_buffer, self.tab_scroll)
+            .await;
+    }
+
+    /// Renders a bufferline for one specific pane.
+    ///
+    /// - `displayed_global_indices`: which global buffer indices to show as tabs.
+    /// - `active_display_idx`: position within `displayed_global_indices` that is highlighted.
+    ///   In shared mode this equals `pane.selected_local` (the global index is also the display
+    ///   position since all buffers are shown in order). In non-shared mode it equals
+    ///   `pane.selected_local` (index into `pane.buffer_indices`).
+    /// - `tab_scroll`: horizontal scroll offset in characters.
+    pub async fn render_bufferline_pane(
+        &self,
+        buffer: &mut Buffer,
+        theme: &Theme,
+        displayed_global_indices: &[usize],
+        active_display_idx: usize,
+        tab_scroll: usize,
+    ) {
         let mut current_char_offset = 0;
 
-        for (i, short_path) in self.buffer_paths.iter().enumerate() {
-            let title = format!(
-                "   {} {} ",
-                short_path,
-                match self.buffers[i].read().await.dirty {
-                    true => "*",
-                    false => " ",
-                }
-            );
+        for (display_i, &global_i) in displayed_global_indices.iter().enumerate() {
+            let short_path = match self.buffer_paths.get(global_i) {
+                Some(p) => p,
+                None => continue,
+            };
+            let dirty = match self.buffers.get(global_i) {
+                Some(b) => b.read().await.dirty,
+                None => continue,
+            };
+
+            let title = format!("   {} {} ", short_path, if dirty { "*" } else { " " });
             let title_width = title.chars().count();
 
-            let visible_range_start = self.tab_scroll;
-            let visible_range_end = self.tab_scroll + buffer.area.width as usize;
+            let visible_range_start = tab_scroll;
+            let visible_range_end = tab_scroll + buffer.area.width as usize;
             let tab_range_start = current_char_offset;
             let tab_range_end = current_char_offset + title_width;
 
-            let style = if i == self.selected_buffer {
+            let style = if display_i == active_display_idx {
                 theme.get_fallback_default(["ui.bufferline.selected", "ui.bufferline", "ui.text"])
             } else {
                 theme.get_fallback_default(["ui.bufferline", "ui.text"])
@@ -185,7 +209,7 @@ impl Buffers {
                 let visible_part: String =
                     title.chars().skip(slice_start).take(slice_len).collect();
 
-                let render_x = (overlap_start - self.tab_scroll) as u16;
+                let render_x = (overlap_start - tab_scroll) as u16;
                 buffer.set_string(
                     buffer.area.x + render_x,
                     buffer.area.y,

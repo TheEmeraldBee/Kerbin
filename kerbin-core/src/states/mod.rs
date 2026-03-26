@@ -78,7 +78,8 @@ pub fn init_state(
         .state(StatuslineConfig::default())
         .state(LayoutConfig::default())
         .state(ConfigErrors::default())
-        .state(MouseBindings::default());
+        .state(MouseBindings::default())
+        .state(SplitState::default());
 
     state
 }

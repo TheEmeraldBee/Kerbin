@@ -39,6 +39,9 @@ pub use debug::*;
 mod if_cmd;
 pub use if_cmd::*;
 
+mod splits;
+pub use splits::*;
+
 /// Type alias for a command parsing function.
 type CommandFn = Box<dyn Fn(&[Token]) -> Option<Result<Box<dyn Command>, String>> + Send + Sync>;
 

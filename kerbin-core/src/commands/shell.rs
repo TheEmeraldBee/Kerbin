@@ -30,7 +30,7 @@ pub enum ShellCommand {
     ),
 
     /// Spawns a shell command, replacing stdin with this
-    /// Reapply's window when rendering app again
+    /// Reapplies window when rendering app again
     ///
     /// Results in pausing the editor until command is finished
     #[command(drop_ident, name = "shell_in_place", name = "ship")]

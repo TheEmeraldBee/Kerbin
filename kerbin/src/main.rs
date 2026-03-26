@@ -29,33 +29,109 @@ pub struct KerbinArgs {
     files: Vec<PathBuf>,
 }
 
+fn collect_leaf_rects(
+    node: &PaneNode,
+    rect: ratatui::layout::Rect,
+) -> Vec<(PaneId, ratatui::layout::Rect)> {
+    match node {
+        PaneNode::Pane(pane) => vec![(pane.id, rect)],
+        PaneNode::Container { dir, children, .. } => {
+            let n = children.len().max(1);
+            let sizes: Vec<u32> = children
+                .iter()
+                .map(|c| {
+                    let s = match c {
+                        PaneNode::Pane(p) => p.size,
+                        PaneNode::Container { size, .. } => *size,
+                    };
+                    if s == 0 { 1 } else { s as u32 }
+                })
+                .collect();
+            let total: u32 = sizes.iter().sum::<u32>().max(1);
+
+            let mut constraints = Vec::with_capacity(n * 2);
+            for (i, &sz) in sizes.iter().enumerate() {
+                constraints.push(Constraint::Ratio(sz, total));
+                if i + 1 < n {
+                    constraints.push(Constraint::Length(1));
+                }
+            }
+
+            let areas = match dir {
+                SplitDir::Vertical => Layout::horizontal(constraints).split(rect),
+                SplitDir::Horizontal => Layout::vertical(constraints).split(rect),
+            };
+
+            let mut result = Vec::new();
+            for (i, child) in children.iter().enumerate() {
+                result.extend(collect_leaf_rects(child, areas[i * 2]));
+            }
+            result
+        }
+    }
+}
+
 pub async fn register_default_chunks(
     chunks: ResMut<Chunks>,
     window: Res<WindowState>,
     layout: Res<LayoutConfig>,
+    split: ResMut<SplitState>,
 ) {
-    get!(mut chunks, window, layout);
+    get!(mut chunks, window, layout, mut split);
 
     let size = window.size();
 
-    let [bufferline, main_area, statusline] = Layout::vertical([
-        Constraint::Length(layout.bufferline_height),
+    let [main_area, statusline] = Layout::vertical([
         Constraint::Fill(1),
         Constraint::Length(layout.statusline_height),
     ])
     .areas(size);
 
-    let [gutter, _pad, buffer] = Layout::horizontal([
-        Constraint::Length(layout.gutter_width),
-        Constraint::Length(layout.gutter_pad),
-        Constraint::Fill(1),
-    ])
-    .areas(main_area);
-
-    chunks.register_chunk::<BufferlineChunk>(0, bufferline);
-    chunks.register_chunk::<BufferGutterChunk>(0, gutter);
-    chunks.register_chunk::<BufferChunk>(0, buffer);
     chunks.register_chunk::<StatuslineChunk>(0, statusline);
+
+    let leaf_rects = collect_leaf_rects(&split.root, main_area);
+    split.leaf_rects = leaf_rects.clone();
+
+    for (idx, (_, pane_full_rect)) in leaf_rects.iter().enumerate() {
+        let [bufferline_rect, content_rect] = Layout::vertical([
+            Constraint::Length(layout.bufferline_height),
+            Constraint::Fill(1),
+        ])
+        .areas(*pane_full_rect);
+
+        let [gutter_rect, _pad, buffer_rect] = Layout::horizontal([
+            Constraint::Length(layout.gutter_width),
+            Constraint::Length(layout.gutter_pad),
+            Constraint::Fill(1),
+        ])
+        .areas(content_rect);
+
+        chunks.register_indexed_chunk::<BufferlineChunk>(idx, 0, bufferline_rect);
+        chunks.register_indexed_chunk::<BufferGutterChunk>(idx, 0, gutter_rect);
+        chunks.register_indexed_chunk::<BufferChunk>(idx, 0, buffer_rect);
+    }
+
+    // Register the focused pane's named chunks for backward compatibility
+    if let Some((_, focused_full_rect)) =
+        leaf_rects.iter().find(|(id, _)| *id == split.focused_id)
+    {
+        let [focused_bufferline, focused_content] = Layout::vertical([
+            Constraint::Length(layout.bufferline_height),
+            Constraint::Fill(1),
+        ])
+        .areas(*focused_full_rect);
+
+        let [focused_gutter, _pad2, focused_buffer] = Layout::horizontal([
+            Constraint::Length(layout.gutter_width),
+            Constraint::Length(layout.gutter_pad),
+            Constraint::Fill(1),
+        ])
+        .areas(focused_content);
+
+        chunks.register_chunk::<BufferlineChunk>(0, focused_bufferline);
+        chunks.register_chunk::<BufferGutterChunk>(0, focused_gutter);
+        chunks.register_chunk::<BufferChunk>(0, focused_buffer);
+    }
 }
 
 pub async fn render_chunks(chunks: Res<Chunks>, window: ResMut<WindowState>) {
@@ -252,6 +328,7 @@ async fn main() {
         commands.register::<IfCommand>();
 
         commands.register::<AutoPairsCommand>();
+        commands.register::<SplitCommand>();
     }
 
     {
@@ -373,6 +450,10 @@ async fn main() {
         .system_named(
             "core::update_buffer_vertical_scroll",
             update_buffer_vertical_scroll,
+        )
+        .system_named(
+            "core::update_bufferline_scroll",
+            update_bufferline_scroll,
         );
 
     state
@@ -382,7 +463,8 @@ async fn main() {
         .system_named("core::render_help_menu", render_help_menu)
         .system_named("core::render_bufferline", render_bufferline)
         .system_named("core::render_log", render_log)
-        .system_named("core::render_buffer", render_buffer_default);
+        .system_named("core::render_buffer", render_buffer_default)
+        .system_named("core::render_splits", render_splits);
 
     state
         .on_hook(hooks::UpdateCleanup)

@@ -267,18 +267,18 @@ impl Command for MotionCommand {
                 let slice = cur_buffer.slice_clamped(0, len);
 
                 let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
-                let x = regex.search(searcher);
+                let search_result = regex.search(searcher);
 
-                if let Some(x) = x {
+                if let Some(m) = search_result {
                     if *extend {
                         let existing_selection = cur_buffer.primary_cursor().sel().clone();
-                        let new_start = (*existing_selection.start()).min(x.start());
-                        let new_end = (*existing_selection.end()).max(x.end().saturating_sub(1));
+                        let new_start = (*existing_selection.start()).min(m.start());
+                        let new_end = (*existing_selection.end()).max(m.end().saturating_sub(1));
                         cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
                     } else {
                         cur_buffer
                             .primary_cursor_mut()
-                            .set_sel(x.start()..=x.end().saturating_sub(1));
+                            .set_sel(m.start()..=m.end().saturating_sub(1));
                     }
                     true
                 } else {
@@ -349,11 +349,11 @@ impl Command for MotionCommand {
                 let slice = cur_buffer.slice_clamped(base_cursor, len);
 
                 let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
-                let x = regex.search(searcher);
+                let search_result = regex.search(searcher);
 
-                if let Some(x) = x {
-                    let start = x.start() + base_cursor;
-                    let end = x.end() + base_cursor;
+                if let Some(m) = search_result {
+                    let start = m.start() + base_cursor;
+                    let end = m.end() + base_cursor;
 
                     if *extend {
                         let existing_selection = cur_buffer.primary_cursor().sel().clone();
@@ -431,11 +431,11 @@ impl Command for MotionCommand {
                 let slice = cur_buffer.slice_clamped(0, base_cursor);
 
                 let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
-                let x = regex.find_iter(searcher);
+                let search_iter = regex.find_iter(searcher);
 
-                if let Some(x) = x.last() {
-                    let start = x.start();
-                    let end = x.end();
+                if let Some(m) = search_iter.last() {
+                    let start = m.start();
+                    let end = m.end();
 
                     if *extend {
                         let existing_selection = cur_buffer.primary_cursor().sel().clone();

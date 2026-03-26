@@ -5,6 +5,8 @@ use kerbin_state_machine::State;
 
 use crate::*;
 
+const SCRATCH_BUFFER_PATH: &str = "<scratch>";
+
 #[derive(Clone, Debug, Command)]
 pub enum CommitCommand {
     /// Commits the command after it as a change
@@ -237,12 +239,9 @@ impl Command for BufferCommand {
                             format!("Failed to read metadata for file {}: {}", current_path, e);
                         tracing::error!(message);
                         log.high("command::write_file", message);
-                        // Treat as if external file changes if the metadata isn't found
                         return false;
                     }
-                    _ => {
-                        // File not found on disk, so no conflict check needed.
-                    }
+                    _ => {}
                 }
 
                 if let Err(e) = cur_buffer.write_file(path.clone()).await {
@@ -269,84 +268,10 @@ impl Command for BufferCommand {
                     return false;
                 }
 
-                let path = cur_buffer.path.clone();
-                if path == "<scratch>" {
-                    let message = "Cannot reload scratch buffer";
-                    tracing::error!(message);
-                    log.medium("command::reload_file", message);
-                    return false;
-                }
-
-                match std::fs::File::open(&path) {
-                    Ok(f) => match ropey::Rope::from_reader(std::io::BufReader::new(f)) {
-                        Ok(rope) => {
-                            cur_buffer.rope = rope;
-                            cur_buffer.dirty = false;
-                            cur_buffer.undo_stack.clear();
-                            cur_buffer.redo_stack.clear();
-                            cur_buffer.save_point = 0;
-
-                            if let Ok(metadata) = std::fs::metadata(&path) {
-                                cur_buffer.changed = metadata.modified().ok();
-                            }
-
-                            true
-                        }
-                        Err(e) => {
-                            let message = format!("Failed to read file {}: {}", path, e);
-                            tracing::error!(message);
-                            log.high("command::reload_file", message);
-                            false
-                        }
-                    },
-                    Err(e) => {
-                        let message = format!("Failed to open file {}: {}", path, e);
-                        tracing::error!(message);
-                        log.high("command::reload_file", message);
-                        false
-                    }
-                }
+                reload_file_inner(&mut *cur_buffer, &*log, false)
             }
 
-            BufferCommand::ReloadFileForce => {
-                let path = cur_buffer.path.clone();
-                if path == "<scratch>" {
-                    let message = "Cannot reload scratch buffer";
-                    tracing::error!(message);
-                    log.high("command::reload_file", message);
-                    return false;
-                }
-
-                match std::fs::File::open(&path) {
-                    Ok(f) => match ropey::Rope::from_reader(std::io::BufReader::new(f)) {
-                        Ok(rope) => {
-                            cur_buffer.rope = rope;
-                            cur_buffer.dirty = false;
-                            cur_buffer.undo_stack.clear();
-                            cur_buffer.redo_stack.clear();
-                            cur_buffer.save_point = 0;
-
-                            if let Ok(metadata) = std::fs::metadata(&path) {
-                                cur_buffer.changed = metadata.modified().ok();
-                            }
-
-                            true
-                        }
-                        Err(e) => {
-                            let message = format!("Failed to read file {}: {}", path, e);
-                            tracing::error!(message);
-                            log.high("command::reload_file", message);
-                            false
-                        }
-                    },
-                    Err(e) => {
-                        let message = format!("Failed to open file {}: {}", path, e);
-                        tracing::error!(message);
-                        log.high("command::reload_file", message);
-                        false
-                    }
-                }
-            }
+            BufferCommand::ReloadFileForce => reload_file_inner(&mut *cur_buffer, &*log, true),
 
             BufferCommand::StartChange => {
                 cur_buffer.start_change_group();
@@ -463,6 +388,53 @@ impl Command for BufferCommand {
     }
 }
 
+fn reload_file_inner(buf: &mut TextBuffer, log: &LogSender, force: bool) -> bool {
+    if !force && buf.dirty {
+        let message = "Cannot reload file: buffer has unsaved changes. Use reload! to force.";
+        tracing::error!(message);
+        log.medium("command::reload_file", message);
+        return false;
+    }
+
+    let path = buf.path.clone();
+    if path == SCRATCH_BUFFER_PATH {
+        let message = "Cannot reload scratch buffer";
+        tracing::error!(message);
+        log.medium("command::reload_file", message);
+        return false;
+    }
+
+    match std::fs::File::open(&path) {
+        Ok(f) => match ropey::Rope::from_reader(std::io::BufReader::new(f)) {
+            Ok(rope) => {
+                buf.rope = rope;
+                buf.dirty = false;
+                buf.undo_stack.clear();
+                buf.redo_stack.clear();
+                buf.save_point = 0;
+
+                if let Ok(metadata) = std::fs::metadata(&path) {
+                    buf.changed = metadata.modified().ok();
+                }
+
+                true
+            }
+            Err(e) => {
+                let message = format!("Failed to read file {}: {}", path, e);
+                tracing::error!(message);
+                log.high("command::reload_file", message);
+                false
+            }
+        },
+        Err(e) => {
+            let message = format!("Failed to open file {}: {}", path, e);
+            tracing::error!(message);
+            log.high("command::reload_file", message);
+            false
+        }
+    }
+}
+
 #[derive(Debug, Clone, Command)]
 pub enum BuffersCommand {
     #[command(name = "open", name = "o")]
@@ -522,48 +494,147 @@ impl Command for BuffersCommand {
                     }
                 };
                 buffers.set_selected_buffer(buffer_id);
+
+                // Track the opened buffer in the focused pane
+                let mut split = state.lock_state::<SplitState>().await;
+                if !split.unique_buffers {
+                    if let Some(pane) = split.focused_pane_mut() {
+                        pane.selected_local = buffer_id;
+                    }
+                } else if let Some(pane) = split.focused_pane_mut() {
+                    if !pane.buffer_indices.contains(&buffer_id) {
+                        pane.buffer_indices.push(buffer_id);
+                    }
+                    pane.selected_local = pane
+                        .buffer_indices
+                        .iter()
+                        .position(|&x| x == buffer_id)
+                        .unwrap_or(0);
+                }
+
                 true
             }
 
             Self::SwitchBuffer(offset) => {
-                buffers.change_buffer(*offset);
+                let mut split = state.lock_state::<SplitState>().await;
+                if !split.unique_buffers {
+                    let n = buffers.buffers.len();
+                    if n == 0 {
+                        return false;
+                    }
+                    if let Some(pane) = split.focused_pane_mut() {
+                        pane.selected_local =
+                            (pane.selected_local as isize + offset).rem_euclid(n as isize) as usize;
+                        let new_idx = pane.selected_local;
+                        buffers.set_selected_buffer(new_idx);
+                    }
+                } else if let Some(pane) = split.focused_pane_mut() {
+                    if pane.buffer_indices.is_empty() {
+                        return false;
+                    }
+                    let n = pane.buffer_indices.len() as isize;
+                    let new_local =
+                        (pane.selected_local as isize + offset).rem_euclid(n) as usize;
+                    pane.selected_local = new_local;
+                    let new_buf_idx = pane.buffer_indices[new_local];
+                    buffers.set_selected_buffer(new_buf_idx);
+                }
                 true
             }
 
             Self::CloseBufferOffset(offset) => {
-                let offset = offset.unwrap_or(0);
-                let buf_idx = buffers.selected_buffer as isize + offset;
-
-                if buf_idx >= buffers.buffers.len() as isize || buf_idx < 0 {
-                    return false;
-                }
-
-                let dirty = buffers.buffers[buf_idx as usize].read().await.dirty;
-
-                if dirty {
-                    log.medium(
-                        "command::close_buffer",
-                        "Cannot close buffer as it has changes!",
-                    );
-                    tracing::error!("Cannot close buffer as it has changes!");
-                    false
-                } else {
-                    buffers.close_buffer(buf_idx as usize).await;
-                    true
-                }
+                close_buffer_inner(state, &mut *buffers, &*log, offset.unwrap_or(0), false).await
             }
 
             Self::CloseBufferOffsetForce(offset) => {
-                let offset = offset.unwrap_or(0);
-                let buf_idx = buffers.selected_buffer as isize + offset;
-
-                if buf_idx >= buffers.buffers.len() as isize || buf_idx < 0 {
-                    return false;
-                }
-
-                buffers.close_buffer(buf_idx as usize).await;
-                true
+                close_buffer_inner(state, &mut *buffers, &*log, offset.unwrap_or(0), true).await
             }
         }
+    }
+}
+
+async fn close_buffer_inner(
+    state: &State,
+    buffers: &mut Buffers,
+    log: &LogSender,
+    offset: isize,
+    force: bool,
+) -> bool {
+    let buf_idx = buffers.selected_buffer as isize + offset;
+    if buf_idx >= buffers.buffers.len() as isize || buf_idx < 0 {
+        return false;
+    }
+    let buf_idx = buf_idx as usize;
+
+    if !force {
+        let dirty = buffers.buffers[buf_idx].read().await.dirty;
+        if dirty {
+            log.medium("command::close_buffer", "Cannot close buffer as it has changes!");
+            tracing::error!("Cannot close buffer as it has changes!");
+            return false;
+        }
+    }
+
+    let shared = !state.lock_state::<SplitState>().await.unique_buffers;
+    if shared {
+        buffers.close_buffer(buf_idx).await;
+        fixup_shared_panes_after_close(state, buffers, buf_idx).await;
+    } else {
+        let (close_globally, new_sel) = {
+            let mut split = state.lock_state::<SplitState>().await;
+            if let Some(pane) = split.focused_pane_mut() {
+                pane.buffer_indices.retain(|&x| x != buf_idx);
+                if pane.selected_local >= pane.buffer_indices.len() {
+                    pane.selected_local = pane.buffer_indices.len().saturating_sub(1);
+                }
+            }
+            let referenced = split.leaves().iter().any(|p| p.buffer_indices.contains(&buf_idx));
+            let sel = split
+                .focused_pane()
+                .and_then(|p| p.buffer_indices.get(p.selected_local).copied());
+            (!referenced, sel)
+        };
+        if close_globally {
+            buffers.close_buffer(buf_idx).await;
+            let mut split = state.lock_state::<SplitState>().await;
+            for pane in split.leaves_mut() {
+                for idx in &mut pane.buffer_indices {
+                    if *idx > buf_idx {
+                        *idx -= 1;
+                    }
+                }
+            }
+            let re_sel = split
+                .focused_pane()
+                .and_then(|p| p.buffer_indices.get(p.selected_local).copied());
+            drop(split);
+            if let Some(idx) = re_sel {
+                buffers.set_selected_buffer(idx);
+            }
+        } else if let Some(idx) = new_sel {
+            buffers.set_selected_buffer(idx);
+        }
+    }
+    true
+}
+
+/// After closing a buffer at `buf_idx` in shared mode, adjusts every pane's
+/// `selected_local` so it remains a valid global buffer index, then syncs
+/// `Buffers.selected_buffer` to the focused pane.
+async fn fixup_shared_panes_after_close(state: &State, buffers: &mut Buffers, buf_idx: usize) {
+    let new_len = buffers.buffers.len();
+    let mut split = state.lock_state::<SplitState>().await;
+    for pane in split.leaves_mut() {
+        if pane.selected_local > buf_idx {
+            pane.selected_local -= 1;
+        }
+        if new_len > 0 && pane.selected_local >= new_len {
+            pane.selected_local = new_len - 1;
+        }
+    }
+    let new_sel = split.focused_pane().map(|p| p.selected_local);
+    drop(split);
+    if let Some(sel) = new_sel {
+        buffers.set_selected_buffer(sel);
     }
 }

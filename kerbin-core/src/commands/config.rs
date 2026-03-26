@@ -201,8 +201,8 @@ impl Command for ConfigCommand {
                     desc: desc.clone().unwrap_or_default(),
                 };
 
-                let resolver = resolver_engine().await;
-                let resolver = resolver.as_resolver();
+                let resolver_engine = resolver_engine().await;
+                let resolver = resolver_engine.as_resolver();
                 let mut inputs = state.lock_state::<InputState>().await;
                 if let Err(e) = inputs
                     .tree
@@ -225,8 +225,8 @@ impl Command for ConfigCommand {
                     desc: desc.clone().unwrap_or_default(),
                     ..Metadata::default()
                 };
-                let resolver = resolver_engine().await;
-                let resolver = resolver.as_resolver();
+                let resolver_engine = resolver_engine().await;
+                let resolver = resolver_engine.as_resolver();
                 let mut inputs = state.lock_state::<InputState>().await;
                 if let Err(e) = inputs.tree.set_metadata(&resolver, key_binds, metadata) {
                     tracing::error!("category: failed to set metadata: {:?}", e);
@@ -239,10 +239,10 @@ impl Command for ConfigCommand {
                     other => vec![other.clone()],
                 };
 
-                let resolver = resolver_engine().await;
-                let r = resolver.as_resolver();
-                let expanded = r.expand_tokens(items, true);
-                drop(resolver);
+                let resolver_engine = resolver_engine().await;
+                let resolver = resolver_engine.as_resolver();
+                let expanded = resolver.expand_tokens(items, true);
+                drop(resolver_engine);
 
                 let token = match expanded.len() {
                     1 => expanded.into_iter().next().unwrap(),
@@ -408,6 +408,20 @@ impl Command for ConfigCommand {
                         state.lock_state::<CoreConfig>().await.default_tab_unit = n;
                     }
                 }
+                "unique_split_buffers" => match value.as_str() {
+                    "enable" => {
+                        state.lock_state::<SplitState>().await.unique_buffers = true;
+                    }
+                    "disable" => {
+                        state.lock_state::<SplitState>().await.unique_buffers = false;
+                    }
+                    _ => {
+                        state.lock_state::<LogSender>().await.critical(
+                            "commands::core",
+                            format!("Expected `enable` or `disable`, found: {}", value),
+                        );
+                    }
+                },
                 _ => {
                     state.lock_state::<LogSender>().await.critical(
                         "commands::core",

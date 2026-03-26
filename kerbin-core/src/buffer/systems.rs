@@ -87,24 +87,78 @@ pub async fn render_bufferline(
     chunk: Chunk<BufferlineChunk>,
     buffers: Res<Buffers>,
     theme: Res<Theme>,
+    split: Res<SplitState>,
 ) {
     let chunk = &mut chunk.get().await.unwrap();
-    get!(buffers, theme);
+    get!(buffers, theme, split);
 
-    buffers.render_bufferline(chunk, &theme).await;
+    let Some(pane) = split.focused_pane() else {
+        return;
+    };
+
+    let displayed_global_indices: Vec<usize> = if !split.unique_buffers {
+        (0..buffers.buffers.len()).collect()
+    } else {
+        pane.buffer_indices.clone()
+    };
+
+    buffers
+        .render_bufferline_pane(
+            chunk,
+            &theme,
+            &displayed_global_indices,
+            pane.selected_local,
+            pane.tab_scroll,
+        )
+        .await;
 }
 
-pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<WindowState>) {
-    get!(mut buffers, window);
+pub async fn update_bufferline_scroll(
+    buffers: Res<Buffers>,
+    split: ResMut<SplitState>,
+    chunks: Res<Chunks>,
+) {
+    get!(buffers, mut split, chunks);
 
-    if buffers.buffers.is_empty() {
-        buffers.tab_scroll = 0;
+    if buffers.buffers.is_empty() || split.pane_count() == 0 {
         return;
     }
 
-    let tab_widths: Vec<usize> = buffers.buffer_paths.iter().map(|p| p.width() + 6).collect();
+    let focused_leaf_idx = match split.focused_leaf_idx() {
+        Some(i) => i,
+        None => return,
+    };
 
-    // Cumulative start offset for each tab
+    let (displayed_global_indices, active_display_idx, current_tab_scroll) = {
+        let pane = match split.focused_pane() {
+            Some(p) => p,
+            None => return,
+        };
+        let displayed = if !split.unique_buffers {
+            (0..buffers.buffers.len()).collect::<Vec<_>>()
+        } else {
+            pane.buffer_indices.clone()
+        };
+        (displayed, pane.selected_local, pane.tab_scroll)
+    };
+
+    if displayed_global_indices.is_empty() {
+        if let Some(pane) = split.focused_pane_mut() {
+            pane.tab_scroll = 0;
+        }
+        return;
+    }
+
+    let tab_widths: Vec<usize> = displayed_global_indices
+        .iter()
+        .filter_map(|&gi| buffers.buffer_paths.get(gi))
+        .map(|p| p.width() + 6)
+        .collect();
+
+    if tab_widths.is_empty() || active_display_idx >= tab_widths.len() {
+        return;
+    }
+
     let tab_starts: Vec<usize> = tab_widths
         .iter()
         .scan(0, |acc, &w| {
@@ -114,30 +168,34 @@ pub async fn update_bufferline_scroll(buffers: ResMut<Buffers>, window: Res<Wind
         })
         .collect();
 
-    let selected_idx = buffers.selected_buffer;
-    let selected_tab_start = tab_starts[selected_idx];
-    let selected_tab_end = selected_tab_start + tab_widths[selected_idx];
+    let selected_tab_start = tab_starts[active_display_idx];
+    let selected_tab_end = selected_tab_start + tab_widths[active_display_idx];
 
-    let view_width = window.size().width as usize;
-    let view_start = buffers.tab_scroll;
-    let view_end = view_start + view_width;
+    let view_width = chunks
+        .rect_for_indexed_chunk::<BufferlineChunk>(focused_leaf_idx)
+        .map(|r| r.width as usize)
+        .unwrap_or(80);
+
+    let mut tab_scroll = current_tab_scroll;
+    let view_end = tab_scroll + view_width;
 
     if selected_tab_end > view_end {
-        buffers.tab_scroll = selected_tab_end.saturating_sub(view_width);
+        tab_scroll = selected_tab_end.saturating_sub(view_width);
     }
 
-    if selected_tab_start < view_start {
-        buffers.tab_scroll = selected_tab_start;
+    if selected_tab_start < tab_scroll {
+        tab_scroll = selected_tab_start;
     }
 
     let total_width: usize = tab_widths.iter().sum();
     if total_width < view_width {
-        buffers.tab_scroll = 0;
+        tab_scroll = 0;
     } else {
-        // Clamp to prevent empty space on the right
-        buffers.tab_scroll = buffers
-            .tab_scroll
-            .min(total_width.saturating_sub(view_width));
+        tab_scroll = tab_scroll.min(total_width.saturating_sub(view_width));
+    }
+
+    if let Some(pane) = split.focused_pane_mut() {
+        pane.tab_scroll = tab_scroll;
     }
 }
 
@@ -189,10 +247,11 @@ pub async fn handle_mouse_events(
     command_sender: ResMut<CommandSender>,
     modes: Res<ModeStack>,
     core_config: Res<CoreConfig>,
+    split: Res<SplitState>,
 ) {
     use crossterm::event::{MouseButton, MouseEventKind};
 
-    get!(events, chunks, buffers, mouse_bindings, modes, core_config);
+    get!(events, chunks, buffers, mouse_bindings, modes, core_config, split);
 
     if events.0.is_empty() {
         return;
@@ -217,7 +276,34 @@ pub async fn handle_mouse_events(
         let col = mouse_ev.column;
         let row = mouse_ev.row;
 
-        let area_opt = chunks.rect_for_chunk(&BufferChunk::static_name());
+        // On left-click, check if a non-focused pane was clicked and switch focus.
+        // Also update the effective buffer area for mouse-position templates.
+        let mut area_opt = chunks.rect_for_chunk(&BufferChunk::static_name());
+        if matches!(trigger, MouseTrigger::LeftDown) && split.pane_count() > 1 {
+            let n = chunks.indexed_count::<BufferChunk>();
+            'pane_check: for pane_i in 0..n {
+                if let Some(pane_rect) = chunks.rect_for_indexed_chunk::<BufferChunk>(pane_i) {
+                    if col >= pane_rect.x
+                        && col < pane_rect.x + pane_rect.width
+                        && row >= pane_rect.y
+                        && row < pane_rect.y + pane_rect.height
+                    {
+                        area_opt = Some(pane_rect);
+                        let is_focused = split
+                            .leaves()
+                            .get(pane_i)
+                            .map(|p| p.id)
+                            == Some(split.focused_id);
+                        if !is_focused {
+                            let focus_cmd: Box<dyn Command> =
+                                Box::new(SplitCommand::FocusPane(pane_i));
+                            command_sender.get().await.send(focus_cmd).unwrap();
+                        }
+                        break 'pane_check;
+                    }
+                }
+            }
+        }
 
         if let Some(area) = area_opt {
             let buf = buffers.cur_buffer().await;

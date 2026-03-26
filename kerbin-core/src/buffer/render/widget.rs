@@ -1,16 +1,8 @@
 use std::sync::Arc;
 
-use crate::{CursorShape, Extmark, ExtmarkKind, StyledChunk, TextBuffer, VirtTextPos};
+use crate::{grapheme_display_width, CursorShape, Extmark, ExtmarkKind, StyledChunk, TextBuffer, VirtTextPos};
 use ratatui::prelude::*;
 use unicode_segmentation::UnicodeSegmentation;
-use unicode_width::UnicodeWidthStr;
-
-fn grapheme_display_width(g: &str) -> usize {
-    if g.contains('\u{FE0F}') {
-        return 2;
-    }
-    UnicodeWidthStr::width(g)
-}
 
 /// A widget to render from a text buffer onto the screen
 pub struct TextBufferWidget<'a> {

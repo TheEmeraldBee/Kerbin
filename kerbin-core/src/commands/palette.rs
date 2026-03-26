@@ -55,8 +55,8 @@ impl Command for PaletteCommand {
                 drop(palette);
 
                 let tokens = tokenize(&content).unwrap_or_default();
-                let resolver = resolver_engine().await;
-                let resolver = resolver.as_resolver();
+                let resolver_engine = resolver_engine().await;
+                let resolver = resolver_engine.as_resolver();
 
                 let mut expansion_errors: Vec<String> = Vec::new();
                 let expanded =
