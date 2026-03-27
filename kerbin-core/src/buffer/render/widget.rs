@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::{grapheme_display_width, CursorShape, Extmark, ExtmarkKind, StyledChunk, TextBuffer, VirtTextPos};
 use ratatui::prelude::*;
+use ropey::{Rope, RopeSlice};
 use unicode_segmentation::UnicodeSegmentation;
 
 /// A widget to render from a text buffer onto the screen
@@ -50,6 +51,139 @@ impl<'a> TextBufferWidget<'a> {
         self.cursor_on_tab_style = style;
         self
     }
+
+    #[allow(clippy::too_many_arguments)]
+    fn render_marked_line(
+        &self,
+        rope: &Rope,
+        marks: &[&Extmark],
+        rope_line: RopeSlice<'_>,
+        line_start_char: usize,
+        line_end_char: usize,
+        line_char_count: usize,
+        visible_len: usize,
+        extra_eof_space: bool,
+        width: usize,
+    ) -> LineRenderResult {
+        let char_marks: Vec<Extmark> = marks
+            .iter()
+            .map(|mark| {
+                let start_char = rope.byte_to_char(mark.byte_range.start.min(rope.len_bytes()));
+                // For the EOF extra-space case, allow end_char to extend one past
+                // rope.len_chars() so marks at the EOF position have non-zero width.
+                let end_char = rope.byte_to_char(mark.byte_range.end.min(rope.len_bytes()))
+                    + usize::from(extra_eof_space && mark.byte_range.end > rope.len_bytes());
+                Extmark {
+                    file_version: mark.file_version,
+                    id: mark.id,
+                    namespace: mark.namespace.clone(),
+                    byte_range: start_char..end_char,
+                    priority: mark.priority,
+                    kind: mark.kind.clone(),
+                    gravity: mark.gravity,
+                    adjustment: mark.adjustment,
+                    expand_on_insert: mark.expand_on_insert,
+                }
+            })
+            .collect();
+
+        let char_marks_refs: Vec<&Extmark> = char_marks.iter().collect();
+
+        let eof_extra = extra_eof_space as usize;
+        let mut lm = LineMarks::classify(
+            &char_marks_refs,
+            line_start_char,
+            line_end_char + eof_extra,
+            line_char_count + eof_extra,
+            visible_len + eof_extra,
+        );
+
+        let full_line_text: String = {
+            let base = rope_line
+                .to_string()
+                .chars()
+                .take(visible_len)
+                .collect::<String>();
+            if extra_eof_space { base + " " } else { base }
+        };
+
+        let (seg_list, col_ranges) = build_concealed_segments(&full_line_text, &lm.conceals);
+
+        let mut segments = apply_highlights(
+            seg_list,
+            &col_ranges,
+            &mut lm.highlights,
+            &lm.conceals,
+            &lm.newline_highlights,
+            visible_len + eof_extra,
+        );
+
+        if !lm.eol_highlights.is_empty() {
+            lm.eol_highlights.sort_by_key(|(_, p)| *p);
+            let mut eol_style = Style::default();
+            for (s, _) in &lm.eol_highlights {
+                eol_style = eol_style.patch(*s);
+            }
+            segments.push(StyledSegment {
+                text: " ".to_string(),
+                style: eol_style,
+            });
+        }
+
+        lm.inline_marks.sort_by_key(|(col, _)| *col);
+        for (col, chunks) in lm.inline_marks.iter().rev() {
+            let display_col = buffer_to_display(*col, &lm.conceals);
+            segments.insert_at(display_col, chunks);
+        }
+
+        for (col, chunks) in &lm.overlay_marks {
+            let display_col = buffer_to_display(*col, &lm.conceals);
+            segments.overlay_at(display_col, chunks);
+        }
+
+        let cursor_display_cols: Vec<usize> = lm
+            .cursors
+            .iter()
+            .map(|&(col, _, _, _)| {
+                let char_col = buffer_to_display(col, &lm.conceals);
+                char_col_to_display_col(&full_line_text, char_col, &self.tab_display_unit)
+            })
+            .collect();
+
+        let mut spans = segments.into_spans(
+            self.h_scroll,
+            width,
+            &self.tab_display_unit,
+            self.tab_style,
+            self.cursor_on_tab_style,
+            &cursor_display_cols,
+        );
+
+        let cursors: Vec<(usize, CursorShape)> = cursor_display_cols
+            .iter()
+            .zip(lm.cursors.iter())
+            .map(|(&display_col, &(_, _, _, shape))| (display_col, shape))
+            .collect();
+
+        append_eol_and_right_align(
+            &mut spans,
+            &mut lm.eol_chunks,
+            &mut lm.right_align_chunks,
+            width,
+        );
+
+        let mut popups = Vec::new();
+        for (anchor_col, content, offset_x, offset_y, z_index) in lm.popups {
+            let display_col = buffer_to_display(anchor_col, &lm.conceals);
+            popups.push((display_col, content, offset_x, offset_y, z_index));
+        }
+
+        LineRenderResult {
+            line: Line::from(spans),
+            cursors,
+            popups,
+        }
+    }
 }
 
 /// State output from rendering a `TextBufferWidget`, carrying the cursor's screen position.
@@ -58,9 +192,64 @@ pub struct CursorRenderState {
     pub cursor: Option<(u16, u16, CursorShape)>,
 }
 
+struct LineRenderResult {
+    line: Line<'static>,
+    /// (display_col, shape) for each cursor on this line; caller converts to screen coords.
+    cursors: Vec<(usize, CursorShape)>,
+    /// (anchor_display_col, content, offset_x, offset_y, z_index); caller computes screen coords.
+    popups: Vec<(usize, Arc<ratatui::buffer::Buffer>, i32, i32, i32)>,
+}
+
 struct StyledSegment {
     text: String,
     style: Style,
+}
+
+fn render_plain_line(
+    line_str: &str,
+    h_scroll: usize,
+    width: usize,
+    tab_display_unit: &str,
+    tab_style: Style,
+) -> Vec<Span<'static>> {
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    let mut text = String::new();
+    let mut col = 0usize;
+    let tab_w = tab_display_unit.chars().count();
+    for g in line_str.graphemes(true) {
+        if g == "\t" {
+            if col + tab_w <= h_scroll {
+                col += tab_w;
+                continue;
+            }
+            if col >= h_scroll + width {
+                break;
+            }
+            if !text.is_empty() {
+                spans.push(Span::raw(std::mem::take(&mut text)));
+            }
+            spans.push(Span::styled(tab_display_unit.to_owned(), tab_style));
+            col += tab_w;
+            continue;
+        }
+        if g == "\n" || g == "\r\n" || g == "\r" {
+            break;
+        }
+        let g_w = grapheme_display_width(g);
+        if col + g_w <= h_scroll {
+            col += g_w;
+            continue;
+        }
+        if col >= h_scroll + width {
+            break;
+        }
+        text.push_str(g);
+        col += g_w;
+    }
+    if !text.is_empty() {
+        spans.push(Span::raw(text));
+    }
+    spans
 }
 
 fn char_to_byte_offset(s: &str, n: usize) -> usize {
@@ -197,6 +386,9 @@ impl SegmentList {
         let overlay_start = display_col;
         let overlay_end = display_col + overlay_len;
 
+        // Phase 1: walk existing segments, splitting each one that overlaps the overlay range.
+        // Segments fully outside the range are kept as-is; overlapping segments are split into
+        // a pre-part (original style), an overlay part (chunk style), and a post-part (original style).
         for seg in self.segments.drain(..) {
             let seg_len = seg.text.chars().count();
             let seg_end = visual_pos + seg_len;
@@ -213,6 +405,7 @@ impl SegmentList {
                     });
                 }
 
+                // Consume overlay chunks to fill the portion of this segment that is overlapped.
                 let mut remaining_in_seg = seg_end.min(overlay_end) - visual_pos.max(overlay_start);
                 while remaining_in_seg > 0 && chunk_idx < chunks.len() {
                     let chunk = &chunks[chunk_idx];
@@ -246,6 +439,7 @@ impl SegmentList {
             visual_pos = seg_end;
         }
 
+        // Phase 2: overlay extends past the last existing segment — append remaining overlay chars.
         while overlay_remaining > 0 && chunk_idx < chunks.len() {
             let chunk = &chunks[chunk_idx];
             let chunk_char_len = chunk.text.chars().count();
@@ -694,164 +888,49 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
 
             if marks.is_empty() {
                 let line_str = rope_line.to_string();
-                let mut spans: Vec<Span<'static>> = Vec::new();
-                let mut text = String::new();
-                let mut col = 0usize;
-                let width = area.width as usize;
-                for g in line_str.graphemes(true) {
-                    if g == "\t" {
-                        let unit = &self.tab_display_unit;
-                        let unit_w = unit.chars().count();
-                        if col + unit_w <= self.h_scroll {
-                            col += unit_w;
-                            continue;
-                        }
-                        if col >= self.h_scroll + width {
-                            break;
-                        }
-                        if !text.is_empty() {
-                            spans.push(Span::raw(std::mem::take(&mut text)));
-                        }
-                        spans.push(Span::styled(unit.to_owned(), self.tab_style));
-                        col += unit_w;
-                        continue;
-                    }
-                    if g == "\n" || g == "\r\n" || g == "\r" {
-                        break;
-                    }
-                    let g_w = grapheme_display_width(g);
-                    if col + g_w <= self.h_scroll {
-                        col += g_w;
-                        continue;
-                    }
-                    if col >= self.h_scroll + width {
-                        break;
-                    }
-                    text.push_str(g);
-                    col += g_w;
-                }
-                if !text.is_empty() {
-                    spans.push(Span::raw(text));
-                }
+                let spans = render_plain_line(
+                    &line_str,
+                    self.h_scroll,
+                    area.width as usize,
+                    &self.tab_display_unit,
+                    self.tab_style,
+                );
                 lines.push(Line::from(spans));
                 continue;
             }
 
-            let char_marks: Vec<Extmark> = marks
-                .iter()
-                .map(|mark| {
-                    let start_char = rope.byte_to_char(mark.byte_range.start.min(rope.len_bytes()));
-                    // For the EOF extra-space case, allow end_char to extend one past
-                    // rope.len_chars() so marks at the EOF position have non-zero width.
-                    let end_char = rope.byte_to_char(mark.byte_range.end.min(rope.len_bytes()))
-                        + usize::from(extra_eof_space && mark.byte_range.end > rope.len_bytes());
-                    Extmark {
-                        file_version: mark.file_version,
-                        id: mark.id,
-                        namespace: mark.namespace.clone(),
-                        byte_range: start_char..end_char,
-                        priority: mark.priority,
-                        kind: mark.kind.clone(),
-                        gravity: mark.gravity,
-                        adjustment: mark.adjustment,
-                        expand_on_insert: mark.expand_on_insert,
-                    }
-                })
-                .collect();
-
-            let char_marks_refs: Vec<&Extmark> = char_marks.iter().collect();
-
-            let eof_extra = extra_eof_space as usize;
-            let mut lm = LineMarks::classify(
-                &char_marks_refs,
+            let result = self.render_marked_line(
+                rope,
+                &marks,
+                rope_line,
                 line_start_char,
-                line_end_char + eof_extra,
-                line_char_count + eof_extra,
-                visible_len + eof_extra,
+                line_end_char,
+                line_char_count,
+                visible_len,
+                extra_eof_space,
+                area.width as usize,
             );
-
-            let full_line_text: String = {
-                let base = rope_line
-                    .to_string()
-                    .chars()
-                    .take(visible_len)
-                    .collect::<String>();
-                if extra_eof_space { base + " " } else { base }
-            };
-
-            let (seg_list, col_ranges) = build_concealed_segments(&full_line_text, &lm.conceals);
-
-            let mut segments = apply_highlights(
-                seg_list,
-                &col_ranges,
-                &mut lm.highlights,
-                &lm.conceals,
-                &lm.newline_highlights,
-                visible_len + eof_extra,
-            );
-
-            if !lm.eol_highlights.is_empty() {
-                lm.eol_highlights.sort_by_key(|(_, p)| *p);
-                let mut eol_style = Style::default();
-                for (s, _) in &lm.eol_highlights {
-                    eol_style = eol_style.patch(*s);
-                }
-                segments.push(StyledSegment {
-                    text: " ".to_string(),
-                    style: eol_style,
-                });
-            }
-
-            lm.inline_marks.sort_by_key(|(col, _)| *col);
-            for (col, chunks) in lm.inline_marks.iter().rev() {
-                let display_col = buffer_to_display(*col, &lm.conceals);
-                segments.insert_at(display_col, chunks);
-            }
-
-            for (col, chunks) in &lm.overlay_marks {
-                let display_col = buffer_to_display(*col, &lm.conceals);
-                segments.overlay_at(display_col, chunks);
-            }
-
-            let width = area.width as usize;
-            let cursor_display_cols: Vec<usize> = lm
-                .cursors
-                .iter()
-                .map(|&(col, _, _, _)| {
-                    let char_col = buffer_to_display(col, &lm.conceals);
-                    char_col_to_display_col(&full_line_text, char_col, &self.tab_display_unit)
-                })
-                .collect();
-            let mut spans = segments.into_spans(self.h_scroll, width, &self.tab_display_unit, self.tab_style, self.cursor_on_tab_style, &cursor_display_cols);
 
             let current_line_index = lines.len();
-            for (&display_col, &(_, _, _, shape)) in cursor_display_cols.iter().zip(lm.cursors.iter()) {
-                if display_col >= self.h_scroll && display_col < self.h_scroll + width {
+            for (display_col, shape) in &result.cursors {
+                if *display_col >= self.h_scroll && *display_col < self.h_scroll + area.width as usize {
                     let screen_x = area.x + (display_col - self.h_scroll) as u16;
                     let screen_y = area.y + current_line_index as u16;
-                    state.cursor = Some((screen_x, screen_y, shape));
+                    state.cursor = Some((screen_x, screen_y, *shape));
                 }
             }
 
-            append_eol_and_right_align(
-                &mut spans,
-                &mut lm.eol_chunks,
-                &mut lm.right_align_chunks,
-                width,
-            );
-
-            for (anchor_col, content, offset_x, offset_y, z_index) in lm.popups {
-                let display_col = buffer_to_display(anchor_col, &lm.conceals);
-                let screen_x = if display_col >= self.h_scroll {
-                    area.x + (display_col - self.h_scroll) as u16
+            for (anchor_display_col, content, offset_x, offset_y, z_index) in result.popups {
+                let screen_x = if anchor_display_col >= self.h_scroll {
+                    area.x + (anchor_display_col - self.h_scroll) as u16
                 } else {
                     area.x
                 };
-                let screen_y = area.y + lines.len() as u16;
+                let screen_y = area.y + current_line_index as u16;
                 pending_overlays.push((screen_x, screen_y, content, offset_x, offset_y, z_index));
             }
 
-            lines.push(Line::from(spans));
+            lines.push(result.line);
         }
 
         Text::from(lines).render(area, buf);

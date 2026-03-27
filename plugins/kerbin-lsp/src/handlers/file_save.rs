@@ -41,15 +41,15 @@ pub async fn file_saved(
         .get(&lang)
         .and_then(|i| i.format.clone());
 
-    if let Some(fmt) = fmt_config {
-        if fmt.format_on_save {
-            match fmt.kind {
-                FormatterKind::Lsp => {
-                    send_lsp_format_request(&mut cur_buf, &mut lsp_manager, &lang, uri).await;
-                }
-                FormatterKind::External(cmd, args) => {
-                    send_external_format_request(&mut cur_buf, &cmd, &args).await;
-                }
+    if let Some(fmt) = fmt_config
+        && fmt.format_on_save
+    {
+        match fmt.kind {
+            FormatterKind::Lsp => {
+                send_lsp_format_request(&mut cur_buf, &mut lsp_manager, &lang, uri).await;
+            }
+            FormatterKind::External(cmd, args) => {
+                send_external_format_request(&mut cur_buf, &cmd, &args).await;
             }
         }
     }

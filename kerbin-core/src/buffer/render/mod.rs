@@ -20,6 +20,35 @@ pub fn grapheme_display_width(g: &str) -> usize {
     UnicodeWidthStr::width(g)
 }
 
+fn render_buffer_to_chunk(
+    buf: &TextBuffer,
+    chunk: &mut InnerChunk,
+    core_config: &CoreConfig,
+    theme: &Theme,
+    focused: bool,
+) {
+    let area = chunk.area();
+    let tab_style = theme.get_fallback_default(["ui.text.tabs", "ui.text"]);
+    let cursor_on_tab_style = theme.get_fallback_default(["ui.selection"]);
+    let mut cursor_state = CursorRenderState::default();
+    TextBufferWidget::new(buf)
+        .with_vertical_scroll(buf.renderer.byte_scroll)
+        .with_horizontal_scroll(buf.renderer.h_scroll)
+        .with_tab_display_unit(core_config.tab_display_unit.clone())
+        .with_tab_style(tab_style)
+        .with_cursor_on_tab_style(cursor_on_tab_style)
+        .render(area, chunk, &mut cursor_state);
+    if focused {
+        if let Some((cx, cy, shape)) = cursor_state.cursor {
+            chunk.set_cursor(0, cx, cy, shape);
+        } else {
+            chunk.remove_cursor();
+        }
+    } else {
+        chunk.remove_cursor();
+    }
+}
+
 pub async fn render_buffer_default(
     gutter_chunk: Chunk<BufferGutterChunk>,
     chunk: Chunk<BufferChunk>,
@@ -36,24 +65,7 @@ pub async fn render_buffer_default(
 
     let buf = buffers.cur_buffer().await;
 
-    let area = chunk.area();
-
-    let tab_style = theme.get_fallback_default(["ui.text.tabs", "ui.text"]);
-    let cursor_on_tab_style = theme.get_fallback_default(["ui.selection"]);
-    let mut cursor_state = CursorRenderState::default();
-    TextBufferWidget::new(&buf)
-        .with_vertical_scroll(buf.renderer.byte_scroll)
-        .with_horizontal_scroll(buf.renderer.h_scroll)
-        .with_tab_display_unit(core_config.tab_display_unit.clone())
-        .with_tab_style(tab_style)
-        .with_cursor_on_tab_style(cursor_on_tab_style)
-        .render(area, &mut chunk, &mut cursor_state);
-
-    if let Some((cx, cy, shape)) = cursor_state.cursor {
-        chunk.set_cursor(0, cx, cy, shape);
-    } else {
-        chunk.remove_cursor();
-    }
+    render_buffer_to_chunk(&buf, &mut *chunk, &core_config, &theme, true);
 
     if let Some(mut gutter) = gutter_chunk.get().await {
         let gutter_area = gutter.area();
@@ -101,25 +113,13 @@ pub async fn render_splits(
             continue;
         };
         let mut chunk = chunk_arc.write_owned().await;
-        let area = chunk.area();
-
-        let tab_style = theme.get_fallback_default(["ui.text.tabs", "ui.text"]);
-        let cursor_on_tab_style = theme.get_fallback_default(["ui.selection"]);
-        let mut cursor_state = CursorRenderState::default();
-        TextBufferWidget::new(&buf)
-            .with_vertical_scroll(buf.renderer.byte_scroll)
-            .with_horizontal_scroll(buf.renderer.h_scroll)
-            .with_tab_display_unit(core_config.tab_display_unit.clone())
-            .with_tab_style(tab_style)
-            .with_cursor_on_tab_style(cursor_on_tab_style)
-            .render(area, &mut *chunk, &mut cursor_state);
-        chunk.remove_cursor();
+        render_buffer_to_chunk(&buf, &mut *chunk, &core_config, &theme, false);
 
         if let Some(gutter_arc) = chunks.get_indexed_chunk::<BufferGutterChunk>(i) {
             let mut gutter = gutter_arc.write_owned().await;
             let gutter_area = gutter.area();
             GutterWidget::new(buf.renderer.byte_scroll, buf.len_lines(), &theme)
-                .render(gutter_area, &mut *gutter);
+                .render(gutter_area, &mut gutter);
         }
 
         if let Some(bl_arc) = chunks.get_indexed_chunk::<BufferlineChunk>(i) {
@@ -131,7 +131,7 @@ pub async fn render_splits(
             };
             buffers
                 .render_bufferline_pane(
-                    &mut *bl,
+                    &mut bl,
                     &theme,
                     &displayed_global_indices,
                     pane.selected_local,

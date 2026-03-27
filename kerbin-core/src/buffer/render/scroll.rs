@@ -1,6 +1,34 @@
 use crate::*;
 use unicode_segmentation::UnicodeSegmentation;
 
+/// Converts a display column to the byte offset within `line_text` at which
+/// that column begins. Handles tabs (expanded to `tab_display_width` cells),
+/// emoji variation selectors, and wide Unicode.
+pub fn display_col_to_byte_offset(
+    line_text: &str,
+    target_display_col: usize,
+    tab_display_width: usize,
+) -> usize {
+    let mut byte_offset = 0usize;
+    let mut current_width = 0usize;
+    for g in line_text.graphemes(true) {
+        if g == "\n" || g == "\r\n" || g == "\r" {
+            break;
+        }
+        if current_width >= target_display_col {
+            break;
+        }
+        let w = if g == "\t" {
+            tab_display_width
+        } else {
+            grapheme_display_width(g)
+        };
+        current_width += w;
+        byte_offset += g.len();
+    }
+    byte_offset
+}
+
 pub async fn update_buffer_horizontal_scroll(chunk: Chunk<BufferChunk>, buffers: ResMut<Buffers>) {
     let Some(chunk) = chunk.get().await else {
         return;

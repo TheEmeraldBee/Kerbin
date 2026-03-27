@@ -271,10 +271,10 @@ impl PaneNode {
             PaneNode::Pane(_) => None,
             PaneNode::Container { children, .. } => {
                 for i in 0..children.len() {
-                    if matches!(&children[i], PaneNode::Pane(p) if p.id == id) {
-                        if let PaneNode::Pane(removed) = children.remove(i) {
-                            return Some(removed);
-                        }
+                    if matches!(&children[i], PaneNode::Pane(p) if p.id == id)
+                        && let PaneNode::Pane(removed) = children.remove(i)
+                    {
+                        return Some(removed);
                     }
                 }
                 for child in children {

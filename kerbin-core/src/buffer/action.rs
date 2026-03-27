@@ -1,5 +1,21 @@
-use super::TextBuffer;
+use super::{Cursor, TextBuffer};
 use crate::buffer::text_rope_handlers::SafeRopeAccess;
+
+fn shift_cursors(
+    cursors: &mut [Cursor],
+    primary: usize,
+    f: impl Fn(usize, usize) -> (usize, usize),
+) {
+    for (i, cursor) in cursors.iter_mut().enumerate() {
+        if i == primary {
+            continue;
+        }
+        let start = *cursor.sel.start();
+        let end = *cursor.sel.end();
+        let (new_start, new_end) = f(start, end);
+        cursor.sel = new_start..=new_end;
+    }
+}
 
 /// A result of an action that stores whether the action was applied
 pub struct ActionResult {
@@ -45,19 +61,15 @@ impl BufferAction for Insert {
         let content_len = self.content.len();
 
         // Adjust all cursors - this needs to properly handle multi-line content
-        for (i, cursor) in buf.cursors.iter_mut().enumerate() {
-            if i == buf.primary_cursor {
-                continue;
-            }
-            let start_byte = *cursor.sel.start();
-            let end_byte = *cursor.sel.end();
-
+        shift_cursors(&mut buf.cursors, buf.primary_cursor, |start_byte, end_byte| {
             if start_byte > actual_byte {
-                cursor.sel = (start_byte + content_len)..=(end_byte + content_len);
+                (start_byte + content_len, end_byte + content_len)
             } else if end_byte >= actual_byte {
-                cursor.sel = start_byte..=(end_byte + content_len);
+                (start_byte, end_byte + content_len)
+            } else {
+                (start_byte, end_byte)
             }
-        }
+        });
 
         let end = buf.get_edit_part(actual_byte + self.content.len());
         buf.register_input_edit(start, start, end);
@@ -115,33 +127,23 @@ impl BufferAction for Delete {
         buf.remove_range(del_start_byte..del_end_byte);
 
         // Adjust other cursors to account for the deleted text
-        for (i, cursor) in buf.cursors.iter_mut().enumerate() {
-            if i == buf.primary_cursor {
-                continue;
-            }
-
-            let start_byte = *cursor.sel.start();
-            let end_byte = *cursor.sel.end();
-            let mut new_start = start_byte;
-            let mut new_end = end_byte;
-
-            // If a cursor's selection is entirely after the deleted region, shift it left
-            if start_byte >= del_end_byte {
-                new_start = start_byte.saturating_sub(bytes_removed);
+        shift_cursors(&mut buf.cursors, buf.primary_cursor, |start_byte, end_byte| {
+            let new_start = if start_byte >= del_end_byte {
+                start_byte.saturating_sub(bytes_removed)
             } else if start_byte >= del_start_byte {
-                // If a cursor's selection starts within or before the deleted region
-                // and extends beyond, collapse its start to the deletion point
-                new_start = del_start_byte;
-            }
-
-            if end_byte >= del_end_byte {
-                new_end = end_byte.saturating_sub(bytes_removed);
+                del_start_byte
+            } else {
+                start_byte
+            };
+            let new_end = if end_byte >= del_end_byte {
+                end_byte.saturating_sub(bytes_removed)
             } else if end_byte >= del_start_byte {
-                new_end = del_start_byte;
-            }
-
-            cursor.sel = new_start..=new_end;
-        }
+                del_start_byte
+            } else {
+                end_byte
+            };
+            (new_start, new_end)
+        });
 
         // Register the edit for syntax highlighting updates
         buf.register_input_edit(start, old_end, start);

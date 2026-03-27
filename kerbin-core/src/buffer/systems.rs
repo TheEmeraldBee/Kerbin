@@ -2,7 +2,6 @@ use std::collections::VecDeque;
 
 use crate::*;
 use ratatui::style::{Color, Style};
-use unicode_segmentation::UnicodeSegmentation;
 
 pub async fn render_cursors_and_selections(
     bufs: ResMut<Buffers>,
@@ -226,6 +225,20 @@ pub async fn update_tab_width_template(buffers: Res<Buffers>) {
         .set_template("tab_unit", tab_unit);
 }
 
+fn mouse_trigger(kind: crossterm::event::MouseEventKind) -> Option<MouseTrigger> {
+    use crossterm::event::{MouseButton, MouseEventKind};
+    match kind {
+        MouseEventKind::Down(MouseButton::Left) => Some(MouseTrigger::LeftDown),
+        MouseEventKind::Up(MouseButton::Left) => Some(MouseTrigger::LeftUp),
+        MouseEventKind::Down(MouseButton::Right) => Some(MouseTrigger::RightDown),
+        MouseEventKind::Up(MouseButton::Right) => Some(MouseTrigger::RightUp),
+        MouseEventKind::Down(MouseButton::Middle) => Some(MouseTrigger::MiddleDown),
+        MouseEventKind::ScrollUp => Some(MouseTrigger::ScrollUp),
+        MouseEventKind::ScrollDown => Some(MouseTrigger::ScrollDown),
+        _ => None,
+    }
+}
+
 pub async fn cleanup_buffers(buffers: ResMut<Buffers>) {
     get!(mut buffers);
 
@@ -249,8 +262,6 @@ pub async fn handle_mouse_events(
     core_config: Res<CoreConfig>,
     split: Res<SplitState>,
 ) {
-    use crossterm::event::{MouseButton, MouseEventKind};
-
     get!(events, chunks, buffers, mouse_bindings, modes, core_config, split);
 
     if events.0.is_empty() {
@@ -262,16 +273,7 @@ pub async fn handle_mouse_events(
             continue;
         };
 
-        let trigger = match mouse_ev.kind {
-            MouseEventKind::Down(MouseButton::Left) => MouseTrigger::LeftDown,
-            MouseEventKind::Up(MouseButton::Left) => MouseTrigger::LeftUp,
-            MouseEventKind::Down(MouseButton::Right) => MouseTrigger::RightDown,
-            MouseEventKind::Up(MouseButton::Right) => MouseTrigger::RightUp,
-            MouseEventKind::Down(MouseButton::Middle) => MouseTrigger::MiddleDown,
-            MouseEventKind::ScrollUp => MouseTrigger::ScrollUp,
-            MouseEventKind::ScrollDown => MouseTrigger::ScrollDown,
-            _ => continue,
-        };
+        let Some(trigger) = mouse_trigger(mouse_ev.kind) else { continue; };
 
         let col = mouse_ev.column;
         let row = mouse_ev.row;
@@ -282,25 +284,24 @@ pub async fn handle_mouse_events(
         if matches!(trigger, MouseTrigger::LeftDown) && split.pane_count() > 1 {
             let n = chunks.indexed_count::<BufferChunk>();
             'pane_check: for pane_i in 0..n {
-                if let Some(pane_rect) = chunks.rect_for_indexed_chunk::<BufferChunk>(pane_i) {
-                    if col >= pane_rect.x
-                        && col < pane_rect.x + pane_rect.width
-                        && row >= pane_rect.y
-                        && row < pane_rect.y + pane_rect.height
-                    {
-                        area_opt = Some(pane_rect);
-                        let is_focused = split
-                            .leaves()
-                            .get(pane_i)
-                            .map(|p| p.id)
-                            == Some(split.focused_id);
-                        if !is_focused {
-                            let focus_cmd: Box<dyn Command> =
-                                Box::new(SplitCommand::FocusPane(pane_i));
-                            command_sender.get().await.send(focus_cmd).unwrap();
-                        }
-                        break 'pane_check;
+                if let Some(pane_rect) = chunks.rect_for_indexed_chunk::<BufferChunk>(pane_i)
+                    && col >= pane_rect.x
+                    && col < pane_rect.x + pane_rect.width
+                    && row >= pane_rect.y
+                    && row < pane_rect.y + pane_rect.height
+                {
+                    area_opt = Some(pane_rect);
+                    let is_focused = split
+                        .leaves()
+                        .get(pane_i)
+                        .map(|p| p.id)
+                        == Some(split.focused_id);
+                    if !is_focused {
+                        let focus_cmd: Box<dyn Command> =
+                            Box::new(SplitCommand::FocusPane(pane_i));
+                        command_sender.get().await.send(focus_cmd).unwrap();
                     }
+                    break 'pane_check;
                 }
             }
         }
@@ -324,25 +325,7 @@ pub async fn handle_mouse_events(
                 .unwrap_or_default();
 
             let tab_w = core_config.tab_display_unit.chars().count();
-            let mut byte_offset = 0usize;
-            let mut current_width = 0usize;
-            for g in line_text.graphemes(true) {
-                if g == "\n" || g == "\r\n" || g == "\r" {
-                    break;
-                }
-                if current_width >= target_display_col {
-                    break;
-                }
-                let w = if g == "\t" {
-                    tab_w
-                } else if g.contains('\u{FE0F}') {
-                    2
-                } else {
-                    UnicodeWidthStr::width(g)
-                };
-                current_width += w;
-                byte_offset += g.len();
-            }
+            let byte_offset = display_col_to_byte_offset(&line_text, target_display_col, tab_w);
 
             drop(buf);
 

@@ -1,6 +1,34 @@
 use crate::*;
 use regex_cursor::engines::meta::Regex;
 
+/// Applies a regex match range to the primary cursor, handling extend vs replace.
+/// `end` is the exclusive end from the regex engine; the cursor selection is inclusive.
+fn apply_match_sel(buf: &mut TextBuffer, start: usize, end: usize, extend: bool) {
+    let sel_end = end.saturating_sub(1);
+    if extend {
+        let existing = buf.primary_cursor().sel().clone();
+        let new_start = (*existing.start()).min(start);
+        let new_end = (*existing.end()).max(sel_end);
+        buf.primary_cursor_mut().set_sel(new_start..=new_end);
+    } else {
+        buf.primary_cursor_mut().set_sel(start..=sel_end);
+    }
+}
+
+fn rope_input(slice: ropey::RopeSlice<'_>) -> regex_cursor::Input<RopeyCursor<'_>> {
+    regex_cursor::Input::new(RopeyCursor::new(slice))
+}
+
+fn try_compile_regex(pattern: &str, log: &LogSender) -> Option<Regex> {
+    match Regex::new(pattern) {
+        Ok(r) => Some(r),
+        Err(e) => {
+            log.high("command::motion", format!("Invalid regex: {e}"));
+            None
+        }
+    }
+}
+
 #[derive(Debug, Clone, Command)]
 pub enum MotionCommand {
     #[command(name = "rx")]
@@ -255,31 +283,11 @@ impl Command for MotionCommand {
             }
 
             Self::Regex { pattern, extend } => {
-                let regex = match Regex::new(pattern) {
-                    Ok(r) => r,
-                    Err(e) => {
-                        log.high("command::motion", format!("Invalid regex: {}", e));
-                        return false;
-                    }
-                };
+                let Some(regex) = try_compile_regex(pattern, &log) else { return false; };
 
                 let len = cur_buffer.len();
-                let slice = cur_buffer.slice_clamped(0, len);
-
-                let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
-                let search_result = regex.search(searcher);
-
-                if let Some(m) = search_result {
-                    if *extend {
-                        let existing_selection = cur_buffer.primary_cursor().sel().clone();
-                        let new_start = (*existing_selection.start()).min(m.start());
-                        let new_end = (*existing_selection.end()).max(m.end().saturating_sub(1));
-                        cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
-                    } else {
-                        cur_buffer
-                            .primary_cursor_mut()
-                            .set_sel(m.start()..=m.end().saturating_sub(1));
-                    }
+                if let Some(m) = regex.search(rope_input(cur_buffer.slice_clamped(0, len))) {
+                    apply_match_sel(&mut cur_buffer, m.start(), m.end(), *extend);
                     true
                 } else {
                     false
@@ -292,13 +300,7 @@ impl Command for MotionCommand {
                 extend,
                 advance,
             } => {
-                let regex = match Regex::new(pattern) {
-                    Ok(r) => r,
-                    Err(e) => {
-                        log.high("command::motion", format!("Invalid regex: {}", e));
-                        return false;
-                    }
-                };
+                let Some(regex) = try_compile_regex(pattern, &log) else { return false; };
 
                 let base_cursor = cur_buffer
                     .primary_cursor()
@@ -315,30 +317,17 @@ impl Command for MotionCommand {
                     let mut search_from = base_cursor;
 
                     loop {
-                        if search_from >= len {
-                            return false;
-                        }
+                        if search_from >= len { return false; }
 
-                        let slice = cur_buffer.slice_clamped(search_from, len);
-
-                        let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
-                        let Some(x) = regex.search(searcher) else {
+                        let Some(x) = regex.search(rope_input(cur_buffer.slice_clamped(search_from, len))) else {
                             return false;
                         };
 
                         let start = x.start() + search_from;
                         let end = x.end() + search_from;
-                        let sel_end = end.saturating_sub(1);
 
-                        if sel_end != original_end {
-                            if *extend {
-                                let existing = cur_buffer.primary_cursor().sel().clone();
-                                let new_start = (*existing.start()).min(start);
-                                let new_end = (*existing.end()).max(sel_end);
-                                cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
-                            } else {
-                                cur_buffer.primary_cursor_mut().set_sel(start..=sel_end);
-                            }
+                        if end.saturating_sub(1) != original_end {
+                            apply_match_sel(&mut cur_buffer, start, end, *extend);
                             return true;
                         }
 
@@ -346,25 +335,10 @@ impl Command for MotionCommand {
                     }
                 }
 
-                let slice = cur_buffer.slice_clamped(base_cursor, len);
-
-                let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
-                let search_result = regex.search(searcher);
-
-                if let Some(m) = search_result {
+                if let Some(m) = regex.search(rope_input(cur_buffer.slice_clamped(base_cursor, len))) {
                     let start = m.start() + base_cursor;
                     let end = m.end() + base_cursor;
-
-                    if *extend {
-                        let existing_selection = cur_buffer.primary_cursor().sel().clone();
-                        let new_start = (*existing_selection.start()).min(start);
-                        let new_end = (*existing_selection.end()).max(end.saturating_sub(1));
-                        cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
-                    } else {
-                        cur_buffer
-                            .primary_cursor_mut()
-                            .set_sel(start..=end.saturating_sub(1));
-                    }
+                    apply_match_sel(&mut cur_buffer, start, end, *extend);
                     true
                 } else {
                     false
@@ -377,13 +351,7 @@ impl Command for MotionCommand {
                 extend,
                 advance,
             } => {
-                let regex = match Regex::new(pattern) {
-                    Ok(r) => r,
-                    Err(e) => {
-                        log.high("command::motion", format!("Invalid regex: {}", e));
-                        return false;
-                    }
-                };
+                let Some(regex) = try_compile_regex(pattern, &log) else { return false; };
 
                 let base_cursor = cur_buffer
                     .primary_cursor()
@@ -396,14 +364,9 @@ impl Command for MotionCommand {
                     let mut search_ceil = base_cursor;
 
                     loop {
-                        if search_ceil == 0 {
-                            return false;
-                        }
+                        if search_ceil == 0 { return false; }
 
-                        let slice = cur_buffer.slice_clamped(0, search_ceil);
-
-                        let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
-                        let Some(x) = regex.find_iter(searcher).last() else {
+                        let Some(x) = regex.find_iter(rope_input(cur_buffer.slice_clamped(0, search_ceil))).last() else {
                             return false;
                         };
 
@@ -411,16 +374,7 @@ impl Command for MotionCommand {
                         let end = x.end();
 
                         if start != original_start {
-                            if *extend {
-                                let existing = cur_buffer.primary_cursor().sel().clone();
-                                let new_start = (*existing.start()).min(start);
-                                let new_end = (*existing.end()).max(end.saturating_sub(1));
-                                cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
-                            } else {
-                                cur_buffer
-                                    .primary_cursor_mut()
-                                    .set_sel(start..=end.saturating_sub(1));
-                            }
+                            apply_match_sel(&mut cur_buffer, start, end, *extend);
                             return true;
                         }
 
@@ -428,25 +382,8 @@ impl Command for MotionCommand {
                     }
                 }
 
-                let slice = cur_buffer.slice_clamped(0, base_cursor);
-
-                let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
-                let search_iter = regex.find_iter(searcher);
-
-                if let Some(m) = search_iter.last() {
-                    let start = m.start();
-                    let end = m.end();
-
-                    if *extend {
-                        let existing_selection = cur_buffer.primary_cursor().sel().clone();
-                        let new_start = (*existing_selection.start()).min(start);
-                        let new_end = (*existing_selection.end()).max(end.saturating_sub(1));
-                        cur_buffer.primary_cursor_mut().set_sel(new_start..=new_end);
-                    } else {
-                        cur_buffer
-                            .primary_cursor_mut()
-                            .set_sel(start..=end.saturating_sub(1));
-                    }
+                if let Some(m) = regex.find_iter(rope_input(cur_buffer.slice_clamped(0, base_cursor))).last() {
+                    apply_match_sel(&mut cur_buffer, m.start(), m.end(), *extend);
                     true
                 } else {
                     false
@@ -454,58 +391,35 @@ impl Command for MotionCommand {
             }
 
             Self::RegexSel { pattern } => {
-                let regex = match Regex::new(pattern) {
-                    Ok(r) => r,
-                    Err(e) => {
-                        log.high("command::motion", format!("Invalid regex: {}", e));
-                        return false;
-                    }
-                };
+                let Some(regex) = try_compile_regex(pattern, &log) else { return false; };
 
-                let cursor = cur_buffer.primary_cursor().sel();
-                let start_idx = *cursor.start();
-                let end_idx = *cursor.end() + 1; // slice is exclusive end
+                let start_idx = *cur_buffer.primary_cursor().sel().start();
+                let end_idx = *cur_buffer.primary_cursor().sel().end() + 1;
 
                 let slice = cur_buffer.slice_clamped(start_idx, end_idx);
-                let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
-                let x = regex.search(searcher);
-
-                if let Some(x) = x {
-                    let start = x.start() + *cursor.start();
-                    let end = x.end() + *cursor.start();
-
-                    cur_buffer
-                        .primary_cursor_mut()
-                        .set_sel(start..=end.saturating_sub(1));
-
+                if let Some(x) = regex.search(rope_input(slice)) {
+                    let start = x.start() + start_idx;
+                    let end = x.end() + start_idx;
+                    apply_match_sel(&mut cur_buffer, start, end, false);
                     true
                 } else {
                     false
                 }
             }
-            Self::RegexSelAll { pattern } => {
-                let regex = match Regex::new(pattern) {
-                    Ok(r) => r,
-                    Err(e) => {
-                        log.high("command::motion", format!("Invalid regex: {}", e));
-                        return false;
-                    }
-                };
 
-                let cursor = cur_buffer.primary_cursor().sel();
-                let start_idx = *cursor.start();
-                let end_idx = *cursor.end() + 1;
+            Self::RegexSelAll { pattern } => {
+                let Some(regex) = try_compile_regex(pattern, &log) else { return false; };
+
+                let start_idx = *cur_buffer.primary_cursor().sel().start();
+                let end_idx = *cur_buffer.primary_cursor().sel().end() + 1;
 
                 let slice = cur_buffer.slice_clamped(start_idx, end_idx);
-                let searcher = regex_cursor::Input::new(RopeyCursor::new(slice));
-
                 let initial_cursor = cur_buffer.primary_cursor;
 
-                let mut ranges = vec![];
-
-                for match_ in regex.find_iter(searcher) {
-                    ranges.push(match_.start()..=match_.end().saturating_sub(1));
-                }
+                let ranges: Vec<_> = regex
+                    .find_iter(rope_input(slice))
+                    .map(|m| m.start()..=m.end().saturating_sub(1))
+                    .collect();
 
                 for range in ranges {
                     cur_buffer.create_cursor();

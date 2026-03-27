@@ -171,10 +171,10 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
                     return Some(JsonRpcMessage::ServerRequest(request));
                 }
             }
-        } else if value.get("method").is_some() {
-            if let Ok(notification) = serde_json::from_value::<JsonRpcNotification>(value) {
-                return Some(JsonRpcMessage::Notification(notification));
-            }
+        } else if value.get("method").is_some()
+            && let Ok(notification) = serde_json::from_value::<JsonRpcNotification>(value)
+        {
+            return Some(JsonRpcMessage::Notification(notification));
         }
         None
     }

@@ -268,10 +268,10 @@ impl Command for BufferCommand {
                     return false;
                 }
 
-                reload_file_inner(&mut *cur_buffer, &*log, false)
+                reload_file_inner(&mut cur_buffer, &log, false)
             }
 
-            BufferCommand::ReloadFileForce => reload_file_inner(&mut *cur_buffer, &*log, true),
+            BufferCommand::ReloadFileForce => reload_file_inner(&mut cur_buffer, &log, true),
 
             BufferCommand::StartChange => {
                 cur_buffer.start_change_group();
@@ -543,11 +543,11 @@ impl Command for BuffersCommand {
             }
 
             Self::CloseBufferOffset(offset) => {
-                close_buffer_inner(state, &mut *buffers, &*log, offset.unwrap_or(0), false).await
+                close_buffer_inner(state, &mut buffers, &log, offset.unwrap_or(0), false).await
             }
 
             Self::CloseBufferOffsetForce(offset) => {
-                close_buffer_inner(state, &mut *buffers, &*log, offset.unwrap_or(0), true).await
+                close_buffer_inner(state, &mut buffers, &log, offset.unwrap_or(0), true).await
             }
         }
     }

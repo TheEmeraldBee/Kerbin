@@ -35,17 +35,22 @@ fn pane_global_idx(split: &SplitState, pane: &SplitPane) -> Option<usize> {
     }
 }
 
+async fn apply_buf_focus(state: &mut State, buf_idx: Option<usize>) {
+    if let Some(idx) = buf_idx {
+        state.lock_state::<Buffers>().await.set_selected_buffer(idx);
+    }
+}
+
 async fn focus_in_dir(state: &mut State, dx: i16, dy: i16) -> bool {
     let buf_idx = {
         let mut split = state.lock_state::<SplitState>().await;
         split.focus_in_direction(dx, dy);
         let focused_id = split.focused_id;
-        let buf_idx = split
+        split
             .leaves()
             .iter()
             .find(|p| p.id == focused_id)
-            .and_then(|p| pane_global_idx(&split, p));
-        buf_idx
+            .and_then(|p| pane_global_idx(&split, p))
     };
     if let Some(idx) = buf_idx {
         state.lock_state::<Buffers>().await.set_selected_buffer(idx);
@@ -129,9 +134,7 @@ impl Command for SplitCommand {
                         .find(|p| p.id == focused_id)
                         .and_then(|p| pane_global_idx(&split, p))
                 };
-                if let Some(idx) = buf_idx {
-                    state.lock_state::<Buffers>().await.set_selected_buffer(idx);
-                }
+                apply_buf_focus(state, buf_idx).await;
                 true
             }
 
@@ -149,9 +152,7 @@ impl Command for SplitCommand {
                     split.focused_id = id;
                     buf_idx
                 };
-                if let Some(idx) = buf_idx {
-                    state.lock_state::<Buffers>().await.set_selected_buffer(idx);
-                }
+                apply_buf_focus(state, buf_idx).await;
                 true
             }
 
@@ -172,9 +173,7 @@ impl Command for SplitCommand {
                     split.focused_id = id;
                     buf_idx
                 };
-                if let Some(idx) = buf_idx {
-                    state.lock_state::<Buffers>().await.set_selected_buffer(idx);
-                }
+                apply_buf_focus(state, buf_idx).await;
                 true
             }
 
@@ -195,9 +194,7 @@ impl Command for SplitCommand {
                     split.focused_id = id;
                     buf_idx
                 };
-                if let Some(idx) = buf_idx {
-                    state.lock_state::<Buffers>().await.set_selected_buffer(idx);
-                }
+                apply_buf_focus(state, buf_idx).await;
                 true
             }
 
@@ -214,12 +211,12 @@ impl Command for SplitCommand {
                         None => return false,
                     };
 
-                    if split.unique_buffers {
-                        if let Some(focused_pane) = split.focused_pane_mut() {
-                            for idx in removed.buffer_indices {
-                                if !focused_pane.buffer_indices.contains(&idx) {
-                                    focused_pane.buffer_indices.push(idx);
-                                }
+                    if split.unique_buffers
+                        && let Some(focused_pane) = split.focused_pane_mut()
+                    {
+                        for idx in removed.buffer_indices {
+                            if !focused_pane.buffer_indices.contains(&idx) {
+                                focused_pane.buffer_indices.push(idx);
                             }
                         }
                     }
@@ -231,9 +228,7 @@ impl Command for SplitCommand {
                         .find(|p| p.id == focused_id)
                         .and_then(|p| pane_global_idx(&split, p))
                 };
-                if let Some(idx) = buf_idx {
-                    state.lock_state::<Buffers>().await.set_selected_buffer(idx);
-                }
+                apply_buf_focus(state, buf_idx).await;
                 true
             }
 
@@ -296,9 +291,7 @@ impl Command for SplitCommand {
 
                     split.focused_pane().and_then(|p| pane_global_idx(&split, p))
                 };
-                if let Some(idx) = buf_idx {
-                    state.lock_state::<Buffers>().await.set_selected_buffer(idx);
-                }
+                apply_buf_focus(state, buf_idx).await;
                 true
             }
         }
