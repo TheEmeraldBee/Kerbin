@@ -5,7 +5,7 @@ use tree_sitter::{Parser, Tree};
 
 use crate::{
     grammar_manager::GrammarManager,
-    highlighter::{Highlighter, merge_overlapping_spans},
+    highlighter::{HighlightSpan, Highlighter, merge_overlapping_spans},
     locals::LocalsAnalysis,
     query_walker::QueryWalkerBuilder,
 };
@@ -237,13 +237,35 @@ pub async fn open_files(
 
     buf.renderer.clear_extmark_ns("tree-sitter::highlights");
 
-    for span in merge_overlapping_spans(spans) {
-        let hl_style = translate_name_to_style(&theme, &span.capture_name);
+    emit_spans(spans, "tree-sitter::highlights", &mut buf, &theme);
+}
 
+pub fn emit_spans(spans: Vec<HighlightSpan>, namespace: &str, buf: &mut TextBuffer, theme: &Theme) {
+    let (conceal_spans, highlight_spans): (Vec<_>, Vec<_>) = spans
+        .into_iter()
+        .partition(|s| s.is_conceal);
+
+    for span in merge_overlapping_spans(highlight_spans) {
         buf.add_extmark(
-            ExtmarkBuilder::new_range("tree-sitter::highlights", span.byte_range.clone())
+            ExtmarkBuilder::new_range(namespace, span.byte_range.clone())
                 .with_priority(span.priority as i32)
-                .with_kind(ExtmarkKind::Highlight { style: hl_style }),
+                .with_kind(ExtmarkKind::Highlight {
+                    style: translate_name_to_style(theme, &span.capture_name),
+                }),
+        );
+    }
+
+    for span in conceal_spans {
+        buf.add_extmark(
+            ExtmarkBuilder::new_range(namespace, span.byte_range.clone())
+                .with_priority(span.priority as i32)
+                .with_kind(ExtmarkKind::Conceal {
+                    replacement: None,
+                    style: None,
+                    scope: span.conceal_scope,
+                    trim_before: span.trim_before,
+                    trim_after: span.trim_after,
+                }),
         );
     }
 }
@@ -443,19 +465,40 @@ pub fn highlight_text(
     let mut last_idx = 0;
 
     for span in merged {
-        if span.byte_range.start > last_idx {
-            result.push((
-                text[last_idx..span.byte_range.start].to_string(),
-                theme.get("ui.text").unwrap_or_default(),
-            ));
+        // Skip spans entirely consumed by a previous trim_after
+        if span.byte_range.end <= last_idx {
+            continue;
         }
 
-        result.push((
-            text[span.byte_range.clone()].to_string(),
-            translate_name_to_style(theme, &span.capture_name),
-        ));
+        if span.byte_range.start > last_idx {
+            let raw = &text[last_idx..span.byte_range.start];
+            let seg = if span.is_conceal && span.trim_before {
+                raw.trim_end_matches(|c: char| c.is_ascii_whitespace())
+            } else {
+                raw
+            };
+            if !seg.is_empty() {
+                result.push((seg.to_string(), theme.get("ui.text").unwrap_or_default()));
+            }
+        }
+
+        if !span.is_conceal {
+            let start = span.byte_range.start.max(last_idx);
+            if start < span.byte_range.end {
+                result.push((
+                    text[start..span.byte_range.end].to_string(),
+                    translate_name_to_style(theme, &span.capture_name),
+                ));
+            }
+        }
 
         last_idx = span.byte_range.end;
+
+        if span.is_conceal && span.trim_after {
+            while last_idx < text.len() && text.as_bytes()[last_idx].is_ascii_whitespace() {
+                last_idx += 1;
+            }
+        }
     }
 
     if last_idx < text.len() {

@@ -85,6 +85,7 @@ impl KerbinBuffer for TextBuffer {
             .with_tab_display_unit(ctx.core_config.tab_display_unit.clone())
             .with_tab_style(tab_style)
             .with_cursor_on_tab_style(cursor_on_tab_style)
+            .with_reveal_conceal_on_cursor_line(ctx.core_config.reveal_conceal_on_cursor_line)
             .render(area, chunk, &mut cursor_state);
         if focused {
             if let Some((cx, cy, shape)) = cursor_state.cursor {

@@ -9,6 +9,13 @@
 (atx_heading (atx_h5_marker) @markup.heading.marker) @markup.heading.5
 (atx_heading (atx_h6_marker) @markup.heading.marker) @markup.heading.6
 
+((atx_heading (atx_h1_marker) @markup.heading.marker) (#conceal! "trim-after"))
+((atx_heading (atx_h2_marker) @markup.heading.marker) (#conceal! "trim-after"))
+((atx_heading (atx_h3_marker) @markup.heading.marker) (#conceal! "trim-after"))
+((atx_heading (atx_h4_marker) @markup.heading.marker) (#conceal! "trim-after"))
+((atx_heading (atx_h5_marker) @markup.heading.marker) (#conceal! "trim-after"))
+((atx_heading (atx_h6_marker) @markup.heading.marker) (#conceal! "trim-after"))
+
 [
   (indented_code_block)
   (fenced_code_block)
@@ -19,6 +26,9 @@
 [
   (fenced_code_block_delimiter)
 ] @punctuation.bracket
+
+((fenced_code_block_delimiter) @punctuation.bracket (#conceal!))
+((info_string) @label (#conceal! "trim-after"))
 
 [
   (link_destination)

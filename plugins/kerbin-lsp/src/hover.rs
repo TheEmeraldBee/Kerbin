@@ -14,6 +14,39 @@ use ratatui::{
 use crate::{JsonRpcMessage, LspManager, OpenedFile};
 use kerbin_tree_sitter::{grammar_manager::GrammarManager, state::highlight_text};
 
+struct HoverWidget {
+    lines: Vec<Vec<(char, Style)>>,
+    scroll_y: usize,
+    width: u16,
+    height: u16,
+}
+
+impl OverlayWidget for HoverWidget {
+    fn dimensions(&self) -> (u16, u16) {
+        (self.width, self.height)
+    }
+
+    fn render(&self, area: Rect, buf: &mut ratatui::buffer::Buffer) {
+        let text_lines: Vec<Line<'static>> = self
+            .lines
+            .iter()
+            .skip(self.scroll_y)
+            .take(area.height.saturating_sub(2) as usize)
+            .map(|line| {
+                Line::from(
+                    line.iter()
+                        .map(|(ch, s)| Span::styled(ch.to_string(), *s))
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .collect();
+        let block = Block::bordered().border_type(BorderType::Rounded).title("Hover");
+        let inner = block.inner(area);
+        block.render(area, buf);
+        Paragraph::new(Text::from(text_lines)).render(inner, buf);
+    }
+}
+
 pub struct HoverInfo {
     pub pending_request: i32,
 
@@ -175,41 +208,22 @@ pub async fn render_hover(
     if info.scroll_y >= all_lines.len() {
         info.scroll_y = all_lines.len().saturating_sub(1);
     }
-    let scroll_y = info.scroll_y;
-    let height = all_lines.len().min(MAX_HEIGHT);
 
-    let text_lines: Vec<Line<'static>> = all_lines
-        .iter()
-        .skip(scroll_y)
-        .take(height)
-        .map(|line| {
-            Line::from(
-                line.iter()
-                    .map(|(ch, style)| Span::styled(ch.to_string(), *style))
-                    .collect::<Vec<_>>(),
-            )
-        })
-        .collect();
-
-    let popup_w = (MAX_WIDTH + 2) as u16;
-    let popup_h = (height + 2) as u16;
-    let popup_rect = Rect::new(0, 0, popup_w, popup_h);
-    let mut popup_buf = ratatui::buffer::Buffer::empty(popup_rect);
-
-    let block = Block::bordered()
-        .border_type(BorderType::Rounded)
-        .title("Hover");
-    let inner = block.inner(popup_rect);
-    block.render(popup_rect, &mut popup_buf);
-    Paragraph::new(Text::from(text_lines)).render(inner, &mut popup_buf);
+    let actual_width = all_lines.iter().map(|l| l.len()).max().unwrap_or(0).min(MAX_WIDTH);
+    let popup_w = (actual_width + 2) as u16;
+    let popup_h = (all_lines.len().min(MAX_HEIGHT) + 2) as u16;
 
     buf.add_extmark(
         ExtmarkBuilder::new("lsp::hover", info.position)
             .with_priority(5)
             .with_kind(ExtmarkKind::Overlay {
-                content: Arc::new(popup_buf),
-                offset_x: 0,
-                offset_y: 1,
+                widget: Arc::new(HoverWidget {
+                    lines: all_lines,
+                    scroll_y: info.scroll_y,
+                    width: popup_w,
+                    height: popup_h,
+                }),
+                position: OverlayPosition::Smart,
                 z_index: 5,
             }),
     );

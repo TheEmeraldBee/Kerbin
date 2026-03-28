@@ -112,8 +112,7 @@ pub async fn register_default_chunks(
     }
 
     // Register the focused pane's named chunks for backward compatibility
-    if let Some((_, focused_full_rect)) =
-        leaf_rects.iter().find(|(id, _)| *id == split.focused_id)
+    if let Some((_, focused_full_rect)) = leaf_rects.iter().find(|(id, _)| *id == split.focused_id)
     {
         let [focused_bufferline, focused_content] = Layout::vertical([
             Constraint::Length(layout.bufferline_height),
@@ -210,7 +209,10 @@ async fn update(state: &mut State) {
 
     let filetype = {
         let bufs = state.lock_state::<Buffers>().await;
-        bufs.cur_buffer_as::<TextBuffer>().await.map(|tb| tb.ext.clone()).unwrap_or_default()
+        bufs.cur_buffer_as::<TextBuffer>()
+            .await
+            .map(|tb| tb.ext.clone())
+            .unwrap_or_default()
     };
 
     state
@@ -451,10 +453,7 @@ async fn main() {
             "core::update_buffer_vertical_scroll",
             update_buffer_vertical_scroll,
         )
-        .system_named(
-            "core::update_bufferline_scroll",
-            update_bufferline_scroll,
-        );
+        .system_named("core::update_bufferline_scroll", update_bufferline_scroll);
 
     state
         .on_hook(hooks::Render)

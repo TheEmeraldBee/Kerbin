@@ -51,6 +51,8 @@ pub struct CoreConfig {
     pub disable_auto_pairs: bool,
     pub tab_display_unit: String,
     pub default_tab_unit: usize,
+    /// When true, all conceals on a line are revealed if the cursor is on that line.
+    pub reveal_conceal_on_cursor_line: bool,
 }
 
 impl Default for CoreConfig {
@@ -60,6 +62,7 @@ impl Default for CoreConfig {
             disable_auto_pairs: false,
             tab_display_unit: "    ".to_string(),
             default_tab_unit: 4,
+            reveal_conceal_on_cursor_line: true,
         }
     }
 }

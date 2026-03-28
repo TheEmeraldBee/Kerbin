@@ -1,7 +1,7 @@
 use crate::{
     grammar_manager::GrammarManager,
     query_walker::{QueryWalker, QueryWalkerBuilder},
-    state::TreeSitterState,
+    state::{TreeSitterState, emit_spans},
 };
 use std::{cmp::Ordering, collections::BinaryHeap, ops::Range};
 
@@ -22,6 +22,58 @@ pub fn get_capture_priority(query: &tree_sitter::Query, pattern_index: usize) ->
     }
 
     priority
+}
+
+pub fn is_conceal_pattern(query: &tree_sitter::Query, pattern_index: usize) -> bool {
+    query
+        .general_predicates(pattern_index)
+        .iter()
+        .any(|p| p.operator.as_ref() == "conceal!")
+}
+
+pub fn conceal_scope_from_query(
+    query: &tree_sitter::Query,
+    pattern_index: usize,
+) -> ConcealScope {
+    for pred in query.general_predicates(pattern_index) {
+        if pred.operator.as_ref() == "conceal!" {
+            for arg in &pred.args {
+                if let tree_sitter::QueryPredicateArg::String(s) = arg {
+                    if s.as_ref() == "line" {
+                        return ConcealScope::Line;
+                    }
+                }
+            }
+        }
+    }
+    ConcealScope::Byte
+}
+
+/// Returns `(trim_before, trim_after)` for a conceal pattern.
+///
+/// Supported `conceal!` arguments:
+/// - `"trim"` — trim whitespace on both sides
+/// - `"trim-before"` — trim whitespace before the concealed range
+/// - `"trim-after"` — trim whitespace after the concealed range
+pub fn conceal_trim_from_query(query: &tree_sitter::Query, pattern_index: usize) -> (bool, bool) {
+    for pred in query.general_predicates(pattern_index) {
+        if pred.operator.as_ref() == "conceal!" {
+            let mut trim_before = false;
+            let mut trim_after = false;
+            for arg in &pred.args {
+                if let tree_sitter::QueryPredicateArg::String(s) = arg {
+                    match s.as_ref() {
+                        "trim" => return (true, true),
+                        "trim-before" => trim_before = true,
+                        "trim-after" => trim_after = true,
+                        _ => {}
+                    }
+                }
+            }
+            return (trim_before, trim_after);
+        }
+    }
+    (false, false)
 }
 
 fn capture_specificity(name: &str) -> usize {
@@ -50,6 +102,10 @@ pub struct HighlightSpan {
     pub capture_name: String,
     pub priority: i64,
     pub capture_index: u32,
+    pub is_conceal: bool,
+    pub conceal_scope: ConcealScope,
+    pub trim_before: bool,
+    pub trim_after: bool,
 }
 
 pub struct Highlighter<'tree, 'rope> {
@@ -75,6 +131,9 @@ impl<'tree, 'rope> Highlighter<'tree, 'rope> {
 
         self.walker.walk(|entry| {
             let query = &entry.query;
+            let is_conceal = is_conceal_pattern(query, entry.query_match.pattern_index);
+            let conceal_scope = conceal_scope_from_query(query, entry.query_match.pattern_index);
+            let (trim_before, trim_after) = conceal_trim_from_query(query, entry.query_match.pattern_index);
             for capture in entry.query_match.captures {
                 let capture_name = query.capture_names()[capture.index as usize];
                 let range = capture.node.byte_range().start + entry.byte_offset
@@ -94,6 +153,10 @@ impl<'tree, 'rope> Highlighter<'tree, 'rope> {
                     capture_name: capture_name.to_string(),
                     priority,
                     capture_index: capture.index,
+                    is_conceal,
+                    conceal_scope,
+                    trim_before,
+                    trim_after,
                 });
             }
             true
@@ -161,6 +224,10 @@ pub fn merge_overlapping_spans(mut spans: Vec<HighlightSpan>) -> Vec<HighlightSp
                 capture_name: top.span.capture_name.clone(),
                 priority: top.span.priority,
                 capture_index: top.span.capture_index,
+                is_conceal: top.span.is_conceal,
+                conceal_scope: top.span.conceal_scope,
+                trim_before: top.span.trim_before,
+                trim_after: top.span.trim_after,
             });
         }
 
@@ -208,8 +275,7 @@ fn calculate_affected_range(
     // Add some padding lines for context (e.g., 5 lines before and after)
     let padding_lines = 5;
     let start_line_with_padding = start_line.saturating_sub(padding_lines);
-    let end_line_with_padding =
-        (end_line + padding_lines).min(rope.len_lines().saturating_sub(1));
+    let end_line_with_padding = (end_line + padding_lines).min(rope.len_lines().saturating_sub(1));
 
     let range_start = rope.line_to_byte(start_line_with_padding);
     let range_end = if end_line_with_padding + 1 < rope.len_lines() {
@@ -228,7 +294,9 @@ pub async fn highlight_file(
     theme: Res<Theme>,
 ) {
     get!(mut buffers, mut grammars, config_path, theme);
-    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+        return;
+    };
 
     if buf.byte_changes.is_empty() {
         return;
@@ -261,6 +329,9 @@ pub async fn highlight_file(
         let mut spans = Vec::new();
         walker.walk(|entry| {
             let query = &entry.query;
+            let is_conceal = is_conceal_pattern(query, entry.query_match.pattern_index);
+            let conceal_scope = conceal_scope_from_query(query, entry.query_match.pattern_index);
+            let (trim_before, trim_after) = conceal_trim_from_query(query, entry.query_match.pattern_index);
             for capture in entry.query_match.captures {
                 let capture_name = query.capture_names()[capture.index as usize];
                 let node_range = capture.node.byte_range().start + entry.byte_offset
@@ -278,21 +349,17 @@ pub async fn highlight_file(
                         capture_name: capture_name.to_string(),
                         priority,
                         capture_index: capture.index,
+                        is_conceal,
+                        conceal_scope,
+                        trim_before,
+                        trim_after,
                     });
                 }
             }
             true
         });
 
-        for span in merge_overlapping_spans(spans) {
-            let hl_style = translate_name_to_style(&theme, &span.capture_name);
-
-            buf.add_extmark(
-                ExtmarkBuilder::new_range(namespace, span.byte_range.clone())
-                    .with_priority(span.priority as i32)
-                    .with_kind(ExtmarkKind::Highlight { style: hl_style }),
-            );
-        }
+        emit_spans(spans, namespace, &mut buf, &theme);
     } else {
         // Full re-highlight (fallback for complex changes or first highlight)
         buf.renderer.clear_extmark_ns(namespace);
@@ -303,17 +370,7 @@ pub async fn highlight_file(
             return;
         };
 
-        let spans = highlighter.collect_spans();
-
-        for span in merge_overlapping_spans(spans) {
-            let hl_style = translate_name_to_style(&theme, &span.capture_name);
-
-            buf.add_extmark(
-                ExtmarkBuilder::new_range(namespace, span.byte_range.clone())
-                    .with_priority(span.priority as i32)
-                    .with_kind(ExtmarkKind::Highlight { style: hl_style }),
-            );
-        }
+        emit_spans(highlighter.collect_spans(), namespace, &mut buf, &theme);
     }
 }
 

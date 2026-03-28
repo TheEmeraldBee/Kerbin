@@ -4,10 +4,10 @@
   (link_title)
 ] @markup.raw.inline
 
-[
+([
   (emphasis_delimiter)
   (code_span_delimiter)
-] @punctuation.bracket
+] @punctuation.bracket (#conceal!))
 
 (emphasis) @markup.italic
 
@@ -36,4 +36,18 @@
 (image "!" @punctuation.special)
 (inline_link ["[" "]" "(" ")"] @punctuation.bracket)
 (shortcut_link ["[" "]"] @punctuation.bracket)
+
+((image "[" @punctuation.bracket) (#conceal!))
+((image "]" @punctuation.bracket) (#conceal!))
+((image "(" @punctuation.bracket) (#conceal!))
+((image ")" @punctuation.bracket) (#conceal!))
+((image "!" @punctuation.special) (#conceal!))
+((image (link_destination) @markup.link.url) (#conceal!))
+((inline_link "[" @punctuation.bracket) (#conceal!))
+((inline_link "]" @punctuation.bracket) (#conceal!))
+((inline_link "(" @punctuation.bracket) (#conceal!))
+((inline_link ")" @punctuation.bracket) (#conceal!))
+((inline_link (link_destination) @markup.link.url) (#conceal!))
+((shortcut_link "[" @punctuation.bracket) (#conceal!))
+((shortcut_link "]" @punctuation.bracket) (#conceal!))
 

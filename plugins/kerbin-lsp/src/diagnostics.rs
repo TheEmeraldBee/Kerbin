@@ -16,6 +16,33 @@ use ratatui::{
     widgets::{Block, BorderType, Paragraph},
 };
 
+struct DiagnosticWidget {
+    message: String,
+    style: Style,
+}
+
+impl DiagnosticWidget {
+    fn popup_width(&self) -> u16 {
+        (self.message.len() + 4).min(60) as u16
+    }
+}
+
+impl OverlayWidget for DiagnosticWidget {
+    fn dimensions(&self) -> (u16, u16) {
+        (self.popup_width(), 3)
+    }
+
+    fn render(&self, area: Rect, buf: &mut ratatui::buffer::Buffer) {
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .title("Diagnostics");
+        let inner = block.inner(area);
+        block.render(area, buf);
+        let truncated: String = self.message.chars().take(inner.width as usize).collect();
+        Paragraph::new(truncated).style(self.style).render(inner, buf);
+    }
+}
+
 #[derive(Default, State)]
 pub struct Diagnostics(pub Vec<Diagnostic>);
 
@@ -130,30 +157,16 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
         let (style, priority) = severity_to_style_priority(diagnostic.severity);
 
         if popup_idx == Some(i) {
-            let msg = diagnostic.message.as_str();
-            let popup_w = (msg.len() + 4).min(60) as u16;
-            let popup_h = 3u16;
-            let popup_rect = Rect::new(0, 0, popup_w, popup_h);
-            let mut popup_buf = ratatui::buffer::Buffer::empty(popup_rect);
-
-            let block = Block::bordered()
-                .border_type(BorderType::Rounded)
-                .title("Diagnostics");
-            let inner = block.inner(popup_rect);
-            block.render(popup_rect, &mut popup_buf);
-
-            let truncated: String = msg.chars().take(inner.width as usize).collect();
-            Paragraph::new(truncated)
-                .style(style)
-                .render(inner, &mut popup_buf);
-
+            let widget = DiagnosticWidget {
+                message: diagnostic.message.clone(),
+                style,
+            };
             buf.add_extmark(
                 ExtmarkBuilder::new("lsp::diagnostics", start_byte)
                     .with_priority(priority)
                     .with_kind(ExtmarkKind::Overlay {
-                        content: Arc::new(popup_buf),
-                        offset_x: 0,
-                        offset_y: 1,
+                        widget: Arc::new(widget),
+                        position: OverlayPosition::Fixed { offset_x: 0, offset_y: 1 },
                         z_index: priority,
                     }),
             );

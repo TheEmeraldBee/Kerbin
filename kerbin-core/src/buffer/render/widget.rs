@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{grapheme_display_width, CursorShape, Extmark, ExtmarkKind, StyledChunk, TextBuffer, VirtTextPos};
+use crate::{grapheme_display_width, ConcealScope, CursorShape, Extmark, ExtmarkKind, OverlayPosition, OverlayWidget, StyledChunk, TextBuffer, VirtTextPos};
 use ratatui::prelude::*;
 use ropey::{Rope, RopeSlice};
 use unicode_segmentation::UnicodeSegmentation;
@@ -13,6 +13,7 @@ pub struct TextBufferWidget<'a> {
     tab_display_unit: String,
     tab_style: Style,
     cursor_on_tab_style: Style,
+    reveal_conceal_on_cursor_line: bool,
 }
 
 impl<'a> TextBufferWidget<'a> {
@@ -24,7 +25,13 @@ impl<'a> TextBufferWidget<'a> {
             tab_display_unit: "    ".to_string(),
             tab_style: Style::default(),
             cursor_on_tab_style: Style::default(),
+            reveal_conceal_on_cursor_line: true,
         }
+    }
+
+    pub fn with_reveal_conceal_on_cursor_line(mut self, reveal: bool) -> Self {
+        self.reveal_conceal_on_cursor_line = reveal;
+        self
     }
 
     pub fn with_vertical_scroll(mut self, lines: usize) -> Self {
@@ -64,6 +71,7 @@ impl<'a> TextBufferWidget<'a> {
         visible_len: usize,
         extra_eof_space: bool,
         width: usize,
+        reveal_conceal_on_cursor_line: bool,
     ) -> LineRenderResult {
         let char_marks: Vec<Extmark> = marks
             .iter()
@@ -96,6 +104,7 @@ impl<'a> TextBufferWidget<'a> {
             line_end_char + eof_extra,
             line_char_count + eof_extra,
             visible_len + eof_extra,
+            reveal_conceal_on_cursor_line,
         );
 
         let full_line_text: String = {
@@ -107,13 +116,45 @@ impl<'a> TextBufferWidget<'a> {
             if extra_eof_space { base + " " } else { base }
         };
 
-        let (seg_list, col_ranges) = build_concealed_segments(&full_line_text, &lm.conceals);
+        // Apply whitespace trimming and strip the trim flags for downstream use
+        let chars: Vec<char> = full_line_text.chars().collect();
+        let total_chars = chars.len();
+        let effective_conceals: Vec<(usize, usize, Option<&str>, Option<Style>)> = {
+            let mut result = Vec::with_capacity(lm.conceals.len());
+            let mut prev_end = 0usize;
+            for (i, &(c_start, c_end, replacement, style, trim_before, trim_after)) in lm.conceals.iter().enumerate() {
+                let actual_start = if trim_before {
+                    let mut s = c_start;
+                    while s > prev_end && chars.get(s.wrapping_sub(1)).map(|ch: &char| ch.is_ascii_whitespace()).unwrap_or(false) {
+                        s -= 1;
+                    }
+                    s
+                } else {
+                    c_start
+                };
+                let next_start = lm.conceals.get(i + 1).map(|(s, _, _, _, _, _)| *s).unwrap_or(total_chars);
+                let actual_end = if trim_after {
+                    let mut e = c_end;
+                    while e < next_start && chars.get(e).map(|ch: &char| ch.is_ascii_whitespace()).unwrap_or(false) {
+                        e += 1;
+                    }
+                    e
+                } else {
+                    c_end
+                };
+                result.push((actual_start, actual_end, replacement, style));
+                prev_end = actual_end;
+            }
+            result
+        };
+
+        let (seg_list, col_ranges) = build_concealed_segments(&full_line_text, &effective_conceals);
 
         let mut segments = apply_highlights(
             seg_list,
             &col_ranges,
             &mut lm.highlights,
-            &lm.conceals,
+            &effective_conceals,
             &lm.newline_highlights,
             visible_len + eof_extra,
         );
@@ -132,12 +173,12 @@ impl<'a> TextBufferWidget<'a> {
 
         lm.inline_marks.sort_by_key(|(col, _)| *col);
         for (col, chunks) in lm.inline_marks.iter().rev() {
-            let display_col = buffer_to_display(*col, &lm.conceals);
+            let display_col = buffer_to_display(*col, &effective_conceals);
             segments.insert_at(display_col, chunks);
         }
 
         for (col, chunks) in &lm.overlay_marks {
-            let display_col = buffer_to_display(*col, &lm.conceals);
+            let display_col = buffer_to_display(*col, &effective_conceals);
             segments.overlay_at(display_col, chunks);
         }
 
@@ -145,7 +186,7 @@ impl<'a> TextBufferWidget<'a> {
             .cursors
             .iter()
             .map(|&(col, _, _, _)| {
-                let char_col = buffer_to_display(col, &lm.conceals);
+                let char_col = buffer_to_display(col, &effective_conceals);
                 char_col_to_display_col(&full_line_text, char_col, &self.tab_display_unit)
             })
             .collect();
@@ -173,9 +214,9 @@ impl<'a> TextBufferWidget<'a> {
         );
 
         let mut popups = Vec::new();
-        for (anchor_col, content, offset_x, offset_y, z_index) in lm.popups {
-            let display_col = buffer_to_display(anchor_col, &lm.conceals);
-            popups.push((display_col, content, offset_x, offset_y, z_index));
+        for (anchor_col, content, position, z_index) in lm.popups {
+            let display_col = buffer_to_display(anchor_col, &effective_conceals);
+            popups.push((display_col, content, position, z_index));
         }
 
         LineRenderResult {
@@ -196,8 +237,8 @@ struct LineRenderResult {
     line: Line<'static>,
     /// (display_col, shape) for each cursor on this line; caller converts to screen coords.
     cursors: Vec<(usize, CursorShape)>,
-    /// (anchor_display_col, content, offset_x, offset_y, z_index); caller computes screen coords.
-    popups: Vec<(usize, Arc<ratatui::buffer::Buffer>, i32, i32, i32)>,
+    /// (anchor_display_col, widget, position, z_index); caller computes screen coords.
+    popups: Vec<(usize, Arc<dyn OverlayWidget>, OverlayPosition, i32)>,
 }
 
 struct StyledSegment {
@@ -518,7 +559,7 @@ impl SegmentList {
 }
 
 struct LineMarks<'a> {
-    conceals: Vec<(usize, usize, Option<&'a str>, Option<Style>)>,
+    conceals: Vec<(usize, usize, Option<&'a str>, Option<Style>, bool, bool)>,
     highlights: Vec<(usize, usize, Style, i32)>,
     cursors: Vec<(usize, Style, i32, CursorShape)>,
     newline_highlights: Vec<(Style, i32)>,
@@ -527,8 +568,8 @@ struct LineMarks<'a> {
     overlay_marks: Vec<(usize, &'a [StyledChunk])>,
     inline_marks: Vec<(usize, &'a [StyledChunk])>,
     right_align_chunks: Vec<(&'a StyledChunk, i32)>,
-    /// Floating overlays: (anchor_col, content, offset_x, offset_y, z_index)
-    popups: Vec<(usize, Arc<ratatui::buffer::Buffer>, i32, i32, i32)>,
+    /// Floating overlays: (anchor_col, widget, position, z_index)
+    popups: Vec<(usize, Arc<dyn OverlayWidget>, OverlayPosition, i32)>,
 }
 
 impl<'a> LineMarks<'a> {
@@ -538,6 +579,7 @@ impl<'a> LineMarks<'a> {
         line_end_char: usize,
         line_char_count: usize,
         visible_len: usize,
+        reveal_conceal_on_cursor_line: bool,
     ) -> Self {
         let mut result = Self {
             conceals: Vec::new(),
@@ -552,6 +594,12 @@ impl<'a> LineMarks<'a> {
             popups: Vec::new(),
         };
 
+        // Parallel vecs for namespace-aware conceal suppression
+        let mut conceal_ns: Vec<&'a str> = Vec::new();
+        let mut conceal_scopes: Vec<ConcealScope> = Vec::new();
+        let mut suppress_ranges: Vec<(usize, usize, &'a str)> = Vec::new();
+        let mut cursor_on_line = false;
+
         for mark in marks {
             let mark_start_char = mark.byte_range.start;
             let mark_end_char = mark.byte_range.end;
@@ -561,6 +609,8 @@ impl<'a> LineMarks<'a> {
                     if mark_start_char >= line_start_char && mark_start_char <= line_end_char {
                         let col = mark_start_char - line_start_char;
                         result.cursors.push((col, *style, mark.priority, *shape));
+                        suppress_ranges.push((col, col + 1, &mark.namespace));
+                        cursor_on_line = true;
                     }
                 }
                 ExtmarkKind::Highlight { style } => {
@@ -581,6 +631,7 @@ impl<'a> LineMarks<'a> {
                         result
                             .highlights
                             .push((start_col, end_col, *style, mark.priority));
+                        suppress_ranges.push((start_col, end_col, &mark.namespace));
                     }
                 }
                 ExtmarkKind::VirtualText { chunks, pos } => {
@@ -606,32 +657,53 @@ impl<'a> LineMarks<'a> {
                         }
                     }
                 }
-                ExtmarkKind::Conceal { replacement, style } => {
+                ExtmarkKind::Conceal { replacement, style, scope, trim_before, trim_after } => {
                     if mark_start_char >= line_start_char && mark_start_char < line_end_char {
                         let start_col = mark_start_char - line_start_char;
                         let end_col = (mark_end_char - line_start_char).min(visible_len);
                         result
                             .conceals
-                            .push((start_col, end_col, replacement.as_deref(), *style));
+                            .push((start_col, end_col, replacement.as_deref(), *style, *trim_before, *trim_after));
+                        conceal_ns.push(&mark.namespace);
+                        conceal_scopes.push(*scope);
                     }
                 }
-                ExtmarkKind::Overlay {
-                    content,
-                    offset_x,
-                    offset_y,
-                    z_index,
-                } => {
+                ExtmarkKind::Overlay { widget, position, z_index } => {
                     if mark_start_char >= line_start_char && mark_start_char <= line_end_char {
                         let col = mark_start_char - line_start_char;
-                        result
-                            .popups
-                            .push((col, content.clone(), *offset_x, *offset_y, *z_index));
+                        result.popups.push((col, widget.clone(), position.clone(), *z_index));
                     }
                 }
             }
         }
 
-        result.conceals.sort_by_key(|(s, _, _, _)| *s);
+        // Drop conceals suppressed by marks from a different namespace
+        if !conceal_ns.is_empty() {
+            let force_line_scope = reveal_conceal_on_cursor_line && cursor_on_line;
+            let conceals_with_meta: Vec<_> = result.conceals
+                .drain(..)
+                .zip(conceal_ns)
+                .zip(conceal_scopes)
+                .map(|((c, ns), sc)| (c, ns, sc))
+                .collect();
+            result.conceals = conceals_with_meta
+                .into_iter()
+                .filter(|((c_start, c_end, _, _, _, _), c_ns, scope)| {
+                    let effective_scope = if force_line_scope { ConcealScope::Line } else { *scope };
+                    match effective_scope {
+                        ConcealScope::Byte => !suppress_ranges.iter().any(|(s_start, s_end, s_ns)| {
+                            *s_ns != *c_ns && s_start < c_end && s_end > c_start
+                        }),
+                        ConcealScope::Line => !suppress_ranges.iter().any(|(_, _, s_ns)| {
+                            *s_ns != *c_ns
+                        }),
+                    }
+                })
+                .map(|(conceal, _, _)| conceal)
+                .collect();
+        }
+
+        result.conceals.sort_by_key(|(s, _, _, _, _, _)| *s);
         result
     }
 }
@@ -818,7 +890,7 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
 
         let rope = &self.buf.rope;
         let mut lines = vec![];
-        let mut pending_overlays: Vec<(u16, u16, Arc<ratatui::buffer::Buffer>, i32, i32, i32)> =
+        let mut pending_overlays: Vec<(u16, u16, Arc<dyn OverlayWidget>, OverlayPosition, i32)> =
             Vec::new();
 
         let total_lines = rope.len_lines();
@@ -909,6 +981,7 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
                 visible_len,
                 extra_eof_space,
                 area.width as usize,
+                self.reveal_conceal_on_cursor_line,
             );
 
             let current_line_index = lines.len();
@@ -920,14 +993,14 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
                 }
             }
 
-            for (anchor_display_col, content, offset_x, offset_y, z_index) in result.popups {
+            for (anchor_display_col, content, position, z_index) in result.popups {
                 let screen_x = if anchor_display_col >= self.h_scroll {
                     area.x + (anchor_display_col - self.h_scroll) as u16
                 } else {
                     area.x
                 };
                 let screen_y = area.y + current_line_index as u16;
-                pending_overlays.push((screen_x, screen_y, content, offset_x, offset_y, z_index));
+                pending_overlays.push((screen_x, screen_y, content, position, z_index));
             }
 
             lines.push(result.line);
@@ -935,23 +1008,35 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
 
         Text::from(lines).render(area, buf);
 
-        pending_overlays.sort_by_key(|(_, _, _, _, _, z)| *z);
-        for (anchor_x, anchor_y, content, offset_x, offset_y, _) in pending_overlays {
+        pending_overlays.sort_by_key(|(_, _, _, _, z)| *z);
+        for (anchor_x, anchor_y, widget, position, _) in pending_overlays {
+            let (w, h) = widget.dimensions();
+            let (offset_x, offset_y) = match position {
+                OverlayPosition::Fixed { offset_x, offset_y } => (offset_x, offset_y),
+                OverlayPosition::Smart => {
+                    let rows_below = (area.y + area.height).saturating_sub(anchor_y + 1);
+                    let oy = if rows_below >= h { 1 } else { -(h as i32) };
+                    let overflow_right = (anchor_x as i32 + w as i32)
+                        .saturating_sub((area.x + area.width) as i32)
+                        .max(0);
+                    let ox = -(overflow_right.min((anchor_x - area.x) as i32));
+                    (ox, oy)
+                }
+            };
             let dst_x0 = (anchor_x as i32 + offset_x).max(area.x as i32) as u16;
             let dst_y0 = (anchor_y as i32 + offset_y).max(area.y as i32) as u16;
-            let src_area = content.area;
-            for cy in 0..src_area.height {
-                for cx in 0..src_area.width {
-                    let dst_x = dst_x0 + cx;
-                    let dst_y = dst_y0 + cy;
-                    if dst_x >= area.x + area.width || dst_y >= area.y + area.height {
-                        continue;
-                    }
-                    if let (Some(src_cell), Some(dst_cell)) = (
-                        content.cell((src_area.x + cx, src_area.y + cy)),
-                        buf.cell_mut((dst_x, dst_y)),
-                    ) {
-                        *dst_cell = src_cell.clone();
+            let avail_w = (area.x + area.width).saturating_sub(dst_x0).min(w);
+            let avail_h = (area.y + area.height).saturating_sub(dst_y0).min(h);
+            if avail_w == 0 || avail_h == 0 {
+                continue;
+            }
+            let avail_rect = Rect::new(0, 0, avail_w, avail_h);
+            let mut tmp_buf = ratatui::buffer::Buffer::empty(avail_rect);
+            widget.render(avail_rect, &mut tmp_buf);
+            for cy in 0..avail_h {
+                for cx in 0..avail_w {
+                    if let (Some(src), Some(dst)) = (tmp_buf.cell((cx, cy)), buf.cell_mut((dst_x0 + cx, dst_y0 + cy))) {
+                        *dst = src.clone();
                     }
                 }
             }

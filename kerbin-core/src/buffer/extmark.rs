@@ -1,6 +1,35 @@
 use std::{ops::Range, sync::Arc};
 
-use ratatui::{buffer::Buffer as RatatuiBuffer, style::Style};
+use ratatui::{buffer::Buffer as RatatuiBuffer, layout::Rect, style::Style};
+
+/// Trait for widgets rendered into overlay popups at blit time.
+pub trait OverlayWidget: Send + Sync {
+    fn dimensions(&self) -> (u16, u16);
+    fn render(&self, area: Rect, buf: &mut RatatuiBuffer);
+}
+
+/// Wraps a pre-rendered `RatatuiBuffer` as an `OverlayWidget`.
+pub struct PreRenderedOverlay(pub RatatuiBuffer);
+
+impl OverlayWidget for PreRenderedOverlay {
+    fn dimensions(&self) -> (u16, u16) {
+        (self.0.area.width, self.0.area.height)
+    }
+
+    fn render(&self, _area: Rect, buf: &mut RatatuiBuffer) {
+        let src_area = self.0.area;
+        for cy in 0..src_area.height {
+            for cx in 0..src_area.width {
+                if let (Some(src), Some(dst)) = (
+                    self.0.cell((src_area.x + cx, src_area.y + cy)),
+                    buf.cell_mut((cx, cy)),
+                ) {
+                    *dst = src.clone();
+                }
+            }
+        }
+    }
+}
 
 /// Determines how the extmark moves when text is edited
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
@@ -72,8 +101,28 @@ pub enum VirtTextPos {
     RightAlign,
 }
 
-/// The kind of decoration applied to an extmark.
+/// Controls when a `Conceal` extmark is suppressed by marks from other namespaces.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum ConcealScope {
+    /// Suppress if another namespace's mark overlaps the same bytes.
+    #[default]
+    Byte,
+    /// Suppress if another namespace's mark appears anywhere on the same line.
+    Line,
+}
+
+/// Controls how an overlay popup is positioned relative to its anchor.
 #[derive(Clone, Debug)]
+pub enum OverlayPosition {
+    /// Fixed offset (in screen cells) from the anchor character's screen position.
+    Fixed { offset_x: i32, offset_y: i32 },
+    /// Prefer below the cursor; flip above if there is insufficient room.
+    /// Shifts left to avoid overflowing the right edge.
+    Smart,
+}
+
+/// The kind of decoration applied to an extmark.
+#[derive(Clone)]
 pub enum ExtmarkKind {
     /// A cursor mark at a single byte position
     Cursor { style: Style, shape: CursorShape },
@@ -91,16 +140,18 @@ pub enum ExtmarkKind {
     Conceal {
         replacement: Option<String>,
         style: Option<Style>,
+        scope: ConcealScope,
+        /// Also hide whitespace immediately before the concealed range
+        trim_before: bool,
+        /// Also hide whitespace immediately after the concealed range
+        trim_after: bool,
     },
 
     /// A floating popup anchored to `byte_range.start`.
-    ///
-    /// `offset_x`/`offset_y` are character offsets from the anchor's screen position.
     /// The popup is clipped to the viewport.
     Overlay {
-        content: Arc<RatatuiBuffer>,
-        offset_x: i32,
-        offset_y: i32,
+        widget: Arc<dyn OverlayWidget>,
+        position: OverlayPosition,
         z_index: i32,
     },
 }

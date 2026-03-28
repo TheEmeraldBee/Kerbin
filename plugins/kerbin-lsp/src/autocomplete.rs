@@ -16,6 +16,28 @@ use ropey::RopeSlice;
 use crate::{JsonRpcMessage, LspManager, OpenedFile};
 use kerbin_tree_sitter::{grammar_manager::GrammarManager, state::highlight_text};
 
+struct CompletionWidget(ratatui::buffer::Buffer);
+
+impl OverlayWidget for CompletionWidget {
+    fn dimensions(&self) -> (u16, u16) {
+        (self.0.area.width, self.0.area.height)
+    }
+
+    fn render(&self, _area: Rect, buf: &mut ratatui::buffer::Buffer) {
+        let src_area = self.0.area;
+        for cy in 0..src_area.height {
+            for cx in 0..src_area.width {
+                if let (Some(src), Some(dst)) = (
+                    self.0.cell((src_area.x + cx, src_area.y + cy)),
+                    buf.cell_mut((cx, cy)),
+                ) {
+                    *dst = src.clone();
+                }
+            }
+        }
+    }
+}
+
 pub struct CompletionInfo {
     pub pending_request: i32,
     pub items: Vec<CompletionItem>,
@@ -826,9 +848,8 @@ pub async fn render_completions(
         ExtmarkBuilder::new("lsp::completion", position)
             .with_priority(6)
             .with_kind(ExtmarkKind::Overlay {
-                content: Arc::new(final_popup),
-                offset_x: 0,
-                offset_y: 1,
+                widget: Arc::new(CompletionWidget(final_popup)),
+                position: OverlayPosition::Smart,
                 z_index: 6,
             }),
     );
