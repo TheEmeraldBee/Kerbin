@@ -79,19 +79,21 @@ pub async fn render_splits(
             continue;
         }
 
-        let mut buf = buffers.buffers[buf_idx].clone().write_owned().await;
+        {
+            let mut buf = buffers.buffers[buf_idx].clone().write_owned().await;
 
-        let Some(chunk_arc) = chunks.get_indexed_chunk::<BufferChunk>(i) else {
-            continue;
-        };
-        let mut chunk = chunk_arc.write_owned().await;
-        let area = chunk.area();
-        buf.render(area, &mut chunk, false, &ctx);
+            let Some(chunk_arc) = chunks.get_indexed_chunk::<BufferChunk>(i) else {
+                continue;
+            };
+            let mut chunk = chunk_arc.write_owned().await;
+            let area = chunk.area();
+            buf.render(area, &mut chunk, false, &ctx);
 
-        if let Some(gutter_arc) = chunks.get_indexed_chunk::<BufferGutterChunk>(i) {
-            let mut gutter = gutter_arc.write_owned().await;
-            let gutter_area = gutter.area();
-            buf.render_gutter(gutter_area, &mut gutter, &ctx);
+            if let Some(gutter_arc) = chunks.get_indexed_chunk::<BufferGutterChunk>(i) {
+                let mut gutter = gutter_arc.write_owned().await;
+                let gutter_area = gutter.area();
+                buf.render_gutter(gutter_area, &mut gutter, &ctx);
+            }
         }
 
         if let Some(bl_arc) = chunks.get_indexed_chunk::<BufferlineChunk>(i) {

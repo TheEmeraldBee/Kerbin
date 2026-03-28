@@ -288,8 +288,8 @@ pub async fn handle_mouse_events(
         let col = mouse_ev.column;
         let row = mouse_ev.row;
 
-        // On left-click, check if a non-focused pane was clicked and switch focus.
         let mut area_opt = chunks.rect_for_chunk(&BufferChunk::static_name());
+        let mut clicked_pane_i: Option<usize> = None;
         if matches!(trigger, MouseTrigger::LeftDown) && split.pane_count() > 1 {
             let n = chunks.indexed_count::<BufferChunk>();
             'pane_check: for pane_i in 0..n {
@@ -300,6 +300,7 @@ pub async fn handle_mouse_events(
                     && row < pane_rect.y + pane_rect.height
                 {
                     area_opt = Some(pane_rect);
+                    clicked_pane_i = Some(pane_i);
                     let is_focused = split
                         .leaves()
                         .get(pane_i)
@@ -315,8 +316,23 @@ pub async fn handle_mouse_events(
             }
         }
 
+        let clicked_buf_arc = if let Some(pane_i) = clicked_pane_i {
+            split.leaves().get(pane_i).and_then(|pane| {
+                let buf_idx = if !split.unique_buffers {
+                    pane.selected_local
+                } else {
+                    *pane.buffer_indices.get(pane.selected_local)?
+                };
+                buffers.buffers.get(buf_idx).cloned()
+            })
+        } else {
+            buffers.buffers.get(buffers.selected_buffer).cloned()
+        };
+
         if let Some(area) = area_opt
-            && let Some(buf) = buffers.cur_buffer_as::<TextBuffer>().await {
+            && let Some(buf_arc) = clicked_buf_arc
+            && let Ok(buf_guard) = buf_arc.clone().try_read_owned()
+            && let Some(buf) = buf_guard.as_any().downcast_ref::<TextBuffer>() {
                 let line_idx = (row.saturating_sub(area.y) as usize)
                     .saturating_add(buf.renderer.byte_scroll)
                     .min(buf.len_lines().saturating_sub(1));
