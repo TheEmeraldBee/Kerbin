@@ -96,7 +96,7 @@ pub async fn open_default_buffer(bufs: ResMut<Buffers>, log: Res<LogSender>) {
 pub async fn update_buffer(bufs: ResMut<Buffers>, log: Res<LogSender>) {
     get!(mut bufs, log);
 
-    let mut buf = bufs.cur_buffer_mut().await;
+    let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     // Only check if there were user changes
     if buf.byte_changes.is_empty() {

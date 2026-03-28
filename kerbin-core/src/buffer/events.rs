@@ -1,4 +1,8 @@
-use crate::TextBuffer;
+use std::sync::Arc;
+
+use tokio::sync::RwLock;
+
+use crate::KerbinBuffer;
 
 /// Is emitted when a buffer is saved
 pub struct SaveEvent {
@@ -8,6 +12,6 @@ pub struct SaveEvent {
 
 /// Is emitted when a buffer is closed
 pub struct CloseEvent {
-    /// The contained buffer
-    pub buffer: TextBuffer,
+    /// The closed buffer (still locked in the Arc)
+    pub buffer: Arc<RwLock<dyn KerbinBuffer>>,
 }

@@ -4,7 +4,7 @@ use kerbin_core::*;
 pub async fn apply_changes(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspManager>) {
     get!(mut buffers, mut lsp_manager);
 
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     if buf.byte_changes.is_empty() {
         return;

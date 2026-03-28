@@ -295,7 +295,7 @@ pub async fn update_locals(
 ) {
     get!(mut buffers, mut grammars, config_path, theme);
 
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     let Some(mut state) = buf.get_state_mut::<TreeSitterState>().await else {
         return;

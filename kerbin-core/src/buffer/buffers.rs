@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
-use crate::{CloseEvent, EVENT_BUS, Theme, get_canonical_path_with_non_existent};
+use crate::{CloseEvent, EVENT_BUS, KerbinBuffer, Theme, get_canonical_path_with_non_existent};
 
 use super::TextBuffer;
 use kerbin_macros::State;
 use kerbin_state_machine::storage::*;
 use ratatui::buffer::Buffer;
-use tokio::sync::{OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
+use tokio::sync::{
+    OwnedRwLockMappedWriteGuard, OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock,
+};
 
 /// Stores all text buffers managed by the editor
 #[derive(Default, State)]
@@ -17,8 +19,8 @@ pub struct Buffers {
     /// The horizontal scroll offset of the tab-bar (bufferline) in characters
     pub tab_scroll: usize,
 
-    /// The internal storage of `TextBuffer` instances
-    pub buffers: Vec<Arc<RwLock<TextBuffer>>>,
+    /// The internal storage of `KerbinBuffer` instances
+    pub buffers: Vec<Arc<RwLock<dyn KerbinBuffer>>>,
 
     /// The list of unique, shortened paths corresponding to each buffer
     pub buffer_paths: Vec<String>,
@@ -26,7 +28,7 @@ pub struct Buffers {
 
 impl Buffers {
     /// Returns a read lock to the currently selected buffer
-    pub async fn cur_buffer(&self) -> OwnedRwLockReadGuard<TextBuffer> {
+    pub async fn cur_buffer(&self) -> OwnedRwLockReadGuard<dyn KerbinBuffer> {
         self.buffers[self.selected_buffer]
             .clone()
             .read_owned()
@@ -34,17 +36,35 @@ impl Buffers {
     }
 
     /// Returns a write lock to the currently selected buffer
-    pub async fn cur_buffer_mut(&mut self) -> OwnedRwLockWriteGuard<TextBuffer> {
+    pub async fn cur_buffer_mut(&mut self) -> OwnedRwLockWriteGuard<dyn KerbinBuffer> {
         self.buffers[self.selected_buffer]
             .clone()
             .write_owned()
             .await
     }
 
+    /// Returns a typed read lock to the current buffer, downcast to `T`.
+    /// Returns `None` if the current buffer is not of type `T`.
+    pub async fn cur_buffer_as<T: 'static>(
+        &self,
+    ) -> Option<OwnedRwLockReadGuard<dyn KerbinBuffer, T>> {
+        let guard = self.cur_buffer().await;
+        OwnedRwLockReadGuard::try_map(guard, |buf| buf.as_any().downcast_ref::<T>()).ok()
+    }
+
+    /// Returns a typed write lock to the current buffer, downcast to `T`.
+    /// Returns `None` if the current buffer is not of type `T`.
+    pub async fn cur_buffer_as_mut<T: 'static>(
+        &mut self,
+    ) -> Option<OwnedRwLockMappedWriteGuard<dyn KerbinBuffer, T>> {
+        let guard = self.cur_buffer_mut().await;
+        OwnedRwLockWriteGuard::try_map(guard, |buf| buf.as_any_mut().downcast_mut::<T>()).ok()
+    }
+
     /// Returns a read lock for the buffer at `path`, if open
-    pub async fn get_path(&self, path: &str) -> Option<OwnedRwLockReadGuard<TextBuffer>> {
+    pub async fn get_path(&self, path: &str) -> Option<OwnedRwLockReadGuard<dyn KerbinBuffer>> {
         for buf in &self.buffers {
-            if buf.read().await.path.as_str() == path {
+            if buf.read().await.title() == path {
                 return Some(buf.clone().read_owned().await);
             }
         }
@@ -53,9 +73,12 @@ impl Buffers {
     }
 
     /// Returns a write lock for the buffer at `path`, if open
-    pub async fn get_mut_path(&mut self, path: &str) -> Option<OwnedRwLockWriteGuard<TextBuffer>> {
+    pub async fn get_mut_path(
+        &mut self,
+        path: &str,
+    ) -> Option<OwnedRwLockWriteGuard<dyn KerbinBuffer>> {
         for buf in &self.buffers {
-            if buf.read().await.path.as_str() == path {
+            if buf.read().await.title() == path {
                 return Some(buf.clone().write_owned().await);
             }
         }
@@ -80,15 +103,12 @@ impl Buffers {
     pub async fn close_buffer(&mut self, idx: usize) {
         let buf = self.buffers.remove(idx);
 
-        let buf = Arc::into_inner(buf)
-            .expect("One strong reference should exist as self is mutable")
-            .into_inner();
-
         EVENT_BUS.emit(CloseEvent { buffer: buf }).await;
 
         if self.buffers.is_empty() {
-            self.buffers
-                .push(Arc::new(RwLock::new(TextBuffer::scratch())));
+            self.buffers.push(
+                Arc::new(RwLock::new(TextBuffer::scratch())) as Arc<RwLock<dyn KerbinBuffer>>,
+            );
         }
 
         self.change_buffer(0); // Adjust selected_buffer to remain valid
@@ -106,7 +126,7 @@ impl Buffers {
         for (i, buffer_arc) in self.buffers.iter().enumerate() {
             let buffer_read = buffer_arc.read().await;
 
-            if buffer_read.path == check_path {
+            if buffer_read.title() == check_path {
                 found_buffer_id = Some(i);
                 break;
             }
@@ -116,7 +136,9 @@ impl Buffers {
             self.set_selected_buffer(buffer_id);
             Ok(buffer_id)
         } else {
-            let new_buffer = Arc::new(RwLock::new(TextBuffer::open(path, default_tab_unit)?));
+            let new_buffer =
+                Arc::new(RwLock::new(TextBuffer::open(path, default_tab_unit)?))
+                    as Arc<RwLock<dyn KerbinBuffer>>;
             self.buffers.push(new_buffer);
             let new_buffer_id = self.buffers.len() - 1;
             self.set_selected_buffer(new_buffer_id);
@@ -125,14 +147,14 @@ impl Buffers {
         }
     }
 
-    /// Inserts the text buffer safely into the buffers
+    /// Inserts a `TextBuffer` safely into the buffers, deduplicating by title
     pub async fn push_new(&mut self, buffer: TextBuffer) -> usize {
         let mut found_buffer_id: Option<usize> = None;
 
         for (i, buffer_arc) in self.buffers.iter().enumerate() {
             let buffer_read = buffer_arc.read().await;
 
-            if buffer_read.path == buffer.path {
+            if buffer_read.title() == buffer.path {
                 found_buffer_id = Some(i);
                 break;
             }
@@ -142,11 +164,21 @@ impl Buffers {
             self.close_buffer(buffer_id).await;
         }
 
-        let new_buffer = Arc::new(RwLock::new(buffer));
+        let new_buffer =
+            Arc::new(RwLock::new(buffer)) as Arc<RwLock<dyn KerbinBuffer>>;
         self.buffers.push(new_buffer);
         let new_buffer_id = self.buffers.len() - 1;
         self.set_selected_buffer(new_buffer_id);
 
+        new_buffer_id
+    }
+
+    /// Inserts any `KerbinBuffer` implementor into the buffer list
+    pub async fn push_buffer<T: KerbinBuffer>(&mut self, buffer: T) -> usize {
+        let new_buffer: Arc<RwLock<dyn KerbinBuffer>> = Arc::new(RwLock::new(buffer));
+        self.buffers.push(new_buffer);
+        let new_buffer_id = self.buffers.len() - 1;
+        self.set_selected_buffer(new_buffer_id);
         new_buffer_id
     }
 
@@ -162,9 +194,6 @@ impl Buffers {
     ///
     /// - `displayed_global_indices`: which global buffer indices to show as tabs.
     /// - `active_display_idx`: position within `displayed_global_indices` that is highlighted.
-    ///   In shared mode this equals `pane.selected_local` (the global index is also the display
-    ///   position since all buffers are shown in order). In non-shared mode it equals
-    ///   `pane.selected_local` (index into `pane.buffer_indices`).
     /// - `tab_scroll`: horizontal scroll offset in characters.
     pub async fn render_bufferline_pane(
         &self,
@@ -182,7 +211,7 @@ impl Buffers {
                 None => continue,
             };
             let dirty = match self.buffers.get(global_i) {
-                Some(b) => b.read().await.dirty,
+                Some(b) => b.read().await.is_dirty(),
                 None => continue,
             };
 
@@ -228,8 +257,7 @@ impl Buffers {
 
         for buffer_arc in self.buffers.iter() {
             let buffer_read = buffer_arc.read().await;
-
-            paths.push(buffer_read.path.clone());
+            paths.push(buffer_read.title());
         }
 
         let unique_paths = get_unique_paths(paths.into_iter(), self.buffers.len());

@@ -75,7 +75,7 @@ async fn send_goto_request(
     let mut bufs = state.lock_state::<Buffers>().await;
     let mut lsps = state.lock_state::<LspManager>().await;
 
-    let mut buf = bufs.cur_buffer_mut().await;
+    let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return false; };
 
     let Some(file) = buf.get_state::<OpenedFile>().await else {
         return false;
@@ -223,7 +223,8 @@ impl Command for NavigationCommand {
                     let mut entries: Vec<String> = Vec::new();
 
                     for buf in &bufs.buffers {
-                        let buf = buf.read().await;
+                        let buf_guard = buf.read().await;
+                        let Some(buf) = buf_guard.downcast::<TextBuffer>() else { continue };
                         let Some(file) = buf.get_state::<OpenedFile>().await else { continue };
                         let path = file.uri.path().to_string();
                         let Some(diagnostics) = buf.get_state::<Diagnostics>().await else { continue };
@@ -310,7 +311,7 @@ impl Command for NavigationCommand {
                     return false;
                 }
 
-                let mut buf = bufs.cur_buffer_mut().await;
+                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return false; };
                 let line_byte = buf.line_to_byte_clamped(line);
                 let line_end_byte = buf.line_to_byte_clamped(line + 1);
                 let byte = buf
@@ -376,7 +377,9 @@ pub async fn handle_navigation(state: &State, msg: &JsonRpcMessage) {
     let mut pending_kind = None;
     let mut pending_multi: Option<Vec<Token>> = None;
     for buf in &bufs.buffers {
-        if let Some(nav_state) = buf.read().await.get_state::<NavigationState>().await
+        let buf_guard = buf.read().await;
+        if let Some(text_buf) = buf_guard.downcast::<TextBuffer>()
+            && let Some(nav_state) = text_buf.get_state::<NavigationState>().await
             && let Some(pending) = &nav_state.pending
             && pending.request_id == response.id
         {
@@ -394,8 +397,10 @@ pub async fn handle_navigation(state: &State, msg: &JsonRpcMessage) {
     drop(bufs);
 
     {
-        let mut buf = buf.write_owned().await;
-        if let Some(mut nav_state) = buf.get_state_mut::<NavigationState>().await {
+        let mut buf_guard = buf.write_owned().await;
+        if let Some(buf) = buf_guard.downcast_mut::<TextBuffer>()
+            && let Some(mut nav_state) = buf.get_state_mut::<NavigationState>().await
+        {
             nav_state.pending = None;
         }
     }
@@ -437,7 +442,7 @@ pub async fn handle_navigation(state: &State, msg: &JsonRpcMessage) {
         if bufs.open(path, default_tab_unit).await.is_err() {
             return;
         }
-        let mut buf = bufs.cur_buffer_mut().await;
+        let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return; };
         let line_byte = buf.line_to_byte_clamped(line);
         let byte = (line_byte + col).min(buf.len());
         buf.primary_cursor_mut().set_sel(byte..=byte);

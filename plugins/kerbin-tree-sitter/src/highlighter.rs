@@ -228,7 +228,7 @@ pub async fn highlight_file(
     theme: Res<Theme>,
 ) {
     get!(mut buffers, mut grammars, config_path, theme);
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     if buf.byte_changes.is_empty() {
         return;

@@ -37,7 +37,9 @@ pub async fn update_buffer_horizontal_scroll(chunk: Chunk<BufferChunk>, buffers:
 
     get!(mut buffers);
 
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+        return;
+    };
 
     let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
     let cursor_line_idx = buf.byte_to_line_clamped(cursor_byte);
@@ -80,7 +82,9 @@ pub async fn update_buffer_vertical_scroll(chunk: Chunk<BufferChunk>, buffers: R
 
     get!(mut buffers);
 
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+        return;
+    };
 
     let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
     let cursor_line_idx = buf.byte_to_line_clamped(cursor_byte);

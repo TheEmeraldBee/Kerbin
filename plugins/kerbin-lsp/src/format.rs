@@ -35,7 +35,7 @@ impl Command for FormatCommand {
 pub async fn format_current_buffer(state: &mut State) -> bool {
     let mut bufs = state.lock_state::<Buffers>().await;
     let mut lsps = state.lock_state::<LspManager>().await;
-    let mut buf = bufs.cur_buffer_mut().await;
+    let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return false; };
 
     let Some(file) = buf.get_state::<OpenedFile>().await else {
         return false;
@@ -153,7 +153,9 @@ pub async fn handle_format(state: &State, msg: &JsonRpcMessage) {
 
     let mut buffer = None;
     for buf in &bufs.buffers {
-        if let Some(fmt_state) = buf.read().await.get_state::<FormatState>().await
+        let buf_guard = buf.read().await;
+        if let Some(text_buf) = buf_guard.downcast::<TextBuffer>()
+            && let Some(fmt_state) = text_buf.get_state::<FormatState>().await
             && let Some(pending) = &fmt_state.pending
             && pending.request_id == response.id
         {
@@ -168,7 +170,8 @@ pub async fn handle_format(state: &State, msg: &JsonRpcMessage) {
 
     drop(bufs);
 
-    let mut buf = buf_arc.write_owned().await;
+    let mut buf_guard = buf_arc.write_owned().await;
+    let Some(buf) = buf_guard.downcast_mut::<TextBuffer>() else { return; };
 
     if let Some(mut fmt_state) = buf.get_state_mut::<FormatState>().await {
         fmt_state.pending = None;
@@ -183,7 +186,7 @@ pub async fn handle_format(state: &State, msg: &JsonRpcMessage) {
         Err(_) => return,
     };
 
-    apply_text_edits(&mut buf, edits);
+    apply_text_edits(buf, edits);
 }
 
 fn apply_text_edits(buf: &mut TextBuffer, mut edits: Vec<TextEdit>) {

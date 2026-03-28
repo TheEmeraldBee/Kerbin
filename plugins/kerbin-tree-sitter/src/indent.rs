@@ -23,7 +23,7 @@ async fn newline_and_indent(state: &mut State) {
     let mut grammars = state.lock_state::<GrammarManager>().await;
     let config_path = state.lock_state::<ConfigFolder>().await.0.clone();
 
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     let cursor_byte = buf.primary_cursor().get_cursor_byte();
     let current_line_idx = buf.byte_to_line_clamped(cursor_byte);

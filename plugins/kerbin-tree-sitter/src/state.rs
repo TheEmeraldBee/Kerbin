@@ -50,7 +50,7 @@ pub async fn update_trees(
 ) {
     get!(mut buffers, mut grammars, config_path, log);
 
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     if !buf.has_state::<TreeSitterState>() || buf.byte_changes.is_empty() {
         return;
@@ -140,7 +140,7 @@ pub async fn open_files(
 ) {
     get!(mut buffers, mut grammars, config_path, theme, log);
 
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     if buf.flags.contains("tree-sitter-checked") || buf.has_state::<TreeSitterState>() {
         return;

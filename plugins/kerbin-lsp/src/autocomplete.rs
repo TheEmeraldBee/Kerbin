@@ -318,7 +318,7 @@ impl Command for CompletionCommand {
                 let mut bufs = state.lock_state::<Buffers>().await;
                 let mut lsps = state.lock_state::<LspManager>().await;
 
-                let mut buf = bufs.cur_buffer_mut().await;
+                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return true; };
 
                 let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
 
@@ -368,7 +368,7 @@ impl Command for CompletionCommand {
             }
             Self::Accept => {
                 let mut bufs = state.lock_state::<Buffers>().await;
-                let mut buf = bufs.cur_buffer_mut().await;
+                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return true; };
 
                 let mut completion_state =
                     buf.get_or_insert_state_mut(CompletionState::default).await;
@@ -471,7 +471,7 @@ impl Command for CompletionCommand {
             }
             Self::Trash => {
                 let mut bufs = state.lock_state::<Buffers>().await;
-                let mut buf = bufs.cur_buffer_mut().await;
+                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return true; };
 
                 let mut completion_state =
                     buf.get_or_insert_state_mut(CompletionState::default).await;
@@ -481,7 +481,7 @@ impl Command for CompletionCommand {
             }
             Self::SelectNext => {
                 let mut bufs = state.lock_state::<Buffers>().await;
-                let mut buf = bufs.cur_buffer_mut().await;
+                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return true; };
                 let mut completion_state =
                     buf.get_or_insert_state_mut(CompletionState::default).await;
 
@@ -492,7 +492,7 @@ impl Command for CompletionCommand {
             }
             Self::SelectPrevious => {
                 let mut bufs = state.lock_state::<Buffers>().await;
-                let mut buf = bufs.cur_buffer_mut().await;
+                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return true; };
                 let mut completion_state =
                     buf.get_or_insert_state_mut(CompletionState::default).await;
 
@@ -515,7 +515,9 @@ pub async fn handle_completion(state: &State, msg: &JsonRpcMessage) {
 
         let mut buffer = None;
         for buf in &bufs.buffers {
-            if let Some(state) = buf.read().await.get_state::<CompletionState>().await
+            let buf_guard = buf.read().await;
+            if let Some(text_buf) = buf_guard.downcast::<TextBuffer>()
+                && let Some(state) = text_buf.get_state::<CompletionState>().await
                 && let Some(info) = &state.info
                 && info.pending_request == response.id
             {
@@ -528,7 +530,8 @@ pub async fn handle_completion(state: &State, msg: &JsonRpcMessage) {
             return;
         };
 
-        let mut buf = buf.write_owned().await;
+        let mut buf_guard = buf.write_owned().await;
+        let Some(buf) = buf_guard.downcast_mut::<TextBuffer>() else { return; };
         let mut completion_state = buf.get_state_mut::<CompletionState>().await.unwrap();
         let info = completion_state.info.as_mut().unwrap();
 
@@ -575,7 +578,7 @@ pub async fn handle_completion(state: &State, msg: &JsonRpcMessage) {
 pub async fn update_completions(bufs: ResMut<Buffers>, lsps: ResMut<LspManager>) {
     get!(mut bufs, mut lsps);
 
-    let mut buf = bufs.cur_buffer_mut().await;
+    let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     if buf.byte_changes.is_empty() {
         return;
@@ -634,7 +637,7 @@ pub async fn render_completions(
 ) {
     get!(mut buffers, mut grammars, config, theme, log);
 
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     buf.renderer.clear_extmark_ns("lsp::completion");
 

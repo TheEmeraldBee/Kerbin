@@ -25,7 +25,7 @@ impl OpenedFile {
 pub async fn open_files(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspManager>) {
     get!(mut buffers, mut lsp_manager);
 
-    let mut current_buffer = buffers.cur_buffer_mut().await;
+    let Some(mut current_buffer) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
     let file_path = current_buffer.path.clone();
     let ext = current_buffer.ext.clone();
     drop(buffers);

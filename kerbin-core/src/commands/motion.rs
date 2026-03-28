@@ -123,7 +123,9 @@ impl Command for MotionCommand {
     async fn apply(&self, state: &mut State) -> bool {
         let log = state.lock_state::<LogSender>().await;
         let mut buffers = state.lock_state::<Buffers>().await;
-        let mut cur_buffer = buffers.cur_buffer_mut().await;
+        let Some(mut cur_buffer) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+            return false;
+        };
 
         let rope_len_bytes = cur_buffer.len();
         let rope_len_lines = cur_buffer.len_lines();

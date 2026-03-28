@@ -11,42 +11,12 @@ pub mod gutter;
 pub use gutter::*;
 
 use crate::*;
-use ratatui::prelude::*;
 
 pub fn grapheme_display_width(g: &str) -> usize {
     if g.contains('\u{FE0F}') {
         return 2;
     }
     UnicodeWidthStr::width(g)
-}
-
-fn render_buffer_to_chunk(
-    buf: &TextBuffer,
-    chunk: &mut InnerChunk,
-    core_config: &CoreConfig,
-    theme: &Theme,
-    focused: bool,
-) {
-    let area = chunk.area();
-    let tab_style = theme.get_fallback_default(["ui.text.tabs", "ui.text"]);
-    let cursor_on_tab_style = theme.get_fallback_default(["ui.selection"]);
-    let mut cursor_state = CursorRenderState::default();
-    TextBufferWidget::new(buf)
-        .with_vertical_scroll(buf.renderer.byte_scroll)
-        .with_horizontal_scroll(buf.renderer.h_scroll)
-        .with_tab_display_unit(core_config.tab_display_unit.clone())
-        .with_tab_style(tab_style)
-        .with_cursor_on_tab_style(cursor_on_tab_style)
-        .render(area, chunk, &mut cursor_state);
-    if focused {
-        if let Some((cx, cy, shape)) = cursor_state.cursor {
-            chunk.set_cursor(0, cx, cy, shape);
-        } else {
-            chunk.remove_cursor();
-        }
-    } else {
-        chunk.remove_cursor();
-    }
 }
 
 pub async fn render_buffer_default(
@@ -63,14 +33,15 @@ pub async fn render_buffer_default(
 
     get!(buffers, theme, core_config);
 
-    let buf = buffers.cur_buffer().await;
-
-    render_buffer_to_chunk(&buf, &mut *chunk, &core_config, &theme, true);
+    let ctx = RenderContext { theme: &theme, core_config: &core_config };
+    let area = chunk.area();
+    let buf_arc = buffers.buffers[buffers.selected_buffer].clone();
+    let mut buf = buf_arc.write_owned().await;
+    buf.render(area, &mut chunk, true, &ctx);
 
     if let Some(mut gutter) = gutter_chunk.get().await {
         let gutter_area = gutter.area();
-        GutterWidget::new(buf.renderer.byte_scroll, buf.len_lines(), &theme)
-            .render(gutter_area, &mut gutter);
+        buf.render_gutter(gutter_area, &mut gutter, &ctx);
     }
 }
 
@@ -89,6 +60,7 @@ pub async fn render_splits(
         return;
     }
 
+    let ctx = RenderContext { theme: &theme, core_config: &core_config };
     let focused_id = split.focused_id;
     for (i, pane) in split.leaves().iter().enumerate() {
         if pane.id == focused_id {
@@ -107,19 +79,19 @@ pub async fn render_splits(
             continue;
         }
 
-        let buf = buffers.buffers[buf_idx].clone().read_owned().await;
+        let mut buf = buffers.buffers[buf_idx].clone().write_owned().await;
 
         let Some(chunk_arc) = chunks.get_indexed_chunk::<BufferChunk>(i) else {
             continue;
         };
         let mut chunk = chunk_arc.write_owned().await;
-        render_buffer_to_chunk(&buf, &mut *chunk, &core_config, &theme, false);
+        let area = chunk.area();
+        buf.render(area, &mut chunk, false, &ctx);
 
         if let Some(gutter_arc) = chunks.get_indexed_chunk::<BufferGutterChunk>(i) {
             let mut gutter = gutter_arc.write_owned().await;
             let gutter_area = gutter.area();
-            GutterWidget::new(buf.renderer.byte_scroll, buf.len_lines(), &theme)
-                .render(gutter_area, &mut gutter);
+            buf.render_gutter(gutter_area, &mut gutter, &ctx);
         }
 
         if let Some(bl_arc) = chunks.get_indexed_chunk::<BufferlineChunk>(i) {

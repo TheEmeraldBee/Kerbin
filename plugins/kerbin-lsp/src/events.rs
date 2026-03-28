@@ -27,7 +27,10 @@ pub async fn process_lsp_events(bufs: Res<Buffers>, command_sender: Res<CommandS
     get!(bufs, command_sender);
 
     for buf in &bufs.buffers {
-        if buf.read().await.flags.contains("lsp_opened") {
+        let buf_guard = buf.read().await;
+        if let Some(text_buf) = buf_guard.downcast::<TextBuffer>()
+            && text_buf.flags.contains("lsp_opened")
+        {
             let _ = command_sender.send(Box::new(ProcessLspEventsCommand));
             break;
         }

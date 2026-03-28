@@ -91,7 +91,11 @@ pub async fn render_statusline(
         x += text.chars().count() as u16;
     }
 
-    let cur_buf = buffers.get().await.cur_buffer().await;
+    let (cursor_count, primary_cursor_idx) = buffers.get().await
+        .cur_buffer_as::<TextBuffer>().await
+        .map(|tb| (tb.cursors.len(), tb.primary_cursor))
+        .unwrap_or((1, 0));
+
     let mut right_parts: Vec<(String, Style)> = vec![];
 
     if !input.repeat_count.is_empty() {
@@ -99,7 +103,6 @@ pub async fn render_statusline(
         right_parts.push((input.repeat_count.clone(), repeat_style));
     }
 
-    let cursor_count = cur_buf.cursors.len();
     if cursor_count == 1 {
         let sel_style =
             theme.get_fallback_default(["statusline.selections.one", "statusline.selections"]);
@@ -107,7 +110,7 @@ pub async fn render_statusline(
     } else {
         let sel_style =
             theme.get_fallback_default(["statusline.selections.multi", "statusline.selections"]);
-        let primary_cursor = cur_buf.primary_cursor + 1;
+        let primary_cursor = primary_cursor_idx + 1;
         right_parts.push((
             format!("{}/{} sels", primary_cursor, cursor_count),
             sel_style,

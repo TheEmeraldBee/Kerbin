@@ -30,32 +30,48 @@ pub enum CursorCommand {
 #[async_trait::async_trait]
 impl Command for CursorCommand {
     async fn apply(&self, state: &mut State) -> bool {
-        let mut cur_buf = state.lock_state::<Buffers>().await.cur_buffer_mut().await;
+        let mut cur_bufs = state.lock_state::<Buffers>().await;
 
         match self {
             Self::CreateCursor => {
-                cur_buf.create_cursor();
+                let Some(mut tb) = cur_bufs.cur_buffer_as_mut::<TextBuffer>().await else {
+                    return false;
+                };
+                tb.create_cursor();
                 true
             }
 
             Self::ChangeActiveCursor(offset) => {
-                cur_buf.change_cursor(*offset);
+                let Some(mut tb) = cur_bufs.cur_buffer_as_mut::<TextBuffer>().await else {
+                    return false;
+                };
+                tb.change_cursor(*offset);
                 true
             }
 
             Self::DropCursor => {
-                cur_buf.drop_primary_cursor();
+                let Some(mut tb) = cur_bufs.cur_buffer_as_mut::<TextBuffer>().await else {
+                    return false;
+                };
+                tb.drop_primary_cursor();
                 true
             }
 
             Self::DropOtherCursors => {
-                cur_buf.drop_other_cursors();
+                let Some(mut tb) = cur_bufs.cur_buffer_as_mut::<TextBuffer>().await else {
+                    return false;
+                };
+                tb.drop_other_cursors();
                 true
             }
 
             Self::ApplyAll(cmd) => {
-                let primary_cursor = cur_buf.primary_cursor;
-                let cursor_count = cur_buf.cursors.len();
+                let (primary_cursor, cursor_count) = {
+                    match cur_bufs.cur_buffer_as::<TextBuffer>().await {
+                        Some(tb) => (tb.primary_cursor, tb.cursors.len()),
+                        None => return false,
+                    }
+                };
 
                 let command = state.lock_state::<CommandRegistry>().await.parse_command(
                     cmd.clone(),
@@ -72,41 +88,36 @@ impl Command for CursorCommand {
                 };
 
                 // Drop lock to prevent deadlock
-                drop(cur_buf);
+                drop(cur_bufs);
 
                 for i in 0..cursor_count {
-                    state
-                        .lock_state::<Buffers>()
-                        .await
-                        .cur_buffer_mut()
-                        .await
-                        .primary_cursor = i;
+                    {
+                        let mut guard = state.lock_state::<Buffers>().await;
+                        if let Some(mut tb) = guard.cur_buffer_as_mut::<TextBuffer>().await {
+                            tb.primary_cursor = i;
+                        }
+                    }
 
                     command.apply(state).await;
 
-                    if state
-                        .lock_state::<Buffers>()
-                        .await
-                        .cur_buffer_mut()
-                        .await
-                        .cursors
-                        .len()
-                        != cursor_count
                     {
-                        // This is a fail state, log and break
-                        tracing::error!(
-                            "Apply All Ran command that changed cursor count. This is not allowed at current time."
-                        );
-                        break;
+                        let guard = state.lock_state::<Buffers>().await;
+                        let count = guard.cur_buffer_as::<TextBuffer>().await.map(|tb| tb.cursors.len()).unwrap_or(0);
+                        if count != cursor_count {
+                            tracing::error!(
+                                "Apply All Ran command that changed cursor count. This is not allowed at current time."
+                            );
+                            break;
+                        }
                     }
                 }
 
-                state
-                    .lock_state::<Buffers>()
-                    .await
-                    .cur_buffer_mut()
-                    .await
-                    .primary_cursor = primary_cursor;
+                {
+                    let mut guard = state.lock_state::<Buffers>().await;
+                    if let Some(mut tb) = guard.cur_buffer_as_mut::<TextBuffer>().await {
+                        tb.primary_cursor = primary_cursor;
+                    }
+                }
 
                 false
             }

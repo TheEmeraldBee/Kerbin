@@ -10,7 +10,9 @@ pub async fn render_cursors_and_selections(
 ) {
     get!(mut bufs, modes, theme);
 
-    let mut buf = bufs.cur_buffer_mut().await;
+    let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else {
+        return;
+    };
 
     buf.renderer.clear_extmark_ns("inner::cursor");
     buf.renderer.clear_extmark_ns("inner::selection");
@@ -201,7 +203,9 @@ pub async fn update_bufferline_scroll(
 pub async fn post_update_buffer(buffers: ResMut<Buffers>) {
     get!(mut buffers);
 
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+        return;
+    };
 
     resolver_engine_mut()
         .await
@@ -216,7 +220,11 @@ pub async fn update_tab_width_template(buffers: Res<Buffers>) {
         return;
     }
 
-    let tab_unit = match &buffers.cur_buffer().await.indent_style {
+    let Some(buf) = buffers.cur_buffer_as::<TextBuffer>().await else {
+        return;
+    };
+
+    let tab_unit = match &buf.indent_style {
         IndentStyle::Tabs => "\t".to_string(),
         IndentStyle::Spaces(n) => " ".repeat(*n),
     };
@@ -244,7 +252,9 @@ pub async fn cleanup_buffers(buffers: ResMut<Buffers>) {
 
     buffers.update_paths().await;
 
-    let mut buffer = buffers.cur_buffer_mut().await;
+    let Some(mut buffer) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+        return;
+    };
 
     buffer.update_cleanup();
 }
@@ -279,7 +289,6 @@ pub async fn handle_mouse_events(
         let row = mouse_ev.row;
 
         // On left-click, check if a non-focused pane was clicked and switch focus.
-        // Also update the effective buffer area for mouse-position templates.
         let mut area_opt = chunks.rect_for_chunk(&BufferChunk::static_name());
         if matches!(trigger, MouseTrigger::LeftDown) && split.pane_count() > 1 {
             let n = chunks.indexed_count::<BufferChunk>();
@@ -306,34 +315,33 @@ pub async fn handle_mouse_events(
             }
         }
 
-        if let Some(area) = area_opt {
-            let buf = buffers.cur_buffer().await;
+        if let Some(area) = area_opt
+            && let Some(buf) = buffers.cur_buffer_as::<TextBuffer>().await {
+                let line_idx = (row.saturating_sub(area.y) as usize)
+                    .saturating_add(buf.renderer.byte_scroll)
+                    .min(buf.len_lines().saturating_sub(1));
 
-            let line_idx = (row.saturating_sub(area.y) as usize)
-                .saturating_add(buf.renderer.byte_scroll)
-                .min(buf.len_lines().saturating_sub(1));
+                let line_start_byte = buf.line_to_byte_clamped(line_idx);
+                let line_end_byte = buf
+                    .line_to_byte(line_idx + 1)
+                    .unwrap_or(buf.rope.len_bytes());
+                let target_display_col =
+                    (col.saturating_sub(area.x) as usize).saturating_add(buf.renderer.h_scroll);
 
-            let line_start_byte = buf.line_to_byte_clamped(line_idx);
-            let line_end_byte = buf
-                .line_to_byte(line_idx + 1)
-                .unwrap_or(buf.rope.len_bytes());
-            let target_display_col =
-                (col.saturating_sub(area.x) as usize).saturating_add(buf.renderer.h_scroll);
+                let line_text = buf
+                    .slice_to_string(line_start_byte, line_end_byte)
+                    .unwrap_or_default();
 
-            let line_text = buf
-                .slice_to_string(line_start_byte, line_end_byte)
-                .unwrap_or_default();
+                let tab_w = core_config.tab_display_unit.chars().count();
+                let byte_offset =
+                    display_col_to_byte_offset(&line_text, target_display_col, tab_w);
 
-            let tab_w = core_config.tab_display_unit.chars().count();
-            let byte_offset = display_col_to_byte_offset(&line_text, target_display_col, tab_w);
 
-            drop(buf);
-
-            let mut engine = resolver_engine_mut().await;
-            engine.set_template("mouse_line", line_idx.to_string());
-            engine.set_template("mouse_col", byte_offset.to_string());
-            drop(engine);
-        }
+                let mut engine = resolver_engine_mut().await;
+                engine.set_template("mouse_line", line_idx.to_string());
+                engine.set_template("mouse_col", byte_offset.to_string());
+                drop(engine);
+            }
 
         let Some(commands) = mouse_bindings.bindings.get(&trigger) else {
             continue;

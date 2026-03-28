@@ -24,7 +24,7 @@ impl Command for StateCommand {
                 let bufs = state.lock_state::<Buffers>().await;
                 let log = state.lock_state::<LogSender>().await;
                 for buf in &bufs.buffers {
-                    if buf.read().await.dirty {
+                    if buf.read().await.is_dirty() {
                         log.medium(
                             "command::quit",
                             "Unable to quit, can't close unsaved buffers",

@@ -47,7 +47,7 @@ impl Command for HoverCommand {
                 let mut bufs = state.lock_state::<Buffers>().await;
                 let mut lsps = state.lock_state::<LspManager>().await;
 
-                let mut buf = bufs.cur_buffer_mut().await;
+                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return true; };
 
                 let Some(file) = buf.get_state::<OpenedFile>().await else {
                     return false;
@@ -87,7 +87,7 @@ impl Command for HoverCommand {
             }
             Self::Scroll { amount } => {
                 let mut bufs = state.lock_state::<Buffers>().await;
-                let mut buf = bufs.cur_buffer_mut().await;
+                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return true; };
 
                 if let Some(mut state) = buf.get_state_mut::<HoverState>().await
                     && let Some(info) = &mut state.info
@@ -110,7 +110,7 @@ pub async fn render_hover(
 ) {
     get!(mut buffers, mut grammars, config, theme, log);
 
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     let Some(mut state) = buf.get_state_mut::<HoverState>().await else {
         return;
@@ -236,7 +236,9 @@ pub async fn handle_hover(state: &State, msg: &JsonRpcMessage) {
 
         let mut buffer = None;
         for buf in &bufs.buffers {
-            if let Some(state) = buf.read().await.get_state::<HoverState>().await
+            let buf_guard = buf.read().await;
+            if let Some(text_buf) = buf_guard.downcast::<TextBuffer>()
+                && let Some(state) = text_buf.get_state::<HoverState>().await
                 && let Some(info) = &state.info
                 && info.pending_request == response.id
             {
@@ -249,7 +251,8 @@ pub async fn handle_hover(state: &State, msg: &JsonRpcMessage) {
             return;
         };
 
-        let mut buf = buf.write_owned().await;
+        let mut buf_guard = buf.write_owned().await;
+        let Some(buf) = buf_guard.downcast_mut::<TextBuffer>() else { return; };
         let mut hover_state = buf.get_state_mut::<HoverState>().await.unwrap();
         let info = hover_state.info.as_mut().unwrap();
 

@@ -13,9 +13,10 @@ pub async fn auto_pairs_intercept(cmd: &BufferCommand, state: &mut State) -> Int
     // Read char at cursor position (before the command fires)
     let char_at_cursor = {
         let buffers = state.lock_state::<Buffers>().await;
-        let buf = buffers.cur_buffer().await;
-        let byte = buf.primary_cursor().get_cursor_byte();
-        buf.char(buf.byte_to_char_clamped(byte))
+        buffers.cur_buffer_as::<TextBuffer>().await.and_then(|tb| {
+            let byte = tb.primary_cursor().get_cursor_byte();
+            tb.char(tb.byte_to_char_clamped(byte))
+        })
     };
 
     let auto_pairs = state.lock_state::<AutoPairs>().await;

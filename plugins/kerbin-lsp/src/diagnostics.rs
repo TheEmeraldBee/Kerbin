@@ -75,7 +75,7 @@ fn severity_to_style_priority(severity: Option<DiagnosticSeverity>) -> (Style, i
 pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>) {
     get!(mut buffers);
 
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     let diagnostics: Vec<Diagnostic> = match buf.get_state_mut::<Diagnostics>().await.as_ref() {
         Some(d) => d.0.clone(),
@@ -182,14 +182,14 @@ pub async fn publish_diagnostics(state: &State, msg: &JsonRpcMessage) {
             .insert(path.clone(), params.diagnostics.clone());
 
         // Also push onto the open buffer if there is one.
-        if let Some(mut buf) = state
+        if let Some(mut buf_guard) = state
             .lock_state::<Buffers>()
             .await
             .get_mut_path(&path)
             .await
-        {
-            buf.set_state(Diagnostics(params.diagnostics));
-        }
+            && let Some(buf) = buf_guard.downcast_mut::<TextBuffer>() {
+                buf.set_state(Diagnostics(params.diagnostics));
+            }
     }
 }
 

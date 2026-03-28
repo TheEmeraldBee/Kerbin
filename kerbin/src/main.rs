@@ -210,7 +210,7 @@ async fn update(state: &mut State) {
 
     let filetype = {
         let bufs = state.lock_state::<Buffers>().await;
-        bufs.cur_buffer().await.ext.clone()
+        bufs.cur_buffer_as::<TextBuffer>().await.map(|tb| tb.ext.clone()).unwrap_or_default()
     };
 
     state

@@ -9,7 +9,11 @@ pub async fn file_saved(
 ) {
     get!(mut buffers, Some(data), mut lsp_manager);
 
-    let Some(mut cur_buf) = buffers.get_mut_path(&data.path).await else {
+    let Some(mut cur_buf_guard) = buffers.get_mut_path(&data.path).await else {
+        return;
+    };
+
+    let Some(cur_buf) = cur_buf_guard.downcast_mut::<TextBuffer>() else {
         return;
     };
 
@@ -46,10 +50,10 @@ pub async fn file_saved(
     {
         match fmt.kind {
             FormatterKind::Lsp => {
-                send_lsp_format_request(&mut cur_buf, &mut lsp_manager, &lang, uri).await;
+                send_lsp_format_request(cur_buf, &mut lsp_manager, &lang, uri).await;
             }
             FormatterKind::External(cmd, args) => {
-                send_external_format_request(&mut cur_buf, &cmd, &args).await;
+                send_external_format_request(cur_buf, &cmd, &args).await;
             }
         }
     }

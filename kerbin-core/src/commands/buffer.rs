@@ -21,12 +21,12 @@ impl Command for CommitCommand {
             CommitCommand::Commit(after) => {
                 let mut res = true;
 
-                state
-                    .lock_state::<Buffers>()
-                    .await
-                    .cur_buffer_mut()
-                    .await
-                    .start_change_group();
+                {
+                    let mut buffers = state.lock_state::<Buffers>().await;
+                    if let Some(mut tb) = buffers.cur_buffer_as_mut::<TextBuffer>().await {
+                        tb.start_change_group();
+                    }
+                }
 
                 if let Some(after) = after {
                     let command = state.lock_state::<CommandRegistry>().await.parse_command(
@@ -44,12 +44,12 @@ impl Command for CommitCommand {
                     }
                 }
 
-                state
-                    .lock_state::<Buffers>()
-                    .await
-                    .cur_buffer_mut()
-                    .await
-                    .commit_change_group();
+                {
+                    let mut buffers = state.lock_state::<Buffers>().await;
+                    if let Some(mut tb) = buffers.cur_buffer_as_mut::<TextBuffer>().await {
+                        tb.commit_change_group();
+                    }
+                }
 
                 res
             }
@@ -169,7 +169,9 @@ impl Command for BufferCommand {
 
         let log = state.lock_state::<LogSender>().await;
 
-        let mut cur_buffer = buffers.cur_buffer_mut().await;
+        let Some(mut cur_buffer) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+            return false;
+        };
 
         let byte = cur_buffer.primary_cursor().get_cursor_byte();
 
@@ -567,7 +569,7 @@ async fn close_buffer_inner(
     let buf_idx = buf_idx as usize;
 
     if !force {
-        let dirty = buffers.buffers[buf_idx].read().await.dirty;
+        let dirty = buffers.buffers[buf_idx].read().await.is_dirty();
         if dirty {
             log.medium("command::close_buffer", "Cannot close buffer as it has changes!");
             tracing::error!("Cannot close buffer as it has changes!");

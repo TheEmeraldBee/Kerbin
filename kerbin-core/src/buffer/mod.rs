@@ -6,6 +6,9 @@ use std::{
     time::SystemTime,
 };
 
+pub mod buffer_trait;
+pub use buffer_trait::*;
+
 pub mod events;
 pub use events::*;
 

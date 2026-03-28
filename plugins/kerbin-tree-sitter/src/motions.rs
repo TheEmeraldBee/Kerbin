@@ -73,7 +73,7 @@ fn apply_selection(buf: &mut TextBuffer, range: std::ops::Range<usize>, extend: 
 
 async fn ts_select_node(state: &mut State, extend: bool) {
     let mut buffers = state.lock_state::<Buffers>().await;
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     let sel_start = *buf.primary_cursor().sel().start();
     let sel_end = *buf.primary_cursor().sel().end();
@@ -108,7 +108,7 @@ async fn ts_select_node(state: &mut State, extend: bool) {
 
 async fn ts_parent_node(state: &mut State, extend: bool) {
     let mut buffers = state.lock_state::<Buffers>().await;
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     let sel_start = *buf.primary_cursor().sel().start();
     let sel_end = *buf.primary_cursor().sel().end();
@@ -145,7 +145,7 @@ async fn ts_parent_node(state: &mut State, extend: bool) {
 
 async fn ts_next_sibling(state: &mut State, extend: bool) {
     let mut buffers = state.lock_state::<Buffers>().await;
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     let sel_start = *buf.primary_cursor().sel().start();
     let sel_end = *buf.primary_cursor().sel().end();
@@ -174,7 +174,7 @@ async fn ts_next_sibling(state: &mut State, extend: bool) {
 
 async fn ts_next_ref(state: &mut State) {
     let mut buffers = state.lock_state::<Buffers>().await;
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     let cursor_byte = buf.primary_cursor().get_cursor_byte();
 
@@ -208,7 +208,7 @@ async fn ts_next_ref(state: &mut State) {
 
 async fn ts_prev_ref(state: &mut State) {
     let mut buffers = state.lock_state::<Buffers>().await;
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     let cursor_byte = buf.primary_cursor().get_cursor_byte();
 
@@ -243,7 +243,7 @@ async fn ts_prev_ref(state: &mut State) {
 
 async fn ts_prev_sibling(state: &mut State, extend: bool) {
     let mut buffers = state.lock_state::<Buffers>().await;
-    let mut buf = buffers.cur_buffer_mut().await;
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
 
     let sel_start = *buf.primary_cursor().sel().start();
     let sel_end = *buf.primary_cursor().sel().end();

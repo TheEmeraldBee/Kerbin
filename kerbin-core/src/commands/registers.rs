@@ -37,7 +37,8 @@ impl Command for RegisterCommand {
 
         match self {
             Self::CopyRegister(register) => {
-                let buf = state.lock_state::<Buffers>().await.cur_buffer().await;
+                let bufs = state.lock_state::<Buffers>().await;
+                let Some(buf) = bufs.cur_buffer_as::<TextBuffer>().await else { return false; };
 
                 let byte_range = buf.primary_cursor().sel().clone();
                 let text = buf
@@ -61,7 +62,8 @@ impl Command for RegisterCommand {
                 .await
             }
             Self::ClipboardCopy => {
-                let buf = state.lock_state::<Buffers>().await.cur_buffer().await;
+                let bufs = state.lock_state::<Buffers>().await;
+                let Some(buf) = bufs.cur_buffer_as::<TextBuffer>().await else { return false; };
                 let byte_range = buf.primary_cursor().sel().clone();
                 let text = buf
                     .slice_to_string(*byte_range.start(), (*byte_range.end() + 1).min(buf.len()))
