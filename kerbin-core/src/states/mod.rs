@@ -30,6 +30,9 @@ pub use chunks::*;
 pub mod registers;
 pub use registers::*;
 
+pub mod splits;
+pub use splits::*;
+
 /// Initializes the editor's core state with essential components
 pub fn init_state(
     terminal: Terminal<CrosstermBackend<std::io::Stdout>>,

@@ -23,10 +23,7 @@ impl FromStr for SplitResizeDir {
     }
 }
 
-/// Returns the global buffer index that the given pane is currently displaying.
-///
-/// - `unique_buffers = false` (shared mode): `pane.selected_local` IS the global index.
-/// - `unique_buffers = true`: `pane.buffer_indices[pane.selected_local]` is the global index.
+/// Returns the global buffer index that the given pane is currently displaying
 fn pane_global_idx(split: &SplitState, pane: &SplitPane) -> Option<usize> {
     if !split.unique_buffers {
         Some(pane.selected_local)
@@ -60,11 +57,11 @@ async fn focus_in_dir(state: &mut State, dx: i16, dy: i16) -> bool {
 
 #[derive(Clone, Debug, Command)]
 pub enum SplitCommand {
-    #[command(name = "split_v")]
+    #[command(name = "spv")]
     /// Splits the focused pane vertically (side by side)
     SplitVertical,
 
-    #[command(name = "split_h")]
+    #[command(name = "sph")]
     /// Splits the focused pane horizontally (stacked)
     SplitHorizontal,
 
@@ -72,35 +69,35 @@ pub enum SplitCommand {
     /// Focuses the split pane at the given leaf index
     FocusPane(usize),
 
-    #[command(name = "split_next")]
+    #[command(name = "spfn")]
     /// Focuses the next pane (wraps around)
     FocusNext,
 
-    #[command(name = "split_prev")]
+    #[command(name = "spfp")]
     /// Focuses the previous pane (wraps around)
     FocusPrev,
 
-    #[command(name = "split_left")]
+    #[command(name = "spfl")]
     /// Focuses the nearest pane to the left
     FocusLeft,
 
-    #[command(name = "split_right")]
+    #[command(name = "spfr")]
     /// Focuses the nearest pane to the right
     FocusRight,
 
-    #[command(name = "split_up")]
+    #[command(name = "spfu")]
     /// Focuses the nearest pane above
     FocusUp,
 
-    #[command(name = "split_down")]
+    #[command(name = "spfd")]
     /// Focuses the nearest pane below
     FocusDown,
 
-    #[command(name = "split_close")]
+    #[command(drop_ident, name = "split_close", name = "spc")]
     /// Closes the current pane; its buffers merge into the adjacent pane
     CloseSplit,
 
-    #[command(drop_ident, name = "split_resize")]
+    #[command(drop_ident, name = "split_resize", name = "spr")]
     /// Resizes the focused pane. dir: "v" = width, "h" = height. No-op if wrong axis.
     ResizeSplit {
         #[command(type_name = "v|h")]
@@ -108,7 +105,7 @@ pub enum SplitCommand {
         amount: i16,
     },
 
-    #[command(name = "drop_splits")]
+    #[command(name = "spd")]
     /// Closes all panes except the focused one and merges all buffer lists into it
     DropSplits,
 }
@@ -289,7 +286,9 @@ impl Command for SplitCommand {
                     });
                     split.focused_id = new_id;
 
-                    split.focused_pane().and_then(|p| pane_global_idx(&split, p))
+                    split
+                        .focused_pane()
+                        .and_then(|p| pane_global_idx(&split, p))
                 };
                 apply_buf_focus(state, buf_idx).await;
                 true
