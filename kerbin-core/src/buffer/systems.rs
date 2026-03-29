@@ -307,7 +307,7 @@ pub async fn handle_mouse_events(
                         .map(|p| p.id)
                         == Some(split.focused_id);
                     if !is_focused {
-                        let focus_cmd: Box<dyn Command> =
+                        let focus_cmd: Box<dyn Command<State>> =
                             Box::new(SplitCommand::FocusPane(pane_i));
                         command_sender.get().await.send(focus_cmd).unwrap();
                     }

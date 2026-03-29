@@ -36,7 +36,7 @@ pub use splits::*;
 /// Initializes the editor's core state with essential components
 pub fn init_state(
     terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
-    cmd_sender: UnboundedSender<Box<dyn Command>>,
+    cmd_sender: UnboundedSender<Box<dyn Command<State>>>,
     config_path: String,
     uuid: Uuid,
     server_ipc: ServerIpc,

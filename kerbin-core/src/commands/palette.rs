@@ -24,7 +24,7 @@ pub enum PaletteCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for PaletteCommand {
+impl Command<State> for PaletteCommand {
     async fn apply(&self, state: &mut State) -> bool {
         let mut palette = state.lock_state::<CommandPaletteState>().await;
 

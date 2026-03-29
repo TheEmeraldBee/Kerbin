@@ -12,7 +12,7 @@ pub enum InputCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for InputCommand {
+impl Command<State> for InputCommand {
     async fn apply(&self, state: &mut State) -> bool {
         let mut input = state.lock_state::<InputState>().await;
 

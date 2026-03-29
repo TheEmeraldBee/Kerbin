@@ -17,7 +17,7 @@ pub enum StateCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for StateCommand {
+impl Command<State> for StateCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match *self {
             Self::Quit => {

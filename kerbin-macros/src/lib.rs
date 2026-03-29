@@ -223,49 +223,11 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
             let has_flags = variant.fields.iter().any(|f| f.flag);
 
             if has_flags {
-                let prescan_arms = variant
-                    .fields
-                    .iter()
-                    .filter(|f| f.flag)
-                    .map(|f| {
-                        let flag_name_str = f.flag_cli_name();
-                        let ty = &f.ty;
-                        let is_bool_flag = is_bool_type(ty)
-                            || get_option_inner_type(ty)
-                                .map(is_bool_type)
-                                .unwrap_or(false);
-
-                        if is_bool_flag {
-                            quote! {
-                                Token::Word(_s) if _s.as_str() == #flag_name_str => {
-                                    _fi += 1;
-                                }
-                            }
-                        } else {
-                            // Value-taking flag: conditionally consume the next token.
-                            quote! {
-                                Token::Word(_s) if _s.as_str() == #flag_name_str => {
-                                    let _has_value = match val.get(_fi + 1) {
-                                        Some(Token::Word(_v)) if !_v.starts_with("--") => true,
-                                        Some(Token::List(_)) => true,
-                                        _ => false,
-                                    };
-                                    _fi += if _has_value { 2 } else { 1 };
-                                }
-                            }
-                        }
-                    })
-                    .collect::<Vec<_>>();
-
                 let prescan = quote! {
-                    let mut _positional: Vec<usize> = vec![];
-                    let mut _fi = 1usize;
-                    while _fi < val.len() {
-                        match &val[_fi] {
-                            #(#prescan_arms,)*
-                            _ => { _positional.push(_fi); _fi += 1; }
-                        }
-                    }
+                    let _state = match ::kerbin_core::CommandState::parse(val) {
+                        Some(s) => s,
+                        None => return None,
+                    };
                 };
 
                 let positional_count = variant.fields.iter().filter(|f| !f.flag).count();
@@ -277,12 +239,12 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
 
                 let arg_check = if num_required_positional == positional_count {
                     quote! {
-                        if _positional.len() != #positional_count { return None; }
+                        if _state.positional.len() != #positional_count { return None; }
                     }
                 } else {
                     quote! {
-                        if _positional.len() < #num_required_positional
-                            || _positional.len() > #positional_count
+                        if _state.positional.len() < #num_required_positional
+                            || _state.positional.len() > #positional_count
                         {
                             return None;
                         }
@@ -318,9 +280,7 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                             if is_bool_type(ty) {
                                 // --flag → true, absent → false
                                 quote! {
-                                    let #var = val[1..].iter().any(|_t| {
-                                        matches!(_t, Token::Word(_s) if _s.as_str() == #flag_name_str)
-                                    });
+                                    let #var = _state.flags.contains_key(#flag_name_str);
                                 }
                             } else if get_option_inner_type(ty)
                                 .map(is_bool_type)
@@ -328,9 +288,7 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                             {
                                 // --flag → Some(true), absent → None
                                 quote! {
-                                    let #var = if val[1..].iter().any(|_t| {
-                                        matches!(_t, Token::Word(_s) if _s.as_str() == #flag_name_str)
-                                    }) {
+                                    let #var = if _state.flags.contains_key(#flag_name_str) {
                                         Some(true)
                                     } else {
                                         None
@@ -343,21 +301,9 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                             {
                                 // --flag [tokens] → Some(items), absent → None
                                 quote! {
-                                    let #var = {
-                                        let mut _result = None;
-                                        let mut _fi = 1usize;
-                                        while _fi < val.len() {
-                                            if let Token::Word(_s) = &val[_fi]
-                                                && _s.as_str() == #flag_name_str
-                                            {
-                                                if let Some(Token::List(_items)) = val.get(_fi + 1) {
-                                                    _result = Some(_items.clone());
-                                                }
-                                                break;
-                                            }
-                                            _fi += 1;
-                                        }
-                                        _result
+                                    let #var = match _state.flags.get(#flag_name_str) {
+                                        Some(Some(Token::List(_items))) => Some(_items.clone()),
+                                        _ => None,
                                     };
                                 }
                             } else if get_vec_inner_type(ty)
@@ -366,24 +312,9 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                             {
                                 // --flag [tokens] → items (required)
                                 quote! {
-                                    let #var = {
-                                        let mut _result = None;
-                                        let mut _fi = 1usize;
-                                        while _fi < val.len() {
-                                            if let Token::Word(_s) = &val[_fi]
-                                                && _s.as_str() == #flag_name_str
-                                            {
-                                                if let Some(Token::List(_items)) = val.get(_fi + 1) {
-                                                    _result = Some(_items.clone());
-                                                }
-                                                break;
-                                            }
-                                            _fi += 1;
-                                        }
-                                        match _result {
-                                            Some(_v) => _v,
-                                            None => return None,
-                                        }
+                                    let #var = match _state.flags.get(#flag_name_str) {
+                                        Some(Some(Token::List(_items))) => _items.clone(),
+                                        _ => return None,
                                     };
                                 }
                             } else if let Some(inner_ty) = get_option_inner_type(ty)
@@ -391,113 +322,53 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                             {
                                 // --flag [items] → Some(parsed_items), absent → None
                                 quote! {
-                                    let #var = {
-                                        let mut _result = None;
-                                        let mut _fi = 1usize;
-                                        while _fi < val.len() {
-                                            if let Token::Word(_s) = &val[_fi]
-                                                && _s.as_str() == #flag_name_str
-                                            {
-                                                if let Some(Token::List(_items)) = val.get(_fi + 1) {
-                                                    _result = Some(
-                                                        _items.iter().filter_map(|_t| {
-                                                            if let Token::Word(_w) = _t {
-                                                                _w.parse::<#list_inner_ty>().ok()
-                                                            } else {
-                                                                None
-                                                            }
-                                                        }).collect::<Vec<#list_inner_ty>>()
-                                                    );
+                                    let #var = match _state.flags.get(#flag_name_str) {
+                                        Some(Some(Token::List(_items))) => Some(
+                                            _items.iter().filter_map(|_t| {
+                                                if let Token::Word(_w) = _t {
+                                                    _w.parse::<#list_inner_ty>().ok()
+                                                } else {
+                                                    None
                                                 }
-                                                break;
-                                            }
-                                            _fi += 1;
-                                        }
-                                        _result
+                                            }).collect::<Vec<#list_inner_ty>>()
+                                        ),
+                                        _ => None,
                                     };
                                 }
                             } else if let Some(list_inner_ty) = get_vec_inner_type(ty) {
                                 // --flag [items] → parsed_items (required)
                                 quote! {
-                                    let #var = {
-                                        let mut _result = None;
-                                        let mut _fi = 1usize;
-                                        while _fi < val.len() {
-                                            if let Token::Word(_s) = &val[_fi]
-                                                && _s.as_str() == #flag_name_str
-                                            {
-                                                if let Some(Token::List(_items)) = val.get(_fi + 1) {
-                                                    _result = Some(
-                                                        _items.iter().filter_map(|_t| {
-                                                            if let Token::Word(_w) = _t {
-                                                                _w.parse::<#list_inner_ty>().ok()
-                                                            } else {
-                                                                None
-                                                            }
-                                                        }).collect::<Vec<#list_inner_ty>>()
-                                                    );
-                                                }
-                                                break;
+                                    let #var = match _state.flags.get(#flag_name_str) {
+                                        Some(Some(Token::List(_items))) => _items.iter().filter_map(|_t| {
+                                            if let Token::Word(_w) = _t {
+                                                _w.parse::<#list_inner_ty>().ok()
+                                            } else {
+                                                None
                                             }
-                                            _fi += 1;
-                                        }
-                                        match _result {
-                                            Some(_v) => _v,
-                                            None => return None,
-                                        }
+                                        }).collect::<Vec<#list_inner_ty>>(),
+                                        _ => return None,
                                     };
                                 }
                             } else if let Some(inner_ty) = get_option_inner_type(ty) {
                                 // --flag value → Some(parsed), absent → None
                                 quote! {
-                                    let #var = {
-                                        let mut _result = None;
-                                        let mut _fi = 1usize;
-                                        while _fi < val.len() {
-                                            if let Token::Word(_s) = &val[_fi]
-                                                && _s.as_str() == #flag_name_str
-                                            {
-                                                if let Some(Token::Word(_v)) = val.get(_fi + 1) {
-                                                    if !_v.starts_with("--") {
-                                                        _result = match _v.parse::<#inner_ty>() {
-                                                            Ok(_t) => Some(_t),
-                                                            Err(_e) => return Some(Err(_e.to_string())),
-                                                        };
-                                                    }
-                                                }
-                                                break;
-                                            }
-                                            _fi += 1;
-                                        }
-                                        _result
+                                    let #var = match _state.flags.get(#flag_name_str) {
+                                        Some(Some(Token::Word(_v))) => Some(match _v.parse::<#inner_ty>() {
+                                            Ok(_t) => _t,
+                                            Err(_e) => return Some(Err(_e.to_string())),
+                                        }),
+                                        _ => None,
                                     };
                                 }
                             } else {
                                 // --flag value → parsed (required)
                                 quote! {
-                                    let #var = {
-                                        let mut _result = None;
-                                        let mut _fi = 1usize;
-                                        while _fi < val.len() {
-                                            if let Token::Word(_s) = &val[_fi]
-                                                && _s.as_str() == #flag_name_str
-                                            {
-                                                if let Some(Token::Word(_v)) = val.get(_fi + 1) {
-                                                    if !_v.starts_with("--") {
-                                                        _result = match _v.parse::<#ty>() {
-                                                            Ok(_t) => Some(_t),
-                                                            Err(_e) => return Some(Err(_e.to_string())),
-                                                        };
-                                                    }
-                                                }
-                                                break;
-                                            }
-                                            _fi += 1;
-                                        }
-                                        match _result {
-                                            Some(_v) => _v,
-                                            None => return None,
-                                        }
+                                    let #var = match _state.flags.get(#flag_name_str) {
+                                        Some(Some(Token::Word(_v))) => match _v.parse::<#ty>() {
+                                            Ok(_t) => _t,
+                                            Err(_e) => return Some(Err(_e.to_string())),
+                                        },
+                                        _ => return None,
                                     };
                                 }
                             }
@@ -511,10 +382,7 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                                     .unwrap_or(false)
                             {
                                 quote! {
-                                    let #var = match _positional
-                                        .get(#current_pos_idx)
-                                        .and_then(|&_i| val.get(_i))
-                                    {
+                                    let #var = match _state.positional.get(#current_pos_idx) {
                                         Some(Token::List(items)) => Some(items.clone()),
                                         _ => None,
                                     };
@@ -524,20 +392,14 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                                 .unwrap_or(false)
                             {
                                 quote! {
-                                    let #var = match _positional
-                                        .get(#current_pos_idx)
-                                        .and_then(|&_i| val.get(_i))
-                                    {
+                                    let #var = match _state.positional.get(#current_pos_idx) {
                                         Some(Token::List(items)) => items.clone(),
                                         _ => return None,
                                     };
                                 }
                             } else if let Some(inner_ty) = get_vec_inner_type(ty) {
                                 quote! {
-                                    let #var = match _positional
-                                        .get(#current_pos_idx)
-                                        .and_then(|&_i| val.get(_i))
-                                    {
+                                    let #var = match _state.positional.get(#current_pos_idx) {
                                         Some(Token::List(items)) => {
                                             items.iter().filter_map(|t| {
                                                 if let Token::Word(s) = t {
@@ -552,35 +414,25 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                                 }
                             } else if is_token_type(ty) {
                                 quote! {
-                                    let #var = match _positional
-                                        .get(#current_pos_idx)
-                                        .and_then(|&_i| val.get(_i))
-                                    {
+                                    let #var = match _state.positional.get(#current_pos_idx) {
                                         Some(t) => t.clone(),
                                         None => return None,
                                     };
                                 }
                             } else if let Some(inner_ty) = get_option_inner_type(ty) {
                                 quote! {
-                                    let #var = if let Some(&_pi) = _positional.get(#current_pos_idx) {
-                                        if let Some(Token::Word(s)) = val.get(_pi) {
-                                            Some(match s.parse::<#inner_ty>() {
-                                                Ok(t) => t,
-                                                Err(e) => return Some(Err(e.to_string())),
-                                            })
-                                        } else {
-                                            None
-                                        }
+                                    let #var = if let Some(Token::Word(s)) = _state.positional.get(#current_pos_idx) {
+                                        Some(match s.parse::<#inner_ty>() {
+                                            Ok(t) => t,
+                                            Err(e) => return Some(Err(e.to_string())),
+                                        })
                                     } else {
                                         None
                                     };
                                 }
                             } else {
                                 quote! {
-                                    let #var = match _positional
-                                        .get(#current_pos_idx)
-                                        .and_then(|&_i| val.get(_i))
-                                    {
+                                    let #var = match _state.positional.get(#current_pos_idx) {
                                         Some(Token::Word(s)) => match s.parse::<#ty>() {
                                             Ok(t) => t,
                                             Err(e) => return Some(Err(e.to_string())),
@@ -751,8 +603,11 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
     let command_from_str_impl = {
         let ident = &info.ident;
         quote! {
-            impl CommandFromStr for #ident {
-                fn from_str(val: &[Token]) -> Option<Result<Box<dyn Command>, String>> {
+            impl<__S: Send + Sync + 'static> CommandFromStr<__S> for #ident
+            where
+                #ident: Command<__S>,
+            {
+                fn from_str(val: &[Token]) -> Option<Result<Box<dyn Command<__S>>, String>> {
                     match val.get(0) {
                         Some(Token::Word(s)) => match s.as_str() {
                             #(#match_arms),*

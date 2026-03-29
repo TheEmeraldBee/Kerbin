@@ -43,7 +43,7 @@ pub enum TreeSitterCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for TreeSitterCommand {
+impl Command<State> for TreeSitterCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             TreeSitterCommand::Define {

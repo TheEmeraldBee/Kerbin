@@ -25,10 +25,10 @@ pub struct Running(pub bool);
 
 /// State for sending commands through an unbounded MPSC sender
 #[derive(State)]
-pub struct CommandSender(pub UnboundedSender<Box<dyn Command>>);
+pub struct CommandSender(pub UnboundedSender<Box<dyn Command<State>>>);
 
 impl Deref for CommandSender {
-    type Target = UnboundedSender<Box<dyn Command>>;
+    type Target = UnboundedSender<Box<dyn Command<State>>>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }

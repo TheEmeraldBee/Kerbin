@@ -16,7 +16,7 @@ pub enum DebugCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for DebugCommand {
+impl Command<State> for DebugCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             Self::Echo { text, level } => {

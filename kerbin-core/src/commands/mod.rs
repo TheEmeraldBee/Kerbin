@@ -42,64 +42,26 @@ pub use if_cmd::*;
 mod splits;
 pub use splits::*;
 
-/// Type alias for a command parsing function.
-type CommandFn = Box<dyn Fn(&[Token]) -> Option<Result<Box<dyn Command>, String>> + Send + Sync>;
+/// Type alias for a state-specific command parsing function.
+pub type CommandFn = kerbin_command_lang::CommandFn<State>;
 
-/// Represents a set of registered commands, including its parser and command information.
-pub struct RegisteredCommandSet {
-    pub parser: CommandFn,
-    pub infos: Vec<CommandInfo>,
+/// Type alias for a state-specific registered command set.
+pub type RegisteredCommandSet = kerbin_command_lang::RegisteredCommandSet<State>;
+
+/// Provides ratatui rendering for `CommandInfo`.
+pub trait CommandInfoRender {
+    fn desc_buf(&self, theme: &Theme) -> Option<Vec<Line<'static>>>;
+    fn as_suggestion(&self, will_autocomplete: bool, theme: &Theme) -> Line<'static>;
+    fn as_suggestion_with_search(
+        &self,
+        will_autocomplete: bool,
+        search_term: &str,
+        theme: &Theme,
+    ) -> Line<'static>;
 }
 
-/// Represents a command prefix configuration.
-#[derive(Debug)]
-pub struct CommandPrefix {
-    pub modes: Vec<char>,
-    pub prefix_cmd: String,
-    pub include: bool,
-    pub list: Vec<String>,
-}
-
-/// Allows downcasting a `Box<dyn Command>` to a concrete type for typed interception.
-pub trait CommandAny {
-    fn as_any(&self) -> &(dyn std::any::Any + Send + Sync);
-}
-
-/// A command that applies a change to the editor state
-#[async_trait::async_trait]
-pub trait Command: CommandAny + Send + Sync {
-    async fn apply(&self, state: &mut State) -> bool;
-}
-
-#[derive(Debug)]
-pub struct CommandInfo {
-    pub valid_names: Vec<String>,
-    pub args: Vec<(String, String)>,
-    pub desc: Vec<String>,
-}
-
-impl CommandInfo {
-    pub fn new(
-        names: impl IntoIterator<Item = impl ToString>,
-        args: impl IntoIterator<Item = (impl ToString, impl ToString)>,
-        desc: impl IntoIterator<Item = impl ToString>,
-    ) -> Self {
-        Self {
-            valid_names: names.into_iter().map(|x| x.to_string()).collect(),
-            args: args
-                .into_iter()
-                .map(|x| (x.0.to_string(), x.1.to_string()))
-                .collect(),
-            desc: desc.into_iter().map(|x| x.to_string()).collect(),
-        }
-    }
-
-    pub fn check_name(&self, name: impl ToString) -> bool {
-        self.valid_names.contains(&name.to_string())
-    }
-
-    /// Returns a `Line` with the description text, or `None` if empty.
-    pub fn desc_buf(&self, theme: &Theme) -> Option<Vec<Line<'static>>> {
+impl CommandInfoRender for CommandInfo {
+    fn desc_buf(&self, theme: &Theme) -> Option<Vec<Line<'static>>> {
         if self.desc.is_empty() {
             return None;
         }
@@ -114,13 +76,11 @@ impl CommandInfo {
         )
     }
 
-    /// Returns a suggestion `Line` for this command
-    pub fn as_suggestion(&self, will_autocomplete: bool, theme: &Theme) -> Line<'static> {
+    fn as_suggestion(&self, will_autocomplete: bool, theme: &Theme) -> Line<'static> {
         self.as_suggestion_with_search(will_autocomplete, "", theme)
     }
 
-    /// Returns a suggestion `Line` with search term highlighting
-    pub fn as_suggestion_with_search(
+    fn as_suggestion_with_search(
         &self,
         will_autocomplete: bool,
         search_term: &str,
@@ -200,7 +160,6 @@ impl CommandInfo {
     }
 }
 
-/// Highlights matching characters in text based on search term
 fn highlight_matches(
     text: &str,
     search: &str,
@@ -287,14 +246,4 @@ mod tests {
 
         assert_eq!(result.len(), 1);
     }
-}
-
-/// This trait will allow you to use commands from 'c' mode.
-pub trait AsCommandInfo: Command + CommandFromStr {
-    fn infos() -> Vec<CommandInfo>;
-}
-
-/// This trait should be implemented on anything you want to be able to define within a config
-pub trait CommandFromStr: Command {
-    fn from_str(val: &[Token]) -> Option<Result<Box<dyn Command>, String>>;
 }

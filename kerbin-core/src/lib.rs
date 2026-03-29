@@ -1,40 +1,10 @@
 #![allow(improper_ctypes_definitions)]
 
+extern crate self as kerbin_core;
+
 use tracing::Level;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-
-#[macro_export]
-/// Automatically calls the get method on all systems provided as arguments
-macro_rules! get {
-    (@inner $name:ident $(, $($t:tt)+)?) => {
-        let $name = $name.get().await;
-        get!(@inner $($($t)+)?)
-    };
-    (@inner mut $name:ident $(, $($t:tt)+)?) => {
-        let mut $name = $name.get().await;
-        get!(@inner $($($t)*)?)
-    };
-    (@inner Some($name:ident) $(, $($t:tt)+)?) => {
-        let Some($name) = $name.get().await else {
-            return;
-        };
-        get!(@inner $($($t)+)?)
-    };
-    (@inner Some(mut $name:ident) $(, $($t:tt)+)?) => {
-        let Some(mut $name) = $name.get().await else {
-            return;
-        };
-        get!(@inner $($($t)+)?)
-    };
-    (@inner $($t:tt)+) => {
-        compile_error!("Expected comma-separated list of (mut item), (item), Some(item), or Some(mut item), but got an error while parsing. Make sure you don't have a trailing `,`");
-    };
-    (@inner) => {};
-    ($($t:tt)*) => {
-        get!(@inner $($t)*)
-    };
-}
 
 /// Initializes the logging system for the core editor
 pub fn init_log() {
@@ -64,6 +34,10 @@ use std::{env::home_dir, fs::File, sync::Mutex};
 pub use kerbin_state_machine::*;
 
 pub use kerbin_input::*;
+
+pub use kerbin_command_lang::{
+    AsCommandInfo, Command, CommandAny, CommandFromStr, CommandInfo, CommandPrefix, CommandState,
+};
 
 pub use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
@@ -113,9 +87,6 @@ pub use ipc::*;
 
 pub mod resolver;
 pub use resolver::*;
-
-pub mod word_split;
-pub use word_split::*;
 
 pub mod debounce;
 pub use debounce::*;

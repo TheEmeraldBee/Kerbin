@@ -119,7 +119,7 @@ pub enum MotionCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for MotionCommand {
+impl Command<State> for MotionCommand {
     async fn apply(&self, state: &mut State) -> bool {
         let log = state.lock_state::<LogSender>().await;
         let mut buffers = state.lock_state::<Buffers>().await;

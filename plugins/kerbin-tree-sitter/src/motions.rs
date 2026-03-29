@@ -43,7 +43,7 @@ pub enum TreeSitterMotion {
 }
 
 #[async_trait::async_trait]
-impl Command for TreeSitterMotion {
+impl Command<State> for TreeSitterMotion {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             Self::SelectNode { extend } => ts_select_node(state, *extend).await,

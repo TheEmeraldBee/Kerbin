@@ -53,7 +53,7 @@ async fn run_token_cmds(tokens: &[Token], state: &mut State) -> bool {
             &*state.lock_state::<ModeStack>().await,
         );
         if let Some(command) = command {
-            if !command.apply(state).await {
+            if !dispatch_command(command.as_ref(), state).await {
                 return false;
             };
         } else {
@@ -65,7 +65,7 @@ async fn run_token_cmds(tokens: &[Token], state: &mut State) -> bool {
 }
 
 #[async_trait::async_trait]
-impl Command for IfCommand {
+impl Command<State> for IfCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             Self::If {

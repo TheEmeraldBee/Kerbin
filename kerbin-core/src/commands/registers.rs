@@ -31,7 +31,7 @@ pub enum RegisterCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for RegisterCommand {
+impl Command<State> for RegisterCommand {
     async fn apply(&self, state: &mut State) -> bool {
         let mut registers = state.lock_state::<Registers>().await;
 

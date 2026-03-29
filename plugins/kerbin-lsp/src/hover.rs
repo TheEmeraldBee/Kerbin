@@ -73,7 +73,7 @@ pub enum HoverCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for HoverCommand {
+impl Command<State> for HoverCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             Self::Hover => {

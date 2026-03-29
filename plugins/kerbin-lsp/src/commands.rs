@@ -39,7 +39,7 @@ pub enum LspCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for LspCommand {
+impl Command<State> for LspCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             LspCommand::Register {

@@ -38,7 +38,7 @@ pub enum ShellCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for ShellCommand {
+impl Command<State> for ShellCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             Self::Execute(args) => {

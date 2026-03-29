@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 kerbin-core = { path = "../../kerbin-core" }
+kerbin-command-lang.workspace = true
 kerbin-tree-sitter = { path = "../kerbin-tree-sitter" }
 
 ratatui.workspace = true

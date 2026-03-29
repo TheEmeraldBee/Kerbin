@@ -143,7 +143,7 @@ async fn send_goto_request(
 }
 
 #[async_trait::async_trait]
-impl Command for NavigationCommand {
+impl Command<State> for NavigationCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             Self::GotoDefinition { multi } => {

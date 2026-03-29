@@ -17,7 +17,7 @@ pub enum ModeCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for ModeCommand {
+impl Command<State> for ModeCommand {
     async fn apply(&self, state: &mut State) -> bool {
         let mut modes = state.lock_state::<ModeStack>().await;
 

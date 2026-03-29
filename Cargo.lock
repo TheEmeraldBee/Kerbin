@@ -1147,6 +1147,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kerbin-command-lang"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "kerbin-core"
 version = "0.0.0"
 dependencies = [
@@ -1155,6 +1164,7 @@ dependencies = [
  "crossterm",
  "dirs",
  "ipmpsc",
+ "kerbin-command-lang",
  "kerbin-input",
  "kerbin-macros",
  "kerbin-state-machine",
@@ -1177,6 +1187,7 @@ version = "0.0.0"
 dependencies = [
  "crossterm",
  "indexmap",
+ "kerbin-command-lang",
  "serde",
  "thiserror 2.0.18",
  "tracing",
@@ -1186,6 +1197,7 @@ dependencies = [
 name = "kerbin-lsp"
 version = "0.0.0"
 dependencies = [
+ "kerbin-command-lang",
  "kerbin-core",
  "kerbin-tree-sitter",
  "lsp-types",
@@ -2586,6 +2598,7 @@ dependencies = [
 name = "tutor"
 version = "0.0.0"
 dependencies = [
+ "kerbin-command-lang",
  "kerbin-core",
 ]
 

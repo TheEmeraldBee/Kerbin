@@ -24,7 +24,7 @@ pub enum FormatCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for FormatCommand {
+impl Command<State> for FormatCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             FormatCommand::Format => format_current_buffer(state).await,

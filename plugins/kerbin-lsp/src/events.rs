@@ -10,7 +10,7 @@ impl kerbin_core::CommandAny for ProcessLspEventsCommand {
 }
 
 #[async_trait::async_trait]
-impl kerbin_core::Command for ProcessLspEventsCommand {
+impl kerbin_core::Command<State> for ProcessLspEventsCommand {
     async fn apply(&self, state: &mut State) -> bool {
         let mut lsp_manager = state.lock_state::<LspManager>().await;
         let handler_manager = state.lock_state::<LspHandlerManager>().await;

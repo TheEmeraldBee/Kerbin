@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 kerbin-state-machine = { path = "../kerbin-state-machine" }
 kerbin-input.workspace = true
+kerbin-command-lang.workspace = true
 
 async-trait.workspace = true
 

@@ -333,7 +333,7 @@ fn combine_side_by_side(
 }
 
 #[async_trait::async_trait]
-impl Command for CompletionCommand {
+impl Command<State> for CompletionCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             Self::StartRequest => {

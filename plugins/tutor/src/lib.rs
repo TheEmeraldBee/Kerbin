@@ -10,7 +10,7 @@ pub enum TutorCommands {
 }
 
 #[async_trait::async_trait]
-impl Command for TutorCommands {
+impl Command<State> for TutorCommands {
     async fn apply(&self, state: &mut State) -> bool {
         state.call(load::open_default_buffer).await;
 

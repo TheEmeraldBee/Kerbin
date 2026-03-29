@@ -8,10 +8,12 @@ crossterm.workspace = true
 
 thiserror.workspace = true
 
+kerbin-command-lang = { path = "../kerbin-command-lang" }
+
 serde = { version = "1.0.228", features = ["derive"], optional = true }
 indexmap = "2.13.0"
 
 tracing.workspace = true
 
 [features]
-serde = ["dep:serde"]
+serde = ["dep:serde", "kerbin-command-lang/serde"]

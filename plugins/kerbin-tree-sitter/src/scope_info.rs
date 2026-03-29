@@ -12,7 +12,7 @@ pub enum ScopeInfoCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for ScopeInfoCommand {
+impl Command<State> for ScopeInfoCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             Self::TreeSitterScopeInfo => {

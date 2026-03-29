@@ -111,7 +111,7 @@ pub enum SplitCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for SplitCommand {
+impl Command<State> for SplitCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             SplitCommand::SplitVertical | SplitCommand::SplitHorizontal => {

@@ -8,7 +8,7 @@ pub struct CommandRegistry(pub Vec<RegisteredCommandSet>);
 
 impl CommandRegistry {
     /// Registers a command type within the editor
-    pub fn register<T: AsCommandInfo + 'static>(&mut self) {
+    pub fn register<T: CommandFromStr<State> + 'static>(&mut self) {
         self.0.push(RegisteredCommandSet {
             parser: Box::new(T::from_str),
             infos: T::infos(),
@@ -121,7 +121,7 @@ impl CommandRegistry {
 
         prefix_registry: &CommandPrefixRegistry,
         modes: &ModeStack,
-    ) -> Option<Box<dyn Command>> {
+    ) -> Option<Box<dyn Command<State>>> {
         if let Some(resolver) = resolver {
             tokens = resolver.expand_tokens(tokens, allow_run);
         }

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["booster", "kerbin", "kerbin-core", "kerbin-input", "kerbin-macros", "kerbin-state-machine", "plugins/*"]
+members = ["booster", "kerbin", "kerbin-core", "kerbin-input", "kerbin-command-lang", "kerbin-macros", "kerbin-state-machine", "plugins/*"]
 exclude = ["generated-config"]
 
 [workspace.package]
@@ -11,6 +11,7 @@ edition = "2024"
 kerbin-macros = { path = "./kerbin-macros" }
 kerbin-core = { path = "./kerbin-core" }
 kerbin-input = { path = "./kerbin-input", features = ["serde"] }
+kerbin-command-lang = { path = "./kerbin-command-lang" }
 
 thiserror = "2.0.18"
 

@@ -18,9 +18,9 @@ pub enum InterceptorResult {
     /// Drop the command entirely.
     Cancel,
     /// Run the original command, then dispatch each follow-up command in order.
-    After(Vec<Box<dyn Command>>),
+    After(Vec<Box<dyn Command<State>>>),
     /// Skip the original command, dispatch these commands instead.
-    Replace(Vec<Box<dyn Command>>),
+    Replace(Vec<Box<dyn Command<State>>>),
 }
 
 #[async_trait::async_trait]
@@ -71,7 +71,7 @@ impl CommandInterceptorRegistry {
         &mut self,
         f: impl for<'a> Fn(&'a C, &'a mut State) -> InterceptorFuture<'a> + Send + Sync + 'static,
     ) where
-        C: Command + Any + Send + Sync + 'static,
+        C: Command<State> + Any + Send + Sync + 'static,
     {
         self.on_command_named::<C>("", 0, f);
     }
@@ -85,7 +85,7 @@ impl CommandInterceptorRegistry {
         priority: i32,
         f: impl for<'a> Fn(&'a C, &'a mut State) -> InterceptorFuture<'a> + Send + Sync + 'static,
     ) where
-        C: Command + Any + Send + Sync + 'static,
+        C: Command<State> + Any + Send + Sync + 'static,
     {
         self.interceptors
             .entry(TypeId::of::<C>())
@@ -114,7 +114,7 @@ impl CommandInterceptorRegistry {
 }
 
 /// Dispatch a command through the interceptor registry, then apply it.
-pub async fn dispatch_command(cmd: Box<dyn Command>, state: &mut State) {
+pub async fn dispatch_command(cmd: &dyn Command<State>, state: &mut State) -> bool {
     let type_id = cmd.as_any().type_id();
 
     // Clone Arc refs out and drop the registry lock before touching state.
@@ -125,7 +125,7 @@ pub async fn dispatch_command(cmd: Box<dyn Command>, state: &mut State) {
 
     if interceptors.is_empty() {
         cmd.apply(state).await;
-        return;
+        return true;
     }
 
     // Run interceptors in order; first non-Allow result wins.
@@ -138,20 +138,25 @@ pub async fn dispatch_command(cmd: Box<dyn Command>, state: &mut State) {
     }
 
     match result {
-        InterceptorResult::Allow => {
-            cmd.apply(state).await;
-        }
-        InterceptorResult::Cancel => {}
+        InterceptorResult::Allow => cmd.apply(state).await,
+        InterceptorResult::Cancel => false,
         InterceptorResult::After(follow_ups) => {
             cmd.apply(state).await;
+            let mut res = true;
             for follow_up in follow_ups {
-                Box::pin(dispatch_command(follow_up, state)).await;
+                res = Box::pin(dispatch_command(follow_up.as_ref(), state)).await
             }
+
+            res
         }
         InterceptorResult::Replace(replacements) => {
+            let mut res = true;
+
             for replacement in replacements {
-                Box::pin(dispatch_command(replacement, state)).await;
+                res = Box::pin(dispatch_command(replacement.as_ref(), state)).await
             }
+
+            res
         }
     }
 }

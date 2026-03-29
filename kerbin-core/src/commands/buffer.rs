@@ -15,7 +15,7 @@ pub enum CommitCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for CommitCommand {
+impl Command<State> for CommitCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             CommitCommand::Commit(after) => {
@@ -40,7 +40,7 @@ impl Command for CommitCommand {
                     );
 
                     if let Some(command) = command {
-                        res = command.apply(state).await;
+                        res = dispatch_command(command.as_ref(), state).await;
                     }
                 }
 
@@ -163,7 +163,7 @@ pub enum BufferCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for BufferCommand {
+impl Command<State> for BufferCommand {
     async fn apply(&self, state: &mut State) -> bool {
         let mut buffers = state.lock_state::<Buffers>().await;
 
@@ -458,7 +458,7 @@ pub enum BuffersCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for BuffersCommand {
+impl Command<State> for BuffersCommand {
     async fn apply(&self, state: &mut State) -> bool {
         let mut buffers = state.lock_state::<Buffers>().await;
         let log = state.lock_state::<LogSender>().await;
@@ -535,8 +535,7 @@ impl Command for BuffersCommand {
                         return false;
                     }
                     let n = pane.buffer_indices.len() as isize;
-                    let new_local =
-                        (pane.selected_local as isize + offset).rem_euclid(n) as usize;
+                    let new_local = (pane.selected_local as isize + offset).rem_euclid(n) as usize;
                     pane.selected_local = new_local;
                     let new_buf_idx = pane.buffer_indices[new_local];
                     buffers.set_selected_buffer(new_buf_idx);
@@ -571,7 +570,10 @@ async fn close_buffer_inner(
     if !force {
         let dirty = buffers.buffers[buf_idx].read().await.is_dirty();
         if dirty {
-            log.medium("command::close_buffer", "Cannot close buffer as it has changes!");
+            log.medium(
+                "command::close_buffer",
+                "Cannot close buffer as it has changes!",
+            );
             tracing::error!("Cannot close buffer as it has changes!");
             return false;
         }
@@ -590,7 +592,10 @@ async fn close_buffer_inner(
                     pane.selected_local = pane.buffer_indices.len().saturating_sub(1);
                 }
             }
-            let referenced = split.leaves().iter().any(|p| p.buffer_indices.contains(&buf_idx));
+            let referenced = split
+                .leaves()
+                .iter()
+                .any(|p| p.buffer_indices.contains(&buf_idx));
             let sel = split
                 .focused_pane()
                 .and_then(|p| p.buffer_indices.get(p.selected_local).copied());

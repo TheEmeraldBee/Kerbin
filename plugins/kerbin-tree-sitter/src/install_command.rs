@@ -10,7 +10,7 @@ pub enum InstallCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for InstallCommand {
+impl Command<State> for InstallCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             Self::InstallAllGrammars => {

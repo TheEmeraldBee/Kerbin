@@ -401,7 +401,6 @@ async fn main() {
             });
     }
 
-    // Default mouse bindings (overridable via `mouse-bind` in config)
     {
         let mut mb = state.lock_state::<MouseBindings>().await;
         mb.bindings.insert(
@@ -490,7 +489,7 @@ async fn main() {
         let frame_start = tokio::time::Instant::now();
 
         while let Ok(cmd) = command_receiver.try_recv() {
-            dispatch_command(cmd, &mut state).await;
+            dispatch_command(cmd.as_ref(), &mut state).await;
         }
 
         update(&mut state).await;
@@ -506,7 +505,7 @@ async fn main() {
             let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
             tokio::select! {
                 Some(cmd) = command_receiver.recv() => {
-                    dispatch_command(cmd, &mut state).await;
+                    dispatch_command(cmd.as_ref(), &mut state).await;
                 }
                 _ = tokio::time::sleep(remaining) => {
                     break;

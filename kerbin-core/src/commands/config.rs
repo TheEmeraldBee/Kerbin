@@ -162,7 +162,7 @@ pub enum ConfigCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for ConfigCommand {
+impl Command<State> for ConfigCommand {
     async fn apply(&self, state: &mut State) -> bool {
         match self {
             ConfigCommand::Bind {

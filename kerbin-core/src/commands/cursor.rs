@@ -28,7 +28,7 @@ pub enum CursorCommand {
 }
 
 #[async_trait::async_trait]
-impl Command for CursorCommand {
+impl Command<State> for CursorCommand {
     async fn apply(&self, state: &mut State) -> bool {
         let mut cur_bufs = state.lock_state::<Buffers>().await;
 
@@ -98,11 +98,15 @@ impl Command for CursorCommand {
                         }
                     }
 
-                    command.apply(state).await;
+                    dispatch_command(command.as_ref(), state).await;
 
                     {
                         let guard = state.lock_state::<Buffers>().await;
-                        let count = guard.cur_buffer_as::<TextBuffer>().await.map(|tb| tb.cursors.len()).unwrap_or(0);
+                        let count = guard
+                            .cur_buffer_as::<TextBuffer>()
+                            .await
+                            .map(|tb| tb.cursors.len())
+                            .unwrap_or(0);
                         if count != cursor_count {
                             tracing::error!(
                                 "Apply All Ran command that changed cursor count. This is not allowed at current time."
