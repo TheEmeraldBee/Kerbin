@@ -1,0 +1,17 @@
+bind [s] [pm S] --invalid [S] --desc "Change to Split Mode"
+
+bind [*] [] --modes [S] --desc "Invalidate all keybinds in split mode"
+
+bind [h] [spfl] --modes [S] --desc "Focus Split Left"
+bind [j] [spfd] --modes [S] --desc "Focus Split Down"
+bind [k] [spfu] --modes [S] --desc "Focus Split Up"
+bind [l] [spfr] --modes [S] --desc "Focus Split Right"
+
+bind [H] [sph] --modes [S] --desc "Split Horizontal"
+bind [V] [spv] --modes [S] --desc "Split Vertical"
+
+bind [Q] [spc] --modes [S] --desc "Close split"
+bind [C] [spd] --modes [S] --desc "Collapse splits into active"
+
+bind [esc] [rm] --modes [S] --desc "Leave Split Mode"
+bind [s] [rm] --modes [S] --desc "Leave Split Mode"

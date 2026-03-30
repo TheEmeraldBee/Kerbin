@@ -74,6 +74,9 @@ theme ts.markup.link.label sapphire
 theme ts.markup.raw green
 theme ts.markup.quote pink
 
+theme ts.local.reference --fg maroon
+theme ts.local.ref-highlight --fg sky --attrs [bold underlined]
+
 # UI
 theme ui.text text
 theme ui.linenum --fg #555555
@@ -102,8 +105,7 @@ theme ui.cursor.x.i --bg green --attrs [bold]
 theme ui.cursor.x.v --bg sky --attrs [bold italic]
 theme ui.cursor.x --bg lavender
 theme ui.selection --bg surface1 --attrs [italic]
-theme ts.local.reference --fg maroon
-theme ts.local.ref-highlight --fg sky --attrs [bold underlined]
+
 theme statusline.selections.one --fg sky --attrs [italic]
 theme statusline.selections.multi --fg sapphire --attrs [bold italic]
 theme statusline.mode.n --fg mantle --bg green --attrs [bold]
@@ -111,6 +113,8 @@ theme statusline.mode.i --fg mantle --bg teal --attrs [bold]
 theme statusline.mode.c --fg mantle --bg maroon --attrs [bold]
 theme statusline.mode.x --fg mantle --bg lavender --attrs [bold]
 theme statusline.mode.v --fg mantle --bg pink --attrs [bold]
+theme statusline.mode.S --fg mantle --bg mauve --attrs [bold italic]
+
 theme lsp.autocomplete.selected --fg sky --bg mantle --attrs [italic]
 theme lsp.autocomplete.window --fg text
 
@@ -120,3 +124,4 @@ statusline i --long_name " INSERT "
 statusline c --long_name " COMMAND "
 statusline x --long_name " CURSOR "
 statusline v --long_name " SELECT "
+statusline S --long_name " SPLIT "

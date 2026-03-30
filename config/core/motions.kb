@@ -1,8 +1,8 @@
 # WORD/word
-bind [w] [[%ifclear] [rxc %word --advance --extend] [mc 1 --extend]] --desc "Select word"
-bind [W] [[%ifclear] [rxc %WORD --advance --extend] [mc 1 --extend]] --desc "Select WORD"
-bind [b] [[%ifclear] [mc -1 --extend] [rxcb %word --extend]] --desc "Select word backwards"
-bind [B] [[%ifclear] [mc -1 --extend] [rxcb %WORD --extend]] --desc "Select WORD backwards"
+bind [w] [[%ifclear] [gse] [rxc %word --advance --extend] [mc 1 --extend]] --desc "Select word"
+bind [W] [[%ifclear] [gse] [rxc %WORD --advance --extend] [mc 1 --extend]] --desc "Select WORD"
+bind [b] [[%ifclear] [gse] [mc -1 --extend] [rxcb %word --extend]] --desc "Select word backwards"
+bind [B] [[%ifclear] [gse] [mc -1 --extend] [rxcb %WORD --extend]] --desc "Select WORD backwards"
 
 # END/end
 bind [e] [[%ifclear] [rxc %end --advance --extend]] --desc "Select word end"
