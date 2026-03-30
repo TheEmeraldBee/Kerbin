@@ -52,6 +52,13 @@ impl Default for IndentStyle {
 }
 
 impl IndentStyle {
+    pub fn tab_string(&self) -> String {
+        match self {
+            Self::Tabs => "\t".to_string(),
+            Self::Spaces(c) => " ".repeat(*c),
+        }
+    }
+
     pub fn tab_width(&self) -> usize {
         match self {
             IndentStyle::Tabs => 4,
@@ -494,10 +501,7 @@ impl TextBuffer {
         );
 
         if let Err(e) = write_result {
-            tracing::error!(
-                "Failed to write rope content to file: {:?}",
-                e
-            );
+            tracing::error!("Failed to write rope content to file: {:?}", e);
             return Err(std::io::Error::other(e.to_string()));
         }
 

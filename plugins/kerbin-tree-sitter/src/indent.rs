@@ -23,7 +23,9 @@ async fn newline_and_indent(state: &mut State) {
     let mut grammars = state.lock_state::<GrammarManager>().await;
     let config_path = state.lock_state::<ConfigFolder>().await.0.clone();
 
-    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+        return;
+    };
 
     let cursor_byte = buf.primary_cursor().get_cursor_byte();
     let current_line_idx = buf.byte_to_line_clamped(cursor_byte);
@@ -65,7 +67,6 @@ async fn newline_and_indent(state: &mut State) {
         query,
         injected,
         cursor_byte,
-        current_line_idx,
         &current_line_indent,
     );
 
@@ -97,7 +98,6 @@ fn calculate_indent(
     query: Arc<Query>,
     injected: std::collections::HashMap<String, Arc<Query>>,
     cursor_byte: usize,
-    _current_line_idx: usize,
     fallback_indent: &str,
 ) -> String {
     let mut walker = QueryWalkerBuilder::new(state, buf.get_rope(), query)
@@ -158,8 +158,8 @@ fn calculate_indent(
         if outdent_on_cursor_line {
             return base_indent;
         }
-        let indent_unit = "    ";
-        return format!("{}{}", base_indent, indent_unit);
+
+        return format!("{}{}", base_indent, buf.indent_style.tab_string());
     }
 
     fallback_indent.to_string()
