@@ -2,7 +2,7 @@ use std::{
     fs, io,
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{SystemTime, SystemTimeError, UNIX_EPOCH},
 };
 
 use crate::grammar::{GrammarDefinition, normalize_lang_name};
@@ -30,6 +30,9 @@ pub enum GrammarInstallError {
 
     #[error(transparent)]
     IOError(#[from] io::Error),
+
+    #[error(transparent)]
+    SystemTimeError(#[from] SystemTimeError),
 }
 
 fn cleanup_grammar_directory(dir: &Path, normalized_name: &str) -> io::Result<()> {
@@ -98,10 +101,7 @@ pub fn install_language(
         return Err(GrammarInstallError::MissingInstallDefinition);
     };
 
-    let now_nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
+    let now_nanos = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
 
     let repo_name = install_def
         .url

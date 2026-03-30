@@ -10,7 +10,7 @@ pub struct CommandState {
 
 impl CommandState {
     pub fn parse(val: &[Token]) -> Option<Self> {
-        let name = match val.get(0) {
+        let name = match val.first() {
             Some(Token::Word(s)) => s.clone(),
             _ => return None,
         };

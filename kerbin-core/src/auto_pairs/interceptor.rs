@@ -3,7 +3,7 @@ use crate::*;
 pub async fn auto_pairs_intercept(cmd: &BufferCommand, state: &mut State) -> InterceptorResult {
     let typed_char = match cmd {
         BufferCommand::Append { text, .. } if text.chars().count() == 1 => {
-            text.chars().next().unwrap()
+            text.chars().next().expect("char count checked to be 1")
         }
         _ => return InterceptorResult::Allow,
     };

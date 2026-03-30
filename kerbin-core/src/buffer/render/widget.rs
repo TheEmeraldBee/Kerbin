@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use crate::{grapheme_display_width, ConcealScope, CursorShape, Extmark, ExtmarkKind, OverlayPosition, OverlayWidget, StyledChunk, TextBuffer, VirtTextPos};
+use crate::{
+    ConcealScope, CursorShape, Extmark, ExtmarkKind, OverlayPosition, OverlayWidget, StyledChunk,
+    TextBuffer, VirtTextPos, grapheme_display_width,
+};
 use ratatui::prelude::*;
 use ropey::{Rope, RopeSlice};
 use unicode_segmentation::UnicodeSegmentation;
@@ -77,8 +80,6 @@ impl<'a> TextBufferWidget<'a> {
             .iter()
             .map(|mark| {
                 let start_char = rope.byte_to_char(mark.byte_range.start.min(rope.len_bytes()));
-                // For the EOF extra-space case, allow end_char to extend one past
-                // rope.len_chars() so marks at the EOF position have non-zero width.
                 let end_char = rope.byte_to_char(mark.byte_range.end.min(rope.len_bytes()))
                     + usize::from(extra_eof_space && mark.byte_range.end > rope.len_bytes());
                 Extmark {
@@ -122,20 +123,36 @@ impl<'a> TextBufferWidget<'a> {
         let effective_conceals: Vec<(usize, usize, Option<&str>, Option<Style>)> = {
             let mut result = Vec::with_capacity(lm.conceals.len());
             let mut prev_end = 0usize;
-            for (i, &(c_start, c_end, replacement, style, trim_before, trim_after)) in lm.conceals.iter().enumerate() {
+            for (i, &(c_start, c_end, replacement, style, trim_before, trim_after)) in
+                lm.conceals.iter().enumerate()
+            {
                 let actual_start = if trim_before {
                     let mut s = c_start;
-                    while s > prev_end && chars.get(s.wrapping_sub(1)).map(|ch: &char| ch.is_ascii_whitespace()).unwrap_or(false) {
+                    while s > prev_end
+                        && chars
+                            .get(s.wrapping_sub(1))
+                            .map(|ch: &char| ch.is_ascii_whitespace())
+                            .unwrap_or(false)
+                    {
                         s -= 1;
                     }
                     s
                 } else {
                     c_start
                 };
-                let next_start = lm.conceals.get(i + 1).map(|(s, _, _, _, _, _)| *s).unwrap_or(total_chars);
+                let next_start = lm
+                    .conceals
+                    .get(i + 1)
+                    .map(|(s, _, _, _, _, _)| *s)
+                    .unwrap_or(total_chars);
                 let actual_end = if trim_after {
                     let mut e = c_end;
-                    while e < next_start && chars.get(e).map(|ch: &char| ch.is_ascii_whitespace()).unwrap_or(false) {
+                    while e < next_start
+                        && chars
+                            .get(e)
+                            .map(|ch: &char| ch.is_ascii_whitespace())
+                            .unwrap_or(false)
+                    {
                         e += 1;
                     }
                     e
@@ -505,7 +522,15 @@ impl SegmentList {
         self.segments = new_segments;
     }
 
-    fn into_spans(self, h_scroll: usize, width: usize, tab_display_unit: &str, tab_style: Style, cursor_on_tab_style: Style, cursor_display_cols: &[usize]) -> Vec<Span<'static>> {
+    fn into_spans(
+        self,
+        h_scroll: usize,
+        width: usize,
+        tab_display_unit: &str,
+        tab_style: Style,
+        cursor_on_tab_style: Style,
+        cursor_display_cols: &[usize],
+    ) -> Vec<Span<'static>> {
         let mut spans = Vec::new();
         let mut display_col = 0usize;
 
@@ -558,6 +583,7 @@ impl SegmentList {
     }
 }
 
+#[allow(clippy::type_complexity)]
 struct LineMarks<'a> {
     conceals: Vec<(usize, usize, Option<&'a str>, Option<Style>, bool, bool)>,
     highlights: Vec<(usize, usize, Style, i32)>,
@@ -657,21 +683,38 @@ impl<'a> LineMarks<'a> {
                         }
                     }
                 }
-                ExtmarkKind::Conceal { replacement, style, scope, trim_before, trim_after } => {
+                ExtmarkKind::Conceal {
+                    replacement,
+                    style,
+                    scope,
+                    trim_before,
+                    trim_after,
+                } => {
                     if mark_start_char >= line_start_char && mark_start_char < line_end_char {
                         let start_col = mark_start_char - line_start_char;
                         let end_col = (mark_end_char - line_start_char).min(visible_len);
-                        result
-                            .conceals
-                            .push((start_col, end_col, replacement.as_deref(), *style, *trim_before, *trim_after));
+                        result.conceals.push((
+                            start_col,
+                            end_col,
+                            replacement.as_deref(),
+                            *style,
+                            *trim_before,
+                            *trim_after,
+                        ));
                         conceal_ns.push(&mark.namespace);
                         conceal_scopes.push(*scope);
                     }
                 }
-                ExtmarkKind::Overlay { widget, position, z_index } => {
+                ExtmarkKind::Overlay {
+                    widget,
+                    position,
+                    z_index,
+                } => {
                     if mark_start_char >= line_start_char && mark_start_char <= line_end_char {
                         let col = mark_start_char - line_start_char;
-                        result.popups.push((col, widget.clone(), position.clone(), *z_index));
+                        result
+                            .popups
+                            .push((col, widget.clone(), position.clone(), *z_index));
                     }
                 }
             }
@@ -680,7 +723,8 @@ impl<'a> LineMarks<'a> {
         // Drop conceals suppressed by marks from a different namespace
         if !conceal_ns.is_empty() {
             let force_line_scope = reveal_conceal_on_cursor_line && cursor_on_line;
-            let conceals_with_meta: Vec<_> = result.conceals
+            let conceals_with_meta: Vec<_> = result
+                .conceals
                 .drain(..)
                 .zip(conceal_ns)
                 .zip(conceal_scopes)
@@ -689,14 +733,20 @@ impl<'a> LineMarks<'a> {
             result.conceals = conceals_with_meta
                 .into_iter()
                 .filter(|((c_start, c_end, _, _, _, _), c_ns, scope)| {
-                    let effective_scope = if force_line_scope { ConcealScope::Line } else { *scope };
+                    let effective_scope = if force_line_scope {
+                        ConcealScope::Line
+                    } else {
+                        *scope
+                    };
                     match effective_scope {
-                        ConcealScope::Byte => !suppress_ranges.iter().any(|(s_start, s_end, s_ns)| {
-                            *s_ns != *c_ns && s_start < c_end && s_end > c_start
-                        }),
-                        ConcealScope::Line => !suppress_ranges.iter().any(|(_, _, s_ns)| {
-                            *s_ns != *c_ns
-                        }),
+                        ConcealScope::Byte => {
+                            !suppress_ranges.iter().any(|(s_start, s_end, s_ns)| {
+                                *s_ns != *c_ns && s_start < c_end && s_end > c_start
+                            })
+                        }
+                        ConcealScope::Line => {
+                            !suppress_ranges.iter().any(|(_, _, s_ns)| *s_ns != *c_ns)
+                        }
                     }
                 })
                 .map(|(conceal, _, _)| conceal)
@@ -890,8 +940,7 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
 
         let rope = &self.buf.rope;
         let mut lines = vec![];
-        let mut pending_overlays: Vec<(u16, u16, Arc<dyn OverlayWidget>, OverlayPosition, i32)> =
-            Vec::new();
+        let mut pending_overlays = vec![];
 
         let total_lines = rope.len_lines();
 
@@ -986,7 +1035,9 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
 
             let current_line_index = lines.len();
             for (display_col, shape) in &result.cursors {
-                if *display_col >= self.h_scroll && *display_col < self.h_scroll + area.width as usize {
+                if *display_col >= self.h_scroll
+                    && *display_col < self.h_scroll + area.width as usize
+                {
                     let screen_x = area.x + (display_col - self.h_scroll) as u16;
                     let screen_y = area.y + current_line_index as u16;
                     state.cursor = Some((screen_x, screen_y, *shape));
@@ -1035,7 +1086,10 @@ impl<'a> StatefulWidget for TextBufferWidget<'a> {
             widget.render(avail_rect, &mut tmp_buf);
             for cy in 0..avail_h {
                 for cx in 0..avail_w {
-                    if let (Some(src), Some(dst)) = (tmp_buf.cell((cx, cy)), buf.cell_mut((dst_x0 + cx, dst_y0 + cy))) {
+                    if let (Some(src), Some(dst)) = (
+                        tmp_buf.cell((cx, cy)),
+                        buf.cell_mut((dst_x0 + cx, dst_y0 + cy)),
+                    ) {
                         *dst = src.clone();
                     }
                 }

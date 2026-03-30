@@ -31,17 +31,14 @@ pub fn is_conceal_pattern(query: &tree_sitter::Query, pattern_index: usize) -> b
         .any(|p| p.operator.as_ref() == "conceal!")
 }
 
-pub fn conceal_scope_from_query(
-    query: &tree_sitter::Query,
-    pattern_index: usize,
-) -> ConcealScope {
+pub fn conceal_scope_from_query(query: &tree_sitter::Query, pattern_index: usize) -> ConcealScope {
     for pred in query.general_predicates(pattern_index) {
         if pred.operator.as_ref() == "conceal!" {
             for arg in &pred.args {
-                if let tree_sitter::QueryPredicateArg::String(s) = arg {
-                    if s.as_ref() == "line" {
-                        return ConcealScope::Line;
-                    }
+                if let tree_sitter::QueryPredicateArg::String(s) = arg
+                    && s.as_ref() == "line"
+                {
+                    return ConcealScope::Line;
                 }
             }
         }
@@ -133,7 +130,8 @@ impl<'tree, 'rope> Highlighter<'tree, 'rope> {
             let query = &entry.query;
             let is_conceal = is_conceal_pattern(query, entry.query_match.pattern_index);
             let conceal_scope = conceal_scope_from_query(query, entry.query_match.pattern_index);
-            let (trim_before, trim_after) = conceal_trim_from_query(query, entry.query_match.pattern_index);
+            let (trim_before, trim_after) =
+                conceal_trim_from_query(query, entry.query_match.pattern_index);
             for capture in entry.query_match.captures {
                 let capture_name = query.capture_names()[capture.index as usize];
                 let range = capture.node.byte_range().start + entry.byte_offset
@@ -331,7 +329,8 @@ pub async fn highlight_file(
             let query = &entry.query;
             let is_conceal = is_conceal_pattern(query, entry.query_match.pattern_index);
             let conceal_scope = conceal_scope_from_query(query, entry.query_match.pattern_index);
-            let (trim_before, trim_after) = conceal_trim_from_query(query, entry.query_match.pattern_index);
+            let (trim_before, trim_after) =
+                conceal_trim_from_query(query, entry.query_match.pattern_index);
             for capture in entry.query_match.captures {
                 let capture_name = query.capture_names()[capture.index as usize];
                 let node_range = capture.node.byte_range().start + entry.byte_offset
