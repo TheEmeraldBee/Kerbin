@@ -8,11 +8,11 @@ bind [j] [[ml 1 --extend] [%ifclear]] --desc "Down"
 bind [h] [[mc -1 --extend] [%ifclear]] --desc "Left"
 bind [l] [[mc 1 --extend] [%ifclear]] --desc "Right"
 
-bind [g h] [[%ifclear] [sfw --extend]] --desc "Goto First Non-Whitespace"
-bind [g s] [[%ifclear] [slb --extend]] --desc "Goto Line Start"
-bind [g l] [[%ifclear] [sle --extend]] --desc "Goto Line End"
+bind [g h] [[%ifclear] [sfw --extend] [%ifclear]] --desc "Goto First Non-Whitespace"
+bind [g s] [[%ifclear] [slb --extend] [%ifclear]] --desc "Goto Line Start"
+bind [g l] [[%ifclear] [sle --extend] [%ifclear]] --desc "Goto Line End"
 
-bind [g g] [goto 0 0] --desc "Goto File Start"
-bind [G] [ml 10000000] --desc "Goto File End"
+bind [g g] [[goto 0 0 --extend] [%ifclear]] --desc "Goto File Start"
+bind [G] [[ml 10000000 --extend] [%ifclear]] --desc "Goto File End"
 
 bind [f %insert] [[rxc %1 --advance --extend] [%ifclear]] --desc "Select next instance of character"

@@ -5,5 +5,5 @@ bind [b] [[%ifclear] [gse] [mc -1 --extend] [rxcb %word --extend]] --desc "Selec
 bind [B] [[%ifclear] [gse] [mc -1 --extend] [rxcb %WORD --extend]] --desc "Select WORD backwards"
 
 # END/end
-bind [e] [[%ifclear] [rxc %end --advance --extend]] --desc "Select word end"
-bind [E] [[%ifclear] [rxc %END --advance --extend]] --desc "Select WORD end"
+bind [e] [[%ifclear] [gsb] [rxc %end --advance --extend]] --desc "Select word end"
+bind [E] [[%ifclear] [gsb] [rxc %END --advance --extend]] --desc "Select WORD end"

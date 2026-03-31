@@ -1,7 +1,10 @@
 use crate::*;
 use crossterm::{
     cursor::Hide,
-    event::{EnableFocusChange, EnableMouseCapture},
+    event::{
+        DisableMouseCapture, EnableFocusChange, EnableMouseCapture, KeyboardEnhancementFlags,
+        PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    },
     execute,
     terminal::{DisableLineWrap, EnterAlternateScreen, enable_raw_mode},
 };
@@ -105,7 +108,13 @@ impl Command<State> for ShellCommand {
             Self::InPlace(args) => {
                 // Tear down terminal
                 crossterm::terminal::disable_raw_mode().ok();
-                execute!(std::io::stdout(), crossterm::terminal::LeaveAlternateScreen).ok();
+                execute!(
+                    std::io::stdout(),
+                    crossterm::terminal::LeaveAlternateScreen,
+                    DisableMouseCapture,
+                    PopKeyboardEnhancementFlags,
+                )
+                .ok();
 
                 let res = match std::process::Command::new(&args[0])
                     .args(&args[1..])
@@ -124,6 +133,9 @@ impl Command<State> for ShellCommand {
                     std::io::stdout(),
                     EnterAlternateScreen,
                     EnableMouseCapture,
+                    PushKeyboardEnhancementFlags(
+                        KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES,
+                    ),
                     EnableFocusChange,
                     Hide,
                     DisableLineWrap,

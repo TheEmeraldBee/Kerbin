@@ -2,7 +2,10 @@ use std::{path::PathBuf, time::Duration};
 
 use ratatui::{
     crossterm::{
-        event::{EnableBracketedPaste, EnableMouseCapture},
+        event::{
+            DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+            KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+        },
         execute,
     },
     layout::{Constraint, Layout, Position},
@@ -290,7 +293,13 @@ async fn main() {
     init_log();
 
     let terminal = ratatui::init();
-    execute!(std::io::stdout(), EnableMouseCapture, EnableBracketedPaste).ok();
+    execute!(
+        std::io::stdout(),
+        EnableMouseCapture,
+        EnableBracketedPaste,
+        PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES),
+    )
+    .ok();
 
     // Initialize terminal
     let (command_sender, mut command_receiver) = unbounded_channel();
@@ -515,5 +524,11 @@ async fn main() {
     }
 
     // Restore terminal
+    execute!(
+        std::io::stdout(),
+        DisableMouseCapture,
+        PopKeyboardEnhancementFlags,
+    )
+    .ok();
     ratatui::restore();
 }

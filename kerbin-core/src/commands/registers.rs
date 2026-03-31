@@ -19,11 +19,11 @@ pub enum RegisterCommand {
         #[command(flag, name = "extend")] bool,
     ),
 
-    #[command(name = "clipboard-copy")]
+    #[command(name = "cbcopy")]
     /// Copy the selection to the OS clipboard
     ClipboardCopy,
 
-    #[command(name = "clipboard-paste")]
+    #[command(name = "cbpaste")]
     /// Paste from the OS clipboard
     ///
     /// Use --extend to extend the selection to the pasted text
@@ -38,7 +38,9 @@ impl Command<State> for RegisterCommand {
         match self {
             Self::CopyRegister(register) => {
                 let bufs = state.lock_state::<Buffers>().await;
-                let Some(buf) = bufs.cur_buffer_as::<TextBuffer>().await else { return false; };
+                let Some(buf) = bufs.cur_buffer_as::<TextBuffer>().await else {
+                    return false;
+                };
 
                 let byte_range = buf.primary_cursor().sel().clone();
                 let text = buf
@@ -63,7 +65,9 @@ impl Command<State> for RegisterCommand {
             }
             Self::ClipboardCopy => {
                 let bufs = state.lock_state::<Buffers>().await;
-                let Some(buf) = bufs.cur_buffer_as::<TextBuffer>().await else { return false; };
+                let Some(buf) = bufs.cur_buffer_as::<TextBuffer>().await else {
+                    return false;
+                };
                 let byte_range = buf.primary_cursor().sel().clone();
                 let text = buf
                     .slice_to_string(*byte_range.start(), (*byte_range.end() + 1).min(buf.len()))
