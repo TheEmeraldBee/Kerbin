@@ -4,7 +4,7 @@
 tree-sitter-define bash --exts [sh bash] --url https://github.com/tree-sitter/tree-sitter-bash.git
 tree-sitter-alias bash kerbin --exts [kb]
 
-# Golang
+# Go
 tree-sitter-define go --exts [go] --url https://github.com/tree-sitter/tree-sitter-go.git
 
 # Rust
