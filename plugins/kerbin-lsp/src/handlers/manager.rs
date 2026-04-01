@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::collections::HashMap;
 
 use crate::*;
-use kerbin_core::*;
 
 pub type EventHandler = Arc<
     dyn for<'a> Fn(&'a State, &'a JsonRpcMessage) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>>

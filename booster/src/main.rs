@@ -62,8 +62,12 @@ pub enum SubCommand {
     /// Validate config files without doing a full rebuild.
     Check,
 
-    /// List all built-in editor commands with their names, aliases, and descriptions.
-    List,
+    /// List all registered editor commands with their names, aliases, and descriptions.
+    List {
+        /// Output format: text (default), json, md
+        #[clap(long, default_value = "text", value_name = "FORMAT")]
+        format: String,
+    },
 }
 
 #[derive(Subcommand, Clone)]
@@ -989,29 +993,53 @@ fn main() {
             println!("✓ Rebuild complete!");
         }
 
-        SubCommand::List => {
-            let mut registry = CommandRegistry(vec![]);
-            register_core_commands(&mut registry);
-
-            for set in &registry.0 {
-                for info in &set.infos {
-                    let names = info.valid_names.join(", ");
-                    let args: Vec<String> = info
-                        .args
-                        .iter()
-                        .map(|(name, ty)| format!("<{name}: {ty}>"))
-                        .collect();
-                    let signature = if args.is_empty() {
-                        names.clone()
-                    } else {
-                        format!("{} {}", names, args.join(" "))
-                    };
-                    println!("{}", signature);
-                    for line in &info.desc {
-                        println!("  {}", line);
+        SubCommand::List { format } => {
+            let kerbin_bin = kerbin_dir.join("bin/kerbin");
+            if kerbin_bin.exists() {
+                match std::process::Command::new(&kerbin_bin)
+                    .args(["--list-commands", &format])
+                    .status()
+                {
+                    Ok(s) if s.success() => {}
+                    Ok(s) => {
+                        eprintln!("kerbin --list-commands exited with status {}", s);
+                        std::process::exit(1);
                     }
-                    if !info.desc.is_empty() {
-                        println!();
+                    Err(e) => {
+                        eprintln!("Failed to run kerbin: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                eprintln!(
+                    "No kerbin installation found at {}.",
+                    kerbin_dir.display()
+                );
+                eprintln!("Run 'booster install' first, or 'booster rebuild' to build.");
+                eprintln!("Showing built-in core commands only (no plugin commands):");
+                eprintln!();
+                let mut registry = CommandRegistry(vec![]);
+                register_core_commands(&mut registry);
+                for set in &registry.0 {
+                    for info in &set.infos {
+                        let names = info.valid_names.join(", ");
+                        let args: Vec<String> = info
+                            .args
+                            .iter()
+                            .map(|(name, ty)| format!("<{name}: {ty}>"))
+                            .collect();
+                        let signature = if args.is_empty() {
+                            names.clone()
+                        } else {
+                            format!("{} {}", names, args.join(" "))
+                        };
+                        println!("{}", signature);
+                        for line in &info.desc {
+                            println!("  {}", line);
+                        }
+                        if !info.desc.is_empty() {
+                            println!();
+                        }
                     }
                 }
             }

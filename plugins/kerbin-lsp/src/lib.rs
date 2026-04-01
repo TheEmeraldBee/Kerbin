@@ -1,5 +1,4 @@
-use kerbin_core::{CloseEvent, CommandRegistry, EVENT_BUS, LogSender, ResMut, SaveEvent, State};
-use kerbin_core::SystemParam;
+use kerbin_core::*;
 
 pub mod commands;
 pub use commands::LspCommand;
@@ -72,72 +71,67 @@ async fn reset_config_state(lsp_manager: ResMut<LspManager>) {
     manager.ext_map.clear();
 }
 
+define_plugin! {
+    name: "kerbin-lsp",
+    init_as: plugin_init,
+
+    state: [
+        LspHandlerManager,
+        LspManager,
+        GlobalDiagnostics,
+    ],
+
+    commands: [
+        LspCommand,
+        HoverCommand,
+        CompletionCommand,
+        NavigationCommand,
+        FormatCommand,
+    ],
+
+    hooks: [
+        hooks::ResetState => reset_config_state,
+    ],
+
+    events: [
+        SaveEvent => file_save::file_saved,
+        CloseEvent => file_close::file_close,
+    ],
+}
+
 pub async fn init(state: &mut State) {
-    state
-        .state(LspHandlerManager::default())
-        .state(LspManager::default())
-        .state(GlobalDiagnostics::default());
+    plugin_init(state).await;
 
-    state
-        .on_hook(kerbin_core::hooks::ResetState)
-        .system(reset_config_state);
+    let mut handler_manager = state.lock_state::<LspHandlerManager>().await;
 
-    EVENT_BUS
-        .subscribe::<SaveEvent>()
-        .await
-        .system(file_save::file_saved);
-
-    EVENT_BUS
-        .subscribe::<CloseEvent>()
-        .await
-        .system(file_close::file_close);
-
-    {
-        let mut command_registry = state.lock_state::<CommandRegistry>().await;
-
-        command_registry.register::<LspCommand>();
-        command_registry.register::<HoverCommand>();
-        command_registry.register::<CompletionCommand>();
-        command_registry.register::<NavigationCommand>();
-        command_registry.register::<FormatCommand>();
-    }
-
-    {
-        let mut handler_manager = state.lock_state::<LspHandlerManager>().await;
-
-        handler_manager.on_global_notify("textDocument/publishDiagnostics", |state, msg| {
-            Box::pin(publish_diagnostics(state, msg))
-        });
-
-        handler_manager.on_global_notify("$/progress", |state, msg| Box::pin(log_init(state, msg)));
-
-        handler_manager.on_global_response("textDocument/hover", |state, msg| {
-            Box::pin(handle_hover(state, msg))
-        });
-
-        handler_manager.on_global_response("textDocument/completion", |state, msg| {
-            Box::pin(handle_completion(state, msg))
-        });
-
-        handler_manager.on_global_response("textDocument/definition", |state, msg| {
-            Box::pin(handle_navigation(state, msg))
-        });
-        handler_manager.on_global_response("textDocument/references", |state, msg| {
-            Box::pin(handle_navigation(state, msg))
-        });
-        handler_manager.on_global_response("textDocument/implementation", |state, msg| {
-            Box::pin(handle_navigation(state, msg))
-        });
-        handler_manager.on_global_response("textDocument/typeDefinition", |state, msg| {
-            Box::pin(handle_navigation(state, msg))
-        });
-        handler_manager.on_global_response("textDocument/declaration", |state, msg| {
-            Box::pin(handle_navigation(state, msg))
-        });
-
-        handler_manager.on_global_response("textDocument/formatting", |state, msg| {
-            Box::pin(handle_format(state, msg))
-        });
-
-    }
+    handler_manager.on_global_notify("textDocument/publishDiagnostics", |state, msg| {
+        Box::pin(publish_diagnostics(state, msg))
+    });
+    handler_manager.on_global_notify("$/progress", |state, msg| {
+        Box::pin(log_init(state, msg))
+    });
+    handler_manager.on_global_response("textDocument/hover", |state, msg| {
+        Box::pin(handle_hover(state, msg))
+    });
+    handler_manager.on_global_response("textDocument/completion", |state, msg| {
+        Box::pin(handle_completion(state, msg))
+    });
+    handler_manager.on_global_response("textDocument/definition", |state, msg| {
+        Box::pin(handle_navigation(state, msg))
+    });
+    handler_manager.on_global_response("textDocument/references", |state, msg| {
+        Box::pin(handle_navigation(state, msg))
+    });
+    handler_manager.on_global_response("textDocument/implementation", |state, msg| {
+        Box::pin(handle_navigation(state, msg))
+    });
+    handler_manager.on_global_response("textDocument/typeDefinition", |state, msg| {
+        Box::pin(handle_navigation(state, msg))
+    });
+    handler_manager.on_global_response("textDocument/declaration", |state, msg| {
+        Box::pin(handle_navigation(state, msg))
+    });
+    handler_manager.on_global_response("textDocument/formatting", |state, msg| {
+        Box::pin(handle_format(state, msg))
+    });
 }

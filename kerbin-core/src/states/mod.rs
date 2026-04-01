@@ -33,6 +33,9 @@ pub use registers::*;
 pub mod splits;
 pub use splits::*;
 
+pub mod plugin_registry;
+pub use plugin_registry::*;
+
 /// Initializes the editor's core state with essential components
 pub fn init_state(
     terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
@@ -82,7 +85,8 @@ pub fn init_state(
         .state(LayoutConfig::default())
         .state(ConfigErrors::default())
         .state(MouseBindings::default())
-        .state(SplitState::default());
+        .state(SplitState::default())
+        .state(PluginRegistry::default());
 
     state
 }

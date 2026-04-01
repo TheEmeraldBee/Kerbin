@@ -36,24 +36,34 @@ async fn reset_config_state(grammar_manager: ResMut<GrammarManager>) {
     manager.lang_map.clear();
 }
 
+define_plugin! {
+    name: "kerbin-tree-sitter",
+    init_as: plugin_init,
+
+    state: [
+        GrammarManager,
+    ],
+
+    commands: [
+        TreeSitterCommand,
+        InstallCommand,
+        ScopeInfoCommand,
+        TreeSitterMotion,
+    ],
+
+    hooks: [
+        hooks::ResetState => reset_config_state,
+    ],
+}
+
 pub async fn init(state: &mut State) {
-    state.state(GrammarManager::default());
+    plugin_init(state).await;
 
-    let mut commands = state.lock_state::<CommandRegistry>().await;
-    commands.register::<TreeSitterCommand>();
-    commands.register::<InstallCommand>();
-    commands.register::<ScopeInfoCommand>();
-    commands.register::<TreeSitterMotion>();
-    drop(commands);
-
+    // Extra: newline interceptor can't be expressed in define_plugin!
     state
         .lock_state::<CommandInterceptorRegistry>()
         .await
         .on_command::<BufferCommand>(|cmd, state| {
             Box::pin(crate::indent::newline_intercept(cmd, state))
         });
-
-    state
-        .on_hook(hooks::ResetState)
-        .system(reset_config_state);
 }

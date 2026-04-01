@@ -18,15 +18,14 @@ impl Command<State> for TutorCommands {
     }
 }
 
-pub async fn init(state: &mut State) {
-    {
-        state
-            .lock_state::<CommandRegistry>()
-            .await
-            .register::<TutorCommands>();
-    }
+define_plugin! {
+    name: "tutor",
 
-    state
-        .on_hook(hooks::UpdateFiletype::new("<tutor>"))
-        .system(load::update_buffer);
+    commands: [
+        TutorCommands,
+    ],
+
+    hooks: [
+        hooks::UpdateFiletype::new("<tutor>") => load::update_buffer,
+    ],
 }

@@ -27,6 +27,11 @@ pub struct KerbinArgs {
     #[clap(short, long)]
     config: Option<String>,
 
+    /// Print all registered commands (core + plugins) and exit.
+    /// Optional format: text (default), json, md
+    #[clap(long, num_args = 0..=1, default_missing_value = "text", value_name = "FORMAT")]
+    list_commands: Option<String>,
+
     /// Files to open on startup
     #[clap(value_name = "FILE")]
     files: Vec<PathBuf>,
@@ -242,6 +247,73 @@ async fn update(state: &mut State) {
 async fn main() {
     let args = KerbinArgs::parse();
 
+    if let Some(format) = args.list_commands {
+        let mut registry = CommandRegistry(vec![]);
+        config::register_commands(&mut registry);
+        let infos: Vec<_> = registry.0.iter().flat_map(|s| &s.infos).collect();
+
+        match format.as_str() {
+            "json" => {
+                let json: Vec<_> = infos
+                    .iter()
+                    .map(|info| {
+                        serde_json::json!({
+                            "names": info.valid_names,
+                            "args": info.args.iter().map(|(n, t)| serde_json::json!({ "name": n, "type": t })).collect::<Vec<_>>(),
+                            "desc": info.desc,
+                        })
+                    })
+                    .collect();
+                println!("{}", serde_json::to_string_pretty(&json).unwrap());
+            }
+            "md" => {
+                println!("# Kerbin Commands\n");
+                for info in &infos {
+                    println!("## {}", info.valid_names.join(", "));
+                    if !info.args.is_empty() {
+                        let args: Vec<String> = info
+                            .args
+                            .iter()
+                            .map(|(n, t)| format!("`<{n}: {t}>`"))
+                            .collect();
+                        println!("\n**Args:** {}", args.join(" "));
+                    }
+                    if !info.desc.is_empty() {
+                        println!();
+                        for line in &info.desc {
+                            println!("{}", line);
+                        }
+                    }
+                    println!();
+                }
+            }
+            _ => {
+                // "text" and anything unrecognised
+                for info in &infos {
+                    let names = info.valid_names.join(", ");
+                    let args: Vec<String> = info
+                        .args
+                        .iter()
+                        .map(|(n, t)| format!("<{n}: {t}>"))
+                        .collect();
+                    let signature = if args.is_empty() {
+                        names.clone()
+                    } else {
+                        format!("{} {}", names, args.join(" "))
+                    };
+                    println!("{}", signature);
+                    for line in &info.desc {
+                        println!("  {}", line);
+                    }
+                    if !info.desc.is_empty() {
+                        println!();
+                    }
+                }
+            }
+        }
+        return;
+    }
+
     let session_id = Uuid::new_v4();
     let server_ipc = ServerIpc::new(&session_id.to_string());
 
@@ -301,7 +373,6 @@ async fn main() {
     )
     .ok();
 
-    // Initialize terminal
     let (command_sender, mut command_receiver) = unbounded_channel();
 
     let mut state = init_state(

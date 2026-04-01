@@ -3,8 +3,14 @@ use darling::{
     *,
 };
 use proc_macro::TokenStream;
+use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::{DeriveInput, Ident, Path, Type, parse_macro_input};
+use syn::{
+    DeriveInput, Expr, Ident, LitStr, Path, Token, Type, bracketed,
+    parse::{Parse, ParseStream},
+    parse_macro_input,
+    punctuated::Punctuated,
+};
 
 #[proc_macro_derive(State)]
 pub fn derive_state(input: TokenStream) -> TokenStream {
@@ -639,6 +645,219 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
 
     expanded.into()
 }
+
+// ─── define_plugin! ──────────────────────────────────────────────────────────
+
+struct HookEntry {
+    hook: Expr,
+    system: Path,
+}
+
+struct EventEntry {
+    event: Path,
+    system: Path,
+}
+
+#[derive(Default)]
+struct PluginDef {
+    name: Option<LitStr>,
+    init_as: Option<Ident>,
+    state: Vec<Path>,
+    commands: Vec<Path>,
+    hooks: Vec<HookEntry>,
+    events: Vec<EventEntry>,
+}
+
+impl Parse for PluginDef {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut def = PluginDef::default();
+
+        while !input.is_empty() {
+            let key: Ident = input.parse()?;
+            input.parse::<Token![:]>()?;
+
+            match key.to_string().as_str() {
+                "name" => {
+                    def.name = Some(input.parse()?);
+                }
+                "init_as" => {
+                    def.init_as = Some(input.parse()?);
+                }
+                "state" => {
+                    let content;
+                    bracketed!(content in input);
+                    let paths: Punctuated<Path, Token![,]> =
+                        content.parse_terminated(Path::parse, Token![,])?;
+                    def.state = paths.into_iter().collect();
+                }
+                "commands" => {
+                    let content;
+                    bracketed!(content in input);
+                    let paths: Punctuated<Path, Token![,]> =
+                        content.parse_terminated(Path::parse, Token![,])?;
+                    def.commands = paths.into_iter().collect();
+                }
+                "hooks" => {
+                    let content;
+                    bracketed!(content in input);
+                    while !content.is_empty() {
+                        let hook: Expr = content.parse()?;
+                        content.parse::<Token![=>]>()?;
+                        let system: Path = content.parse()?;
+                        def.hooks.push(HookEntry { hook, system });
+                        if content.peek(Token![,]) {
+                            content.parse::<Token![,]>()?;
+                        }
+                    }
+                }
+                "events" => {
+                    let content;
+                    bracketed!(content in input);
+                    while !content.is_empty() {
+                        let event: Path = content.parse()?;
+                        content.parse::<Token![=>]>()?;
+                        let system: Path = content.parse()?;
+                        def.events.push(EventEntry { event, system });
+                        if content.peek(Token![,]) {
+                            content.parse::<Token![,]>()?;
+                        }
+                    }
+                }
+                other => {
+                    return Err(syn::Error::new(
+                        key.span(),
+                        format!("unknown field `{other}` — expected one of: name, init_as, state, commands, hooks, events"),
+                    ));
+                }
+            }
+
+            if input.peek(Token![,]) {
+                input.parse::<Token![,]>()?;
+            }
+        }
+
+        Ok(def)
+    }
+}
+
+/// Generates `init` and `register_commands` for a Kerbin plugin.
+///
+/// ```ignore
+/// define_plugin! {
+///     name: "my-plugin",
+///
+///     state: [
+///         MyState,
+///     ],
+///
+///     commands: [
+///         MyCommand,
+///     ],
+///
+///     hooks: [
+///         hooks::Update => my_update_system,
+///     ],
+///
+///     events: [
+///         SaveEvent => on_file_saved,
+///     ],
+/// }
+/// ```
+///
+/// Generates:
+/// - `pub async fn register_commands(state: &mut State)` — registers all listed commands.
+/// - `pub async fn init(state: &mut State)` — registers state (via `Default`), calls
+///   `register_commands`, attaches hook systems, and subscribes to events.
+#[proc_macro]
+pub fn define_plugin(input: TokenStream) -> TokenStream {
+    let def = parse_macro_input!(input as PluginDef);
+
+    let state_inits: Vec<TokenStream2> = def
+        .state
+        .iter()
+        .map(|ty| quote! { state.state(<#ty as Default>::default()); })
+        .collect();
+
+    let command_registrations: Vec<TokenStream2> = def
+        .commands
+        .iter()
+        .map(|ty| quote! { registry.register::<#ty>(); })
+        .collect();
+
+    let hook_registrations: Vec<TokenStream2> = def
+        .hooks
+        .iter()
+        .map(|e| {
+            let hook = &e.hook;
+            let system = &e.system;
+            quote! { state.on_hook(#hook).system(#system); }
+        })
+        .collect();
+
+    let event_subscriptions: Vec<TokenStream2> = def
+        .events
+        .iter()
+        .map(|e| {
+            let event = &e.event;
+            let system = &e.system;
+            quote! {
+                ::kerbin_core::EVENT_BUS
+                    .subscribe::<#event>()
+                    .await
+                    .system(#system);
+            }
+        })
+        .collect();
+
+    let register_commands = quote! {
+        pub fn register_commands(registry: &mut ::kerbin_core::CommandRegistry) {
+            #(#command_registrations)*
+        }
+    };
+
+    let init_register_commands = if command_registrations.is_empty() {
+        quote! {}
+    } else {
+        quote! {
+            {
+                let mut registry = state
+                    .lock_state::<::kerbin_core::CommandRegistry>()
+                    .await;
+                #(#command_registrations)*
+            }
+        }
+    };
+
+    let plugin_registration = def.name.as_ref().map(|name| {
+        quote! {
+            state
+                .lock_state::<::kerbin_core::PluginRegistry>()
+                .await
+                .register(#name);
+        }
+    });
+
+    let init_fn_name = def
+        .init_as
+        .clone()
+        .unwrap_or_else(|| Ident::new("init", proc_macro2::Span::call_site()));
+
+    let expanded = quote! {
+        #register_commands
+
+        pub async fn #init_fn_name(state: &mut ::kerbin_core::State) {
+            #plugin_registration
+            #(#state_inits)*
+            #init_register_commands
+            #(#hook_registrations)*
+            #(#event_subscriptions)*
+        }
+    };
+
+    expanded.into()
+}
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 fn to_snake_case(s: &str) -> String {
     let mut result = String::new();

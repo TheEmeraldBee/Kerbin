@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use crate::*;
-use kerbin_core::*;
 use lsp_types::*;
 
 /// Global store of all diagnostics received via publishDiagnostics,
