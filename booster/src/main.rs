@@ -3,7 +3,7 @@ mod build_kb;
 use clap::*;
 use dialoguer::*;
 use indicatif::*;
-use kerbin_core::{ClientIpc, session_name_path, session_pid_path, sessions_dir};
+use kerbin_core::{ClientIpc, CommandRegistry, register_core_commands, session_name_path, session_pid_path, sessions_dir};
 use kerbin_input::tokenize;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -61,6 +61,9 @@ pub enum SubCommand {
 
     /// Validate config files without doing a full rebuild.
     Check,
+
+    /// List all built-in editor commands with their names, aliases, and descriptions.
+    List,
 }
 
 #[derive(Subcommand, Clone)]
@@ -984,6 +987,34 @@ fn main() {
 
             build_kerbin(&kerbin_dir, final_config, &mut info);
             println!("✓ Rebuild complete!");
+        }
+
+        SubCommand::List => {
+            let mut registry = CommandRegistry(vec![]);
+            register_core_commands(&mut registry);
+
+            for set in &registry.0 {
+                for info in &set.infos {
+                    let names = info.valid_names.join(", ");
+                    let args: Vec<String> = info
+                        .args
+                        .iter()
+                        .map(|(name, ty)| format!("<{name}: {ty}>"))
+                        .collect();
+                    let signature = if args.is_empty() {
+                        names.clone()
+                    } else {
+                        format!("{} {}", names, args.join(" "))
+                    };
+                    println!("{}", signature);
+                    for line in &info.desc {
+                        println!("  {}", line);
+                    }
+                    if !info.desc.is_empty() {
+                        println!();
+                    }
+                }
+            }
         }
     }
 }

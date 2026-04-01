@@ -42,6 +42,27 @@ pub use if_cmd::*;
 mod splits;
 pub use splits::*;
 
+/// Registers all built-in core commands into a `CommandRegistry`.
+/// Plugins may register additional commands on top of these.
+pub fn register_core_commands(registry: &mut CommandRegistry) {
+    registry.register::<BufferCommand>();
+    registry.register::<CommitCommand>();
+    registry.register::<CursorCommand>();
+    registry.register::<BuffersCommand>();
+    registry.register::<ModeCommand>();
+    registry.register::<StateCommand>();
+    registry.register::<PaletteCommand>();
+    registry.register::<InputCommand>();
+    registry.register::<MotionCommand>();
+    registry.register::<ShellCommand>();
+    registry.register::<RegisterCommand>();
+    registry.register::<ConfigCommand>();
+    registry.register::<DebugCommand>();
+    registry.register::<IfCommand>();
+    registry.register::<AutoPairsCommand>();
+    registry.register::<SplitCommand>();
+}
+
 /// Type alias for a state-specific command parsing function.
 pub type CommandFn = kerbin_command_lang::CommandFn<State>;
 
