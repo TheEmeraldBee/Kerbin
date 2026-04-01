@@ -205,7 +205,7 @@ pub async fn handle_inputs(
                             &modes,
                         );
                         if let Some(command) = parsed {
-                            command_sender.get().await.send(command).unwrap();
+                            let _ = command_sender.get().await.send(command);
                         } else {
                             log.critical(
                                 "input",

@@ -128,7 +128,7 @@ pub async fn update_debounce(
                 &prefix_registry,
                 &modes,
             ) {
-                command_sender.send(cmd).unwrap();
+                let _ = command_sender.send(cmd);
             }
         }
     }

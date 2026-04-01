@@ -311,7 +311,7 @@ pub async fn handle_mouse_events(
                     if !is_focused {
                         let focus_cmd: Box<dyn Command<State>> =
                             Box::new(SplitCommand::FocusPane(pane_i));
-                        command_sender.get().await.send(focus_cmd).unwrap();
+                        let _ = command_sender.get().await.send(focus_cmd);
                     }
                     break 'pane_check;
                 }
@@ -381,7 +381,7 @@ pub async fn handle_mouse_events(
                 &modes,
             );
             if let Some(command) = command {
-                command_sender.get().await.send(command).unwrap();
+                let _ = command_sender.get().await.send(command);
             }
         }
     }
