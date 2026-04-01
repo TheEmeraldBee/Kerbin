@@ -604,10 +604,15 @@ pub enum StepResult<A: Clone, M> {
 }
 
 impl<T: Copy> Matchable<T> {
-    pub fn unwrap_specific(self) -> T {
+    pub fn specific(self) -> Option<T> {
         match self {
-            Matchable::Specific(t) => t,
-            Matchable::Any => panic!("Called unwrap_specific on Any"),
+            Matchable::Specific(t) => Some(t),
+            Matchable::Any => None,
         }
+    }
+
+    /// Panics if called on `Any`. Only use when the variant is known to be `Specific`.
+    pub fn unwrap_specific(self) -> T {
+        self.specific().expect("called unwrap_specific on Matchable::Any")
     }
 }

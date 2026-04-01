@@ -35,7 +35,7 @@ impl ResolverEngine {
             Ok(output
                 .stdout
                 .lines()
-                .map(|l| l.unwrap())
+                .filter_map(|l| l.ok())
                 .collect::<Vec<_>>())
         };
 

@@ -115,8 +115,10 @@ theme statusline.mode.x --fg mantle --bg lavender --attrs [bold]
 theme statusline.mode.v --fg mantle --bg pink --attrs [bold]
 theme statusline.mode.S --fg mantle --bg mauve --attrs [bold italic]
 
-theme lsp.autocomplete.selected --fg sky --bg mantle --attrs [italic]
-theme lsp.autocomplete.window --fg text
+theme lsp.autocomplete.selected --fg sky --bg surface1 --attrs [italic]
+theme lsp.autocomplete.window --fg text --bg surface0
+
+theme lsp.hover.window --fg sky --bg surface0
 
 # Statusline mode display names
 statusline n --long_name " NORMAL "

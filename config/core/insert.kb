@@ -1,8 +1,8 @@
 # Insert mode keybindings
 
-bind [i] [[commit_change] [pm i]] --invalid [i] --desc "Insert Mode"
-bind [o] [[sle] [a \n --extend] [%ifclear] [pm i] [start_change]]
-bind [O] [[ml -1] [sle] [a \n --extend] [%ifclear] [pm i] [start_change]]
+bind [i] [[commit_change] [pm i] [sla]] --invalid [i] --desc "Insert Mode"
+bind [o] [[sle] [a \n --extend] [%ifclear] [pm i] [start_change] [sla]]
+bind [O] [[ml -1] [sle] [a \n --extend] [%ifclear] [pm i] [start_change] [sla]]
 
 # Insertions
 bind [enter] [if [mode v] --cmds [a \n --extend] --else_cmds [a \n]] --modes [i] --desc "Insert Newline"

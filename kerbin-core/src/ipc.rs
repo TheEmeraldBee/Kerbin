@@ -9,7 +9,9 @@ pub enum ClientMessage {
 }
 
 pub fn sessions_dir() -> String {
-    let temp_dir = dirs::data_dir().unwrap();
+    let temp_dir = dirs::data_dir()
+        .or_else(|| dirs::home_dir().map(|h| h.join(".local/share")))
+        .unwrap_or_else(|| std::path::PathBuf::from("/tmp"));
     format!("{}/kerbin/sessions", temp_dir.to_string_lossy())
 }
 
@@ -39,7 +41,9 @@ impl ServerIpc {
 
         let _ = std::fs::create_dir_all(sessions_dir());
         let _ = std::fs::write(&pid_file, std::process::id().to_string());
-        let in_queue = Receiver::new(SharedRingBuffer::create(&in_file, 16000).unwrap());
+        let ring = SharedRingBuffer::create(&in_file, 16000)
+            .unwrap_or_else(|e| panic!("Failed to create IPC ring buffer at '{in_file}': {e}"));
+        let in_queue = Receiver::new(ring);
 
         Self {
             in_queue,

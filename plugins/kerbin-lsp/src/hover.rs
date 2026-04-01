@@ -19,6 +19,8 @@ struct HoverWidget {
     scroll_y: usize,
     width: u16,
     height: u16,
+
+    window_style: Style,
 }
 
 impl OverlayWidget for HoverWidget {
@@ -40,10 +42,15 @@ impl OverlayWidget for HoverWidget {
                 )
             })
             .collect();
-        let block = Block::bordered().border_type(BorderType::Rounded).title("Hover");
-        let inner = block.inner(area);
-        block.render(area, buf);
-        Paragraph::new(Text::from(text_lines)).render(inner, buf);
+
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .title("Hover");
+
+        Paragraph::new(Text::from(text_lines))
+            .block(block)
+            .style(self.window_style)
+            .render(area, buf);
     }
 }
 
@@ -80,7 +87,9 @@ impl Command<State> for HoverCommand {
                 let mut bufs = state.lock_state::<Buffers>().await;
                 let mut lsps = state.lock_state::<LspManager>().await;
 
-                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return true; };
+                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else {
+                    return true;
+                };
 
                 let Some(file) = buf.get_state::<OpenedFile>().await else {
                     return false;
@@ -120,7 +129,9 @@ impl Command<State> for HoverCommand {
             }
             Self::Scroll { amount } => {
                 let mut bufs = state.lock_state::<Buffers>().await;
-                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return true; };
+                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else {
+                    return true;
+                };
 
                 if let Some(mut state) = buf.get_state_mut::<HoverState>().await
                     && let Some(info) = &mut state.info
@@ -143,7 +154,9 @@ pub async fn render_hover(
 ) {
     get!(mut buffers, mut grammars, config, theme, log);
 
-    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
+    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+        return;
+    };
 
     let Some(mut state) = buf.get_state_mut::<HoverState>().await else {
         return;
@@ -209,9 +222,16 @@ pub async fn render_hover(
         info.scroll_y = all_lines.len().saturating_sub(1);
     }
 
-    let actual_width = all_lines.iter().map(|l| l.len()).max().unwrap_or(0).min(MAX_WIDTH);
+    let actual_width = all_lines
+        .iter()
+        .map(|l| l.len())
+        .max()
+        .unwrap_or(0)
+        .min(MAX_WIDTH);
     let popup_w = (actual_width + 2) as u16;
     let popup_h = (all_lines.len().min(MAX_HEIGHT) + 2) as u16;
+
+    let window_style = theme.get_fallback_default(["lsp.hover.window", "lsp.hover"]);
 
     buf.add_extmark(
         ExtmarkBuilder::new("lsp::hover", info.position)
@@ -222,6 +242,8 @@ pub async fn render_hover(
                     scroll_y: info.scroll_y,
                     width: popup_w,
                     height: popup_h,
+
+                    window_style,
                 }),
                 position: OverlayPosition::Smart,
                 z_index: 5,
@@ -266,7 +288,9 @@ pub async fn handle_hover(state: &State, msg: &JsonRpcMessage) {
         };
 
         let mut buf_guard = buf.write_owned().await;
-        let Some(buf) = buf_guard.downcast_mut::<TextBuffer>() else { return; };
+        let Some(buf) = buf_guard.downcast_mut::<TextBuffer>() else {
+            return;
+        };
         let mut hover_state = buf.get_state_mut::<HoverState>().await.unwrap();
         let info = hover_state.info.as_mut().unwrap();
 

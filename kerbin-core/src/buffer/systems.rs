@@ -90,7 +90,9 @@ pub async fn render_bufferline(
     theme: Res<Theme>,
     split: Res<SplitState>,
 ) {
-    let chunk = &mut chunk.get().await.unwrap();
+    let Some(chunk) = &mut chunk.get().await else {
+        return;
+    };
     get!(buffers, theme, split);
 
     let Some(pane) = split.focused_pane() else {

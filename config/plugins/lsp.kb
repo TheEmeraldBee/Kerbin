@@ -1,6 +1,5 @@
 bind [space k] [hover] --desc "Show Hover"
-bind [tab] [snlc] --modes [i] --required [lsp_items] --desc "Select next LSP change"
-bind [down] [snlc] --modes [i] --required [lsp_items] --desc "Select next LSP change"
+bind [(tab|down)] [snlc] --modes [i] --required [lsp_items] --desc "Select next LSP change"
 bind [up] [splc] --modes [i] --required [lsp_items] --desc "Select previous LSP change"
 bind [enter] [ala] --modes [i] --required [lsp_items] --desc "Select previous LSP change"
 bind [esc] [[tla] [rm]] --modes [i] --required [lsp_items] --desc "Trash LSP change and drop move"
