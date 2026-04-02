@@ -22,14 +22,11 @@ pub async fn file_saved(
     };
 
     let lang = client_info.lang.clone();
-    let uri = Uri::file_path(&cur_buf.path).expect("File path should be fine");
+    let Some(uri) = Uri::file_path(&cur_buf.path).ok() else { return; };
 
-    let client = lsp_manager
-        .get_or_create_client(&lang)
-        .await
-        .unwrap();
+    let Some(client) = lsp_manager.get_or_create_client(&lang).await else { return; };
 
-    client
+    let _ = client
         .notification(
             "textDocument/didSave",
             DidSaveTextDocumentParams {
@@ -37,8 +34,7 @@ pub async fn file_saved(
                 text: None,
             },
         )
-        .await
-        .unwrap();
+        .await;
 
     let fmt_config = lsp_manager
         .lang_info_map

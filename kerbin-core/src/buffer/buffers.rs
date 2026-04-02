@@ -61,6 +61,20 @@ impl Buffers {
         OwnedRwLockWriteGuard::try_map(guard, |buf| buf.as_any_mut().downcast_mut::<T>()).ok()
     }
 
+    /// Convenience: write lock on the current buffer as `TextBuffer`.
+    /// Returns `None` if the current buffer is not a `TextBuffer`.
+    pub async fn cur_text_buffer_mut(
+        &mut self,
+    ) -> Option<OwnedRwLockMappedWriteGuard<dyn KerbinBuffer, TextBuffer>> {
+        self.cur_buffer_as_mut::<TextBuffer>().await
+    }
+
+    /// Convenience: read lock on the current buffer as `TextBuffer`.
+    /// Returns `None` if the current buffer is not a `TextBuffer`.
+    pub async fn cur_text_buffer(&self) -> Option<OwnedRwLockReadGuard<dyn KerbinBuffer, TextBuffer>> {
+        self.cur_buffer_as::<TextBuffer>().await
+    }
+
     /// Returns a read lock for the buffer at `path`, if open
     pub async fn get_path(&self, path: &str) -> Option<OwnedRwLockReadGuard<dyn KerbinBuffer>> {
         for buf in &self.buffers {
@@ -117,9 +131,8 @@ impl Buffers {
     /// Opens a buffer with the given file path
     pub async fn open(&mut self, path: String, default_tab_unit: usize) -> std::io::Result<usize> {
         let check_path = get_canonical_path_with_non_existent(&path)
-            .to_str()
-            .unwrap()
-            .to_string();
+            .to_string_lossy()
+            .into_owned();
 
         let mut found_buffer_id: Option<usize> = None;
 

@@ -136,7 +136,7 @@ impl LspManager {
 
         let client = LspClient::spawned(&lang, &info.command, info.args.clone())
             .await
-            .unwrap();
+            .ok()?;
 
         self.client_map.insert(lang.clone(), client);
 
@@ -158,7 +158,7 @@ pub fn find_workspace_root(file_path: &str, lang_info: Option<&LangInfo>) -> Opt
         for root_marker in &lang_info.roots {
             let marker_path = current.join(root_marker);
             if marker_path.exists() {
-                return Uri::file_path(current.to_str().unwrap()).ok();
+                return current.to_str().and_then(|s| Uri::file_path(s).ok());
             }
         }
 

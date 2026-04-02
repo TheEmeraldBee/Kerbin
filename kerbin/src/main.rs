@@ -4,7 +4,8 @@ use ratatui::{
     crossterm::{
         event::{
             DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
-            KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+            KeyboardEnhancementFlags, MouseEvent, PopKeyboardEnhancementFlags,
+            PushKeyboardEnhancementFlags,
         },
         execute,
     },
@@ -315,7 +316,10 @@ async fn main() {
     }
 
     let session_id = Uuid::new_v4();
-    let server_ipc = ServerIpc::new(&session_id.to_string());
+    let server_ipc = ServerIpc::new(&session_id.to_string()).unwrap_or_else(|e| {
+        eprintln!("{}", e);
+        std::process::exit(1);
+    });
 
     let config_path = match args.config {
         Some(t) => {

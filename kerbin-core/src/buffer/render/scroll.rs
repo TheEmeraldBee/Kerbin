@@ -37,7 +37,7 @@ pub async fn update_buffer_horizontal_scroll(chunk: Chunk<BufferChunk>, buffers:
 
     get!(mut buffers);
 
-    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+    let Some(mut buf) = buffers.cur_text_buffer_mut().await else {
         return;
     };
 
@@ -82,7 +82,7 @@ pub async fn update_buffer_vertical_scroll(chunk: Chunk<BufferChunk>, buffers: R
 
     get!(mut buffers);
 
-    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+    let Some(mut buf) = buffers.cur_text_buffer_mut().await else {
         return;
     };
 

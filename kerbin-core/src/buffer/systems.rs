@@ -10,7 +10,7 @@ pub async fn render_cursors_and_selections(
 ) {
     get!(mut bufs, modes, theme);
 
-    let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else {
+    let Some(mut buf) = bufs.cur_text_buffer_mut().await else {
         return;
     };
 
@@ -205,7 +205,7 @@ pub async fn update_bufferline_scroll(
 pub async fn post_update_buffer(buffers: ResMut<Buffers>) {
     get!(mut buffers);
 
-    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+    let Some(mut buf) = buffers.cur_text_buffer_mut().await else {
         return;
     };
 
@@ -254,7 +254,7 @@ pub async fn cleanup_buffers(buffers: ResMut<Buffers>) {
 
     buffers.update_paths().await;
 
-    let Some(mut buffer) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+    let Some(mut buffer) = buffers.cur_text_buffer_mut().await else {
         return;
     };
 

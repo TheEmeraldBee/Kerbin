@@ -49,7 +49,10 @@ pub async fn register_help_menu_chunk(
         return;
     }
 
-    let metadata = input.tree.collect_layer_metadata().unwrap();
+    let Ok(metadata) = input.tree.collect_layer_metadata() else {
+        tracing::error!("register_help_menu_chunk: failed to collect layer metadata");
+        return;
+    };
     let menu_height = metadata.len() as u16 + 2;
 
     get!(mut chunks, window);
@@ -80,14 +83,17 @@ pub async fn render_help_menu(chunk: Chunk<HelpChunk>, input: Res<InputState>) {
         return;
     }
 
-    let mut chunk = chunk.get().await.unwrap();
+    let Some(mut chunk) = chunk.get().await else { return; };
     let area = chunk.area();
 
     Block::bordered()
         .border_type(BorderType::Plain)
         .render(area, &mut chunk);
 
-    let metadata = input.tree.collect_layer_metadata().unwrap();
+    let Ok(metadata) = input.tree.collect_layer_metadata() else {
+        tracing::error!("render_help_menu: failed to collect layer metadata");
+        return;
+    };
 
     for (i, data) in metadata
         .iter()
@@ -125,14 +131,12 @@ pub async fn handle_inputs(
 
     for event in &events.0 {
         if let Event::Paste(text) = event {
-            command_sender
-                .get()
-                .await
-                .send(Box::new(BufferCommand::Append {
-                    text: text.clone(),
-                    extend: false,
-                }))
-                .unwrap();
+            if let Err(e) = command_sender.get().await.send(Box::new(BufferCommand::Append {
+                text: text.clone(),
+                extend: false,
+            })) {
+                log.high("input", format!("Failed to send paste command: {e}"));
+            }
         }
     }
 

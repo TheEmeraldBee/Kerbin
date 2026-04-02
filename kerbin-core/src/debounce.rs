@@ -64,7 +64,7 @@ pub async fn update_debounce(
         command_sender
     );
 
-    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
+    let Some(mut buf) = buffers.cur_text_buffer_mut().await else { return; };
     let mut debounce = buf.get_or_insert_state_mut(Debounce::default).await;
     let current_mode = modes.get_mode();
 
@@ -95,9 +95,8 @@ pub async fn update_debounce(
         return;
     }
 
-    let elapsed = Instant::now()
-        .duration_since(debounce.state.unwrap().0)
-        .as_millis();
+    let Some((start, _)) = debounce.state else { return; };
+    let elapsed = Instant::now().duration_since(start).as_millis();
     let engine = resolver_engine().await;
 
     for (i, event) in events.iter().enumerate() {

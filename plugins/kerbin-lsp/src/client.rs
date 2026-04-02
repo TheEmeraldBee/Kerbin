@@ -19,6 +19,15 @@ pub struct RequestInfo {
     pub params: Value,
 }
 
+/// A message drained from a client's channel, with its routing method already resolved.
+pub struct DrainedMessage {
+    pub lang_id: String,
+    /// For responses: the original request method (looked up via request_info).
+    /// For notifications/server requests: the method from the message itself.
+    pub method: String,
+    pub message: JsonRpcMessage,
+}
+
 pub struct LspClient<W: AsyncWrite + Unpin + Send + 'static> {
     flags: HashSet<&'static str>,
 
@@ -52,9 +61,15 @@ impl LspClient<ChildStdin> {
             .stderr(std::process::Stdio::piped())
             .spawn()?;
 
-        let stdin = Arc::new(Mutex::new(process.stdin.take().unwrap()));
-        let stdout = process.stdout.take().unwrap();
-        let stderr = process.stderr.take().unwrap();
+        let stdin = Arc::new(Mutex::new(process.stdin.take().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::BrokenPipe, "LSP process stdin not available")
+        })?));
+        let stdout = process.stdout.take().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::BrokenPipe, "LSP process stdout not available")
+        })?;
+        let stderr = process.stderr.take().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::BrokenPipe, "LSP process stderr not available")
+        })?;
 
         tokio::spawn(async move {
             Self::log_errors(stderr).await;
@@ -248,7 +263,7 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
         Ok(id)
     }
 
-    async fn call_matching_handlers<'a>(
+    pub(crate) async fn call_matching_handlers<'a>(
         handlers: impl Iterator<Item = &'a HandlerEntry> + 'a,
         method: &str,
         state: &State,
@@ -329,6 +344,53 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
                 }
             }
         }
+    }
+
+    /// Drain all pending messages from the channel into an owned `Vec`, resolving response methods
+    /// via `request_info` and caching server capabilities for the `initialize` response.
+    /// Callers can release the `LspManager` lock after this returns and dispatch handlers
+    /// separately, allowing handlers to re-acquire `LspManager` without deadlocking.
+    pub fn drain_messages(&mut self) -> Vec<DrainedMessage> {
+        let mut drained = Vec::new();
+        while let Ok(msg) = self.message_rx.try_recv() {
+            match &msg {
+                JsonRpcMessage::Response(val) => {
+                    if self.ignore_ids.contains(&val.id) {
+                        self.ignore_ids.retain(|x| *x != val.id);
+                        continue;
+                    }
+                    if let Some(req_info) = self.request_info.get(&val.id) {
+                        if req_info.method == "initialize"
+                            && let Some(result) = &val.result
+                            && let Ok(init_result) =
+                                serde_json::from_value::<lsp_types::InitializeResult>(result.clone())
+                        {
+                            self.server_capabilities = Some(init_result.capabilities);
+                        }
+                        drained.push(DrainedMessage {
+                            lang_id: self.lang_id.clone(),
+                            method: req_info.method.clone(),
+                            message: msg,
+                        });
+                    }
+                }
+                JsonRpcMessage::Notification(notif) => {
+                    drained.push(DrainedMessage {
+                        lang_id: self.lang_id.clone(),
+                        method: notif.method.clone(),
+                        message: msg,
+                    });
+                }
+                JsonRpcMessage::ServerRequest(req) => {
+                    drained.push(DrainedMessage {
+                        lang_id: self.lang_id.clone(),
+                        method: req.method.clone(),
+                        message: msg,
+                    });
+                }
+            }
+        }
+        drained
     }
 
     /// Get the original request info for a given request ID

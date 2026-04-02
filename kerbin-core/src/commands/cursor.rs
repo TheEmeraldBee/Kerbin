@@ -34,7 +34,7 @@ impl Command<State> for CursorCommand {
 
         match self {
             Self::CreateCursor => {
-                let Some(mut tb) = cur_bufs.cur_buffer_as_mut::<TextBuffer>().await else {
+                let Some(mut tb) = cur_bufs.cur_text_buffer_mut().await else {
                     return false;
                 };
                 tb.create_cursor();
@@ -42,7 +42,7 @@ impl Command<State> for CursorCommand {
             }
 
             Self::ChangeActiveCursor(offset) => {
-                let Some(mut tb) = cur_bufs.cur_buffer_as_mut::<TextBuffer>().await else {
+                let Some(mut tb) = cur_bufs.cur_text_buffer_mut().await else {
                     return false;
                 };
                 tb.change_cursor(*offset);
@@ -50,7 +50,7 @@ impl Command<State> for CursorCommand {
             }
 
             Self::DropCursor => {
-                let Some(mut tb) = cur_bufs.cur_buffer_as_mut::<TextBuffer>().await else {
+                let Some(mut tb) = cur_bufs.cur_text_buffer_mut().await else {
                     return false;
                 };
                 tb.drop_primary_cursor();
@@ -58,7 +58,7 @@ impl Command<State> for CursorCommand {
             }
 
             Self::DropOtherCursors => {
-                let Some(mut tb) = cur_bufs.cur_buffer_as_mut::<TextBuffer>().await else {
+                let Some(mut tb) = cur_bufs.cur_text_buffer_mut().await else {
                     return false;
                 };
                 tb.drop_other_cursors();
@@ -93,7 +93,7 @@ impl Command<State> for CursorCommand {
                 for i in 0..cursor_count {
                     {
                         let mut guard = state.lock_state::<Buffers>().await;
-                        if let Some(mut tb) = guard.cur_buffer_as_mut::<TextBuffer>().await {
+                        if let Some(mut tb) = guard.cur_text_buffer_mut().await {
                             tb.primary_cursor = i;
                         }
                     }
@@ -118,7 +118,7 @@ impl Command<State> for CursorCommand {
 
                 {
                     let mut guard = state.lock_state::<Buffers>().await;
-                    if let Some(mut tb) = guard.cur_buffer_as_mut::<TextBuffer>().await {
+                    if let Some(mut tb) = guard.cur_text_buffer_mut().await {
                         tb.primary_cursor = primary_cursor;
                     }
                 }

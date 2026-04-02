@@ -282,7 +282,7 @@ pub async fn run_system_groups(systems: &[NamedSystem], storage: &StateStorage) 
 
         for res in res {
             if let Err(e) = res {
-                panic!("{e}");
+                panic!("System task failed: {e}");
             }
         }
     }

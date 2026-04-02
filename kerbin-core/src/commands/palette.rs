@@ -84,11 +84,12 @@ impl Command<State> for PaletteCommand {
                     &*state.lock_state::<ModeStack>().await,
                 );
                 if let Some(command) = command {
-                    state
-                        .lock_state::<CommandSender>()
-                        .await
-                        .send(command)
-                        .unwrap();
+                    if let Err(e) = state.lock_state::<CommandSender>().await.send(command) {
+                        state
+                            .lock_state::<LogSender>()
+                            .await
+                            .high("palette", format!("Failed to send command: {e}"));
+                    }
                 } else {
                     state
                         .lock_state::<LogSender>()

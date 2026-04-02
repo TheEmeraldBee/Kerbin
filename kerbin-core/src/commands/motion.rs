@@ -123,7 +123,7 @@ impl Command<State> for MotionCommand {
     async fn apply(&self, state: &mut State) -> bool {
         let log = state.lock_state::<LogSender>().await;
         let mut buffers = state.lock_state::<Buffers>().await;
-        let Some(mut cur_buffer) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+        let Some(mut cur_buffer) = buffers.cur_text_buffer_mut().await else {
             return false;
         };
 

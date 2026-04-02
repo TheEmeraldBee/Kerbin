@@ -25,7 +25,7 @@ impl OpenedFile {
 pub async fn open_files(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspManager>) {
     get!(mut buffers, mut lsp_manager);
 
-    let Some(mut current_buffer) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
+    let Some(mut current_buffer) = buffers.cur_text_buffer_mut().await else { return; };
     let file_path = current_buffer.path.clone();
     let ext = current_buffer.ext.clone();
     drop(buffers);
@@ -46,9 +46,13 @@ pub async fn open_files(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspManager
         None => return,
     };
 
-    let root_uri = find_workspace_root(&file_path, lang_info.as_ref()).unwrap_or_else(|| {
-        Uri::file_path(&std::env::current_dir().unwrap().to_string_lossy()).unwrap()
-    });
+    let Some(root_uri) = find_workspace_root(&file_path, lang_info.as_ref()).or_else(|| {
+        std::env::current_dir()
+            .ok()
+            .and_then(|d| Uri::file_path(&d.to_string_lossy()).ok())
+    }) else {
+        return;
+    };
 
     if !client.is_flag_set("init") && client.init(root_uri).await.is_ok() {
         let _ = client
@@ -59,7 +63,8 @@ pub async fn open_files(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspManager
     }
 
     if client.open(&file_path).await.is_ok() {
+        let Some(uri) = Uri::file_path(&file_path).ok() else { return; };
         current_buffer.flags.insert("lsp_opened");
-        current_buffer.set_state(OpenedFile::new(lang, Uri::file_path(&file_path).unwrap()));
+        current_buffer.set_state(OpenedFile::new(lang, uri));
     }
 }

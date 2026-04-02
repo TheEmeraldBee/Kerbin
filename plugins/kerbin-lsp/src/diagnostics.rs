@@ -101,7 +101,7 @@ fn severity_to_style_priority(severity: Option<DiagnosticSeverity>) -> (Style, i
 pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>) {
     get!(mut buffers);
 
-    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
+    let Some(mut buf) = buffers.cur_text_buffer_mut().await else { return; };
 
     let diagnostics: Vec<Diagnostic> = match buf.get_state_mut::<Diagnostics>().await.as_ref() {
         Some(d) => d.0.clone(),

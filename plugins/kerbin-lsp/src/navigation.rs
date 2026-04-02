@@ -75,7 +75,7 @@ async fn send_goto_request(
     let mut bufs = state.lock_state::<Buffers>().await;
     let mut lsps = state.lock_state::<LspManager>().await;
 
-    let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return false; };
+    let Some(mut buf) = bufs.cur_text_buffer_mut().await else { return false; };
 
     let Some(file) = buf.get_state::<OpenedFile>().await else {
         return false;
@@ -311,7 +311,7 @@ impl Command<State> for NavigationCommand {
                     return false;
                 }
 
-                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return false; };
+                let Some(mut buf) = bufs.cur_text_buffer_mut().await else { return false; };
                 let line_byte = buf.line_to_byte_clamped(line);
                 let line_end_byte = buf.line_to_byte_clamped(line + 1);
                 let byte = buf
@@ -442,7 +442,7 @@ pub async fn handle_navigation(state: &State, msg: &JsonRpcMessage) {
         if bufs.open(path, default_tab_unit).await.is_err() {
             return;
         }
-        let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return; };
+        let Some(mut buf) = bufs.cur_text_buffer_mut().await else { return; };
         let line_byte = buf.line_to_byte_clamped(line);
         let byte = (line_byte + col).min(buf.len());
         buf.primary_cursor_mut().set_sel(byte..=byte);

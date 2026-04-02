@@ -27,7 +27,8 @@ impl ModeStack {
     }
 
     pub fn get_mode(&self) -> char {
-        *self.0.last().unwrap()
+        // Stack always has at least 'n' (normal mode) — pop_mode guards the minimum
+        *self.0.last().expect("mode stack is never empty")
     }
 
     /// Checks if a given mode is currently present anywhere on the mode stack

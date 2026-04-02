@@ -33,6 +33,9 @@ pub use autocomplete::*;
 pub mod navigation;
 pub use navigation::*;
 
+pub mod text_edit;
+pub use text_edit::apply_text_edits;
+
 pub mod format;
 pub use format::*;
 
@@ -115,6 +118,9 @@ pub async fn init(state: &mut State) {
     });
     handler_manager.on_global_response("textDocument/completion", |state, msg| {
         Box::pin(handle_completion(state, msg))
+    });
+    handler_manager.on_global_response("completionItem/resolve", |state, msg| {
+        Box::pin(handle_completion_resolve(state, msg))
     });
     handler_manager.on_global_response("textDocument/definition", |state, msg| {
         Box::pin(handle_navigation(state, msg))

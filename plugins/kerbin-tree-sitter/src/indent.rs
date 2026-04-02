@@ -24,7 +24,7 @@ async fn newline_and_indent(state: &mut State) {
     let config_path = state.lock_state::<ConfigFolder>().await.0.clone();
     let auto_pairs = state.lock_state::<AutoPairs>().await;
 
-    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+    let Some(mut buf) = buffers.cur_text_buffer_mut().await else {
         return;
     };
 

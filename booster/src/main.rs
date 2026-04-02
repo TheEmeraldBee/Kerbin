@@ -3,7 +3,10 @@ mod build_kb;
 use clap::*;
 use dialoguer::*;
 use indicatif::*;
-use kerbin_core::{ClientIpc, CommandRegistry, register_core_commands, session_name_path, session_pid_path, sessions_dir};
+use kerbin_core::{
+    ClientIpc, CommandRegistry, register_core_commands, session_name_path, session_pid_path,
+    sessions_dir,
+};
 use kerbin_input::tokenize;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -188,7 +191,7 @@ fn handle_config_copy(kerbin_dir: &Path) -> Option<PathBuf> {
         .with_prompt(prompt_msg)
         .default(false)
         .interact()
-        .unwrap();
+        .unwrap_or(false);
 
     if should_copy {
         if config_exists {
@@ -196,37 +199,43 @@ fn handle_config_copy(kerbin_dir: &Path) -> Option<PathBuf> {
                 .with_prompt("Create a backup of the existing config first?")
                 .default(true)
                 .interact()
-                .unwrap();
+                .unwrap_or(true);
 
             if backup {
                 let mut backup_path = default_config_dest.clone();
                 backup_path.set_extension(format!("backup.{}", chrono::Local::now().timestamp()));
                 std::fs::rename(&default_config_dest, &backup_path)
                     .expect("Failed to create backup");
-                println!("✓ Backed up existing config to: {}", canon(&backup_path).display());
+                println!(
+                    "✓ Backed up existing config to: {}",
+                    canon(&backup_path).display()
+                );
             } else {
                 std::fs::remove_dir_all(&default_config_dest)
                     .expect("Failed to remove existing config");
             }
         }
 
+        let config_dest_parent = default_config_dest.parent().unwrap_or_else(|| {
+            eprintln!("✗ Config destination path has no parent directory");
+            std::process::exit(1);
+        });
         let copy_options = fs_extra::dir::CopyOptions::new().overwrite(true);
-        fs_extra::dir::copy(
-            &default_config_src,
-            default_config_dest.parent().unwrap(),
-            &copy_options,
-        )
-        .expect("Failed to copy config");
+        fs_extra::dir::copy(&default_config_src, config_dest_parent, &copy_options)
+            .expect("Failed to copy config");
 
         // Rename if needed (fs_extra copies with source name)
-        let mut copied_path = default_config_dest.parent().unwrap().to_path_buf();
+        let mut copied_path = config_dest_parent.to_path_buf();
         copied_path.push("config");
         if copied_path != default_config_dest {
             std::fs::rename(&copied_path, &default_config_dest)
                 .expect("Failed to rename config directory");
         }
 
-        println!("✓ Config copied to: {}", canon(&default_config_dest).display());
+        println!(
+            "✓ Config copied to: {}",
+            canon(&default_config_dest).display()
+        );
 
         let mut config_cargo_toml = default_config_dest.clone();
         config_cargo_toml.push("Cargo.toml");
@@ -238,7 +247,10 @@ fn handle_config_copy(kerbin_dir: &Path) -> Option<PathBuf> {
 
             let mut build_path = kerbin_dir.to_path_buf();
             build_path.push("build");
-            let build_path_str = build_path.to_str().unwrap();
+            let build_path_str = build_path.to_str().unwrap_or_else(|| {
+                eprintln!("✗ Build path contains invalid UTF-8");
+                std::process::exit(1);
+            });
 
             let re =
                 regex::Regex::new(r#"path\s*=\s*"\.\./([^"]*)""#).expect("Failed to create regex");
@@ -261,13 +273,13 @@ fn handle_config_copy(kerbin_dir: &Path) -> Option<PathBuf> {
             .with_prompt("Would you like to specify a custom config path?")
             .default(false)
             .interact()
-            .unwrap();
+            .unwrap_or(false);
 
         if use_custom {
             let custom_path: String = Input::with_theme(&theme::ColorfulTheme::default())
                 .with_prompt("Enter custom config path")
                 .interact_text()
-                .unwrap();
+                .unwrap_or_default();
             return Some(PathBuf::from(custom_path));
         }
     }
@@ -283,7 +295,10 @@ fn generate_config_crate(config_dir: &Path, build_dir: &Path, output_dir: &Path)
     let content = match std::fs::read_to_string(&build_kb_path) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("✗ build.kb not found at '{}'", canon(&build_kb_path).display());
+            eprintln!(
+                "✗ build.kb not found at '{}'",
+                canon(&build_kb_path).display()
+            );
             eprintln!("  This file is required to declare your plugins.");
             eprintln!("  Error: {}", e);
             std::process::exit(1);
@@ -385,19 +400,137 @@ fn validate_plugins(generated_config_dir: &Path) -> bool {
     false
 }
 
-fn build_kerbin(kerbin_dir: &Path, config_path: Option<PathBuf>, info: &mut KerbinInfo) {
-    let mut cargo_toml_path = kerbin_dir.to_path_buf();
-    cargo_toml_path.push("./build/kerbin/Cargo.toml");
-
-    let mut build_dir = kerbin_dir.to_path_buf();
-    build_dir.push("./build");
-
-    let final_config_path = if let Some(config) = config_path {
-        config
-    } else {
-        // Try to use the saved config path from previous installation
-        PathBuf::from(&info.config_path)
+/// Updates the Cargo.toml config path and runs `cargo build --release`
+fn compile_kerbin(build_dir: &Path, cargo_toml_path: &Path, generated_config_path: &Path) {
+    let cargo_content = match std::fs::read_to_string(cargo_toml_path) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("✗ Failed to read Cargo.toml: {}", e);
+            std::process::exit(1);
+        }
     };
+
+    let generated_config_path_str = match generated_config_path.to_str() {
+        Some(s) => s,
+        None => {
+            eprintln!("✗ Generated config path contains invalid UTF-8");
+            std::process::exit(1);
+        }
+    };
+
+    // Regex is a compile-time constant — unwrap is safe here
+    let re = regex::Regex::new(r#"config\s*=\s*\{\s*path\s*=\s*"[^"]*"\s*\}"#).unwrap();
+
+    let updated_content = if re.is_match(&cargo_content) {
+        re.replace(
+            &cargo_content,
+            format!(r#"config = {{ path = "{}" }}"#, generated_config_path_str),
+        )
+        .to_string()
+    } else {
+        eprintln!("[!] Warning: Could not find kerbin-config path in Cargo.toml");
+        eprintln!("   The Cargo.toml might have an unexpected format");
+        cargo_content
+    };
+
+    if let Err(e) = std::fs::write(cargo_toml_path, updated_content) {
+        eprintln!("✗ Failed to write updated Cargo.toml: {}", e);
+        std::process::exit(1);
+    }
+    println!("✓ Updated config path in Cargo.toml");
+
+    let style = ProgressStyle::default_spinner()
+        .template("{spinner:.green} {msg}")
+        .unwrap();
+
+    let build_bar = ProgressBar::new_spinner()
+        .with_message("Building Kerbin with Cargo".to_string())
+        .with_style(style);
+    build_bar.enable_steady_tick(Duration::from_millis(100));
+
+    let mut child = match std::process::Command::new("cargo")
+        .args(["build", "--release", "-p", "kerbin"])
+        .current_dir(build_dir)
+        .stderr(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            build_bar.finish_and_clear();
+            eprintln!("✗ Failed to start cargo build");
+            eprintln!("  Error: {}", e);
+            eprintln!("  Build directory: {}", canon(build_dir).display());
+            eprintln!("  Make sure cargo is installed and in your PATH");
+            std::process::exit(1);
+        }
+    };
+
+    if let Some(stderr) = child.stderr.take() {
+        let mut reader = BufReader::new(stderr);
+        let mut line = String::new();
+        while reader.read_line(&mut line).unwrap_or(0) != 0 {
+            let clean_line = line.trim();
+            if clean_line.starts_with("Compiling") {
+                if let Some(pkg) = clean_line.split_whitespace().nth(1) {
+                    build_bar.set_message(format!("Building: {}", pkg));
+                }
+            } else if clean_line.starts_with("Finished") {
+                build_bar.set_message("Finalizing build...".to_string());
+            } else if clean_line.contains("Downloading") || clean_line.contains("Updating") {
+                build_bar.set_message(format!("Cargo: {}", clean_line));
+            } else if clean_line.contains("error") || clean_line.starts_with("error:") {
+                eprintln!("{}", clean_line);
+            }
+            line.clear();
+        }
+    }
+
+    let status = match child.wait() {
+        Ok(s) => s,
+        Err(e) => {
+            build_bar.finish_and_clear();
+            eprintln!("✗ Failed to wait on cargo process: {}", e);
+            std::process::exit(1);
+        }
+    };
+    build_bar.finish_and_clear();
+
+    if !status.success() {
+        eprintln!("✗ Failed to build Kerbin");
+        eprintln!("  Build exited with status: {}", status);
+        eprintln!("  Check the error output above for details");
+        std::process::exit(1);
+    }
+
+    println!("✓ Successfully built Kerbin");
+}
+
+/// Copies the compiled kerbin binary into `kerbin_dir/bin/`. Exits on failure.
+fn install_binary(kerbin_dir: &Path, build_dir: &Path) -> PathBuf {
+    let bin_dir = kerbin_dir.join("bin");
+    if let Err(e) = std::fs::create_dir_all(&bin_dir) {
+        eprintln!("✗ Failed to create bin directory: {}", e);
+        std::process::exit(1);
+    }
+
+    let source_binary = build_dir.join("target/release/kerbin");
+    let dest_binary = bin_dir.join("kerbin");
+
+    if let Err(e) = std::fs::copy(&source_binary, &dest_binary) {
+        eprintln!("✗ Failed to copy kerbin binary to bin directory: {}", e);
+        std::process::exit(1);
+    }
+
+    println!("[✓] Installed Kerbin to: {}", canon(&dest_binary).display());
+    dest_binary
+}
+
+fn build_kerbin(kerbin_dir: &Path, config_path: Option<PathBuf>, info: &mut KerbinInfo) {
+    let cargo_toml_path = kerbin_dir.join("build/kerbin/Cargo.toml");
+    let build_dir = kerbin_dir.join("build");
+
+    let final_config_path = config_path.unwrap_or_else(|| PathBuf::from(&info.config_path));
 
     println!("Using config path: {}", canon(&final_config_path).display());
 
@@ -414,122 +547,22 @@ fn build_kerbin(kerbin_dir: &Path, config_path: Option<PathBuf>, info: &mut Kerb
         std::process::exit(1);
     }
 
-    let cargo_content =
-        std::fs::read_to_string(&cargo_toml_path).expect("Failed to read Cargo.toml");
-
-    let generated_config_path_str = generated_config_path
-        .to_str()
-        .expect("Invalid generated config path");
-
-    let re = regex::Regex::new(r#"config\s*=\s*\{\s*path\s*=\s*"[^"]*"\s*\}"#)
-        .expect("Failed to create regex");
-
-    let updated_content = if re.is_match(&cargo_content) {
-        re.replace(
-            &cargo_content,
-            format!(r#"config = {{ path = "{}" }}"#, generated_config_path_str),
-        )
-        .to_string()
-    } else {
-        eprintln!("[!] Warning: Could not find kerbin-config path in Cargo.toml");
-        eprintln!("   The Cargo.toml might have an unexpected format");
-        cargo_content
-    };
-
-    std::fs::write(&cargo_toml_path, updated_content).expect("Failed to write updated Cargo.toml");
-    println!("✓ Updated config path in Cargo.toml");
-
-    let style = ProgressStyle::default_spinner()
-        .template("{spinner:.green} {msg}")
-        .unwrap();
-
-    let build_bar = ProgressBar::new_spinner()
-        .with_message("Building Kerbin with Cargo".to_string())
-        .with_style(style);
-    build_bar.enable_steady_tick(Duration::from_millis(100));
-
-    let child = std::process::Command::new("cargo")
-        .args(["build", "--release", "-p", "kerbin"])
-        .current_dir(&build_dir)
-        .stderr(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn();
-
-    let mut child = match child {
-        Ok(c) => c,
-        Err(e) => {
-            build_bar.finish_and_clear();
-            eprintln!("✗ Failed to start cargo build");
-            eprintln!("  Error: {}", e);
-            eprintln!("  Build directory: {}", canon(&build_dir).display());
-            eprintln!("  Make sure cargo is installed and in your PATH");
-            panic!("Failed to spawn cargo process");
-        }
-    };
-
-    if let Some(stderr) = child.stderr.take() {
-        let mut reader = BufReader::new(stderr);
-        let mut line = String::new();
-        while reader
-            .read_line(&mut line)
-            .expect("Lines should still exist")
-            != 0
-        {
-            let clean_line = line.trim();
-            if clean_line.starts_with("Compiling") {
-                // "Compiling package_name v1.0.0 ..."
-                if let Some(pkg) = clean_line.split_whitespace().nth(1) {
-                    build_bar.set_message(format!("Building: {}", pkg));
-                }
-            } else if clean_line.starts_with("Finished") {
-                build_bar.set_message("Finalizing build...".to_string());
-            } else if clean_line.contains("Downloading") || clean_line.contains("Updating") {
-                build_bar.set_message(format!("Cargo: {}", clean_line));
-            } else if clean_line.contains("error") || clean_line.starts_with("error:") {
-                eprintln!("{}", clean_line);
-            }
-            line.clear();
-        }
-    }
-
-    let status = child.wait().expect("Failed to wait on cargo process");
-    build_bar.finish_and_clear();
-
-    if !status.success() {
-        eprintln!("✗ Failed to build Kerbin");
-        eprintln!("  Build exited with status: {}", status);
-        eprintln!("  Check the error output above for details");
-        panic!("Failed to build kerbin");
-    }
-
-    println!("✓ Successfully built Kerbin");
-
-    let mut bin_dir = kerbin_dir.to_path_buf();
-    bin_dir.push("./bin");
-    std::fs::create_dir_all(&bin_dir).expect("Failed to create bin directory");
-
-    let mut source_binary = build_dir;
-    source_binary.push("./target/release/kerbin");
-
-    let mut dest_binary = bin_dir;
-    dest_binary.push("kerbin");
-
-    std::fs::copy(&source_binary, &dest_binary)
-        .expect("Failed to copy kerbin binary to bin directory");
-
-    println!("[✓] Installed Kerbin to: {}", canon(&dest_binary).display());
+    compile_kerbin(&build_dir, &cargo_toml_path, &generated_config_path);
+    install_binary(kerbin_dir, &build_dir);
 
     // Update info — save the user's config dir path, not the generated crate path
     info.config_path = final_config_path
         .to_str()
-        .expect("Invalid config path")
+        .unwrap_or_else(|| {
+            eprintln!("✗ Config path contains invalid UTF-8");
+            std::process::exit(1);
+        })
         .to_string();
     info.last_build_date = get_timestamp();
     info.save(kerbin_dir);
 }
 
-/// Resolve a session argument that may be either a UUID or a human-readable name.
-/// Returns the session UUID if found, otherwise returns the input unchanged.
+/// Resolve a session argument that may be either a UUID or a human-readable name
 fn resolve_session(input: &str) -> String {
     let dir = sessions_dir();
 
@@ -709,7 +742,7 @@ fn main() {
                 .default(0)
                 .items(&versions[..])
                 .interact()
-                .unwrap();
+                .unwrap_or(0);
 
             let selected_version = if versions[version].starts_with("git") {
                 "git".to_string()
@@ -720,7 +753,10 @@ fn main() {
             println!("Installing version: {}", selected_version);
 
             let _ = std::fs::create_dir_all(&kerbin_dir);
-            std::env::set_current_dir(&kerbin_dir).unwrap();
+            if let Err(e) = std::env::set_current_dir(&kerbin_dir) {
+                eprintln!("✗ Failed to change to kerbin directory: {}", e);
+                std::process::exit(1);
+            }
 
             let mut build_dir = kerbin_dir.clone();
             build_dir.push("./build");
@@ -756,22 +792,26 @@ fn main() {
                 ]
             };
 
-            let mut child = std::process::Command::new("git")
+            let mut child = match std::process::Command::new("git")
                 .args(&git_args)
                 .stderr(Stdio::piped())
                 .stdout(Stdio::piped())
                 .stdin(Stdio::piped())
                 .spawn()
-                .expect("Failed to clone kerbin");
+            {
+                Ok(c) => c,
+                Err(e) => {
+                    git_bar.finish_and_clear();
+                    eprintln!("✗ Failed to spawn git process: {}", e);
+                    eprintln!("  Make sure git is installed and in your PATH");
+                    std::process::exit(1);
+                }
+            };
 
             if let Some(stderr) = child.stderr.take() {
                 let mut reader = BufReader::new(stderr);
                 let mut line = String::new();
-                while reader
-                    .read_line(&mut line)
-                    .expect("Lines should still exist")
-                    != 0
-                {
+                while reader.read_line(&mut line).unwrap_or(0) != 0 {
                     if line.contains("Receiving objects:") || line.contains("Resolving deltas:") {
                         let clean_line = line.trim().replace('\r', "");
                         git_bar.set_message(format!("Cloning Kerbin: {}", clean_line));
@@ -780,7 +820,14 @@ fn main() {
                 }
             }
 
-            let status = child.wait().expect("Failed to wait on git process");
+            let status = match child.wait() {
+                Ok(s) => s,
+                Err(e) => {
+                    git_bar.finish_and_clear();
+                    eprintln!("✗ Failed to wait on git process: {}", e);
+                    std::process::exit(1);
+                }
+            };
             if status.success() {
                 git_bar.finish_and_clear();
                 if selected_version == "git" {
@@ -795,7 +842,7 @@ fn main() {
                     "   Make sure the tag/branch '{}' exists in the repository",
                     selected_version
                 );
-                panic!("Failed to clone kerbin");
+                std::process::exit(1);
             }
 
             let config_path = if let Some(ref path) = global_config {
@@ -805,9 +852,17 @@ fn main() {
                 handle_config_copy(&kerbin_dir)
             };
 
+            let config_path_str = config_path
+                .as_deref()
+                .and_then(|p| p.to_str())
+                .unwrap_or_else(|| {
+                    eprintln!("✗ Config path is missing or contains invalid UTF-8");
+                    std::process::exit(1);
+                })
+                .to_string();
             let mut info = KerbinInfo {
                 version: selected_version,
-                config_path: config_path.as_ref().unwrap().to_str().unwrap().to_string(),
+                config_path: config_path_str,
                 install_date: get_timestamp(),
                 last_build_date: String::new(),
             };
@@ -919,7 +974,15 @@ fn main() {
         },
         SubCommand::Generate { build_dir } => {
             let config_dir = global_config.unwrap_or_else(|| PathBuf::from("./config"));
-            let build_dir = build_dir.unwrap_or_else(|| std::env::current_dir().unwrap());
+            let build_dir = build_dir.map_or_else(
+                || {
+                    std::env::current_dir().unwrap_or_else(|e| {
+                        eprintln!("✗ Failed to get current directory: {}", e);
+                        std::process::exit(1);
+                    })
+                },
+                |d| d,
+            );
             let output_dir = build_dir.join("generated-config");
 
             let generated = generate_config_crate(&config_dir, &build_dir, &output_dir);
@@ -1011,10 +1074,7 @@ fn main() {
                     }
                 }
             } else {
-                eprintln!(
-                    "No kerbin installation found at {}.",
-                    kerbin_dir.display()
-                );
+                eprintln!("No kerbin installation found at {}.", kerbin_dir.display());
                 eprintln!("Run 'booster install' first, or 'booster rebuild' to build.");
                 eprintln!("Showing built-in core commands only (no plugin commands):");
                 eprintln!();

@@ -83,6 +83,20 @@ impl CommandField {
     }
 }
 
+/// Computes the resolved names for a command variant.
+/// Inserts the snake_case ident as the first name unless `drop_ident_name` is set.
+/// Panics at compile time if the resulting name list is empty.
+fn variant_names(variant: &CommandVariant) -> Vec<String> {
+    let mut names = variant.names.clone();
+    if !variant.drop_ident_name {
+        names.insert(0, to_snake_case(&variant.ident.to_string()));
+    }
+    if names.is_empty() {
+        panic!("command must have at least 1 valid name.");
+    }
+    names
+}
+
 #[proc_macro_derive(Command, attributes(command))]
 pub fn command_derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);
@@ -96,9 +110,7 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
     let info_matches = variants
         .iter()
         .map(|variant| {
-            let ident = &variant.ident;
-
-            let mut names = variant.names.clone();
+            let names = variant_names(variant);
 
             let mut desc = vec![];
 
@@ -116,14 +128,6 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                 #(x.push(format!("{}", #desc).trim().to_string());)*
                 x
             });
-
-            if !variant.drop_ident_name {
-                names.insert(0, to_snake_case(&ident.to_string()));
-            }
-
-            if names.is_empty() {
-                panic!("command must have at least 1 valid name.");
-            }
 
             let field_name_types = variant
                 .fields
@@ -181,15 +185,7 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
         .iter()
         .map(|variant| {
             let ident = &variant.ident;
-            let mut names = variant.names.clone();
-
-            if !variant.drop_ident_name {
-                names.insert(0, to_snake_case(&ident.to_string()));
-            }
-
-            if names.is_empty() {
-                panic!("command must have at least 1 valid name.");
-            }
+            let names = variant_names(variant);
 
             if let Some(parser_func) = &variant.parser {
                 return quote! {
@@ -273,7 +269,8 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
 
                         let field_name_assignment = match variant.fields.style {
                             Style::Struct => {
-                                let field_ident = field.ident.as_ref().unwrap();
+                                let field_ident = field.ident.as_ref()
+                                    .expect("struct fields always have identifiers");
                                 quote! { #field_ident: #var }
                             }
                             Style::Tuple => quote! { #var },
@@ -574,7 +571,8 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
 
                         let field_name_assignment = match variant.fields.style {
                             Style::Struct => {
-                                let field_ident = field.ident.as_ref().unwrap();
+                                let field_ident = field.ident.as_ref()
+                                    .expect("struct fields always have identifiers");
                                 quote! { #field_ident: #var }
                             }
                             Style::Tuple => quote! { #var },

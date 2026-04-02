@@ -292,7 +292,7 @@ pub async fn highlight_file(
     theme: Res<Theme>,
 ) {
     get!(mut buffers, mut grammars, config_path, theme);
-    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+    let Some(mut buf) = buffers.cur_text_buffer_mut().await else {
         return;
     };
 

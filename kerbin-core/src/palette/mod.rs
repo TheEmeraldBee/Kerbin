@@ -123,7 +123,7 @@ pub async fn render_command_palette(
         return;
     }
 
-    let mut line_chunk = line_chunk.get().await.unwrap();
+    let Some(mut line_chunk) = line_chunk.get().await else { return; };
 
     let border_style = theme.get_fallback_default(["ui.commandline.border", "ui.text"]);
     let title_style = theme.get_fallback_default(["ui.commandline.title", "ui.text"]);

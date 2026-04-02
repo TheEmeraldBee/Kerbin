@@ -35,21 +35,21 @@ pub struct ServerIpc {
 }
 
 impl ServerIpc {
-    pub fn new(session_id: &str) -> Self {
+    pub fn new(session_id: &str) -> Result<Self, String> {
         let in_file = get_queue_path(session_id);
         let pid_file = session_pid_path(session_id);
 
         let _ = std::fs::create_dir_all(sessions_dir());
         let _ = std::fs::write(&pid_file, std::process::id().to_string());
         let ring = SharedRingBuffer::create(&in_file, 16000)
-            .unwrap_or_else(|e| panic!("Failed to create IPC ring buffer at '{in_file}': {e}"));
+            .map_err(|e| format!("Failed to create IPC ring buffer at '{in_file}': {e}"))?;
         let in_queue = Receiver::new(ring);
 
-        Self {
+        Ok(Self {
             in_queue,
             in_file,
             pid_file,
-        }
+        })
     }
 
     pub fn try_recv(&self) -> Option<ClientMessage> {

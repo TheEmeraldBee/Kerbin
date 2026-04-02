@@ -23,7 +23,7 @@ impl Command<State> for CommitCommand {
 
                 {
                     let mut buffers = state.lock_state::<Buffers>().await;
-                    if let Some(mut tb) = buffers.cur_buffer_as_mut::<TextBuffer>().await {
+                    if let Some(mut tb) = buffers.cur_text_buffer_mut().await {
                         tb.start_change_group();
                     }
                 }
@@ -46,7 +46,7 @@ impl Command<State> for CommitCommand {
 
                 {
                     let mut buffers = state.lock_state::<Buffers>().await;
-                    if let Some(mut tb) = buffers.cur_buffer_as_mut::<TextBuffer>().await {
+                    if let Some(mut tb) = buffers.cur_text_buffer_mut().await {
                         tb.commit_change_group();
                     }
                 }
@@ -169,7 +169,7 @@ impl Command<State> for BufferCommand {
 
         let log = state.lock_state::<LogSender>().await;
 
-        let Some(mut cur_buffer) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+        let Some(mut cur_buffer) = buffers.cur_text_buffer_mut().await else {
             return false;
         };
 

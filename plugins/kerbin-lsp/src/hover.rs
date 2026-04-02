@@ -87,7 +87,7 @@ impl Command<State> for HoverCommand {
                 let mut bufs = state.lock_state::<Buffers>().await;
                 let mut lsps = state.lock_state::<LspManager>().await;
 
-                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else {
+                let Some(mut buf) = bufs.cur_text_buffer_mut().await else {
                     return true;
                 };
 
@@ -116,7 +116,9 @@ impl Command<State> for HoverCommand {
                     work_done_progress_params: WorkDoneProgressParams::default(),
                 };
 
-                let id = client.request("textDocument/hover", params).await.unwrap();
+                let Ok(id) = client.request("textDocument/hover", params).await else {
+                    return true;
+                };
 
                 let mut state = buf.get_or_insert_state_mut(HoverState::default).await;
 
@@ -129,7 +131,7 @@ impl Command<State> for HoverCommand {
             }
             Self::Scroll { amount } => {
                 let mut bufs = state.lock_state::<Buffers>().await;
-                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else {
+                let Some(mut buf) = bufs.cur_text_buffer_mut().await else {
                     return true;
                 };
 
@@ -154,7 +156,7 @@ pub async fn render_hover(
 ) {
     get!(mut buffers, mut grammars, config, theme, log);
 
-    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else {
+    let Some(mut buf) = buffers.cur_text_buffer_mut().await else {
         return;
     };
 
@@ -291,8 +293,8 @@ pub async fn handle_hover(state: &State, msg: &JsonRpcMessage) {
         let Some(buf) = buf_guard.downcast_mut::<TextBuffer>() else {
             return;
         };
-        let mut hover_state = buf.get_state_mut::<HoverState>().await.unwrap();
-        let info = hover_state.info.as_mut().unwrap();
+        let Some(mut hover_state) = buf.get_state_mut::<HoverState>().await else { return; };
+        let Some(info) = hover_state.info.as_mut() else { return; };
 
         if let Some(result) = &response.result {
             if let Ok(hover) = serde_json::from_value::<Hover>(result.clone()) {

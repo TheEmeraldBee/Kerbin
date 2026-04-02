@@ -69,7 +69,9 @@ impl<W: AsyncWrite + Unpin + Send + 'static> ClientFacade for LspClient<W> {
                             preselect_support: Some(true),
                             tag_support: None,
                             insert_replace_support: Some(true),
-                            resolve_support: None,
+                            resolve_support: Some(CompletionItemCapabilityResolveSupport {
+                                properties: vec!["additionalTextEdits".to_string()],
+                            }),
                             insert_text_mode_support: None,
                             label_details_support: Some(true),
                         }),

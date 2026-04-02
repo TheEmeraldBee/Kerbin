@@ -34,9 +34,9 @@ impl<T: StateName + StaticState> SystemParam for Chunk<T> {
         let chunks = resources
             .states
             .get(&Chunks::static_name())
-            .unwrap()
+            .expect("Chunks must be registered before Chunk<T> is used as a SystemParam")
             .downcast::<Chunks>()
-            .unwrap()
+            .expect("Chunks downcast failed: type mismatch")
             .clone();
 
         Chunk {

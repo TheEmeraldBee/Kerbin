@@ -12,14 +12,14 @@ pub async fn file_close(event_data: EventData<CloseEvent>, manager: ResMut<LspMa
         return;
     };
 
-    let lsp = manager.get_or_create_client(&file.lang).await.unwrap();
+    let Some(lsp) = manager.get_or_create_client(&file.lang).await else { return; };
 
-    lsp.notification(
-        "textDocument/didClose",
-        DidCloseTextDocumentParams {
-            text_document: TextDocumentIdentifier::new(file.uri.clone()),
-        },
-    )
-    .await
-    .unwrap();
+    let _ = lsp
+        .notification(
+            "textDocument/didClose",
+            DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier::new(file.uri.clone()),
+            },
+        )
+        .await;
 }

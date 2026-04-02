@@ -13,7 +13,7 @@ use ratatui::{
 
 use ropey::RopeSlice;
 
-use crate::{JsonRpcMessage, LspManager, OpenedFile};
+use crate::{text_edit::apply_text_edits_inner, JsonRpcMessage, LspManager, OpenedFile};
 use kerbin_tree_sitter::{grammar_manager::GrammarManager, state::highlight_text};
 
 struct CompletionWidget(ratatui::buffer::Buffer);
@@ -40,6 +40,7 @@ impl OverlayWidget for CompletionWidget {
 
 pub struct CompletionInfo {
     pub pending_request: i32,
+    pub pending_resolve: Option<(i32, usize)>, // (resolve_request_id, raw index into items)
     pub items: Vec<CompletionItem>,
     pub position: usize,
     pub selected_index: usize,
@@ -99,6 +100,48 @@ async fn trigger_completion_request(buf: &mut TextBuffer, lsps: &mut LspManager)
     };
 
     client.request("textDocument/completion", params).await.ok()
+}
+
+async fn trigger_resolve_request(
+    buf: &TextBuffer,
+    lsps: &mut LspManager,
+    item: &CompletionItem,
+) -> Option<i32> {
+    let file = buf.get_state::<OpenedFile>().await?;
+    let client = lsps.get_or_create_client(&file.lang).await?;
+    client.request("completionItem/resolve", item.clone()).await.ok()
+}
+
+/// Sends a `completionItem/resolve` request for the currently selected ranked item and
+/// stores the request ID + raw item index in `info.pending_resolve`.
+async fn send_resolve_for_selected(buf: &TextBuffer, lsps: &mut LspManager, info: &mut CompletionInfo) {
+    let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
+    let pos = info.position.min(buf.len());
+    let query = if cursor_byte >= pos {
+        buf.slice_to_string(pos, cursor_byte).unwrap_or_default()
+    } else {
+        String::new()
+    };
+
+    // Compute clone + raw index in a block so *const pointers don't cross the await below
+    let resolve_target = {
+        let ranked = get_ranked_items(&info.items, &query);
+        if ranked.is_empty() {
+            None
+        } else {
+            let ranked_idx = info.selected_index % ranked.len();
+            let selected_ptr = ranked[ranked_idx].0 as *const CompletionItem;
+            info.items
+                .iter()
+                .position(|x| x as *const CompletionItem == selected_ptr)
+                .map(|raw_idx| (info.items[raw_idx].clone(), raw_idx))
+        }
+    };
+
+    let Some((item_clone, raw_idx)) = resolve_target else { return; };
+    if let Some(id) = trigger_resolve_request(buf, lsps, &item_clone).await {
+        info.pending_resolve = Some((id, raw_idx));
+    }
 }
 
 fn get_ranked_items<'a>(
@@ -340,7 +383,7 @@ impl Command<State> for CompletionCommand {
                 let mut bufs = state.lock_state::<Buffers>().await;
                 let mut lsps = state.lock_state::<LspManager>().await;
 
-                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return true; };
+                let Some(mut buf) = bufs.cur_text_buffer_mut().await else { return true; };
 
                 let cursor_byte = buf.primary_cursor().get_cursor_byte().min(buf.len());
 
@@ -381,6 +424,7 @@ impl Command<State> for CompletionCommand {
 
                     state.info = Some(CompletionInfo {
                         pending_request: id,
+                        pending_resolve: None,
                         items: vec![],
                         position: start_pos,
                         selected_index: 0,
@@ -390,7 +434,7 @@ impl Command<State> for CompletionCommand {
             }
             Self::Accept => {
                 let mut bufs = state.lock_state::<Buffers>().await;
-                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return true; };
+                let Some(mut buf) = bufs.cur_text_buffer_mut().await else { return true; };
 
                 let mut completion_state =
                     buf.get_or_insert_state_mut(CompletionState::default).await;
@@ -466,6 +510,8 @@ impl Command<State> for CompletionCommand {
                                         )
                                     };
 
+                                buf.start_change_group();
+
                                 if end_byte > start_byte {
                                     let len_chars = buf.byte_to_char_clamped(end_byte)
                                         - buf.byte_to_char_clamped(start_byte);
@@ -482,6 +528,12 @@ impl Command<State> for CompletionCommand {
 
                                 buf.primary_cursor_mut()
                                     .set_sel(start_byte + text.len()..=start_byte + text.len());
+
+                                if let Some(additional_edits) = item.additional_text_edits.clone() {
+                                    apply_text_edits_inner(&mut *buf, additional_edits);
+                                }
+
+                                buf.commit_change_group();
                             }
                         }
                     }
@@ -493,7 +545,7 @@ impl Command<State> for CompletionCommand {
             }
             Self::Trash => {
                 let mut bufs = state.lock_state::<Buffers>().await;
-                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return true; };
+                let Some(mut buf) = bufs.cur_text_buffer_mut().await else { return true; };
 
                 let mut completion_state =
                     buf.get_or_insert_state_mut(CompletionState::default).await;
@@ -503,18 +555,21 @@ impl Command<State> for CompletionCommand {
             }
             Self::SelectNext => {
                 let mut bufs = state.lock_state::<Buffers>().await;
-                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return true; };
+                let mut lsps = state.lock_state::<LspManager>().await;
+                let Some(mut buf) = bufs.cur_text_buffer_mut().await else { return true; };
                 let mut completion_state =
                     buf.get_or_insert_state_mut(CompletionState::default).await;
 
                 if let Some(info) = &mut completion_state.info {
                     info.selected_index += 1;
                     info.cached_doc_buffer = None;
+                    send_resolve_for_selected(&*buf, &mut lsps, info).await;
                 }
             }
             Self::SelectPrevious => {
                 let mut bufs = state.lock_state::<Buffers>().await;
-                let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return true; };
+                let mut lsps = state.lock_state::<LspManager>().await;
+                let Some(mut buf) = bufs.cur_text_buffer_mut().await else { return true; };
                 let mut completion_state =
                     buf.get_or_insert_state_mut(CompletionState::default).await;
 
@@ -523,6 +578,7 @@ impl Command<State> for CompletionCommand {
                 {
                     info.selected_index -= 1;
                     info.cached_doc_buffer = None;
+                    send_resolve_for_selected(&*buf, &mut lsps, info).await;
                 }
             }
         }
@@ -554,8 +610,8 @@ pub async fn handle_completion(state: &State, msg: &JsonRpcMessage) {
 
         let mut buf_guard = buf.write_owned().await;
         let Some(buf) = buf_guard.downcast_mut::<TextBuffer>() else { return; };
-        let mut completion_state = buf.get_state_mut::<CompletionState>().await.unwrap();
-        let info = completion_state.info.as_mut().unwrap();
+        let Some(mut completion_state) = buf.get_state_mut::<CompletionState>().await else { return; };
+        let Some(info) = completion_state.info.as_mut() else { return; };
 
         if let Some(result) = &response.result {
             if let Ok(response) = serde_json::from_value::<CompletionResponse>(result.clone()) {
@@ -594,13 +650,73 @@ pub async fn handle_completion(state: &State, msg: &JsonRpcMessage) {
             .collect();
 
         resolver_engine_mut().await.set_template("lsp_items", Token::list_from(items));
+
+        // Trigger resolve for item 0 so additionalTextEdits are ready before the user accepts.
+        // Safe to lock LspManager here: ProcessLspEventsCommand releases it before calling handlers.
+        let first_item = info.items.first().cloned();
+        if let Some(first_item) = first_item {
+            let mut lsps = state.lock_state::<LspManager>().await;
+            if let Some(id) = trigger_resolve_request(buf, &mut lsps, &first_item).await {
+                info.pending_resolve = Some((id, 0));
+            }
+        }
+    }
+}
+
+pub async fn handle_completion_resolve(state: &State, msg: &JsonRpcMessage) {
+    let JsonRpcMessage::Response(response) = msg else { return; };
+
+    let bufs = state.lock_state::<Buffers>().await;
+    let mut buffer = None;
+    let mut raw_idx = 0usize;
+    for buf in &bufs.buffers {
+        let buf_guard = buf.read().await;
+        if let Some(text_buf) = buf_guard.downcast::<TextBuffer>()
+            && let Some(cs) = text_buf.get_state::<CompletionState>().await
+            && let Some(info) = &cs.info
+            && let Some((resolve_id, idx)) = info.pending_resolve
+            && resolve_id == response.id
+        {
+            buffer = Some(buf.clone());
+            raw_idx = idx;
+            break;
+        }
+    }
+    drop(bufs);
+
+    let Some(buf_arc) = buffer else { return; };
+    let mut buf_guard = buf_arc.write_owned().await;
+    let Some(buf) = buf_guard.downcast_mut::<TextBuffer>() else { return; };
+    let Some(mut completion_state) = buf.get_state_mut::<CompletionState>().await else { return; };
+    let Some(info) = completion_state.info.as_mut() else { return; };
+
+    // Guard against stale response (user navigated to a different item)
+    if info.pending_resolve.map(|(id, _)| id) != Some(response.id) {
+        return;
+    }
+    info.pending_resolve = None;
+
+    let Some(result) = &response.result else { return; };
+    let Ok(resolved) = serde_json::from_value::<CompletionItem>(result.clone()) else { return; };
+
+    if let Some(existing) = info.items.get_mut(raw_idx) {
+        if resolved.additional_text_edits.is_some() {
+            existing.additional_text_edits = resolved.additional_text_edits;
+        }
+        if resolved.documentation.is_some() && existing.documentation.is_none() {
+            existing.documentation = resolved.documentation;
+        }
+        if resolved.detail.is_some() && existing.detail.is_none() {
+            existing.detail = resolved.detail;
+        }
+        info.cached_doc_buffer = None;
     }
 }
 
 pub async fn update_completions(bufs: ResMut<Buffers>, lsps: ResMut<LspManager>) {
     get!(mut bufs, mut lsps);
 
-    let Some(mut buf) = bufs.cur_buffer_as_mut::<TextBuffer>().await else { return; };
+    let Some(mut buf) = bufs.cur_text_buffer_mut().await else { return; };
 
     if buf.byte_changes.is_empty() {
         return;
@@ -659,7 +775,7 @@ pub async fn render_completions(
 ) {
     get!(mut buffers, mut grammars, config, theme, log);
 
-    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
+    let Some(mut buf) = buffers.cur_text_buffer_mut().await else { return; };
 
     buf.renderer.clear_extmark_ns("lsp::completion");
 

@@ -3,7 +3,7 @@ use crate::*;
 pub async fn apply_changes(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspManager>) {
     get!(mut buffers, mut lsp_manager);
 
-    let Some(mut buf) = buffers.cur_buffer_as_mut::<TextBuffer>().await else { return; };
+    let Some(mut buf) = buffers.cur_text_buffer_mut().await else { return; };
 
     if buf.byte_changes.is_empty() {
         return;
@@ -14,7 +14,7 @@ pub async fn apply_changes(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspMana
         return;
     };
 
-    let client = lsp_manager.get_or_create_client(&file.lang).await.unwrap();
+    let Some(client) = lsp_manager.get_or_create_client(&file.lang).await else { return; };
 
     file.change_id += 1;
 
@@ -25,17 +25,16 @@ pub async fn apply_changes(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspMana
         text: buf.to_string(),
     }];
 
+    let Some(uri) = Uri::file_path(buf.path.as_str()).ok() else { return; };
+
     let change = DidChangeTextDocumentParams {
         text_document: VersionedTextDocumentIdentifier {
-            uri: Uri::file_path(buf.path.as_str()).unwrap(),
+            uri,
             version: file.change_id,
         },
 
         content_changes: changes,
     };
 
-    client
-        .notification("textDocument/didChange", change)
-        .await
-        .unwrap();
+    let _ = client.notification("textDocument/didChange", change).await;
 }

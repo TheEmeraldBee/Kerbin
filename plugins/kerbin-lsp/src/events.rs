@@ -11,11 +11,37 @@ impl kerbin_core::CommandAny for ProcessLspEventsCommand {
 #[async_trait::async_trait]
 impl kerbin_core::Command<State> for ProcessLspEventsCommand {
     async fn apply(&self, state: &mut State) -> bool {
-        let mut lsp_manager = state.lock_state::<LspManager>().await;
-        let handler_manager = state.lock_state::<LspHandlerManager>().await;
+        // Phase 1: drain messages from all clients while holding LspManager.
+        // resolve_request methods are looked up here (needs request_info map).
+        let messages = {
+            let mut lsp_manager = state.lock_state::<LspManager>().await;
+            let mut all = Vec::new();
+            for (_lang, client) in lsp_manager.client_map.iter_mut() {
+                all.extend(client.drain_messages());
+            }
+            all
+        }; // LspManager lock released here — handlers may now acquire it freely
 
-        for (_lang, client) in lsp_manager.client_map.iter_mut() {
-            client.process_events(&handler_manager, state).await;
+        if messages.is_empty() {
+            return true;
+        }
+
+        // Phase 2: dispatch handlers without holding LspManager.
+        let handler_manager = state.lock_state::<LspHandlerManager>().await;
+        for drained in &messages {
+            let handlers = match &drained.message {
+                JsonRpcMessage::Response(_) => {
+                    handler_manager.iter_response_handlers(&drained.lang_id)
+                }
+                JsonRpcMessage::Notification(_) => {
+                    handler_manager.iter_notification_handlers(&drained.lang_id)
+                }
+                JsonRpcMessage::ServerRequest(_) => {
+                    handler_manager.iter_server_request_handlers(&drained.lang_id)
+                }
+            };
+            LspClient::<tokio::process::ChildStdin>::call_matching_handlers(handlers, &drained.method, state, &drained.message)
+                .await;
         }
 
         true

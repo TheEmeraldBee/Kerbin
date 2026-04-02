@@ -135,9 +135,9 @@ impl<T: Send + Sync + 'static> SystemParam for EventData<T> {
         let storage = resources
             .states
             .get(&EventStorage::static_name())
-            .unwrap()
+            .expect("EventStorage must be registered before EventData is used as a SystemParam")
             .downcast::<EventStorage>()
-            .unwrap()
+            .expect("EventStorage downcast failed: type mismatch")
             .clone();
 
         EventData {
