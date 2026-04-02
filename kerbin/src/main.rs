@@ -3,9 +3,8 @@ use std::{path::PathBuf, time::Duration};
 use ratatui::{
     crossterm::{
         event::{
-            DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
-            KeyboardEnhancementFlags, MouseEvent, PopKeyboardEnhancementFlags,
-            PushKeyboardEnhancementFlags,
+            DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+            KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
         },
         execute,
     },
@@ -369,6 +368,17 @@ async fn main() {
     init_log();
 
     let terminal = ratatui::init();
+    // Chain onto ratatui's panic hook to also clean up what ratatui::restore() doesn't handle.
+    let prev_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = execute!(
+            std::io::stdout(),
+            DisableMouseCapture,
+            DisableBracketedPaste,
+            PopKeyboardEnhancementFlags,
+        );
+        prev_hook(info);
+    }));
     execute!(
         std::io::stdout(),
         EnableMouseCapture,
@@ -415,6 +425,7 @@ async fn main() {
 
         commands.register::<AutoPairsCommand>();
         commands.register::<SplitCommand>();
+        commands.register::<DialogueCommand>();
     }
 
     {
@@ -505,7 +516,8 @@ async fn main() {
             register_command_palette_chunks,
         )
         .system_named("core::log_chunk", register_log_chunk)
-        .system_named("core::help_menu_chunk", register_help_menu_chunk);
+        .system_named("core::help_menu_chunk", register_help_menu_chunk)
+        .system_named("core::dialogue_chunk", register_dialogue_chunk);
 
     state
         .on_hook(hooks::Update)
@@ -516,6 +528,7 @@ async fn main() {
             "core::update_palette_suggestions",
             update_palette_suggestions,
         )
+        .system_named("core::update_dialogue", update_dialogue_validation)
         .system_named(
             "core::render_cursors_and_selections",
             render_cursors_and_selections,
@@ -542,6 +555,7 @@ async fn main() {
         .on_hook(hooks::Render)
         .system_named("core::render_statusline", render_statusline)
         .system_named("core::render_command_palette", render_command_palette)
+        .system_named("core::render_dialogue", render_dialogue)
         .system_named("core::render_help_menu", render_help_menu)
         .system_named("core::render_bufferline", render_bufferline)
         .system_named("core::render_log", render_log)
@@ -602,6 +616,7 @@ async fn main() {
     execute!(
         std::io::stdout(),
         DisableMouseCapture,
+        DisableBracketedPaste,
         PopKeyboardEnhancementFlags,
     )
     .ok();

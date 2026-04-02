@@ -42,6 +42,9 @@ pub use if_cmd::*;
 mod splits;
 pub use splits::*;
 
+mod dialogue;
+pub use dialogue::*;
+
 /// Registers all built-in core commands into a `CommandRegistry`.
 /// Plugins may register additional commands on top of these.
 pub fn register_core_commands(registry: &mut CommandRegistry) {
@@ -61,6 +64,7 @@ pub fn register_core_commands(registry: &mut CommandRegistry) {
     registry.register::<IfCommand>();
     registry.register::<AutoPairsCommand>();
     registry.register::<SplitCommand>();
+    registry.register::<DialogueCommand>();
 }
 
 /// Type alias for a state-specific command parsing function.

@@ -86,7 +86,8 @@ pub fn init_state(
         .state(ConfigErrors::default())
         .state(MouseBindings::default())
         .state(SplitState::default())
-        .state(PluginRegistry::default());
+        .state(PluginRegistry::default())
+        .state(DialogueState::default());
 
     state
 }

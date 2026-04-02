@@ -1,3 +1,6 @@
+bind ['/'] [dialogue --var search --input-kind str --title "Search" --desc "Regex search across file" --on-change [[rx %search]] --commands [[dcs] [goto 0 0] [goto 10000 10000 --extend] [gsb] [rxsa %search] [cac -10000]]] --desc "Regex search"
+bind [space '/'] [dialogue --var search --input-kind str --title "Global Search" --desc "Regex search across files (respects .gitignore)" --on-change [[rx %search]] --commands [[ship [sh "%cfg_folder/scripts/rg_fzf.sh" %session %search]]]] --desc "Global regex search"
+
 bind [';' Q] [quit] --desc "Quit"
 bind [';' q] [bc] --desc "Close current buffer"
 bind [';' w] [write_file] --desc "Save file"

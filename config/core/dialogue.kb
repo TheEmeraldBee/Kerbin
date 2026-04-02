@@ -1,0 +1,9 @@
+# Dialogue mode keybindings
+
+bind ['*'] [] --modes [d] --desc "Block other inputs in dialogue mode"
+
+bind [enter] [dialogue_submit] --modes [d] --desc "Submit dialogue"
+bind [esc] [dialogue_cancel] --modes [d] --desc "Cancel dialogue"
+bind [backspace] [dialogue_pop 1] --modes [d] --desc "Delete dialogue char"
+bind [%insert] [dialogue_push %0] --modes [d] --desc "Insert character"
+bind [space] [dialogue_push ' '] --modes [d] --desc "Insert character"

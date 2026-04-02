@@ -675,8 +675,10 @@ impl TextBuffer {
                     let end = (*sel1.end()).max(*sel2.end());
                     cursor1.set_sel(start..=end);
                     self.cursors.remove(j);
-                    if self.primary_cursor >= j {
-                        self.primary_cursor = self.primary_cursor.saturating_sub(1);
+                    if self.primary_cursor == j {
+                        self.primary_cursor = i;
+                    } else if self.primary_cursor > j {
+                        self.primary_cursor -= 1;
                     }
                 } else {
                     j += 1;

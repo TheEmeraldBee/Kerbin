@@ -27,3 +27,6 @@ pub struct CommandDescChunk;
 
 #[derive(State)]
 pub struct LogChunk;
+
+#[derive(State)]
+pub struct DialogueChunk;

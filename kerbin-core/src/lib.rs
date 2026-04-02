@@ -96,3 +96,6 @@ pub use kb::*;
 
 pub mod auto_pairs;
 pub use auto_pairs::*;
+
+pub mod dialogue;
+pub use dialogue::*;

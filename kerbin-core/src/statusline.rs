@@ -91,8 +91,11 @@ pub async fn render_statusline(
         x += text.chars().count() as u16;
     }
 
-    let (cursor_count, primary_cursor_idx) = buffers.get().await
-        .cur_buffer_as::<TextBuffer>().await
+    let (cursor_count, primary_cursor_idx) = buffers
+        .get()
+        .await
+        .cur_buffer_as::<TextBuffer>()
+        .await
         .map(|tb| (tb.cursors.len(), tb.primary_cursor))
         .unwrap_or((1, 0));
 

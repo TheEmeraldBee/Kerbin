@@ -2,6 +2,7 @@ template ifclear [if [mode v] --else_cmds [sc]]
 
 source command_palette.kb
 source insert.kb
+source dialogue.kb
 source repeat.kb
 
 source files.kb
