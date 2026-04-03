@@ -5,9 +5,9 @@ use dialoguer::*;
 use indicatif::*;
 use kerbin_core::{
     ClientIpc, CommandRegistry, register_core_commands, session_name_path, session_pid_path,
-    sessions_dir,
+    sessions_dir, tokenize,
 };
-use kerbin_input::tokenize;
+
 use serde::{Deserialize, Serialize};
 use std::{
     io::{BufRead, BufReader},
@@ -975,11 +975,11 @@ fn main() {
         SubCommand::Generate { build_dir } => {
             let config_dir = global_config.unwrap_or_else(|| PathBuf::from("./config"));
             let build_dir = build_dir.unwrap_or_else(|| {
-                    std::env::current_dir().unwrap_or_else(|e| {
-                        eprintln!("✗ Failed to get current directory: {}", e);
-                        std::process::exit(1);
-                    })
-                });
+                std::env::current_dir().unwrap_or_else(|e| {
+                    eprintln!("✗ Failed to get current directory: {}", e);
+                    std::process::exit(1);
+                })
+            });
             let output_dir = build_dir.join("generated-config");
 
             let generated = generate_config_crate(&config_dir, &build_dir, &output_dir);

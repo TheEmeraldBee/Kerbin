@@ -50,10 +50,8 @@ struct CommandVariant {
     drop_ident_name: bool,
     #[darling(multiple, rename = "name")]
     names: Vec<String>,
-
     #[darling(default)]
     parser: Option<Path>,
-
     attrs: Vec<syn::Attribute>,
 }
 
@@ -70,31 +68,218 @@ struct CommandField {
     flag: bool,
 }
 
-impl CommandField {
-    fn flag_cli_name(&self) -> String {
-        let base = if let Some(ref n) = self.name {
-            n.clone()
-        } else if let Some(ref ident) = self.ident {
-            ident.to_string()
-        } else {
-            "_".to_string()
-        };
-        format!("--{}", base)
+impl CommandVariant {
+    fn resolved_names(&self) -> Vec<String> {
+        let mut names = self.names.clone();
+        if !self.drop_ident_name {
+            names.insert(0, to_snake_case(&self.ident.to_string()));
+        }
+        assert!(
+            !names.is_empty(),
+            "command must have at least 1 valid name."
+        );
+        names
+    }
+
+    fn doc_lines(&self) -> TokenStream2 {
+        let lines = self.attrs.iter().filter_map(|attr| {
+            let nv = attr.meta.require_name_value().ok()?;
+            let id = nv.path.require_ident().ok()?;
+            (id.to_string() == "doc").then(|| nv.value.to_token_stream())
+        });
+        quote!({
+            let mut x = vec![];
+            #(x.push(format!("{}", #lines).trim().to_string());)*
+            x
+        })
+    }
+
+    fn validate_fields(&self) {
+        let mut saw_optional = false;
+        for field in self.fields.iter() {
+            if field.flag {
+                continue;
+            }
+            let is_opt = get_option_inner_type(&field.ty).is_some();
+            if saw_optional && !is_opt {
+                panic!(
+                    "Required positional field `{}` cannot follow an optional positional field. \
+                     Mark it as #[command(flag)] if it should be a flag.",
+                    field.field_base_name()
+                );
+            }
+            saw_optional |= is_opt;
+        }
     }
 }
 
-/// Computes the resolved names for a command variant.
-/// Inserts the snake_case ident as the first name unless `drop_ident_name` is set.
-/// Panics at compile time if the resulting name list is empty.
-fn variant_names(variant: &CommandVariant) -> Vec<String> {
-    let mut names = variant.names.clone();
-    if !variant.drop_ident_name {
-        names.insert(0, to_snake_case(&variant.ident.to_string()));
+impl CommandField {
+    fn field_base_name(&self) -> String {
+        self.name.clone().unwrap_or_else(|| {
+            self.ident
+                .as_ref()
+                .map(|i| i.to_string())
+                .unwrap_or_else(|| "_".to_string())
+        })
     }
-    if names.is_empty() {
-        panic!("command must have at least 1 valid name.");
+
+    fn flag_cli_name(&self) -> String {
+        format!("--{}", self.field_base_name())
     }
-    names
+
+    fn field_assignment(&self, style: Style, var: &Ident) -> TokenStream2 {
+        match style {
+            Style::Struct => {
+                let id = self
+                    .ident
+                    .as_ref()
+                    .expect("struct fields always have identifiers");
+                quote! { #id: #var }
+            }
+            Style::Tuple => quote! { #var },
+            Style::Unit => quote! {},
+        }
+    }
+}
+
+enum FieldSource<'a> {
+    /// Named flag
+    Flag(&'a str),
+    /// Positional slot at a fixed index
+    Positional(usize),
+}
+
+fn emit_field_parser(var: &Ident, ty: &Type, source: FieldSource<'_>) -> TokenStream2 {
+    match source {
+        FieldSource::Flag(flag_name) => {
+            if is_bool_type(ty) {
+                quote! { let #var = _state.flags.contains_key(#flag_name); }
+            } else if get_option_inner_type(ty).map(is_bool_type).unwrap_or(false) {
+                quote! {
+                    let #var = if _state.flags.contains_key(#flag_name) { Some(true) } else { None };
+                }
+            } else if let Some(inner) = get_option_inner_type(ty)
+                && get_vec_inner_type(inner)
+                    .map(is_token_type)
+                    .unwrap_or(false)
+            {
+                quote! {
+                    let #var = match _state.flags.get(#flag_name) {
+                        Some(Some(Token::List(_items))) => Some(_items.clone()),
+                        _ => None,
+                    };
+                }
+            } else if get_vec_inner_type(ty).map(is_token_type).unwrap_or(false) {
+                quote! {
+                    let #var = match _state.flags.get(#flag_name) {
+                        Some(Some(Token::List(_items))) => _items.clone(),
+                        _ => return None,
+                    };
+                }
+            } else if let Some(inner) = get_option_inner_type(ty)
+                && let Some(list_inner) = get_vec_inner_type(inner)
+            {
+                quote! {
+                    let #var = match _state.flags.get(#flag_name) {
+                        Some(Some(Token::List(_items))) => Some(
+                            _items.iter().filter_map(|_t| {
+                                if let Token::Word(_w) = _t { _w.parse::<#list_inner>().ok() } else { None }
+                            }).collect::<Vec<#list_inner>>()
+                        ),
+                        _ => None,
+                    };
+                }
+            } else if let Some(list_inner) = get_vec_inner_type(ty) {
+                quote! {
+                    let #var = match _state.flags.get(#flag_name) {
+                        Some(Some(Token::List(_items))) => _items.iter().filter_map(|_t| {
+                            if let Token::Word(_w) = _t { _w.parse::<#list_inner>().ok() } else { None }
+                        }).collect::<Vec<#list_inner>>(),
+                        _ => return None,
+                    };
+                }
+            } else if let Some(inner) = get_option_inner_type(ty) {
+                quote! {
+                    let #var = match _state.flags.get(#flag_name) {
+                        Some(Some(Token::Word(_v))) => Some(match _v.parse::<#inner>() {
+                            Ok(_t) => _t,
+                            Err(_e) => return Some(Err(_e.to_string())),
+                        }),
+                        _ => None,
+                    };
+                }
+            } else {
+                quote! {
+                    let #var = match _state.flags.get(#flag_name) {
+                        Some(Some(Token::Word(_v))) => match _v.parse::<#ty>() {
+                            Ok(_t) => _t,
+                            Err(_e) => return Some(Err(_e.to_string())),
+                        },
+                        _ => return None,
+                    };
+                }
+            }
+        }
+
+        FieldSource::Positional(i) => {
+            if let Some(inner) = get_option_inner_type(ty)
+                && get_vec_inner_type(inner)
+                    .map(is_token_type)
+                    .unwrap_or(false)
+            {
+                quote! {
+                    let #var = match _state.positional.get(#i) {
+                        Some(Token::List(items)) => Some(items.clone()),
+                        _ => None,
+                    };
+                }
+            } else if get_vec_inner_type(ty).map(is_token_type).unwrap_or(false) {
+                quote! {
+                    let #var = match _state.positional.get(#i) {
+                        Some(Token::List(items)) => items.clone(),
+                        _ => return None,
+                    };
+                }
+            } else if let Some(inner) = get_vec_inner_type(ty) {
+                quote! {
+                    let #var = match _state.positional.get(#i) {
+                        Some(Token::List(items)) => items.iter().filter_map(|t| {
+                            if let Token::Word(s) = t { s.parse::<#inner>().ok() } else { None }
+                        }).collect::<Vec<#inner>>(),
+                        _ => return None,
+                    };
+                }
+            } else if is_token_type(ty) {
+                quote! {
+                    let #var = match _state.positional.get(#i) {
+                        Some(t) => t.clone(),
+                        None => return None,
+                    };
+                }
+            } else if let Some(inner) = get_option_inner_type(ty) {
+                quote! {
+                    let #var = if let Some(Token::Word(s)) = _state.positional.get(#i) {
+                        Some(match s.parse::<#inner>() {
+                            Ok(t) => t,
+                            Err(e) => return Some(Err(e.to_string())),
+                        })
+                    } else {
+                        None
+                    };
+                }
+            } else {
+                quote! {
+                    let #var = match _state.positional.get(#i) {
+                        Some(Token::Word(s)) => match s.parse::<#ty>() {
+                            Ok(t) => t,
+                            Err(e) => return Some(Err(e.to_string())),
+                        },
+                        _ => return None,
+                    };
+                }
+            }
+        }
+    }
 }
 
 #[proc_macro_derive(Command, attributes(command))]
@@ -107,57 +292,28 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
         _ => panic!("Command can only be derived on enums."),
     };
 
-    let info_matches = variants
+    let info_matches: Vec<_> = variants
         .iter()
-        .map(|variant| {
-            let names = variant_names(variant);
-
-            let mut desc = vec![];
-
-            for attr in &variant.attrs {
-                if let Ok(name_val) = attr.meta.require_name_value()
-                    && let Ok(ident) = name_val.path.require_ident()
-                    && ident.to_string().as_str() == "doc"
-                {
-                    desc.push(name_val.value.to_token_stream());
-                }
-            }
-
-            let desc = quote!({
-                let mut x = vec![];
-                #(x.push(format!("{}", #desc).trim().to_string());)*
-                x
-            });
-
-            let field_name_types = variant
+        .map(|v| {
+            let names = v.resolved_names();
+            let desc = v.doc_lines();
+            let field_name_types: Vec<_> = v
                 .fields
                 .iter()
-                .map(|field| {
-                    let base_name = if let Some(ref field_ident) = field.ident {
-                        field
-                            .name
-                            .clone()
-                            .unwrap_or_else(|| field_ident.to_string())
+                .map(|f| {
+                    let name = if f.flag {
+                        f.flag_cli_name()
                     } else {
-                        field.name.clone().unwrap_or_else(|| "_".to_string())
+                        f.field_base_name()
                     };
-
-                    let name = if field.flag {
-                        format!("--{}", base_name)
-                    } else {
-                        base_name
-                    };
-
-                    let field_ty = &field.ty;
-                    let type_name = field
+                    let field_ty = &f.ty;
+                    let type_name = f
                         .type_name
                         .clone()
-                        .unwrap_or(quote! { #field_ty }.to_string());
-
+                        .unwrap_or_else(|| quote!(#field_ty).to_string());
                     quote! { (#name.to_string(), #type_name.to_string()) }
                 })
-                .collect::<Vec<_>>();
-
+                .collect();
             quote! {
                 CommandInfo {
                     valid_names: vec![#(#names.to_string()),*],
@@ -166,485 +322,122 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                 }
             }
         })
-        .collect::<Vec<_>>();
+        .collect();
 
-    let as_command_info_impl = {
-        let ident = &info.ident;
-        quote! {
-            impl AsCommandInfo for #ident {
-                fn infos() -> Vec<CommandInfo> {
-                    vec![
-                        #(#info_matches),*
-                    ]
-                }
-            }
-        }
-    };
-
-    let match_arms = variants
+    let match_arms: Vec<_> = variants
         .iter()
         .map(|variant| {
             let ident = &variant.ident;
-            let names = variant_names(variant);
+            let names = variant.resolved_names();
 
+            // Delegate entirely to a custom parser if provided.
             if let Some(parser_func) = &variant.parser {
                 return quote! {
-                    #(#names)|* => {
-                        Some(#parser_func(val))
-                    }
+                    #(#names)|* => Some(#parser_func(val))
                 };
             }
 
-            // Validate: optional positional fields cannot precede required positional fields.
-            // Flags are exempt from this rule.
-            {
-                let mut saw_optional_positional = false;
-                for field in variant.fields.iter() {
-                    if field.flag {
-                        continue;
-                    }
-                    let is_optional = get_option_inner_type(&field.ty).is_some();
-                    if saw_optional_positional && !is_optional {
-                        let field_name = field
-                            .ident
-                            .as_ref()
-                            .map(|i| i.to_string())
-                            .unwrap_or_else(|| "_".to_string());
-                        panic!(
-                            "Required positional field `{}` cannot follow an optional positional \
-                             field. Mark it as #[command(flag)] if it should be a flag.",
-                            field_name
-                        );
-                    }
-                    if is_optional {
-                        saw_optional_positional = true;
-                    }
-                }
-            }
+            variant.validate_fields();
 
-            let has_flags = variant.fields.iter().any(|f| f.flag);
-
-            if has_flags {
-                let prescan = quote! {
-                    let _state = match ::kerbin_core::CommandState::parse(val) {
-                        Some(s) => s,
-                        None => return None,
-                    };
+            let prescan = quote! {
+                let _state = match ::kerbin_core::CommandState::parse(val) {
+                    Some(s) => s,
+                    None => return None,
                 };
+            };
 
-                let positional_count = variant.fields.iter().filter(|f| !f.flag).count();
-                let num_required_positional = variant
-                    .fields
-                    .iter()
-                    .filter(|f| !f.flag && get_option_inner_type(&f.ty).is_none())
-                    .count();
+            let num_pos = variant.fields.iter().filter(|f| !f.flag).count();
+            let num_req = variant
+                .fields
+                .iter()
+                .filter(|f| !f.flag && get_option_inner_type(&f.ty).is_none())
+                .count();
 
-                let arg_check = if num_required_positional == positional_count {
-                    quote! {
-                        if _state.positional.len() != #positional_count { return None; }
-                    }
-                } else {
-                    quote! {
-                        if _state.positional.len() < #num_required_positional
-                            || _state.positional.len() > #positional_count
-                        {
-                            return None;
-                        }
-                    }
-                };
-
-                let mut arg_idx = 1usize;
-                let mut pos_idx = 0usize;
-
-                let field_parsers_and_names = variant
-                    .fields
-                    .iter()
-                    .map(|field| {
-                        let ty = &field.ty;
-                        let var = syn::Ident::new(
-                            &format!("arg_{}", arg_idx),
-                            proc_macro2::Span::call_site(),
-                        );
-                        arg_idx += 1;
-
-                        let field_name_assignment = match variant.fields.style {
-                            Style::Struct => {
-                                let field_ident = field.ident.as_ref()
-                                    .expect("struct fields always have identifiers");
-                                quote! { #field_ident: #var }
-                            }
-                            Style::Tuple => quote! { #var },
-                            Style::Unit => quote! {},
-                        };
-
-                        let parser = if field.flag {
-                            let flag_name_str = field.flag_cli_name();
-
-                            if is_bool_type(ty) {
-                                // --flag → true, absent → false
-                                quote! {
-                                    let #var = _state.flags.contains_key(#flag_name_str);
-                                }
-                            } else if get_option_inner_type(ty)
-                                .map(is_bool_type)
-                                .unwrap_or(false)
-                            {
-                                // --flag → Some(true), absent → None
-                                quote! {
-                                    let #var = if _state.flags.contains_key(#flag_name_str) {
-                                        Some(true)
-                                    } else {
-                                        None
-                                    };
-                                }
-                            } else if let Some(inner_ty) = get_option_inner_type(ty)
-                                && get_vec_inner_type(inner_ty)
-                                    .map(is_token_type)
-                                    .unwrap_or(false)
-                            {
-                                // --flag [tokens] → Some(items), absent → None
-                                quote! {
-                                    let #var = match _state.flags.get(#flag_name_str) {
-                                        Some(Some(Token::List(_items))) => Some(_items.clone()),
-                                        _ => None,
-                                    };
-                                }
-                            } else if get_vec_inner_type(ty)
-                                .map(is_token_type)
-                                .unwrap_or(false)
-                            {
-                                // --flag [tokens] → items (required)
-                                quote! {
-                                    let #var = match _state.flags.get(#flag_name_str) {
-                                        Some(Some(Token::List(_items))) => _items.clone(),
-                                        _ => return None,
-                                    };
-                                }
-                            } else if let Some(inner_ty) = get_option_inner_type(ty)
-                                && let Some(list_inner_ty) = get_vec_inner_type(inner_ty)
-                            {
-                                // --flag [items] → Some(parsed_items), absent → None
-                                quote! {
-                                    let #var = match _state.flags.get(#flag_name_str) {
-                                        Some(Some(Token::List(_items))) => Some(
-                                            _items.iter().filter_map(|_t| {
-                                                if let Token::Word(_w) = _t {
-                                                    _w.parse::<#list_inner_ty>().ok()
-                                                } else {
-                                                    None
-                                                }
-                                            }).collect::<Vec<#list_inner_ty>>()
-                                        ),
-                                        _ => None,
-                                    };
-                                }
-                            } else if let Some(list_inner_ty) = get_vec_inner_type(ty) {
-                                // --flag [items] → parsed_items (required)
-                                quote! {
-                                    let #var = match _state.flags.get(#flag_name_str) {
-                                        Some(Some(Token::List(_items))) => _items.iter().filter_map(|_t| {
-                                            if let Token::Word(_w) = _t {
-                                                _w.parse::<#list_inner_ty>().ok()
-                                            } else {
-                                                None
-                                            }
-                                        }).collect::<Vec<#list_inner_ty>>(),
-                                        _ => return None,
-                                    };
-                                }
-                            } else if let Some(inner_ty) = get_option_inner_type(ty) {
-                                // --flag value → Some(parsed), absent → None
-                                quote! {
-                                    let #var = match _state.flags.get(#flag_name_str) {
-                                        Some(Some(Token::Word(_v))) => Some(match _v.parse::<#inner_ty>() {
-                                            Ok(_t) => _t,
-                                            Err(_e) => return Some(Err(_e.to_string())),
-                                        }),
-                                        _ => None,
-                                    };
-                                }
-                            } else {
-                                // --flag value → parsed (required)
-                                quote! {
-                                    let #var = match _state.flags.get(#flag_name_str) {
-                                        Some(Some(Token::Word(_v))) => match _v.parse::<#ty>() {
-                                            Ok(_t) => _t,
-                                            Err(_e) => return Some(Err(_e.to_string())),
-                                        },
-                                        _ => return None,
-                                    };
-                                }
-                            }
-                        } else {
-                            let current_pos_idx = pos_idx;
-                            pos_idx += 1;
-
-                            if let Some(inner) = get_option_inner_type(ty)
-                                && get_vec_inner_type(inner)
-                                    .map(is_token_type)
-                                    .unwrap_or(false)
-                            {
-                                quote! {
-                                    let #var = match _state.positional.get(#current_pos_idx) {
-                                        Some(Token::List(items)) => Some(items.clone()),
-                                        _ => None,
-                                    };
-                                }
-                            } else if get_vec_inner_type(ty)
-                                .map(is_token_type)
-                                .unwrap_or(false)
-                            {
-                                quote! {
-                                    let #var = match _state.positional.get(#current_pos_idx) {
-                                        Some(Token::List(items)) => items.clone(),
-                                        _ => return None,
-                                    };
-                                }
-                            } else if let Some(inner_ty) = get_vec_inner_type(ty) {
-                                quote! {
-                                    let #var = match _state.positional.get(#current_pos_idx) {
-                                        Some(Token::List(items)) => {
-                                            items.iter().filter_map(|t| {
-                                                if let Token::Word(s) = t {
-                                                    s.parse::<#inner_ty>().ok()
-                                                } else {
-                                                    None
-                                                }
-                                            }).collect::<Vec<#inner_ty>>()
-                                        }
-                                        _ => return None,
-                                    };
-                                }
-                            } else if is_token_type(ty) {
-                                quote! {
-                                    let #var = match _state.positional.get(#current_pos_idx) {
-                                        Some(t) => t.clone(),
-                                        None => return None,
-                                    };
-                                }
-                            } else if let Some(inner_ty) = get_option_inner_type(ty) {
-                                quote! {
-                                    let #var = if let Some(Token::Word(s)) = _state.positional.get(#current_pos_idx) {
-                                        Some(match s.parse::<#inner_ty>() {
-                                            Ok(t) => t,
-                                            Err(e) => return Some(Err(e.to_string())),
-                                        })
-                                    } else {
-                                        None
-                                    };
-                                }
-                            } else {
-                                quote! {
-                                    let #var = match _state.positional.get(#current_pos_idx) {
-                                        Some(Token::Word(s)) => match s.parse::<#ty>() {
-                                            Ok(t) => t,
-                                            Err(e) => return Some(Err(e.to_string())),
-                                        },
-                                        _ => return None,
-                                    };
-                                }
-                            }
-                        };
-
-                        (parser, field_name_assignment)
-                    })
-                    .collect::<Vec<_>>();
-
-                let field_parsers = field_parsers_and_names.iter().map(|(p, _)| p);
-                let field_names = field_parsers_and_names.iter().map(|(_, n)| n);
-
-                let fields = match variant.fields.style {
-                    Style::Struct => quote! { { #(#field_names),* } },
-                    Style::Tuple => quote! { ( #(#field_names),* ) },
-                    Style::Unit => quote! {},
-                };
-
-                quote! {
-                    #(#names)|* => {
-                        #prescan
-                        #arg_check
-                        #(#field_parsers)*
-                        Some(Ok(Box::new(Self::#ident #fields)))
-                    }
-                }
+            let arg_check = if num_req == num_pos {
+                quote! { if _state.positional.len() != #num_pos { return None; } }
             } else {
-                // Original positional-only code path.
-                let num_required_args = variant
-                    .fields
-                    .iter()
-                    .filter(|f| get_option_inner_type(&f.ty).is_none())
-                    .count();
-                let num_total_args = variant.fields.len();
-
-                let arg_check = if num_required_args == num_total_args {
-                    quote! {
-                        if val.len() != #num_total_args + 1 {
-                            return None;
-                        }
-                    }
-                } else {
-                    quote! {
-                        if val.len() < #num_required_args + 1 || val.len() > #num_total_args + 1 {
-                            return None;
-                        }
-                    }
-                };
-
-                let mut arg_idx = 1;
-                let field_parsers_and_names = variant
-                    .fields
-                    .iter()
-                    .map(|field| {
-                        let ty = &field.ty;
-                        let var = syn::Ident::new(
-                            &format!("arg_{}", arg_idx),
-                            proc_macro2::Span::call_site(),
-                        );
-                        let idx_usize = arg_idx as usize;
-
-                        let parser = if let Some(inner) = get_option_inner_type(ty)
-                            && get_vec_inner_type(inner).map(is_token_type).unwrap_or(false)
-                        {
-                            // Option<Vec<Token>>: match List or absent, never parse
-                            quote! {
-                                let #var = match val.get(#idx_usize) {
-                                    Some(Token::List(items)) => Some(items.clone()),
-                                    _ => None,
-                                };
-                            }
-                        } else if get_vec_inner_type(ty).map(is_token_type).unwrap_or(false) {
-                            // Vec<Token>: clone items directly from Token::List
-                            quote! {
-                                let #var = match val.get(#idx_usize) {
-                                    Some(Token::List(items)) => items.clone(),
-                                    _ => return None,
-                                };
-                            }
-                        } else if let Some(inner_ty) = get_vec_inner_type(ty) {
-                            // Vec<T>: expect a Token::List at this position
-                            quote! {
-                                let #var = match val.get(#idx_usize) {
-                                    Some(Token::List(items)) => {
-                                        items.iter().filter_map(|t| {
-                                            if let Token::Word(s) = t {
-                                                s.parse::<#inner_ty>().ok()
-                                            } else {
-                                                None
-                                            }
-                                        }).collect::<Vec<#inner_ty>>()
-                                    }
-                                    _ => return None,
-                                };
-                            }
-                        } else if is_token_type(ty) {
-                            // Token: accept any token at this position
-                            quote! {
-                                let #var = match val.get(#idx_usize) {
-                                    Some(t) => t.clone(),
-                                    None => return None,
-                                };
-                            }
-                        } else if let Some(inner_ty) = get_option_inner_type(ty) {
-                            // Option<T>: optional Token::Word at this position
-                            quote! {
-                                let #var = if let Some(Token::Word(s)) = val.get(#idx_usize) {
-                                    Some(match s.parse::<#inner_ty>() {
-                                        Ok(t) => t,
-                                        Err(e) => return Some(Err(e.to_string())),
-                                    })
-                                } else {
-                                    None
-                                };
-                            }
-                        } else {
-                            // Regular T: expect a Token::Word at this position
-                            quote! {
-                                let #var = match val.get(#idx_usize) {
-                                    Some(Token::Word(s)) => match s.parse::<#ty>() {
-                                        Ok(t) => t,
-                                        Err(e) => return Some(Err(e.to_string())),
-                                    },
-                                    _ => return None,
-                                };
-                            }
-                        };
-
-                        let field_name_assignment = match variant.fields.style {
-                            Style::Struct => {
-                                let field_ident = field.ident.as_ref()
-                                    .expect("struct fields always have identifiers");
-                                quote! { #field_ident: #var }
-                            }
-                            Style::Tuple => quote! { #var },
-                            Style::Unit => quote! {},
-                        };
-
-                        arg_idx += 1;
-                        (parser, field_name_assignment)
-                    })
-                    .collect::<Vec<_>>();
-
-                let field_parsers = field_parsers_and_names.iter().map(|(p, _)| p);
-                let field_names = field_parsers_and_names.iter().map(|(_, n)| n);
-
-                let fields = match variant.fields.style {
-                    Style::Struct => quote! { { #(#field_names),* } },
-                    Style::Tuple => quote! { ( #(#field_names),* ) },
-                    Style::Unit => quote! {},
-                };
-
                 quote! {
-                    #(#names)|* => {
-                        #arg_check
-                        #(#field_parsers)*
-                        Some(Ok(Box::new(Self::#ident #fields)))
+                    if _state.positional.len() < #num_req || _state.positional.len() > #num_pos {
+                        return None;
                     }
+                }
+            };
+
+            let mut pos_idx = 0usize;
+            let mut arg_n = 1usize;
+
+            let (parsers, assignments): (Vec<_>, Vec<_>) = variant
+                .fields
+                .iter()
+                .map(|field| {
+                    let ty = &field.ty;
+                    let var = Ident::new(&format!("arg_{arg_n}"), proc_macro2::Span::call_site());
+                    arg_n += 1;
+
+                    let source = if field.flag {
+                        let name = field.flag_cli_name();
+                        FieldSource::Flag(Box::leak(name.into_boxed_str()))
+                    } else {
+                        let idx = pos_idx;
+                        pos_idx += 1;
+                        FieldSource::Positional(idx)
+                    };
+
+                    let parser = emit_field_parser(&var, ty, source);
+                    let assignment = field.field_assignment(variant.fields.style, &var);
+                    (parser, assignment)
+                })
+                .unzip();
+
+            let fields = match variant.fields.style {
+                Style::Struct => quote! { { #(#assignments),* } },
+                Style::Tuple => quote! { ( #(#assignments),* ) },
+                Style::Unit => quote! {},
+            };
+
+            quote! {
+                #(#names)|* => {
+                    #prescan
+                    #arg_check
+                    #(#parsers)*
+                    Some(Ok(Box::new(Self::#ident #fields)))
                 }
             }
         })
-        .collect::<Vec<_>>();
+        .collect();
 
-    let command_from_str_impl = {
-        let ident = &info.ident;
-        quote! {
-            impl<__S: Send + Sync + 'static> CommandFromStr<__S> for #ident
-            where
-                #ident: Command<__S>,
-            {
-                fn from_str(val: &[Token]) -> Option<Result<Box<dyn Command<__S>>, String>> {
-                    match val.get(0) {
-                        Some(Token::Word(s)) => match s.as_str() {
-                            #(#match_arms),*
-                            _ => None,
-                        },
-                        _ => None,
-                    }
-                }
-            }
-        }
-    };
-
-    let command_any_impl = {
-        let ident = &info.ident;
-        quote! {
-            impl CommandAny for #ident {
-                fn as_any(&self) -> &(dyn std::any::Any + Send + Sync) {
-                    self
-                }
-            }
-        }
-    };
-
+    let enum_ident = &info.ident;
     let expanded = quote! {
-        #as_command_info_impl
-        #command_from_str_impl
-        #command_any_impl
+        impl AsCommandInfo for #enum_ident {
+            fn infos() -> Vec<CommandInfo> {
+                vec![#(#info_matches),*]
+            }
+        }
+
+        impl<__S: Send + Sync + 'static> CommandFromStr<__S> for #enum_ident
+        where
+            #enum_ident: Command<__S>,
+        {
+            fn from_str(val: &[Token]) -> Option<Result<Box<dyn Command<__S>>, String>> {
+                match val.get(0) {
+                    Some(Token::Word(s)) => match s.as_str() {
+                        #(#match_arms),*
+                        _ => None,
+                    },
+                    _ => None,
+                }
+            }
+        }
+
+        impl CommandAny for #enum_ident {
+            fn as_any(&self) -> &(dyn std::any::Any + Send + Sync) {
+                self
+            }
+        }
     };
 
     expanded.into()
 }
-
-// ─── define_plugin! ──────────────────────────────────────────────────────────
 
 struct HookEntry {
     hook: Expr,
@@ -666,6 +459,35 @@ struct PluginDef {
     events: Vec<EventEntry>,
 }
 
+/// Parse a bracketed list of `A => B` pairs.
+fn parse_arrow_pairs<A, B>(content: ParseStream) -> syn::Result<Vec<(A, B)>>
+where
+    A: Parse,
+    B: Parse,
+{
+    let inner;
+    bracketed!(inner in content);
+    let mut pairs = vec![];
+    while !inner.is_empty() {
+        let a: A = inner.parse()?;
+        inner.parse::<Token![=>]>()?;
+        let b: B = inner.parse()?;
+        pairs.push((a, b));
+        if inner.peek(Token![,]) {
+            inner.parse::<Token![,]>()?;
+        }
+    }
+    Ok(pairs)
+}
+
+/// Parse a bracketed comma-separated list of `T`.
+fn parse_bracketed_list<T: Parse>(content: ParseStream) -> syn::Result<Vec<T>> {
+    let inner;
+    bracketed!(inner in content);
+    let items: Punctuated<T, Token![,]> = inner.parse_terminated(T::parse, Token![,])?;
+    Ok(items.into_iter().collect())
+}
+
 impl Parse for PluginDef {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut def = PluginDef::default();
@@ -675,56 +497,29 @@ impl Parse for PluginDef {
             input.parse::<Token![:]>()?;
 
             match key.to_string().as_str() {
-                "name" => {
-                    def.name = Some(input.parse()?);
-                }
-                "init_as" => {
-                    def.init_as = Some(input.parse()?);
-                }
-                "state" => {
-                    let content;
-                    bracketed!(content in input);
-                    let paths: Punctuated<Path, Token![,]> =
-                        content.parse_terminated(Path::parse, Token![,])?;
-                    def.state = paths.into_iter().collect();
-                }
-                "commands" => {
-                    let content;
-                    bracketed!(content in input);
-                    let paths: Punctuated<Path, Token![,]> =
-                        content.parse_terminated(Path::parse, Token![,])?;
-                    def.commands = paths.into_iter().collect();
-                }
+                "name" => def.name = Some(input.parse()?),
+                "init_as" => def.init_as = Some(input.parse()?),
+                "state" => def.state = parse_bracketed_list(input)?,
+                "commands" => def.commands = parse_bracketed_list(input)?,
                 "hooks" => {
-                    let content;
-                    bracketed!(content in input);
-                    while !content.is_empty() {
-                        let hook: Expr = content.parse()?;
-                        content.parse::<Token![=>]>()?;
-                        let system: Path = content.parse()?;
-                        def.hooks.push(HookEntry { hook, system });
-                        if content.peek(Token![,]) {
-                            content.parse::<Token![,]>()?;
-                        }
-                    }
+                    def.hooks = parse_arrow_pairs::<Expr, Path>(input)?
+                        .into_iter()
+                        .map(|(hook, system)| HookEntry { hook, system })
+                        .collect();
                 }
                 "events" => {
-                    let content;
-                    bracketed!(content in input);
-                    while !content.is_empty() {
-                        let event: Path = content.parse()?;
-                        content.parse::<Token![=>]>()?;
-                        let system: Path = content.parse()?;
-                        def.events.push(EventEntry { event, system });
-                        if content.peek(Token![,]) {
-                            content.parse::<Token![,]>()?;
-                        }
-                    }
+                    def.events = parse_arrow_pairs::<Path, Path>(input)?
+                        .into_iter()
+                        .map(|(event, system)| EventEntry { event, system })
+                        .collect();
                 }
                 other => {
                     return Err(syn::Error::new(
                         key.span(),
-                        format!("unknown field `{other}` — expected one of: name, init_as, state, commands, hooks, events"),
+                        format!(
+                            "unknown field `{other}` — expected one of: \
+                             name, init_as, state, commands, hooks, events"
+                        ),
                     ));
                 }
             }
@@ -854,8 +649,6 @@ pub fn define_plugin(input: TokenStream) -> TokenStream {
 
     expanded.into()
 }
-
-// ─── helpers ─────────────────────────────────────────────────────────────────
 
 fn to_snake_case(s: &str) -> String {
     let mut result = String::new();

@@ -1,9 +1,7 @@
 use crate::*;
 use unicode_segmentation::UnicodeSegmentation;
 
-/// Converts a display column to the byte offset within `line_text` at which
-/// that column begins. Handles tabs (expanded to `tab_display_width` cells),
-/// emoji variation selectors, and wide Unicode.
+/// Converts a display column to the byte offset based on visual positions
 pub fn display_col_to_byte_offset(
     line_text: &str,
     target_display_col: usize,

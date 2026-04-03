@@ -3,7 +3,8 @@ use std::str::FromStr;
 use crossterm::event::{KeyCode, KeyModifiers};
 use thiserror::Error;
 
-use crate::{Matchable, ResolvedKeyBind, Token, UnresolvedKeyBind, UnresolvedKeyElement, tokenize};
+use crate::{Matchable, ResolvedKeyBind, UnresolvedKeyBind, UnresolvedKeyElement};
+use kerbin_command_lang::*;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

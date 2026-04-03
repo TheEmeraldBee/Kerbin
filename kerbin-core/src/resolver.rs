@@ -4,7 +4,8 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
-use kerbin_input::{CommandExecutor, ParseError, Resolver, Token};
+use kerbin_command_lang::Token;
+use kerbin_input::{CommandExecutor, ParseError, Resolver};
 use tokio::sync::{OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
 
 #[derive(Default)]

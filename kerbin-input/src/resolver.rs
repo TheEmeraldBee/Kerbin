@@ -3,9 +3,9 @@ use std::{collections::HashMap, sync::Arc};
 use crossterm::event::KeyModifiers;
 
 use crate::{
-    Matchable, ParsableKey, ParseError, ResolvedKeyBind, Token, UnresolvedKeyBind,
-    UnresolvedKeyElement, flatten_tokens, token_to_string, tokenize,
+    Matchable, ParsableKey, ParseError, ResolvedKeyBind, UnresolvedKeyBind, UnresolvedKeyElement,
 };
+use kerbin_command_lang::*;
 
 pub type CommandExecutor =
     dyn Fn(&str, &[String]) -> Result<Vec<String>, ParseError> + Send + Sync + 'static;
@@ -16,10 +16,7 @@ pub struct Resolver<'a> {
 }
 
 impl<'a> Resolver<'a> {
-    pub fn new(
-        templates: &'a HashMap<String, Token>,
-        executor: Arc<CommandExecutor>,
-    ) -> Self {
+    pub fn new(templates: &'a HashMap<String, Token>, executor: Arc<CommandExecutor>) -> Self {
         Self {
             templates,
             command_executor: executor,
