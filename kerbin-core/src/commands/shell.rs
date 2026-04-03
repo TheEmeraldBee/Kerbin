@@ -95,11 +95,10 @@ impl Command<State> for ShellCommand {
                     &*state.lock_state::<CommandPrefixRegistry>().await,
                     &*state.lock_state::<ModeStack>().await,
                 );
-                if let Some(command) = command {
-                    if let Err(e) = state.lock_state::<CommandSender>().await.send(command) {
+                if let Some(command) = command
+                    && let Err(e) = state.lock_state::<CommandSender>().await.send(command) {
                         tracing::error!("pipe: failed to send command: {e}");
                     }
-                }
 
                 true
             }

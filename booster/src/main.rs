@@ -974,15 +974,12 @@ fn main() {
         },
         SubCommand::Generate { build_dir } => {
             let config_dir = global_config.unwrap_or_else(|| PathBuf::from("./config"));
-            let build_dir = build_dir.map_or_else(
-                || {
+            let build_dir = build_dir.unwrap_or_else(|| {
                     std::env::current_dir().unwrap_or_else(|e| {
                         eprintln!("✗ Failed to get current directory: {}", e);
                         std::process::exit(1);
                     })
-                },
-                |d| d,
-            );
+                });
             let output_dir = build_dir.join("generated-config");
 
             let generated = generate_config_crate(&config_dir, &build_dir, &output_dir);

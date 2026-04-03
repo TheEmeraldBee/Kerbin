@@ -195,33 +195,31 @@ fn calculate_indent(
         let start = node.start_byte();
         let end = node.end_byte();
 
-        let cursor_inside = (cursor_byte >= start && cursor_byte < end)
-            || (extended_nodes.contains(&node_id) && cursor_byte >= start);
+        let cursor_inside =
+            (extended_nodes.contains(&node_id) || cursor_byte < end) && cursor_byte >= start;
 
-        if cursor_inside {
-            if let Some(caps) = captures.get(&node_id) {
-                for cap in caps {
-                    let applies = match cap.scope {
-                        Scope::All => is_first_in_line(node, buf),
-                        Scope::Tail => true,
-                    };
+        if cursor_inside && let Some(caps) = captures.get(&node_id) {
+            for cap in caps {
+                let applies = match cap.scope {
+                    Scope::All => is_first_in_line(node, buf),
+                    Scope::Tail => true,
+                };
 
-                    if applies {
-                        any_captures = true;
-                        match &cap.kind {
-                            CaptureKind::Indent | CaptureKind::IndentAlways => {
-                                indent_delta += 1;
-                            }
-                            CaptureKind::Outdent | CaptureKind::OutdentAlways => {
-                                indent_delta -= 1;
-                            }
-                            CaptureKind::Align { anchor_col } => {
-                                if align_col.is_none() {
-                                    align_col = Some(*anchor_col);
-                                }
-                            }
-                            _ => {}
+                if applies {
+                    any_captures = true;
+                    match &cap.kind {
+                        CaptureKind::Indent | CaptureKind::IndentAlways => {
+                            indent_delta += 1;
                         }
+                        CaptureKind::Outdent | CaptureKind::OutdentAlways => {
+                            indent_delta -= 1;
+                        }
+                        CaptureKind::Align { anchor_col } => {
+                            if align_col.is_none() {
+                                align_col = Some(*anchor_col);
+                            }
+                        }
+                        _ => {}
                     }
                 }
             }

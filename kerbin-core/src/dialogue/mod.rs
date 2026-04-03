@@ -53,11 +53,10 @@ pub async fn run_dialogue_on_change(
                 &*state.lock_state::<CommandPrefixRegistry>().await,
                 &*state.lock_state::<ModeStack>().await,
             );
-            if let Some(cmd) = command {
-                if let Err(e) = state.lock_state::<CommandSender>().await.send(cmd) {
+            if let Some(cmd) = command
+                && let Err(e) = state.lock_state::<CommandSender>().await.send(cmd) {
                     tracing::error!("dialogue on_change: failed to send command: {e}");
                 }
-            }
         }
     }
 }

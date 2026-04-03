@@ -45,7 +45,7 @@ opt-level = 3
 
 [profile.dev]
 opt-level = 1
-codegen-units = 1
+codegen-units = 128
 
 [profile.mini]
 inherits = "release"

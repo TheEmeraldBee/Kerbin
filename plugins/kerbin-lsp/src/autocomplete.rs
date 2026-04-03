@@ -133,7 +133,7 @@ async fn send_resolve_for_selected(buf: &TextBuffer, lsps: &mut LspManager, info
             let selected_ptr = ranked[ranked_idx].0 as *const CompletionItem;
             info.items
                 .iter()
-                .position(|x| x as *const CompletionItem == selected_ptr)
+                .position(|x| std::ptr::eq(x, selected_ptr))
                 .map(|raw_idx| (info.items[raw_idx].clone(), raw_idx))
         }
     };
@@ -530,7 +530,7 @@ impl Command<State> for CompletionCommand {
                                     .set_sel(start_byte + text.len()..=start_byte + text.len());
 
                                 if let Some(additional_edits) = item.additional_text_edits.clone() {
-                                    apply_text_edits_inner(&mut *buf, additional_edits);
+                                    apply_text_edits_inner(&mut buf, additional_edits);
                                 }
 
                                 buf.commit_change_group();
@@ -563,7 +563,7 @@ impl Command<State> for CompletionCommand {
                 if let Some(info) = &mut completion_state.info {
                     info.selected_index += 1;
                     info.cached_doc_buffer = None;
-                    send_resolve_for_selected(&*buf, &mut lsps, info).await;
+                    send_resolve_for_selected(&buf, &mut lsps, info).await;
                 }
             }
             Self::SelectPrevious => {
@@ -578,7 +578,7 @@ impl Command<State> for CompletionCommand {
                 {
                     info.selected_index -= 1;
                     info.cached_doc_buffer = None;
-                    send_resolve_for_selected(&*buf, &mut lsps, info).await;
+                    send_resolve_for_selected(&buf, &mut lsps, info).await;
                 }
             }
         }

@@ -155,11 +155,10 @@ impl Command<State> for DialogueCommand {
                             &*state.lock_state::<CommandPrefixRegistry>().await,
                             &*state.lock_state::<ModeStack>().await,
                         );
-                        if let Some(cmd) = command {
-                            if let Err(e) = state.lock_state::<CommandSender>().await.send(cmd) {
+                        if let Some(cmd) = command
+                            && let Err(e) = state.lock_state::<CommandSender>().await.send(cmd) {
                                 tracing::error!("dialogue: failed to send command: {e}");
                             }
-                        }
                     }
                 }
 

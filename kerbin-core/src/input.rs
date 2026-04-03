@@ -130,14 +130,13 @@ pub async fn handle_inputs(
     }
 
     for event in &events.0 {
-        if let Event::Paste(text) = event {
-            if let Err(e) = command_sender.get().await.send(Box::new(BufferCommand::Append {
+        if let Event::Paste(text) = event
+            && let Err(e) = command_sender.get().await.send(Box::new(BufferCommand::Append {
                 text: text.clone(),
                 extend: false,
             })) {
                 log.high("input", format!("Failed to send paste command: {e}"));
             }
-        }
     }
 
     let resolver_engine = resolver_engine().await;
