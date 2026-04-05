@@ -36,6 +36,10 @@ pub struct CommandInfo {
     pub valid_names: Vec<String>,
     pub args: Vec<(String, String)>,
     pub desc: Vec<String>,
+    /// Positional slot indices (0-based, excluding command name) that should NOT be expanded.
+    pub ignore_positional: Vec<usize>,
+    /// Flag CLI names (e.g. `"--raw"`) whose values should NOT be expanded.
+    pub ignore_flags: Vec<String>,
 }
 
 impl CommandInfo {
@@ -51,6 +55,8 @@ impl CommandInfo {
                 .map(|x| (x.0.to_string(), x.1.to_string()))
                 .collect(),
             desc: desc.into_iter().map(|x| x.to_string()).collect(),
+            ignore_positional: vec![],
+            ignore_flags: vec![],
         }
     }
 

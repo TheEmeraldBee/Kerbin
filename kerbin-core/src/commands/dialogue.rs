@@ -20,9 +20,9 @@ pub enum DialogueCommand {
         input_kind: String,
         #[command(flag)]
         var: String,
-        #[command(flag, name = "commands", type_name = "[command_list]")]
+        #[command(flag, name = "commands", type_name = "[command_list]", ignore)]
         commands: Vec<Token>,
-        #[command(flag, name = "on-change", type_name = "[command_list]")]
+        #[command(flag, name = "on-change", type_name = "[command_list]", ignore)]
         on_change: Option<Vec<Token>>,
     },
 
@@ -140,6 +140,7 @@ impl Command<State> for DialogueCommand {
                     dialogue.active = false;
                     dialogue.input.clear();
                 }
+
                 state.lock_state::<ModeStack>().await.pop_mode();
 
                 resolver_engine_mut().await.set_template(&var_name, &input);
@@ -156,30 +157,25 @@ impl Command<State> for DialogueCommand {
                             &*state.lock_state::<ModeStack>().await,
                         );
                         if let Some(cmd) = command
-                            && let Err(e) = state.lock_state::<CommandSender>().await.send(cmd) {
-                                tracing::error!("dialogue: failed to send command: {e}");
-                            }
+                            && let Err(e) = state.lock_state::<CommandSender>().await.send(cmd)
+                        {
+                            tracing::error!("dialogue: failed to send command: {e}");
+                        }
                     }
                 }
-
-                resolver_engine_mut().await.remove_template(&var_name);
 
                 true
             }
 
             Self::DialogueCancel => {
-                let var_name = {
-                    let mut dialogue = state.lock_state::<DialogueState>().await;
-                    if !dialogue.active {
-                        return false;
-                    }
-                    let var_name = dialogue.var_name.clone();
-                    dialogue.active = false;
-                    dialogue.input.clear();
-                    var_name
-                };
+                let mut dialogue = state.lock_state::<DialogueState>().await;
+                if !dialogue.active {
+                    return false;
+                }
+                dialogue.active = false;
+                dialogue.input.clear();
+
                 state.lock_state::<ModeStack>().await.pop_mode();
-                resolver_engine_mut().await.remove_template(&var_name);
                 true
             }
         }

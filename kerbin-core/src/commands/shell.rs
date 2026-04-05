@@ -14,8 +14,7 @@ use std::process::Stdio;
 #[derive(Debug, Clone, Command)]
 pub enum ShellCommand {
     #[command(drop_ident, name = "shell", name = "sh")]
-    /// Executes a shell command, freezing until it is executed
-    /// Should probably be ignored in favor of spawn or in_place
+    /// Executes a shell command, blocking until it completes.
     Execute(#[command(name = "cmd", type_name = "[string]")] Vec<String>),
 
     #[command(drop_ident, name = "shell_spawn", name = "shsp")]
@@ -29,13 +28,12 @@ pub enum ShellCommand {
     /// `cmd` is the command to run after
     Pipe(
         #[command(flag, name = "pipe", type_name = "[string]")] Vec<String>,
-        #[command(flag, name = "cmd", type_name = "[string]")] Vec<Token>,
+        #[command(flag, name = "cmd", type_name = "[string]", ignore)] Vec<Token>,
     ),
 
-    /// Spawns a shell command, replacing stdin with this
-    /// Reapplies window when rendering app again
+    /// Spawns a shell command in place, pausing the editor until it finishes.
     ///
-    /// Results in pausing the editor until command is finished
+    /// Tears down and restores the terminal around the subprocess.
     #[command(drop_ident, name = "shell_in_place", name = "ship")]
     InPlace(#[command(name = "cmd", type_name = "[string]")] Vec<String>),
 }

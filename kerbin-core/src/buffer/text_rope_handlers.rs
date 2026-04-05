@@ -60,13 +60,13 @@ pub trait SafeRopeAccess {
     /// Gets the byte offset of the char boundary at or before the given byte, clamping input
     fn byte_to_char_boundary(&self, byte: usize) -> usize;
 
-    /// Safely slices the rope
+    /// Safely slices the rope, returning an owned `String`.
     fn slice_to_string(&self, start: usize, end: usize) -> Option<String>;
 
-    /// Safely slices the rope, returning a RopeSlice
+    /// Safely slices the rope, returning a `RopeSlice`.
     fn slice(&self, start: usize, end: usize) -> Option<RopeSlice<'_>>;
 
-    /// Safely slices the rope, returning a RopeSlice
+    /// Slices the rope, clamping the range to valid bounds.
     fn slice_clamped(&self, start: usize, end: usize) -> RopeSlice<'_>;
 
     /// Returns the entire buffer content as a String

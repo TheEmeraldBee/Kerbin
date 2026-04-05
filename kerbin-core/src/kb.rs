@@ -9,6 +9,35 @@ pub struct KbLoadError {
     pub message: String,
 }
 
+/// Merge tab-indented lines into their preceding logical line.
+///
+/// A line starting with a tab character is treated as a continuation of the
+/// previous non-empty line. This allows multi-line commands in `.kb` files:
+///
+/// ```text
+/// bind [ctrl-x]
+///     [some-command --flag value]
+/// ```
+fn merge_tab_continuations(content: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut current = String::new();
+    for line in content.lines() {
+        if line.starts_with('\t') && !current.is_empty() {
+            current.push(' ');
+            current.push_str(line.trim());
+        } else {
+            if !current.is_empty() {
+                result.push(std::mem::take(&mut current));
+            }
+            current = line.to_string();
+        }
+    }
+    if !current.is_empty() {
+        result.push(current);
+    }
+    result
+}
+
 /// Load and execute a `.kb` config file against `state`.
 ///
 /// Lines are tokenized and dispatched through the command registry.
@@ -40,7 +69,7 @@ pub async fn load_kb(path: &Path, state: &mut State) -> Vec<KbLoadError> {
 
     let mut errors = Vec::new();
 
-    for line in content.lines() {
+    for line in &merge_tab_continuations(&content) {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;

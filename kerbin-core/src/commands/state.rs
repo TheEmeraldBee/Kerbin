@@ -3,13 +3,15 @@ use crate::*;
 #[derive(Debug, Clone, Command)]
 pub enum StateCommand {
     #[command(name = "q")]
-    /// Quits the editor, respecting the dirty flag
-    /// see `quit!` for a command that ignores the flag
+    /// Quits the editor. Fails if any buffer has unsaved changes.
+    ///
+    /// See `quit!` to quit without the dirty check.
     Quit,
 
     #[command(drop_ident, name = "quit!", name = "q!")]
-    /// Quits the editor, ignoring the dirty flag
-    /// see `quit` for a command that respects flags
+    /// Quits the editor, ignoring unsaved changes.
+    ///
+    /// See `quit` to quit with the dirty check.
     QuitForce,
 
     #[command(drop_ident, name = "log_session")]

@@ -24,9 +24,9 @@ impl CommandState {
                 Token::Word(s) if s.starts_with("--") => {
                     let flag_name = s.clone();
                     let has_value = match val.get(i + 1) {
-                        Some(Token::Word(v)) if !v.starts_with("--") => true,
-                        Some(Token::List(_)) => true,
-                        _ => false,
+                        Some(Token::Word(v)) if v.starts_with("--") => false,
+                        Some(_) => true,
+                        None => false,
                     };
                     if has_value {
                         flags.insert(flag_name, Some(val[i + 1].clone()));

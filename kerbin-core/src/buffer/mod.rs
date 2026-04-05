@@ -525,6 +525,17 @@ impl TextBuffer {
         Ok(())
     }
 
+    /// Scrolls the viewport by `lines` rows.  The update loop will clamp the cursor
+    /// into the new visible area (with scroll padding) on the next frame.
+    pub fn scroll_lines(&mut self, lines: isize) {
+        let max_scroll = self.len_lines().saturating_sub(1);
+        let new_scroll =
+            (self.renderer.byte_scroll as isize + lines).clamp(0, max_scroll as isize) as usize;
+        self.renderer.byte_scroll = new_scroll;
+        self.renderer.visual_scroll = 0;
+        self.renderer.cursor_drag = true;
+    }
+
     pub fn move_bytes(&mut self, bytes: isize, extend_selection: bool) -> bool {
         if bytes == 0 {
             return false;

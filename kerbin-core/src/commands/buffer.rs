@@ -9,9 +9,8 @@ const SCRATCH_BUFFER_PATH: &str = "<scratch>";
 
 #[derive(Clone, Debug, Command)]
 pub enum CommitCommand {
-    /// Commits the command after it as a change
-    /// Useful for single commands that should always instacommit
-    Commit(#[command(name = "cmd", type_name = "[command]?")] Option<Vec<Token>>),
+    /// Wraps a command in a change group, committing it as a single undoable change.
+    Commit(#[command(name = "cmd", type_name = "[command]?", ignore)] Option<Vec<Token>>),
 }
 
 #[async_trait::async_trait]
@@ -95,38 +94,39 @@ pub enum BufferCommand {
     },
 
     #[command(name = "write", name = "w")]
-    /// Writes the given file to disk
-    /// An optional path can be given to write the file to a different name
-    /// Will not write if filename is <scratch>, or if there are external changes
+    /// Writes the buffer to disk. An optional path overrides the current filename.
     ///
-    /// In order to not respect external changes, see `write_file!`
+    /// Does not write `<scratch>` buffers or when external changes are detected.
+    /// See `write_file!` to write regardless of external changes.
     WriteFile {
         #[command(type_name = "string?")]
         path: Option<String>,
     },
 
     #[command(drop_ident, name = "write_file!", name = "write!", name = "w!")]
-    /// Writes the given file to disk, ignoring metadata
-    /// if you want to respect external changes, see `write_file`
+    /// Writes the given file to disk, ignoring external-change metadata.
+    ///
+    /// See `write_file` to respect external changes.
     WriteFileForce {
         #[command(type_name = "string?")]
         path: Option<String>,
     },
 
     #[command(name = "reload", name = "e")]
-    /// Reloads the current buffer from disk
-    /// Will not reload if the buffer is dirty (has unsaved changes)
-    /// For a version that ignores the dirty flag, see `reload_file!`
+    /// Reloads the current buffer from disk. Fails if the buffer has unsaved changes.
+    ///
+    /// See `reload_file!` to reload regardless of unsaved changes.
     ReloadFile,
 
     #[command(drop_ident, name = "reload!", name = "e!")]
-    /// Reloads the current buffer from disk, ignoring the dirty flag
-    /// If you want to respect the dirty flag, see `reload_file`
+    /// Reloads the current buffer from disk, ignoring unsaved changes.
+    ///
+    /// See `reload_file` to respect unsaved changes.
     ReloadFileForce,
 
-    /// Starts a comittable change (allows for undo and redo)
+    /// Starts a committable change (allows for undo and redo).
     StartChange,
-    /// Commits the active change (does nothing if no change is active)
+    /// Commits the active change. No-op if no change is active.
     CommitChange,
 
     #[command(name = "ins", name = "i")]
@@ -160,11 +160,28 @@ pub enum BufferCommand {
     #[command(name = "jl")]
     /// Joins the current line with the next by replacing the trailing newline with a space
     JoinLine,
+
+    #[command(name = "scroll")]
+    /// Scrolls the viewport by the given number of lines, dragging the primary cursor
+    /// to the nearest visible line (with scroll padding) if it would leave the screen.
+    /// Positive values scroll down, negative values scroll up.
+    ScrollLines {
+        lines: isize,
+    },
 }
 
 #[async_trait::async_trait]
 impl Command<State> for BufferCommand {
     async fn apply(&self, state: &mut State) -> bool {
+        if let BufferCommand::ScrollLines { lines } = self {
+            let mut buffers = state.lock_state::<Buffers>().await;
+            let Some(mut buf) = buffers.cur_text_buffer_mut().await else {
+                return false;
+            };
+            buf.scroll_lines(*lines);
+            return true;
+        }
+
         let mut buffers = state.lock_state::<Buffers>().await;
 
         let log = state.lock_state::<LogSender>().await;
@@ -386,6 +403,8 @@ impl Command<State> for BufferCommand {
                     true
                 }
             }
+
+            BufferCommand::ScrollLines { .. } => unreachable!(),
         }
     }
 }

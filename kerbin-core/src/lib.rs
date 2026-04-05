@@ -37,7 +37,7 @@ pub use kerbin_input::*;
 
 pub use kerbin_command_lang::{
     AsCommandInfo, Command, CommandAny, CommandFromStr, CommandInfo, CommandPrefix, CommandState,
-    Token, tokenize, tokens_to_command_string,
+    Token, tokenize, token_to_string, tokens_to_command_string,
 };
 
 pub use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};

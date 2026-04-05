@@ -48,6 +48,7 @@ pub enum ConfigCommand {
     #[command(drop_ident, name = "bind")]
     Bind {
         keys: Vec<Token>,
+        #[command(ignore)]
         cmds: Vec<Token>,
         #[command(flag)]
         modes: Option<Vec<Token>>,
@@ -77,10 +78,9 @@ pub enum ConfigCommand {
     #[command]
     Template { name: String, value: Token },
 
-    /// List all available templates to the log
+    /// List all available templates to the log.
     ///
-    /// If `contains` is passed, will require that at
-    /// least one substring is within the template's name
+    /// If `--contains` is passed, only templates whose name contains one of the given substrings are listed.
     #[command]
     ListTemplates(#[command(flag, name = "contains", type_name = "[string]?")] Option<Vec<String>>),
 
@@ -158,7 +158,7 @@ pub enum ConfigCommand {
     /// Bind a command to a mouse event.
     /// Valid event names: left-down, left-up, right-down, right-up, middle, scroll-up, scroll-down
     #[command(drop_ident, name = "mouse-bind")]
-    MouseBind { event: String, cmds: Vec<Token> },
+    MouseBind { event: String, #[command(ignore)] cmds: Vec<Token> },
 }
 
 #[async_trait::async_trait]

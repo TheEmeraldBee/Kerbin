@@ -66,6 +66,8 @@ struct CommandField {
     name: Option<String>,
     #[darling(default)]
     flag: bool,
+    #[darling(default)]
+    ignore: bool,
 }
 
 impl CommandVariant {
@@ -149,7 +151,10 @@ enum FieldSource<'a> {
     Positional(usize),
 }
 
-fn emit_field_parser(var: &Ident, ty: &Type, source: FieldSource<'_>) -> TokenStream2 {
+fn emit_field_parser(var: &Ident, ty: &Type, source: FieldSource<'_>, ignore: bool) -> TokenStream2 {
+    if ignore {
+        return emit_field_parser_ignore(var, ty, source);
+    }
     match source {
         FieldSource::Flag(flag_name) => {
             if is_bool_type(ty) {
@@ -282,6 +287,186 @@ fn emit_field_parser(var: &Ident, ty: &Type, source: FieldSource<'_>) -> TokenSt
     }
 }
 
+/// Generates field-parsing code for fields marked `#[command(ignore)]`.
+///
+/// The token at this slot is kept raw (unexpanded). For `Token`/`Option<Token>`/`Vec<Token>` types
+/// the token is used directly. For string-like types it is serialized back with `token_to_string`
+/// so the caller receives the original source form (e.g. `%var`, `$(cmd)`).
+fn emit_field_parser_ignore(var: &Ident, ty: &Type, source: FieldSource<'_>) -> TokenStream2 {
+    match source {
+        FieldSource::Flag(flag_name) => {
+            if is_bool_type(ty) || get_option_inner_type(ty).map(is_bool_type).unwrap_or(false) {
+                // bool/Option<bool> flag: presence-only — ignore has no effect on these.
+                if is_bool_type(ty) {
+                    return quote! { let #var = _state.flags.contains_key(#flag_name); };
+                } else {
+                    return quote! {
+                        let #var = if _state.flags.contains_key(#flag_name) { Some(true) } else { None };
+                    };
+                }
+            }
+
+            if is_token_type(ty) {
+                return quote! {
+                    let #var = match _state.flags.get(#flag_name) {
+                        Some(Some(t)) => t.clone(),
+                        _ => return None,
+                    };
+                };
+            }
+
+            if let Some(inner) = get_option_inner_type(ty) {
+                if is_token_type(inner) {
+                    return quote! {
+                        let #var = match _state.flags.get(#flag_name) {
+                            Some(Some(t)) => Some(t.clone()),
+                            _ => None,
+                        };
+                    };
+                }
+                if get_vec_inner_type(inner).map(is_token_type).unwrap_or(false) {
+                    return quote! {
+                        let #var = match _state.flags.get(#flag_name) {
+                            Some(Some(Token::List(_items))) => Some(_items.clone()),
+                            _ => None,
+                        };
+                    };
+                }
+                if let Some(list_inner) = get_vec_inner_type(inner) {
+                    return quote! {
+                        let #var = match _state.flags.get(#flag_name) {
+                            Some(Some(Token::List(_items))) => Some(
+                                _items.iter().filter_map(|_t| {
+                                    ::kerbin_core::token_to_string(_t).parse::<#list_inner>().ok()
+                                }).collect::<Vec<#list_inner>>()
+                            ),
+                            _ => None,
+                        };
+                    };
+                }
+                return quote! {
+                    let #var = match _state.flags.get(#flag_name) {
+                        Some(Some(_t)) => Some(match ::kerbin_core::token_to_string(_t).parse::<#inner>() {
+                            Ok(_v) => _v,
+                            Err(_e) => return Some(Err(_e.to_string())),
+                        }),
+                        _ => None,
+                    };
+                };
+            }
+
+            if get_vec_inner_type(ty).map(is_token_type).unwrap_or(false) {
+                return quote! {
+                    let #var = match _state.flags.get(#flag_name) {
+                        Some(Some(Token::List(_items))) => _items.clone(),
+                        _ => return None,
+                    };
+                };
+            }
+
+            if let Some(list_inner) = get_vec_inner_type(ty) {
+                return quote! {
+                    let #var = match _state.flags.get(#flag_name) {
+                        Some(Some(Token::List(_items))) => _items.iter().filter_map(|_t| {
+                            ::kerbin_core::token_to_string(_t).parse::<#list_inner>().ok()
+                        }).collect::<Vec<#list_inner>>(),
+                        _ => return None,
+                    };
+                };
+            }
+
+            quote! {
+                let #var = match _state.flags.get(#flag_name) {
+                    Some(Some(_t)) => match ::kerbin_core::token_to_string(_t).parse::<#ty>() {
+                        Ok(_v) => _v,
+                        Err(_e) => return Some(Err(_e.to_string())),
+                    },
+                    _ => return None,
+                };
+            }
+        }
+
+        FieldSource::Positional(i) => {
+            if is_token_type(ty) {
+                return quote! {
+                    let #var = match _state.positional.get(#i) {
+                        Some(t) => t.clone(),
+                        None => return None,
+                    };
+                };
+            }
+
+            if let Some(inner) = get_option_inner_type(ty) {
+                if is_token_type(inner) {
+                    return quote! {
+                        let #var = _state.positional.get(#i).cloned();
+                    };
+                }
+                if get_vec_inner_type(inner).map(is_token_type).unwrap_or(false) {
+                    return quote! {
+                        let #var = match _state.positional.get(#i) {
+                            Some(Token::List(items)) => Some(items.clone()),
+                            _ => None,
+                        };
+                    };
+                }
+                if let Some(list_inner) = get_vec_inner_type(inner) {
+                    return quote! {
+                        let #var = match _state.positional.get(#i) {
+                            Some(Token::List(items)) => Some(
+                                items.iter().filter_map(|t| {
+                                    ::kerbin_core::token_to_string(t).parse::<#list_inner>().ok()
+                                }).collect::<Vec<#list_inner>>()
+                            ),
+                            _ => None,
+                        };
+                    };
+                }
+                return quote! {
+                    let #var = if let Some(t) = _state.positional.get(#i) {
+                        Some(match ::kerbin_core::token_to_string(t).parse::<#inner>() {
+                            Ok(v) => v,
+                            Err(e) => return Some(Err(e.to_string())),
+                        })
+                    } else {
+                        None
+                    };
+                };
+            }
+
+            if get_vec_inner_type(ty).map(is_token_type).unwrap_or(false) {
+                return quote! {
+                    let #var = match _state.positional.get(#i) {
+                        Some(Token::List(items)) => items.clone(),
+                        _ => return None,
+                    };
+                };
+            }
+
+            if let Some(list_inner) = get_vec_inner_type(ty) {
+                return quote! {
+                    let #var = match _state.positional.get(#i) {
+                        Some(Token::List(items)) => items.iter().filter_map(|t| {
+                            ::kerbin_core::token_to_string(t).parse::<#list_inner>().ok()
+                        }).collect::<Vec<#list_inner>>(),
+                        _ => return None,
+                    };
+                };
+            }
+
+            quote! {
+                let #var = match _state.positional.get(#i) {
+                    Some(t) => match ::kerbin_core::token_to_string(t).parse::<#ty>() {
+                        Ok(v) => v,
+                        Err(e) => return Some(Err(e.to_string())),
+                    },
+                    None => return None,
+                };
+            }
+        }
+    }
+}
+
 #[proc_macro_derive(Command, attributes(command))]
 pub fn command_derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);
@@ -314,11 +499,34 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                     quote! { (#name.to_string(), #type_name.to_string()) }
                 })
                 .collect();
+
+            let mut pos_idx = 0usize;
+            let ignore_positional: Vec<usize> = v
+                .fields
+                .iter()
+                .filter_map(|f| {
+                    if f.flag {
+                        return None;
+                    }
+                    let idx = pos_idx;
+                    pos_idx += 1;
+                    if f.ignore { Some(idx) } else { None }
+                })
+                .collect();
+            let ignore_flag_names: Vec<String> = v
+                .fields
+                .iter()
+                .filter(|f| f.flag && f.ignore)
+                .map(|f| f.flag_cli_name())
+                .collect();
+
             quote! {
                 CommandInfo {
                     valid_names: vec![#(#names.to_string()),*],
                     args: vec![#(#field_name_types),*],
                     desc: #desc,
+                    ignore_positional: vec![#(#ignore_positional),*],
+                    ignore_flags: vec![#(#ignore_flag_names.to_string()),*],
                 }
             }
         })
@@ -383,7 +591,7 @@ pub fn command_derive(input: TokenStream) -> TokenStream {
                         FieldSource::Positional(idx)
                     };
 
-                    let parser = emit_field_parser(&var, ty, source);
+                    let parser = emit_field_parser(&var, ty, source, field.ignore);
                     let assignment = field.field_assignment(variant.fields.style, &var);
                     (parser, assignment)
                 })

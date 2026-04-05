@@ -123,7 +123,30 @@ impl CommandRegistry {
         modes: &ModeStack,
     ) -> Option<Box<dyn Command<State>>> {
         if let Some(resolver) = resolver {
-            tokens = resolver.expand_tokens(tokens, allow_run);
+            // Two-phase expansion: first identify the command by name, then expand
+            // only the slots that are not marked `ignore` in that command's metadata.
+            let (ignore_pos, ignore_flags): (Vec<usize>, Vec<String>) =
+                match tokens.first() {
+                    Some(Token::Word(name)) => self
+                        .0
+                        .iter()
+                        .flat_map(|s| &s.infos)
+                        .find(|info| info.check_name(name.as_str()))
+                        .map(|info| {
+                            (info.ignore_positional.clone(), info.ignore_flags.clone())
+                        })
+                        .unwrap_or_default(),
+                    _ => Default::default(),
+                };
+
+            let ignore_flags_ref: Vec<&str> =
+                ignore_flags.iter().map(|s| s.as_str()).collect();
+            tokens = resolver.expand_tokens_selective(
+                tokens,
+                allow_run,
+                &ignore_pos,
+                &ignore_flags_ref,
+            );
         }
 
         if !prefix_checked {

@@ -3,28 +3,27 @@ use crate::*;
 #[derive(Clone, Command)]
 pub enum CursorCommand {
     #[command(name = "cc")]
-    /// Duplicates the primary cursor
-    /// Should always run 2 commands, one to do something, then one to move the cursor
-    /// Else the cursor will get cleared immediately after
-    /// Also sets the primary cursor to the new one
+    /// Duplicates the primary cursor and sets it as the new primary.
+    ///
+    /// Follow this with a cursor-movement command; the duplicated cursor is cleared
+    /// if its position is not moved before the next frame.
     CreateCursor,
 
     #[command(name = "cac")]
-    /// Moves the active cursor by an offset
+    /// Moves the active cursor by an offset.
     ChangeActiveCursor(#[command(name = "offset")] isize),
 
     #[command(name = "dc")]
-    /// Will drop the primary cursor (assuming there are more than one cursor)
+    /// Drops the primary cursor (no-op if it is the only cursor).
     DropCursor,
 
     #[command(name = "dcs")]
-    /// Will clear all cursors other than the primary cursor
+    /// Clears all cursors except the primary cursor.
     DropOtherCursors,
 
     #[command(drop_ident, name = "apply_all_cursor", name = "aa")]
-    /// Applies the following command to all cursors
-    /// Emulates a true multicursor environment
-    ApplyAll(#[command(name = "cmd", type_name = "[command]")] Vec<Token>),
+    /// Applies a command to every cursor, emulating a true multicursor environment.
+    ApplyAll(#[command(name = "cmd", type_name = "[command]", ignore)] Vec<Token>),
 }
 
 #[async_trait::async_trait]

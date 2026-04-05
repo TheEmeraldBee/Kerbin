@@ -148,6 +148,82 @@ impl<'a> Resolver<'a> {
             .collect()
     }
 
+    /// Like [`expand_tokens`], but skips expansion for specific positional slots and flag values.
+    ///
+    /// Uses the same slot-tracking logic as `CommandState::parse`:
+    /// - Slot 0 (command name) is always passed through unchanged.
+    /// - `--flag` words are flag names (never expanded); the next token is the flag value.
+    /// - Everything else is a positional argument counted from 0.
+    ///
+    /// Tokens at positions listed in `ignore_positional`, and values for flags listed in
+    /// `ignore_flags`, are kept verbatim (including any nested contents).
+    pub fn expand_tokens_selective(
+        &self,
+        tokens: Vec<Token>,
+        allow_run: bool,
+        ignore_positional: &[usize],
+        ignore_flags: &[&str],
+    ) -> Vec<Token> {
+        if ignore_positional.is_empty() && ignore_flags.is_empty() {
+            return self.expand_tokens(tokens, allow_run);
+        }
+
+        let mut result = Vec::with_capacity(tokens.len());
+        let mut i = 0usize;
+        let mut pos_idx = 0usize;
+        let mut errors = vec![];
+
+        while i < tokens.len() {
+            // Slot 0 is the command name — always pass through as-is.
+            if i == 0 {
+                result.push(tokens[i].clone());
+                i += 1;
+                continue;
+            }
+
+            match &tokens[i] {
+                Token::Word(s) if s.starts_with("--") => {
+                    let flag_name = s.clone();
+                    result.push(Token::Word(flag_name.clone()));
+                    i += 1;
+
+                    // Check if the next token is a flag value (any non-`--Word` token).
+                    let has_value = match tokens.get(i) {
+                        Some(Token::Word(v)) if v.starts_with("--") => false,
+                        Some(_) => true,
+                        None => false,
+                    };
+
+                    if has_value {
+                        let value_tok = tokens[i].clone();
+                        if ignore_flags.contains(&flag_name.as_str()) {
+                            result.push(value_tok);
+                        } else {
+                            result.extend(
+                                self.expand_tokens_reporting(vec![value_tok], allow_run, &mut errors),
+                            );
+                        }
+                        i += 1;
+                    }
+                }
+                other => {
+                    let tok = other.clone();
+                    if ignore_positional.contains(&pos_idx) {
+                        result.push(tok);
+                    } else {
+                        result.extend(
+                            self.expand_tokens_reporting(vec![tok], allow_run, &mut errors),
+                        );
+                    }
+                    pos_idx += 1;
+                    i += 1;
+                }
+            }
+        }
+
+        result
+    }
+
     /// Expand a raw string by tokenizing it and resolving variables/substitutions.
     /// Used as a compatibility shim where a flat string result is needed.
     pub fn expand_str(&self, input: &str, allow_run: bool) -> String {

@@ -16,6 +16,10 @@ pub struct BufferRenderer {
 
     /// The scroll horizontally of the lines
     pub h_scroll: usize,
+
+    /// Set by `scroll_lines` to tell the update loop to clamp the cursor into the viewport
+    /// (rather than scrolling to follow the cursor).
+    pub cursor_drag: bool,
 }
 
 impl BufferRenderer {

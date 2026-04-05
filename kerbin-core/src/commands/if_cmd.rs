@@ -7,21 +7,21 @@ pub enum IfCommand {
     ///
     /// The `--invert` flag inverts the check result.
     If {
-        #[command(type_name = "[check]")]
+        #[command(type_name = "[check]", ignore)]
         check: Vec<Token>,
 
-        #[command(flag, type_name = "[command]")]
+        #[command(flag, type_name = "[command]", ignore)]
         cmds: Option<Vec<Token>>,
 
-        #[command(flag, type_name = "[command]")]
+        #[command(flag, type_name = "[command]", ignore)]
         else_cmds: Option<Vec<Token>>,
     },
 
     Then {
-        #[command(type_name = "[command]")]
+        #[command(type_name = "[command]", ignore)]
         first: Vec<Token>,
 
-        #[command(type_name = "[command]")]
+        #[command(type_name = "[command]", ignore)]
         then: Vec<Token>,
     },
 }

@@ -3,17 +3,13 @@ use crate::*;
 #[derive(Command)]
 pub enum RegisterCommand {
     #[command(name = "copy")]
-    /// Copy the text inside your selection into a register
-    ///
-    /// Defaults to the 'a' register
+    /// Copies the selected text into a register. Defaults to the `a` register.
     CopyRegister(#[command(type_name = "char?", name = "register")] Option<char>),
 
     #[command(name = "paste")]
-    /// Paste the text inside your register into the editor using a 'a' command
+    /// Pastes the contents of a register at the cursor. Defaults to the `a` register.
     ///
-    /// Defaults to the 'a' register
-    ///
-    /// Use --extend to extend the selection to the pasted text
+    /// Use `--extend` to extend the selection to include the pasted text.
     PasteRegister(
         #[command(type_name = "char?", name = "register")] Option<char>,
         #[command(flag, name = "extend")] bool,
@@ -24,9 +20,9 @@ pub enum RegisterCommand {
     ClipboardCopy,
 
     #[command(name = "cbpaste")]
-    /// Paste from the OS clipboard
+    /// Pastes from the OS clipboard.
     ///
-    /// Use --extend to extend the selection to the pasted text
+    /// Use `--extend` to extend the selection to include the pasted text.
     ClipboardPaste(#[command(flag, name = "extend")] bool),
 }
 

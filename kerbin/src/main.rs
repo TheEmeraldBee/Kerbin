@@ -503,9 +503,9 @@ async fn main() {
             vec!["goto %mouse_col %mouse_line".to_string()],
         );
         mb.bindings
-            .insert(MouseTrigger::ScrollUp, vec!["ml -3".to_string()]);
+            .insert(MouseTrigger::ScrollUp, vec!["scroll -3".to_string()]);
         mb.bindings
-            .insert(MouseTrigger::ScrollDown, vec!["ml 3".to_string()]);
+            .insert(MouseTrigger::ScrollDown, vec!["scroll 3".to_string()]);
     }
 
     state
@@ -528,11 +528,7 @@ async fn main() {
             "core::update_palette_suggestions",
             update_palette_suggestions,
         )
-        .system_named("core::update_dialogue", update_dialogue_validation)
-        .system_named(
-            "core::render_cursors_and_selections",
-            render_cursors_and_selections,
-        );
+        .system_named("core::update_dialogue", update_dialogue_validation);
 
     state
         .on_hook(hooks::PostUpdate)
@@ -550,6 +546,11 @@ async fn main() {
             update_buffer_vertical_scroll,
         )
         .system_named("core::update_bufferline_scroll", update_bufferline_scroll);
+
+    state.on_hook(hooks::PreRender).system_named(
+        "core::render_cursors_and_selections",
+        render_cursors_and_selections,
+    );
 
     state
         .on_hook(hooks::Render)

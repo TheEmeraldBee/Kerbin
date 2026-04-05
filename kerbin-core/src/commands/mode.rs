@@ -3,8 +3,9 @@ use crate::*;
 #[derive(Debug, Clone, Command)]
 pub enum ModeCommand {
     #[command(name = "cm")]
-    /// Clears the mode stack and sets it to the given char
-    /// Should almost never be used, please use "pm" and "rm" instead
+    /// Clears the mode stack and sets it to the given char.
+    ///
+    /// Prefer `pm`/`rm` for normal modal transitions.
     ChangeMode(char),
 
     #[command(name = "pm")]
