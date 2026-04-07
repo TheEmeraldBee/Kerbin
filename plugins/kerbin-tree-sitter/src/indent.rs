@@ -351,12 +351,49 @@ fn check_predicates(entry: &QueryMatchEntry) -> bool {
     let pattern_idx = entry.query_match.pattern_index;
 
     for predicate in query.general_predicates(pattern_idx) {
-        if predicate.operator.as_ref() == "not-same-line?" && !check_not_same_line(predicate, entry)
-        {
-            return false;
+        match predicate.operator.as_ref() {
+            "not-same-line?" => {
+                if !check_not_same_line(predicate, entry) {
+                    return false;
+                }
+            }
+            "kind-eq?" => {
+                if !check_kind_eq(predicate, entry) {
+                    return false;
+                }
+            }
+            "not-kind-eq?" => {
+                if check_kind_eq(predicate, entry) {
+                    return false;
+                }
+            }
+            _ => {}
         }
     }
     true
+}
+
+fn check_kind_eq(predicate: &QueryPredicate, entry: &QueryMatchEntry) -> bool {
+    let mut capture_idx: Option<u32> = None;
+    let mut expected_kind: Option<&str> = None;
+
+    for arg in &predicate.args {
+        match arg {
+            QueryPredicateArg::Capture(idx) => capture_idx = Some(*idx),
+            QueryPredicateArg::String(s) => expected_kind = Some(s.as_ref()),
+        }
+    }
+
+    let (Some(idx), Some(kind)) = (capture_idx, expected_kind) else {
+        return true;
+    };
+
+    entry
+        .query_match
+        .captures
+        .iter()
+        .filter(|c| c.index == idx)
+        .any(|c| c.node.kind() == kind)
 }
 
 fn check_not_same_line(predicate: &QueryPredicate, entry: &QueryMatchEntry) -> bool {

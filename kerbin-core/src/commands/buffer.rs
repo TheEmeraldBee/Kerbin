@@ -182,6 +182,8 @@ impl Command<State> for BufferCommand {
             return true;
         }
 
+        let tab_w = state.lock_state::<CoreConfig>().await.tab_display_unit.chars().count();
+
         let mut buffers = state.lock_state::<Buffers>().await;
 
         let log = state.lock_state::<LogSender>().await;
@@ -194,7 +196,7 @@ impl Command<State> for BufferCommand {
 
         match self {
             BufferCommand::MoveBytes { bytes, extend } => cur_buffer.move_bytes(*bytes, *extend),
-            BufferCommand::MoveLines { lines, extend } => cur_buffer.move_lines(*lines, *extend),
+            BufferCommand::MoveLines { lines, extend } => cur_buffer.move_lines(*lines, *extend, tab_w),
             BufferCommand::MoveChars { chars, extend } => cur_buffer.move_chars(*chars, *extend),
             BufferCommand::GoTo { row, col, extend } => {
                 let line_byte = cur_buffer.line_to_byte_clamped(*row);

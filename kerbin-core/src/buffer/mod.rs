@@ -567,44 +567,26 @@ impl TextBuffer {
         new_caret_byte != current_caret_byte
     }
 
-    pub fn move_lines(&mut self, rows: isize, extend_selection: bool) -> bool {
+    pub fn move_lines(&mut self, rows: isize, extend_selection: bool, tab_w: usize) -> bool {
         if rows == 0 {
             return false;
         }
 
-        let current_cursor = self.primary_cursor();
-        let current_caret_byte = current_cursor.get_cursor_byte();
-
+        let current_caret_byte = self.primary_cursor().get_cursor_byte();
         let current_line_idx = self.byte_to_line_clamped(current_caret_byte);
         let line_start_byte = self.line_to_byte_clamped(current_line_idx);
-        let current_col_char_idx = self.byte_to_char_clamped(current_caret_byte)
-            - self.byte_to_char_clamped(line_start_byte);
+
+        let line_prefix = self.slice_to_string(line_start_byte, current_caret_byte).unwrap_or_default();
+        let current_visual_col = byte_offset_to_display_col(&line_prefix, line_prefix.len(), tab_w);
 
         let total_lines = self.len_lines();
-        let mut target_line_idx = current_line_idx.saturating_add_signed(rows);
-        target_line_idx = target_line_idx.clamp(0, total_lines.saturating_sub(1));
+        let target_line_idx = current_line_idx
+            .saturating_add_signed(rows)
+            .clamp(0, total_lines.saturating_sub(1));
 
-        let line_slice = self.line_clamped(target_line_idx);
-        let line_len_with_ending = line_slice.len_chars();
-        let endline_text = line_slice
-            .chars_at(line_len_with_ending.saturating_sub(2))
-            .collect::<String>();
-
-        let line_ending_len = if endline_text.ends_with("\r\n") {
-            2
-        } else if endline_text.ends_with("\n") || endline_text.ends_with("\r") {
-            1
-        } else {
-            0
-        };
-        let line_len_without_ending = line_len_with_ending - line_ending_len;
-
-        let final_col_char_idx = current_col_char_idx.min(line_len_without_ending);
-
-        let new_caret_byte = self.line_to_byte_clamped(target_line_idx)
-            + self
-                .line_clamped(target_line_idx)
-                .char_to_byte(final_col_char_idx);
+        let target_line_text = self.line_clamped(target_line_idx).to_string();
+        let target_byte_offset = display_col_to_byte_offset(&target_line_text, current_visual_col, tab_w);
+        let new_caret_byte = self.line_to_byte_clamped(target_line_idx) + target_byte_offset;
 
         let cursor_mut = self.primary_cursor_mut();
 

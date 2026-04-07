@@ -13,7 +13,10 @@ use ratatui::{
 
 use ropey::RopeSlice;
 
-use crate::{text_edit::apply_text_edits_inner, JsonRpcMessage, LspManager, OpenedFile};
+use crate::{
+    text_edit::{apply_text_edits_inner, cursor_adjustment_for_edits},
+    JsonRpcMessage, LspManager, OpenedFile,
+};
 use kerbin_tree_sitter::{grammar_manager::GrammarManager, state::highlight_text};
 
 struct CompletionWidget(ratatui::buffer::Buffer);
@@ -526,11 +529,21 @@ impl Command<State> for CompletionCommand {
                                     content: text.clone(),
                                 });
 
-                                buf.primary_cursor_mut()
-                                    .set_sel(start_byte + text.len()..=start_byte + text.len());
+                                let cursor_byte = start_byte + text.len();
 
                                 if let Some(additional_edits) = item.additional_text_edits.clone() {
+                                    let adjustment = cursor_adjustment_for_edits(
+                                        &buf,
+                                        &additional_edits,
+                                        cursor_byte,
+                                    );
                                     apply_text_edits_inner(&mut buf, additional_edits);
+                                    let final_cursor = (cursor_byte as isize + adjustment) as usize;
+                                    buf.primary_cursor_mut()
+                                        .set_sel(final_cursor..=final_cursor);
+                                } else {
+                                    buf.primary_cursor_mut()
+                                        .set_sel(cursor_byte..=cursor_byte);
                                 }
 
                                 buf.commit_change_group();

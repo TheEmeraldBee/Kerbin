@@ -27,6 +27,34 @@ pub fn display_col_to_byte_offset(
     byte_offset
 }
 
+/// Converts a byte offset within a line to the visual display column,
+/// expanding tabs to `tab_display_width` columns and counting other
+/// graphemes by their Unicode display width.
+pub fn byte_offset_to_display_col(
+    line_text: &str,
+    byte_offset: usize,
+    tab_display_width: usize,
+) -> usize {
+    let mut visual_col = 0usize;
+    let mut consumed = 0usize;
+    for g in line_text.graphemes(true) {
+        if consumed >= byte_offset {
+            break;
+        }
+        if g == "\n" || g == "\r\n" || g == "\r" {
+            break;
+        }
+        let w = if g == "\t" {
+            tab_display_width
+        } else {
+            grapheme_display_width(g)
+        };
+        visual_col += w;
+        consumed += g.len();
+    }
+    visual_col
+}
+
 pub async fn update_buffer_horizontal_scroll(
     chunks: Res<Chunks>,
     split: Res<SplitState>,
@@ -86,8 +114,10 @@ pub async fn update_buffer_vertical_scroll(
     chunks: Res<Chunks>,
     split: Res<SplitState>,
     buffers: ResMut<Buffers>,
+    core_config: Res<CoreConfig>,
 ) {
-    get!(chunks, split, mut buffers);
+    get!(chunks, split, mut buffers, core_config);
+    let tab_w = core_config.tab_display_unit.chars().count();
 
     let viewport_height = split
         .focused_leaf_idx()
@@ -130,7 +160,7 @@ pub async fn update_buffer_vertical_scroll(
         let target_line = cursor_line_idx.clamp(top_bound, bottom_bound);
 
         if target_line != cursor_line_idx {
-            drag_cursor_to_line(&mut buf, cursor_byte, cursor_line_idx, target_line);
+            drag_cursor_to_line(&mut buf, cursor_byte, cursor_line_idx, target_line, tab_w);
         }
         return;
     }
@@ -153,28 +183,15 @@ pub async fn update_buffer_vertical_scroll(
     buf.renderer.byte_scroll = buf.renderer.byte_scroll.min(max_byte_scroll);
 }
 
-/// Moves the primary cursor to `target_line`, preserving the current column.
-fn drag_cursor_to_line(buf: &mut TextBuffer, cursor_byte: usize, cursor_line: usize, target_line: usize) {
+/// Moves the primary cursor to `target_line`, preserving the current visual column.
+fn drag_cursor_to_line(buf: &mut TextBuffer, cursor_byte: usize, cursor_line: usize, target_line: usize, tab_w: usize) {
     let line_start_byte = buf.line_to_byte_clamped(cursor_line);
-    let current_col_char_idx =
-        buf.byte_to_char_clamped(cursor_byte) - buf.byte_to_char_clamped(line_start_byte);
+    let line_prefix = buf.slice_to_string(line_start_byte, cursor_byte).unwrap_or_default();
+    let visual_col = byte_offset_to_display_col(&line_prefix, line_prefix.len(), tab_w);
 
-    let target_slice = buf.line_clamped(target_line);
-    let line_len_with_ending = target_slice.len_chars();
-    let endline_text = target_slice
-        .chars_at(line_len_with_ending.saturating_sub(2))
-        .collect::<String>();
-    let line_ending_len = if endline_text.ends_with("\r\n") {
-        2
-    } else if endline_text.ends_with('\n') || endline_text.ends_with('\r') {
-        1
-    } else {
-        0
-    };
-
-    let final_col = current_col_char_idx.min(line_len_with_ending.saturating_sub(line_ending_len));
-    let new_caret_byte =
-        buf.line_to_byte_clamped(target_line) + buf.line_clamped(target_line).char_to_byte(final_col);
+    let target_line_text = buf.line_clamped(target_line).to_string();
+    let target_byte_offset = display_col_to_byte_offset(&target_line_text, visual_col, tab_w);
+    let new_caret_byte = buf.line_to_byte_clamped(target_line) + target_byte_offset;
 
     let cursor_mut = buf.primary_cursor_mut();
     cursor_mut.set_sel(new_caret_byte..=new_caret_byte);

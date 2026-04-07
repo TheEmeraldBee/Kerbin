@@ -68,6 +68,58 @@ pub(crate) fn apply_text_edits_inner(buf: &mut TextBuffer, mut edits: Vec<TextEd
     }
 }
 
+/// Computes the net byte offset adjustment to a cursor position caused by applying
+/// a set of LSP text edits. Only edits whose start byte is before `cursor_byte`
+/// contribute to the result. The buffer must be in the state it will be in when
+/// `apply_text_edits_inner` is called (i.e., before any of these edits are applied).
+pub(crate) fn cursor_adjustment_for_edits(
+    buf: &TextBuffer,
+    edits: &[TextEdit],
+    cursor_byte: usize,
+) -> isize {
+    let line_content_len = |line_slice: &RopeSlice<'_>| {
+        let mut len = line_slice.len_chars();
+        if len > 0 {
+            match line_slice.char(len - 1) {
+                '\n' => {
+                    len -= 1;
+                    if len > 0 && line_slice.char(len - 1) == '\r' {
+                        len -= 1;
+                    }
+                }
+                '\r' => len -= 1,
+                _ => {}
+            }
+        }
+        len
+    };
+
+    let mut adjustment: isize = 0;
+    for edit in edits {
+        let max_line = buf.len_lines().saturating_sub(1);
+        let start_line = (edit.range.start.line as usize).min(max_line);
+        let end_line = (edit.range.end.line as usize).min(max_line);
+
+        let start_line_slice = buf.line_clamped(start_line);
+        let start_char =
+            (edit.range.start.character as usize).min(line_content_len(&start_line_slice));
+        let edit_start_byte =
+            buf.line_to_byte_clamped(start_line) + start_line_slice.char_to_byte(start_char);
+
+        if edit_start_byte < cursor_byte {
+            let end_line_slice = buf.line_clamped(end_line);
+            let end_char =
+                (edit.range.end.character as usize).min(line_content_len(&end_line_slice));
+            let edit_end_byte =
+                buf.line_to_byte_clamped(end_line) + end_line_slice.char_to_byte(end_char);
+
+            adjustment +=
+                edit.new_text.len() as isize - (edit_end_byte as isize - edit_start_byte as isize);
+        }
+    }
+    adjustment
+}
+
 /// Applies a list of LSP text edits to a buffer as a single atomic undo group.
 pub fn apply_text_edits(buf: &mut TextBuffer, edits: Vec<TextEdit>) {
     if edits.is_empty() {

@@ -77,14 +77,12 @@ impl KerbinBuffer for TextBuffer {
 
     fn render(&mut self, area: Rect, chunk: &mut InnerChunk, focused: bool, ctx: &RenderContext) {
         let tab_style = ctx.theme.get_fallback_default(["ui.text.tabs", "ui.text"]);
-        let cursor_on_tab_style = ctx.theme.get_fallback_default(["ui.selection"]);
         let mut cursor_state = CursorRenderState::default();
         TextBufferWidget::new(self)
             .with_vertical_scroll(self.renderer.byte_scroll)
             .with_horizontal_scroll(self.renderer.h_scroll)
             .with_tab_display_unit(ctx.core_config.tab_display_unit.clone())
             .with_tab_style(tab_style)
-            .with_cursor_on_tab_style(cursor_on_tab_style)
             .with_reveal_conceal_on_cursor_line(ctx.core_config.reveal_conceal_on_cursor_line)
             .render(area, chunk, &mut cursor_state);
         if focused {

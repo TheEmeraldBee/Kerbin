@@ -15,7 +15,6 @@ pub struct TextBufferWidget<'a> {
     h_scroll: usize,
     tab_display_unit: String,
     tab_style: Style,
-    cursor_on_tab_style: Style,
     reveal_conceal_on_cursor_line: bool,
 }
 
@@ -27,7 +26,6 @@ impl<'a> TextBufferWidget<'a> {
             h_scroll: 0,
             tab_display_unit: "    ".to_string(),
             tab_style: Style::default(),
-            cursor_on_tab_style: Style::default(),
             reveal_conceal_on_cursor_line: true,
         }
     }
@@ -54,11 +52,6 @@ impl<'a> TextBufferWidget<'a> {
 
     pub fn with_tab_style(mut self, style: Style) -> Self {
         self.tab_style = style;
-        self
-    }
-
-    pub fn with_cursor_on_tab_style(mut self, style: Style) -> Self {
-        self.cursor_on_tab_style = style;
         self
     }
 
@@ -199,12 +192,13 @@ impl<'a> TextBufferWidget<'a> {
             segments.overlay_at(display_col, chunks);
         }
 
-        let cursor_display_cols: Vec<usize> = lm
+        let cursor_display_cols: Vec<(usize, Style)> = lm
             .cursors
             .iter()
-            .map(|&(col, _, _, _)| {
+            .map(|&(col, style, _, _)| {
                 let char_col = buffer_to_display(col, &effective_conceals);
-                char_col_to_display_col(&full_line_text, char_col, &self.tab_display_unit)
+                let display_col = char_col_to_display_col(&full_line_text, char_col, &self.tab_display_unit);
+                (display_col, style)
             })
             .collect();
 
@@ -213,14 +207,13 @@ impl<'a> TextBufferWidget<'a> {
             width,
             &self.tab_display_unit,
             self.tab_style,
-            self.cursor_on_tab_style,
             &cursor_display_cols,
         );
 
         let cursors: Vec<(usize, CursorShape)> = cursor_display_cols
             .iter()
             .zip(lm.cursors.iter())
-            .map(|(&display_col, &(_, _, _, shape))| (display_col, shape))
+            .map(|(&(display_col, _), &(_, _, _, shape))| (display_col, shape))
             .collect();
 
         append_eol_and_right_align(
@@ -528,8 +521,7 @@ impl SegmentList {
         width: usize,
         tab_display_unit: &str,
         tab_style: Style,
-        cursor_on_tab_style: Style,
-        cursor_display_cols: &[usize],
+        cursor_display_cols: &[(usize, Style)],
     ) -> Vec<Span<'static>> {
         let mut spans = Vec::new();
         let mut display_col = 0usize;
@@ -553,10 +545,12 @@ impl SegmentList {
                     if !visible.is_empty() {
                         spans.push(Span::styled(std::mem::take(&mut visible), seg.style));
                     }
-                    let style = if cursor_display_cols.contains(&display_col) {
-                        cursor_on_tab_style
+                    let style = if let Some(&(_, cursor_style)) =
+                        cursor_display_cols.iter().find(|&&(col, _)| col == display_col)
+                    {
+                        cursor_style
                     } else {
-                        tab_style
+                        seg.style.patch(tab_style)
                     };
                     spans.push(Span::styled(tab_display_unit.to_owned(), style));
                     display_col += unit_w;
