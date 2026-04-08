@@ -23,18 +23,16 @@ pub enum GrammarManagerError {
 
 #[derive(State, Default)]
 pub struct GrammarManager {
-    pub ext_map: HashMap<String, String>,
     pub lang_map: HashMap<String, GrammarDefinition>,
     pub loaded_grammars: HashMap<String, Arc<Grammar>>,
-
     pub query_map: HashMap<String, HashMap<String, Arc<Query>>>,
 }
 
 impl GrammarManager {
-    pub async fn register_extension_handlers(&self, state: &mut State) {
-        for ext in self.ext_map.keys() {
+    pub async fn register_filetype_handlers(&self, state: &mut State) {
+        for filetype in self.lang_map.keys() {
             state
-                .on_hook(hooks::UpdateFiletype::new(ext))
+                .on_hook(hooks::UpdateFiletype::new(filetype))
                 .system(crate::state::open_files)
                 .system(crate::state::update_trees)
                 .system(crate::highlighter::highlight_file)
@@ -44,25 +42,46 @@ impl GrammarManager {
 
     pub async fn install_all_grammars(&self, state: &State) {
         let config_path = state.lock_state::<ConfigFolder>().await.0.clone();
+        let log = state.lock_state::<LogSender>().await.clone();
 
         let mut to_load = vec![];
+        let mut already_installed = vec![];
 
         for grammar in self.lang_map.values() {
             let lib_paths = grammar.get_file_paths(&config_path);
-
             if find_library(&lib_paths).is_none() {
                 to_load.push(grammar.clone());
+            } else {
+                already_installed.push(grammar.name.as_str());
             }
         }
 
-        let log = state.lock_state::<LogSender>().await.clone();
+        if !already_installed.is_empty() {
+            already_installed.sort();
+            log.low(
+                "tree-sitter::install_all_grammars",
+                format!(
+                    "{} grammars already installed: {}",
+                    already_installed.len(),
+                    already_installed.join(", ")
+                ),
+            );
+        }
 
         if to_load.is_empty() {
             log.low(
                 "tree-sitter::install_all_grammars",
-                "All grammars already installed",
+                "All grammars already installed, nothing to do",
             );
+            return;
         }
+
+        let mut names: Vec<&str> = to_load.iter().map(|g| g.name.as_str()).collect();
+        names.sort();
+        log.low(
+            "tree-sitter::install_all_grammars",
+            format!("Installing {} grammars: {}", to_load.len(), names.join(", ")),
+        );
 
         for grammar in to_load {
             let log = log.clone();
@@ -74,16 +93,13 @@ impl GrammarManager {
                     Ok(_) => {
                         log.low(
                             "tree-sitter::install_language",
-                            format!("Grammar for {grammar_name} successfully installed!"),
+                            format!("Installed grammar: {grammar_name}"),
                         );
                     }
                     Err(e) => {
                         log.critical(
                             "tree-sitter::install_language",
-                            format!(
-                                "Failed to install language {} due to error: {}",
-                                grammar_name, e
-                            ),
+                            format!("Failed to install grammar {grammar_name}: {e}"),
                         );
                     }
                 }
@@ -103,11 +119,6 @@ impl GrammarManager {
             match entry {
                 GrammarEntry::Definition(def) => {
                     let normalized = normalize_lang_name(&def.name);
-
-                    for ext in &def.exts {
-                        ret.ext_map.insert(ext.to_lowercase(), normalized.clone());
-                    }
-
                     ret.lang_map.insert(normalized, def);
                 }
                 GrammarEntry::Alias {
@@ -129,21 +140,11 @@ impl GrammarManager {
                 ));
             };
 
-            new_grammar.exts = exts.clone();
-
-            ret.lang_map.insert(normalized_new.clone(), new_grammar);
-
-            for ext in exts {
-                ret.ext_map
-                    .insert(ext.to_lowercase(), normalized_new.clone());
-            }
+            new_grammar.exts = exts;
+            ret.lang_map.insert(normalized_new, new_grammar);
         }
 
         Ok(ret)
-    }
-
-    pub fn ext_to_lang(&self, ext: &str) -> Option<&str> {
-        self.ext_map.get(ext).map(|x| x.as_str())
     }
 
     pub fn get_grammar(
@@ -199,6 +200,54 @@ impl GrammarManager {
         Some((query, injected_queries))
     }
 
+    fn get_query_source(
+        &self,
+        config_path: &str,
+        lang: &str,
+        query_name: &str,
+        visited: &mut std::collections::HashSet<String>,
+    ) -> Option<String> {
+        if !visited.insert(lang.to_string()) {
+            return Some(String::new());
+        }
+
+        let paths = self.get_query_paths(config_path, lang, query_name);
+        let source = match paths.iter().find_map(|path| std::fs::read_to_string(path).ok()) {
+            Some(s) => s,
+            None => {
+                tracing::debug!(
+                    "tree-sitter: no '{query_name}' query file found for '{lang}', checked: {paths:?}"
+                );
+                return None;
+            }
+        };
+
+        let mut inherited_langs: Vec<String> = Vec::new();
+        for line in source.lines() {
+            if let Some(rest) = line.strip_prefix("; inherits:") {
+                for lang in rest.trim().split(',') {
+                    inherited_langs.push(normalize_lang_name(lang.trim()));
+                }
+            }
+        }
+
+        if inherited_langs.is_empty() {
+            return Some(source);
+        }
+
+        let mut combined = String::new();
+        for inherited in inherited_langs {
+            if let Some(parent) =
+                self.get_query_source(config_path, &inherited, query_name, visited)
+            {
+                combined.push_str(&parent);
+                combined.push('\n');
+            }
+        }
+        combined.push_str(&source);
+        Some(combined)
+    }
+
     fn get_query_paths(
         &self,
         config_path: &str,
@@ -252,13 +301,19 @@ impl GrammarManager {
 
         // Use the grammar's own name for path resolution so aliases fall through
         // to the base grammar's query files (e.g. "kerbin" alias → "bash" queries).
-        let query_paths = self.get_query_paths(config_path, &grammar.name, query_name);
+        let mut visited = std::collections::HashSet::new();
+        let query_source =
+            self.get_query_source(config_path, &grammar.name, query_name, &mut visited)?;
 
-        let query_source = query_paths
-            .iter()
-            .find_map(|path| std::fs::read_to_string(path).ok())?;
-
-        let query = Query::new(&grammar.lang, &query_source).ok()?;
+        let query = match Query::new(&grammar.lang, &query_source) {
+            Ok(q) => q,
+            Err(e) => {
+                tracing::error!(
+                    "tree-sitter: failed to compile '{query_name}' query for '{lang}': {e}"
+                );
+                return None;
+            }
+        };
 
         self.query_map
             .entry(normalized.clone())

@@ -75,20 +75,28 @@ impl Command<State> for LspCommand {
 
                 {
                     let mut manager = state.lock_state::<LspManager>().await;
-                    manager.register_language(name, ext_strings.clone(), info);
+                    manager.register_language(name, info);
                 }
 
-                for ext in ext_strings {
-                    state
-                        .on_hook(kerbin_core::hooks::UpdateFiletype::new(&ext))
-                        .system(crate::open_files)
-                        .system(crate::apply_changes)
-                        .system(crate::render_diagnostic_highlights)
-                        .system(crate::process_lsp_events)
-                        .system(crate::render_hover)
-                        .system(crate::update_completions)
-                        .system(crate::render_completions);
+                // Register filetype + extensions in central registry
+                {
+                    let mut registry = state.lock_state::<FiletypeRegistry>().await;
+                    registry.register(name, "lsp");
+                    for ext in &ext_strings {
+                        registry.register_ext(ext.to_lowercase(), name);
+                    }
                 }
+
+                // Register hook once on the filetype name
+                state
+                    .on_hook(kerbin_core::hooks::UpdateFiletype::new(name))
+                    .system(crate::open_files)
+                    .system(crate::apply_changes)
+                    .system(crate::render_diagnostic_highlights)
+                    .system(crate::process_lsp_events)
+                    .system(crate::render_hover)
+                    .system(crate::update_completions)
+                    .system(crate::render_completions);
             }
         }
         false

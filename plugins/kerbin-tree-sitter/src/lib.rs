@@ -32,8 +32,9 @@ pub mod locals;
 
 async fn reset_config_state(grammar_manager: ResMut<GrammarManager>) {
     let mut manager = grammar_manager.get().await;
-    manager.ext_map.clear();
     manager.lang_map.clear();
+    manager.loaded_grammars.clear();
+    manager.query_map.clear();
 }
 
 define_plugin! {

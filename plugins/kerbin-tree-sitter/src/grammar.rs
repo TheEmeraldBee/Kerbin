@@ -129,22 +129,22 @@ pub fn find_library(base_paths: &[String]) -> Option<PathBuf> {
 }
 
 #[cfg(target_os = "windows")]
-const fn get_platform_extensions() -> &'static [&'static str] {
+pub const fn get_platform_extensions() -> &'static [&'static str] {
     &["dll"]
 }
 
 #[cfg(target_os = "macos")]
-const fn get_platform_extensions() -> &'static [&'static str] {
+pub const fn get_platform_extensions() -> &'static [&'static str] {
     &["dylib"]
 }
 
 #[cfg(target_os = "linux")]
-const fn get_platform_extensions() -> &'static [&'static str] {
+pub const fn get_platform_extensions() -> &'static [&'static str] {
     &["so"]
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-const fn get_platform_extensions() -> &'static [&'static str] {
+pub const fn get_platform_extensions() -> &'static [&'static str] {
     // For other Unix-like systems, try .so first
     &["so", "dylib"]
 }

@@ -148,7 +148,7 @@ pub async fn open_files(
 
     buf.flags.insert("tree-sitter-checked");
 
-    let Some(lang) = grammars.ext_to_lang(&buf.ext).map(|x| x.to_string()) else {
+    let Some(lang) = buf.filetype.clone() else {
         return;
     };
 

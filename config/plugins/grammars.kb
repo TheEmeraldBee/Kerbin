@@ -1,8 +1,10 @@
 # Tree-sitter grammar definitions
 
+# Kerbin Language
+tree-sitter-define kerbin --exts [kb] --url https://github.com/EmeraldPandaTurtle/tree-sitter-kerbin.git
+
 # Bash
 tree-sitter-define bash --exts [sh bash] --url https://github.com/tree-sitter/tree-sitter-bash.git
-tree-sitter-alias bash kerbin --exts [kb]
 
 # Go
 tree-sitter-define go --exts [go] --url https://github.com/tree-sitter/tree-sitter-go.git
@@ -32,3 +34,71 @@ tree-sitter-define nu --exts [nu] --url https://github.com/nushell/tree-sitter-n
 
 # Html
 tree-sitter-define html --exts [html] --url https://github.com/tree-sitter/tree-sitter-html.git
+
+# JavaScript / JSX
+tree-sitter-define javascript --exts [js mjs cjs] --url https://github.com/tree-sitter/tree-sitter-javascript.git
+tree-sitter-alias javascript jsx --exts [jsx]
+
+# TypeScript / TSX
+tree-sitter-define typescript --exts [ts mts cts] --url https://github.com/tree-sitter/tree-sitter-typescript.git --sub_dir typescript
+tree-sitter-define tsx --exts [tsx] --url https://github.com/tree-sitter/tree-sitter-typescript.git --sub_dir tsx
+
+# CSS / SCSS
+tree-sitter-define css --exts [css] --url https://github.com/tree-sitter/tree-sitter-css.git
+tree-sitter-define scss --exts [scss] --url https://github.com/serenadeai/tree-sitter-scss.git
+
+# C / C++
+tree-sitter-define c --exts [c h] --url https://github.com/tree-sitter/tree-sitter-c.git
+tree-sitter-define cpp --exts [cc cpp cxx hh hpp] --url https://github.com/tree-sitter/tree-sitter-cpp.git
+
+# JSON / YAML
+tree-sitter-define json --exts [json jsonc] --url https://github.com/tree-sitter/tree-sitter-json.git
+tree-sitter-define yaml --exts [yaml yml] --url https://github.com/ikatyang/tree-sitter-yaml.git
+
+# Scheme
+tree-sitter-define scheme --exts [scm ss sls sld] --url https://github.com/6cdh/tree-sitter-scheme.git
+
+# Lua
+tree-sitter-define lua --exts [lua] --url https://github.com/tree-sitter-grammars/tree-sitter-lua.git
+
+# Ruby
+tree-sitter-define ruby --exts [rb] --url https://github.com/tree-sitter/tree-sitter-ruby.git
+
+# Java
+tree-sitter-define java --exts [java] --url https://github.com/tree-sitter/tree-sitter-java.git
+
+# C#
+tree-sitter-define c_sharp --exts [cs] --url https://github.com/tree-sitter/tree-sitter-c-sharp.git
+
+# PHP
+tree-sitter-define php --exts [php] --url https://github.com/tree-sitter/tree-sitter-php.git --sub_dir php
+
+# Zig
+tree-sitter-define zig --exts [zig] --url https://github.com/tree-sitter-grammars/tree-sitter-zig.git
+
+# Elixir
+tree-sitter-define elixir --exts [ex exs] --url https://github.com/elixir-lang/tree-sitter-elixir.git
+
+# Haskell
+tree-sitter-define haskell --exts [hs] --url https://github.com/tree-sitter/tree-sitter-haskell.git
+
+# Kotlin
+tree-sitter-define kotlin --exts [kt kts] --url https://github.com/fwcd/tree-sitter-kotlin.git
+
+# SQL
+tree-sitter-define sql --exts [sql] --url https://github.com/DerekStride/tree-sitter-sql.git
+
+# Justfile
+tree-sitter-define just --exts [] --url https://github.com/casey/tree-sitter-just.git
+tree-sitter-alias just justfile --exts [just] --filenames [Justfile justfile .justfile]
+
+# Makefile
+tree-sitter-define make --exts [mk] --url https://github.com/alemuller/tree-sitter-make.git
+tree-sitter-alias make makefile --filenames [Makefile GNUmakefile makefile]
+
+# Dockerfile
+tree-sitter-define dockerfile --exts [] --filenames [Dockerfile] --url https://github.com/camdencheek/tree-sitter-dockerfile.git
+
+# Git
+tree-sitter-define git_commit --exts [] --filenames [COMMIT_EDITMSG] --url https://github.com/the-mikedavis/tree-sitter-git-commit.git
+tree-sitter-define gitconfig --exts [] --filenames [.gitconfig .git/config] --url https://github.com/the-mikedavis/tree-sitter-gitconfig.git

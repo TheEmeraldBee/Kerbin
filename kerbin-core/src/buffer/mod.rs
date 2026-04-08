@@ -122,6 +122,7 @@ pub struct TextBuffer {
 
     pub path: String,
     pub ext: String,
+    pub filetype: Option<String>,
     pub indent_style: IndentStyle,
 
     pub cursors: Vec<Cursor>,
@@ -155,6 +156,7 @@ impl Default for TextBuffer {
 
             path: "<scratch>".into(),
             ext: "".into(),
+            filetype: None,
             indent_style: IndentStyle::default(),
 
             cursors: vec![Cursor::default()],

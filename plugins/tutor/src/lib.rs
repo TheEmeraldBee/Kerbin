@@ -26,6 +26,6 @@ define_plugin! {
     ],
 
     hooks: [
-        hooks::UpdateFiletype::new("<tutor>") => load::update_buffer,
+        hooks::UpdateFiletype::new("tutor") => load::update_buffer,
     ],
 }

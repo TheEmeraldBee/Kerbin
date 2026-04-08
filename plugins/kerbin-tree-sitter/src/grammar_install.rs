@@ -5,15 +5,12 @@ use std::{
     time::{SystemTime, SystemTimeError, UNIX_EPOCH},
 };
 
-use crate::grammar::{GrammarDefinition, normalize_lang_name};
+use crate::grammar::{GrammarDefinition, get_platform_extensions, normalize_lang_name};
 
 #[derive(thiserror::Error, Debug)]
 pub enum GrammarInstallError {
     #[error("Missing install definition for language")]
     MissingInstallDefinition,
-
-    #[error("Build succeeded but shared lib not found")]
-    NoSharedLibrary,
 
     #[error("Missing expected build directory")]
     MissingBuildDir,
@@ -25,8 +22,11 @@ pub enum GrammarInstallError {
         stderr: String,
     },
 
-    #[error("tree-sitter couldn't be found on your computer, is it installed?")]
-    MissingTreeSitter,
+    #[error("Grammar source missing: src/parser.c not found in {path}")]
+    MissingSourceFiles { path: String },
+
+    #[error("C compiler failed:\n{stderr}")]
+    CompileFailed { stderr: String },
 
     #[error(transparent)]
     IOError(#[from] io::Error),
@@ -40,6 +40,7 @@ fn cleanup_grammar_directory(dir: &Path, normalized_name: &str) -> io::Result<()
         format!("{}.so", normalized_name),
         format!("{}.dll", normalized_name),
         format!("{}.dylib", normalized_name),
+        "package.json".to_string(),
     ];
 
     let query_dir_name = "queries";
@@ -71,25 +72,133 @@ fn cleanup_grammar_directory(dir: &Path, normalized_name: &str) -> io::Result<()
     Ok(())
 }
 
-fn get_name_variants(name: &str) -> Vec<String> {
-    let mut variants = vec![name.to_string()];
+fn run_compiler(mut cmd: Command) -> Result<(), GrammarInstallError> {
+    let out = cmd.output()?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(GrammarInstallError::CompileFailed {
+            stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+        })
+    }
+}
 
-    if name.contains('-') {
-        variants.push(name.replace('-', "_"));
-        variants.push(name.replace('-', "."));
+fn c_compiler() -> String {
+    std::env::var("CC").unwrap_or_else(|_| {
+        if cfg!(target_env = "msvc") {
+            "cl".to_string()
+        } else {
+            "cc".to_string()
+        }
+    })
+}
+
+fn cxx_compiler() -> String {
+    std::env::var("CXX").unwrap_or_else(|_| {
+        if cfg!(target_env = "msvc") {
+            "cl".to_string()
+        } else {
+            "c++".to_string()
+        }
+    })
+}
+
+fn add_shared_flags(cmd: &mut Command, output_path: &Path) {
+    if cfg!(target_env = "msvc") {
+        cmd.arg("/nologo")
+            .arg("/LD")
+            .arg("/utf-8")
+            .arg(format!("/out:{}", output_path.display()));
+    } else {
+        #[cfg(target_os = "macos")]
+        cmd.arg("-dynamiclib");
+        #[cfg(not(target_os = "macos"))]
+        {
+            cmd.arg("-shared");
+            cmd.arg("-Wl,-z,relro,-z,now");
+        }
+        cmd.arg("-fPIC")
+            .arg("-fno-exceptions")
+            .arg("-o")
+            .arg(output_path);
     }
-    if name.contains('_') {
-        variants.push(name.replace('_', "-"));
-        variants.push(name.replace('_', "."));
-    }
-    if name.contains('.') {
-        variants.push(name.replace('.', "-"));
-        variants.push(name.replace('.', "_"));
+}
+
+fn compile_c(
+    src_dir: &Path,
+    parser_c: &Path,
+    scanner_c: Option<&Path>,
+    output_path: &Path,
+) -> Result<(), GrammarInstallError> {
+    let mut cmd = Command::new(c_compiler());
+
+    add_shared_flags(&mut cmd, output_path);
+    cmd.arg(format!("-I{}", src_dir.display()));
+    cmd.arg("-std=c11");
+    cmd.arg(parser_c);
+    if let Some(sc) = scanner_c {
+        cmd.arg(sc);
     }
 
-    variants.sort();
-    variants.dedup();
-    variants
+    run_compiler(cmd)
+}
+
+fn compile_mixed(
+    src_dir: &Path,
+    parser_c: &Path,
+    scanner_cc: &Path,
+    output_path: &Path,
+) -> Result<(), GrammarInstallError> {
+    // Step 1: compile scanner.cc → scanner.o
+    let obj = output_path.with_extension("o");
+    let mut cxx = Command::new(cxx_compiler());
+    if cfg!(target_env = "msvc") {
+        cxx.arg("/nologo").arg("/utf-8");
+    } else {
+        cxx.arg("-fPIC").arg("-fno-exceptions").arg("-std=c++14");
+    }
+    cxx.arg(format!("-I{}", src_dir.display()))
+        .arg("-c")
+        .arg(scanner_cc)
+        .arg("-o")
+        .arg(&obj);
+    run_compiler(cxx)?;
+
+    // Step 2: compile parser.c + link scanner.o → shared library
+    let mut cc_cmd = Command::new(c_compiler());
+    add_shared_flags(&mut cc_cmd, output_path);
+    cc_cmd
+        .arg(format!("-I{}", src_dir.display()))
+        .arg("-std=c11")
+        .arg(parser_c)
+        .arg(&obj);
+    run_compiler(cc_cmd)?;
+
+    fs::remove_file(&obj).ok();
+    Ok(())
+}
+
+fn compile_grammar(src_dir: &Path, output_path: &Path) -> Result<(), GrammarInstallError> {
+    let parser_c = src_dir.join("parser.c");
+    if !parser_c.exists() {
+        return Err(GrammarInstallError::MissingSourceFiles {
+            path: src_dir.display().to_string(),
+        });
+    }
+
+    let scanner_c = src_dir.join("scanner.c");
+    let scanner_cc = src_dir.join("scanner.cc");
+
+    if scanner_cc.exists() {
+        compile_mixed(src_dir, &parser_c, &scanner_cc, output_path)
+    } else {
+        compile_c(
+            src_dir,
+            &parser_c,
+            scanner_c.exists().then_some(scanner_c.as_path()),
+            output_path,
+        )
+    }
 }
 
 /// Installs a language based on the install config
@@ -110,7 +219,6 @@ pub fn install_language(
         .unwrap_or(&def.name)
         .replace(".git", "");
 
-    // Create atomic build directory using nanosecond timestamp
     let build_root = base_path.join(".build").join(now_nanos.to_string());
     let repo_clone_dir = build_root.join(&repo_name);
 
@@ -120,7 +228,6 @@ pub fn install_language(
         .map(|sub| repo_clone_dir.join(sub))
         .unwrap_or_else(|| repo_clone_dir.clone());
 
-    // Use original name for directory, but normalized name for the .so file
     let normalized_name = normalize_lang_name(&def.name);
     let final_grammar_dir = base_path.join(format!("tree-sitter-{}", def.name));
     let temp_final_dir = base_path.join(format!("tree-sitter-{}-{}", def.name, now_nanos));
@@ -137,11 +244,10 @@ pub fn install_language(
             .output()?;
 
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(GrammarInstallError::CommandFailed {
                 command: "git clone",
                 status: output.status,
-                stderr: stderr.to_string(),
+                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
             });
         }
 
@@ -149,52 +255,21 @@ pub fn install_language(
             return Err(GrammarInstallError::MissingBuildDir);
         }
 
-        let build_output = Command::new("tree-sitter")
-            .arg("build")
-            .current_dir(&build_dir)
-            .output()?;
+        // Compile directly from src/parser.c (+ optional scanner) — no tree-sitter CLI needed
+        let ext = get_platform_extensions()[0];
+        let output_lib_name = format!("{}.{}", normalized_name, ext);
+        let output_lib_path = build_dir.join(&output_lib_name);
 
-        if !build_output.status.success() {
-            let stderr = String::from_utf8_lossy(&build_output.stderr);
-            return Err(GrammarInstallError::CommandFailed {
-                command: "tree-sitter build",
-                status: build_output.status,
-                stderr: stderr.to_string(),
-            });
-        }
-
-        let build_name = install_def.build_name.clone().unwrap_or(def.name.clone());
-        let build_name_variants = get_name_variants(&build_name);
-
-        let mut found_lib = None;
-
-        for variant in &build_name_variants {
-            for ext in &["so", "dll", "dylib"] {
-                let filename = format!("{}.{}", variant, ext);
-                let path = build_dir.join(&filename);
-                if path.exists() {
-                    found_lib = Some((filename, ext.to_string()));
-                    break;
-                }
-            }
-            if found_lib.is_some() {
-                break;
-            }
-        }
-
-        let (initial_compiled_lib_name, ext) =
-            found_lib.ok_or(GrammarInstallError::NoSharedLibrary)?;
-
-        // Always use normalized name for the final library
-        let compiled_lib_name = format!("{}.{}", normalized_name, ext);
+        let src_dir = build_dir.join("src");
+        compile_grammar(&src_dir, &output_lib_path)?;
 
         fs::create_dir_all(&temp_final_dir)?;
+        fs::copy(&output_lib_path, temp_final_dir.join(&output_lib_name))?;
 
-        // Copy (don't move) the library so tree-sitter can still validate it
-        fs::copy(
-            build_dir.join(&initial_compiled_lib_name),
-            temp_final_dir.join(&compiled_lib_name),
-        )?;
+        let pkg_json = repo_clone_dir.join("package.json");
+        if pkg_json.exists() {
+            fs::copy(&pkg_json, temp_final_dir.join("package.json")).ok();
+        }
 
         let final_query_dir = temp_final_dir.join("queries");
         let source_query_dirs = [build_dir.join("queries"), build_dir.join("src/queries")];

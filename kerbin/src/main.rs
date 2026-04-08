@@ -215,18 +215,48 @@ async fn update(state: &mut State) {
 
     state.hook(hooks::ChunkRegister).call().await;
 
-    let filetype = {
+    // Resolve filetype — detect once and cache on the buffer
+    let cached = {
         let bufs = state.lock_state::<Buffers>().await;
         bufs.cur_buffer_as::<TextBuffer>()
             .await
-            .map(|tb| tb.ext.clone())
-            .unwrap_or_default()
+            .and_then(|tb| tb.filetype.clone())
     };
 
-    state
-        .hook(hooks::UpdateFiletype::new(filetype))
-        .call()
-        .await;
+    let filetype = if let Some(ft) = cached {
+        Some(ft)
+    } else {
+        // Read detection inputs from the buffer
+        let (path, first_line) = {
+            let bufs = state.lock_state::<Buffers>().await;
+            bufs.cur_buffer_as::<TextBuffer>()
+                .await
+                .map(|tb| {
+                    let first_line = tb.get_rope().lines().next().map(|l| l.to_string());
+                    (tb.path.clone(), first_line)
+                })
+                .unwrap_or_default()
+        };
+
+        let detected = state
+            .lock_state::<FiletypeRegistry>()
+            .await
+            .detect(&path, first_line.as_deref());
+
+        // Cache the result on the buffer
+        if detected.is_some() {
+            let mut bufs = state.lock_state::<Buffers>().await;
+            if let Some(mut buf) = bufs.cur_text_buffer_mut().await {
+                buf.filetype = detected.clone();
+            }
+        }
+
+        detected
+    };
+
+    if let Some(ref ft) = filetype {
+        state.hook(hooks::UpdateFiletype::new(ft)).call().await;
+    }
 
     state.hook(hooks::UpdateCleanup).call().await;
 
@@ -613,12 +643,11 @@ async fn main() {
         }
     }
 
-    // Restore terminal
     execute!(
         std::io::stdout(),
         DisableMouseCapture,
         DisableBracketedPaste,
-        PopKeyboardEnhancementFlags,
+        PopKeyboardEnhancementFlags
     )
     .ok();
     ratatui::restore();

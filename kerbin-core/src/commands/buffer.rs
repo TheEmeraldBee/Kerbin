@@ -462,7 +462,12 @@ fn reload_file_inner(buf: &mut TextBuffer, log: &LogSender, force: bool) -> bool
 pub enum BuffersCommand {
     #[command(name = "open", name = "o")]
     /// Opens the given filepath can be absolute or relative
-    OpenFile(String),
+    OpenFile {
+        path: String,
+        /// Override the detected filetype (e.g. --filetype rust)
+        #[command(flag)]
+        filetype: Option<String>,
+    },
 
     #[command(drop_ident, name = "move_buf", name = "bm")]
     /// Moves the currently active buffer based on an offset
@@ -486,7 +491,7 @@ impl Command<State> for BuffersCommand {
         let default_tab_unit = state.lock_state::<CoreConfig>().await.default_tab_unit;
 
         match self {
-            Self::OpenFile(path) => {
+            Self::OpenFile { path, filetype } => {
                 let buffer_id = match buffers.open(path.clone(), default_tab_unit).await {
                     Ok(t) => t,
                     Err(e) => {
@@ -517,6 +522,13 @@ impl Command<State> for BuffersCommand {
                     }
                 };
                 buffers.set_selected_buffer(buffer_id);
+
+                // Apply explicit filetype override, bypassing auto-detection
+                if let Some(ft) = filetype {
+                    if let Some(mut buf) = buffers.cur_text_buffer_mut().await {
+                        buf.filetype = Some(ft.clone());
+                    }
+                }
 
                 // Track the opened buffer in the focused pane
                 let mut split = state.lock_state::<SplitState>().await;

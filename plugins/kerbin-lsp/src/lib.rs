@@ -51,27 +51,33 @@ pub async fn register_lang(
     let name = name.to_string();
     let exts: Vec<String> = extensions.into_iter().map(|e| e.to_string()).collect();
 
-    let mut manager = state.lock_state::<LspManager>().await;
-    manager.register_language(&name, exts.clone(), info);
-    drop(manager);
+    state
+        .lock_state::<LspManager>()
+        .await
+        .register_language(&name, info);
 
-    for ext in exts {
-        state
-            .on_hook(kerbin_core::hooks::UpdateFiletype::new(ext))
-            .system(open_files)
-            .system(apply_changes)
-            .system(render_diagnostic_highlights)
-            .system(process_lsp_events)
-            .system(render_hover)
-            .system(update_completions)
-            .system(render_completions);
+    {
+        let mut registry = state.lock_state::<FiletypeRegistry>().await;
+        registry.register(&name, "lsp");
+        for ext in &exts {
+            registry.register_ext(ext.to_lowercase(), &name);
+        }
     }
+
+    state
+        .on_hook(kerbin_core::hooks::UpdateFiletype::new(&name))
+        .system(open_files)
+        .system(apply_changes)
+        .system(render_diagnostic_highlights)
+        .system(process_lsp_events)
+        .system(render_hover)
+        .system(update_completions)
+        .system(render_completions);
 }
 
 async fn reset_config_state(lsp_manager: ResMut<LspManager>) {
     let mut manager = lsp_manager.get().await;
     manager.lang_info_map.clear();
-    manager.ext_map.clear();
 }
 
 define_plugin! {

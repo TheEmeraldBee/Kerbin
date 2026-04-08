@@ -95,24 +95,11 @@ pub struct LspManager {
 
     /// A map for language IDs to Language Information
     pub lang_info_map: HashMap<String, LangInfo>,
-
-    /// A map for language extensions to their respective Language IDs
-    pub ext_map: HashMap<String, String>,
 }
 
 impl LspManager {
-    pub fn register_language(
-        &mut self,
-        name: impl ToString,
-        exts: impl IntoIterator<Item = impl ToString>,
-        language_info: LangInfo,
-    ) {
-        let name = name.to_string();
-        for ext in exts.into_iter() {
-            self.ext_map.insert(ext.to_string(), name.clone());
-        }
-
-        self.lang_info_map.insert(name, language_info);
+    pub fn register_language(&mut self, name: impl ToString, language_info: LangInfo) {
+        self.lang_info_map.insert(name.to_string(), language_info);
     }
 
     /// Retrieves a running client, creating it if non-existant

@@ -143,4 +143,15 @@ pub async fn reset_config_state(state: &mut State) {
         .lock_state::<CommandInterceptorRegistry>()
         .await
         .remove_command_interceptor::<BufferCommand>("core::auto_pairs");
+
+    *state.lock_state::<FiletypeRegistry>().await = FiletypeRegistry::default();
+
+    // Invalidate cached filetypes so re-detection runs after reload
+    let bufs = state.lock_state::<Buffers>().await;
+    for arc in &bufs.buffers {
+        let Ok(mut buf) = arc.clone().try_write_owned() else { continue };
+        if let Some(tb) = buf.as_any_mut().downcast_mut::<TextBuffer>() {
+            tb.filetype = None;
+        }
+    }
 }

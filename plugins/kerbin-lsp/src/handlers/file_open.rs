@@ -27,17 +27,18 @@ pub async fn open_files(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspManager
 
     let Some(mut current_buffer) = buffers.cur_text_buffer_mut().await else { return; };
     let file_path = current_buffer.path.clone();
-    let ext = current_buffer.ext.clone();
+    let filetype = current_buffer.filetype.clone();
     drop(buffers);
 
     if current_buffer.flags.contains("lsp_opened") {
         return;
     }
 
-    let lang = match lsp_manager.ext_map.get(&ext) {
-        Some(lang) => lang.clone(),
-        None => return, // No LSP for this extension
-    };
+    let Some(lang) = filetype else { return };
+
+    if !lsp_manager.lang_info_map.contains_key(&lang) {
+        return;
+    }
 
     let lang_info = lsp_manager.lang_info_map.get(&lang).cloned();
 

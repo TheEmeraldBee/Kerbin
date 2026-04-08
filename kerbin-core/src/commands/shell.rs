@@ -94,22 +94,22 @@ impl Command<State> for ShellCommand {
                     &*state.lock_state::<ModeStack>().await,
                 );
                 if let Some(command) = command
-                    && let Err(e) = state.lock_state::<CommandSender>().await.send(command) {
-                        tracing::error!("pipe: failed to send command: {e}");
-                    }
+                    && let Err(e) = state.lock_state::<CommandSender>().await.send(command)
+                {
+                    tracing::error!("pipe: failed to send command: {e}");
+                }
 
                 true
             }
             Self::InPlace(args) => {
                 // Tear down terminal
-                crossterm::terminal::disable_raw_mode().ok();
                 execute!(
                     std::io::stdout(),
-                    crossterm::terminal::LeaveAlternateScreen,
                     DisableMouseCapture,
                     PopKeyboardEnhancementFlags,
                 )
                 .ok();
+                ratatui::try_restore().ok();
 
                 let res = match std::process::Command::new(&args[0])
                     .args(&args[1..])
