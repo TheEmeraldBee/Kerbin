@@ -237,7 +237,6 @@ pub async fn render_hover(
 
     buf.add_extmark(
         ExtmarkBuilder::new("lsp::hover", info.position)
-            .with_priority(5)
             .with_kind(ExtmarkKind::Overlay {
                 widget: Arc::new(HoverWidget {
                     lines: all_lines,
@@ -248,7 +247,6 @@ pub async fn render_hover(
                     window_style,
                 }),
                 position: OverlayPosition::Smart,
-                z_index: 5,
             }),
     );
 }

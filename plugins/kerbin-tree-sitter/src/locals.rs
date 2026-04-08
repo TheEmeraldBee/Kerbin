@@ -342,7 +342,6 @@ pub async fn update_locals(
         for range in all_ref_ranges {
             buf.add_extmark(
                 ExtmarkBuilder::new_range(namespace, range)
-                    .with_priority(1000)
                     .with_kind(ExtmarkKind::Highlight { style: ref_style }),
             );
         }
@@ -357,7 +356,6 @@ pub async fn update_locals(
         for range in highlighted_ranges {
             buf.add_extmark(
                 ExtmarkBuilder::new_range(namespace, range)
-                    .with_priority(1001)
                     .with_kind(ExtmarkKind::Highlight { style: hl_style }),
             );
         }

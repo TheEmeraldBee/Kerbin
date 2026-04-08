@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::*;
 
@@ -7,6 +7,10 @@ use crate::*;
 pub struct BufferRenderer {
     extmarks: BTreeMap<u64, Extmark>,
     next_id: u64,
+
+    /// Priority per namespace. Marks are rendered in ascending priority order (higher = on top).
+    /// Namespaces not in this map default to priority 0.
+    namespace_priorities: HashMap<String, i32>,
 
     /// The byte based scroll of the window
     pub byte_scroll: usize,
@@ -181,6 +185,17 @@ impl BufferRenderer {
         });
     }
 
+    /// Sets the rendering priority for all extmarks in a namespace.
+    /// Higher values render on top of lower values. Defaults to 0 if not set.
+    pub fn set_namespace_priority(&mut self, ns: impl Into<String>, priority: i32) {
+        self.namespace_priorities.insert(ns.into(), priority);
+    }
+
+    /// Returns the registered priority for a namespace, or 0 if unregistered.
+    pub fn ns_priority(&self, ns: &str) -> i32 {
+        self.namespace_priorities.get(ns).copied().unwrap_or(0)
+    }
+
     /// Updates an existing extmark's kind
     pub fn update_extmark(&mut self, id: u64, kind: ExtmarkKind) -> bool {
         if let Some(ext) = self.extmarks.get_mut(&id) {
@@ -191,14 +206,14 @@ impl BufferRenderer {
         }
     }
 
-    /// Queries extmarks intersecting a byte range
+    /// Queries extmarks intersecting a byte range, sorted by namespace priority (ascending).
     pub fn query_extmarks(&self, range: std::ops::Range<usize>) -> Vec<&Extmark> {
         let mut marks = self
             .extmarks
             .values()
             .filter(|ext| ext.byte_range.start < range.end && ext.byte_range.end >= range.start)
             .collect::<Vec<_>>();
-        marks.sort_by(|x, y| x.priority.cmp(&y.priority));
+        marks.sort_by_key(|x| self.ns_priority(&x.namespace));
         marks
     }
 }

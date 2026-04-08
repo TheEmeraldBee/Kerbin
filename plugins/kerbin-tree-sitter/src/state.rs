@@ -248,7 +248,6 @@ pub fn emit_spans(spans: Vec<HighlightSpan>, namespace: &str, buf: &mut TextBuff
     for span in merge_overlapping_spans(highlight_spans) {
         buf.add_extmark(
             ExtmarkBuilder::new_range(namespace, span.byte_range.clone())
-                .with_priority(span.priority as i32)
                 .with_kind(ExtmarkKind::Highlight {
                     style: translate_name_to_style(theme, &span.capture_name),
                 }),
@@ -258,7 +257,6 @@ pub fn emit_spans(spans: Vec<HighlightSpan>, namespace: &str, buf: &mut TextBuff
     for span in conceal_spans {
         buf.add_extmark(
             ExtmarkBuilder::new_range(namespace, span.byte_range.clone())
-                .with_priority(span.priority as i32)
                 .with_kind(ExtmarkKind::Conceal {
                     replacement: None,
                     style: None,

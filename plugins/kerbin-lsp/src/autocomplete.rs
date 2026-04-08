@@ -975,11 +975,9 @@ pub async fn render_completions(
 
     buf.add_extmark(
         ExtmarkBuilder::new("lsp::completion", position)
-            .with_priority(6)
             .with_kind(ExtmarkKind::Overlay {
                 widget: Arc::new(CompletionWidget(final_popup)),
                 position: OverlayPosition::Smart,
-                z_index: 6,
             }),
     );
 }

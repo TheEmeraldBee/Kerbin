@@ -67,33 +67,45 @@ pub fn format_diagnostic(path: &str, diag: &Diagnostic) -> String {
     )
 }
 
-fn severity_to_style_priority(severity: Option<DiagnosticSeverity>) -> (Style, i32) {
+fn severity_to_style_ns(severity: Option<DiagnosticSeverity>) -> (Style, &'static str) {
     match severity {
-        Some(DiagnosticSeverity::ERROR) => (
+        Some(DiagnosticSeverity::ERROR) | None => (
             Style::default()
                 .underline_color(Color::Red)
                 .add_modifier(Modifier::UNDERLINED),
-            3,
+            "lsp::diagnostics::error",
         ),
         Some(DiagnosticSeverity::WARNING) => (
             Style::default()
                 .underline_color(Color::Yellow)
                 .add_modifier(Modifier::UNDERLINED),
-            2,
+            "lsp::diagnostics::warning",
         ),
         Some(DiagnosticSeverity::INFORMATION) => (
             Style::default()
                 .underline_color(Color::Blue)
                 .add_modifier(Modifier::UNDERLINED),
-            1,
+            "lsp::diagnostics::info",
         ),
-        Some(DiagnosticSeverity::HINT) => (Style::default().underline_color(Color::DarkGray), 0),
+        Some(DiagnosticSeverity::HINT) => {
+            (Style::default().underline_color(Color::DarkGray), "lsp::diagnostics::hint")
+        }
         _ => (
             Style::default()
                 .underline_color(Color::Red)
                 .add_modifier(Modifier::UNDERLINED),
-            3,
+            "lsp::diagnostics::error",
         ),
+    }
+}
+
+/// Returns a numeric severity rank for comparison (higher = more severe).
+fn severity_rank(severity: Option<DiagnosticSeverity>) -> i32 {
+    match severity {
+        Some(DiagnosticSeverity::ERROR) | None => 3,
+        Some(DiagnosticSeverity::WARNING) => 2,
+        Some(DiagnosticSeverity::INFORMATION) => 1,
+        _ => 0,
     }
 }
 
@@ -126,20 +138,28 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
 
     let cursor_byte = buf.primary_cursor().get_cursor_byte();
 
-    // Only show overlay for the highest-priority diagnostic at cursor
+    // Register namespace priorities (idempotent).
+    buf.renderer.set_namespace_priority("lsp::diagnostics::hint",    0);
+    buf.renderer.set_namespace_priority("lsp::diagnostics::info",    1);
+    buf.renderer.set_namespace_priority("lsp::diagnostics::warning", 2);
+    buf.renderer.set_namespace_priority("lsp::diagnostics::error",   3);
+
+    // Only show overlay for the highest-severity diagnostic at cursor.
     let popup_idx = diagnostics
         .iter()
         .enumerate()
         .filter_map(|(i, d)| {
             let start = to_byte(&buf, d.range.start.line as usize, d.range.start.character as usize);
             let end = to_byte(&buf, d.range.end.line as usize, d.range.end.character as usize);
-            let (_, prio) = severity_to_style_priority(d.severity);
-            (start..end).contains(&cursor_byte).then_some((i, prio))
+            (start..end).contains(&cursor_byte).then_some((i, severity_rank(d.severity)))
         })
-        .max_by_key(|(_, prio)| *prio)
+        .max_by_key(|(_, rank)| *rank)
         .map(|(i, _)| i);
 
-    buf.renderer.clear_extmark_ns("lsp::diagnostics");
+    buf.renderer.clear_extmark_ns("lsp::diagnostics::hint");
+    buf.renderer.clear_extmark_ns("lsp::diagnostics::info");
+    buf.renderer.clear_extmark_ns("lsp::diagnostics::warning");
+    buf.renderer.clear_extmark_ns("lsp::diagnostics::error");
 
     for (i, diagnostic) in diagnostics.iter().enumerate() {
         let start_byte = to_byte(
@@ -153,7 +173,7 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
             diagnostic.range.end.character as usize,
         );
 
-        let (style, priority) = severity_to_style_priority(diagnostic.severity);
+        let (style, ns) = severity_to_style_ns(diagnostic.severity);
 
         if popup_idx == Some(i) {
             let widget = DiagnosticWidget {
@@ -161,19 +181,16 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
                 style,
             };
             buf.add_extmark(
-                ExtmarkBuilder::new("lsp::diagnostics", start_byte)
-                    .with_priority(priority)
+                ExtmarkBuilder::new(ns, start_byte)
                     .with_kind(ExtmarkKind::Overlay {
                         widget: Arc::new(widget),
                         position: OverlayPosition::Fixed { offset_x: 0, offset_y: 1 },
-                        z_index: priority,
                     }),
             );
         }
 
         buf.add_extmark(
-            ExtmarkBuilder::new_range("lsp::diagnostics", start_byte..end_byte)
-                .with_priority(priority)
+            ExtmarkBuilder::new_range(ns, start_byte..end_byte)
                 .with_kind(ExtmarkKind::Highlight { style }),
         );
     }

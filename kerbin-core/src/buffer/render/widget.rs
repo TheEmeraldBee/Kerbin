@@ -80,7 +80,6 @@ impl<'a> TextBufferWidget<'a> {
                     id: mark.id,
                     namespace: mark.namespace.clone(),
                     byte_range: start_char..end_char,
-                    priority: mark.priority,
                     kind: mark.kind.clone(),
                     gravity: mark.gravity,
                     adjustment: mark.adjustment,
@@ -91,6 +90,7 @@ impl<'a> TextBufferWidget<'a> {
 
         let char_marks_refs: Vec<&Extmark> = char_marks.iter().collect();
 
+        let ns_priority = |ns: &str| self.buf.renderer.ns_priority(ns);
         let eof_extra = extra_eof_space as usize;
         let mut lm = LineMarks::classify(
             &char_marks_refs,
@@ -99,6 +99,7 @@ impl<'a> TextBufferWidget<'a> {
             line_char_count + eof_extra,
             visible_len + eof_extra,
             reveal_conceal_on_cursor_line,
+            &ns_priority,
         );
 
         let full_line_text: String = {
@@ -600,6 +601,7 @@ impl<'a> LineMarks<'a> {
         line_char_count: usize,
         visible_len: usize,
         reveal_conceal_on_cursor_line: bool,
+        ns_priority: &impl Fn(&str) -> i32,
     ) -> Self {
         let mut result = Self {
             conceals: Vec::new(),
@@ -624,11 +626,12 @@ impl<'a> LineMarks<'a> {
             let mark_start_char = mark.byte_range.start;
             let mark_end_char = mark.byte_range.end;
 
+            let priority = ns_priority(&mark.namespace);
             match &mark.kind {
                 ExtmarkKind::Cursor { style, shape } => {
                     if mark_start_char >= line_start_char && mark_start_char <= line_end_char {
                         let col = mark_start_char - line_start_char;
-                        result.cursors.push((col, *style, mark.priority, *shape));
+                        result.cursors.push((col, *style, priority, *shape));
                         suppress_ranges.push((col, col + 1, &mark.namespace));
                         cursor_on_line = true;
                     }
@@ -644,13 +647,13 @@ impl<'a> LineMarks<'a> {
                     if (end_col == start_col && end_col <= visible_len)
                         || (visible_len == 0 && start_col == 0 && end_col >= 1)
                     {
-                        result.newline_highlights.push((*style, mark.priority));
+                        result.newline_highlights.push((*style, priority));
                     } else if start_col >= visible_len && visible_len > 0 {
-                        result.eol_highlights.push((*style, mark.priority));
+                        result.eol_highlights.push((*style, priority));
                     } else if end_col > start_col {
                         result
                             .highlights
-                            .push((start_col, end_col, *style, mark.priority));
+                            .push((start_col, end_col, *style, priority));
                         suppress_ranges.push((start_col, end_col, &mark.namespace));
                     }
                 }
@@ -660,7 +663,7 @@ impl<'a> LineMarks<'a> {
                         match pos {
                             VirtTextPos::Eol => {
                                 for chunk in chunks {
-                                    result.eol_chunks.push((chunk, mark.priority));
+                                    result.eol_chunks.push((chunk, priority));
                                 }
                             }
                             VirtTextPos::Overlay => {
@@ -671,7 +674,7 @@ impl<'a> LineMarks<'a> {
                             }
                             VirtTextPos::RightAlign => {
                                 for chunk in chunks {
-                                    result.right_align_chunks.push((chunk, mark.priority));
+                                    result.right_align_chunks.push((chunk, priority));
                                 }
                             }
                         }
@@ -699,16 +702,12 @@ impl<'a> LineMarks<'a> {
                         conceal_scopes.push(*scope);
                     }
                 }
-                ExtmarkKind::Overlay {
-                    widget,
-                    position,
-                    z_index,
-                } => {
+                ExtmarkKind::Overlay { widget, position } => {
                     if mark_start_char >= line_start_char && mark_start_char <= line_end_char {
                         let col = mark_start_char - line_start_char;
                         result
                             .popups
-                            .push((col, widget.clone(), position.clone(), *z_index));
+                            .push((col, widget.clone(), position.clone(), priority));
                     }
                 }
             }

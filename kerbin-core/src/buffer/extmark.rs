@@ -152,7 +152,6 @@ pub enum ExtmarkKind {
     Overlay {
         widget: Arc<dyn OverlayWidget>,
         position: OverlayPosition,
-        z_index: i32,
     },
 }
 
@@ -167,10 +166,8 @@ pub struct Extmark {
     /// Shared identifier marking relationships to other extmarks for removal
     pub namespace: String,
 
+    /// Half-open byte range `[start, end)`. Byte offsets into the rope. End is exclusive.
     pub byte_range: Range<usize>,
-
-    /// Priority controls layer ordering
-    pub priority: i32,
 
     /// The decoration kind applied at this mark
     pub kind: ExtmarkKind,
@@ -186,8 +183,6 @@ pub struct ExtmarkBuilder {
     namespace: String,
     byte_range: Range<usize>,
 
-    priority: i32,
-
     kind: Option<ExtmarkKind>,
 
     gravity: ExtmarkGravity,
@@ -201,7 +196,6 @@ impl ExtmarkBuilder {
         Self {
             namespace: ns.to_string(),
             byte_range: byte..byte + 1,
-            priority: 0,
 
             kind: None,
 
@@ -216,7 +210,6 @@ impl ExtmarkBuilder {
         Self {
             namespace: ns.to_string(),
             byte_range,
-            priority: 0,
 
             kind: None,
 
@@ -225,11 +218,6 @@ impl ExtmarkBuilder {
 
             expand_on_insert: false,
         }
-    }
-
-    pub fn with_priority(mut self, priority: i32) -> Self {
-        self.priority = priority;
-        self
     }
 
     pub fn with_kind(mut self, kind: ExtmarkKind) -> Self {
@@ -258,7 +246,6 @@ impl ExtmarkBuilder {
             file_version,
             namespace: self.namespace,
             byte_range: self.byte_range,
-            priority: self.priority,
 
             kind: self.kind.unwrap_or(ExtmarkKind::Highlight {
                 style: Style::default(),
