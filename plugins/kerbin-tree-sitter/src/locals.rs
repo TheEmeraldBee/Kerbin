@@ -2,6 +2,9 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use kerbin_core::*;
+
+const PRIORITY_REF: i32 = 1000;
+const PRIORITY_DEF: i32 = 1001;
 use ropey::Rope;
 use tree_sitter::Query;
 
@@ -333,15 +336,20 @@ pub async fn update_locals(
 
     drop(state);
 
-    let namespace = "tree-sitter::locals";
-    buf.renderer.clear_extmark_ns(namespace);
+    const NS_REF: &str = "tree-sitter::locals::ref";
+    const NS_DEF: &str = "tree-sitter::locals::def";
+
+    buf.renderer.set_namespace_priority(NS_REF, PRIORITY_REF);
+    buf.renderer.set_namespace_priority(NS_DEF, PRIORITY_DEF);
+    buf.renderer.clear_extmark_ns(NS_REF);
+    buf.renderer.clear_extmark_ns(NS_DEF);
 
     if !all_ref_ranges.is_empty() {
         let ref_style = theme.get("ts.local.reference").unwrap_or_default();
 
         for range in all_ref_ranges {
             buf.add_extmark(
-                ExtmarkBuilder::new_range(namespace, range)
+                ExtmarkBuilder::new_range(NS_REF, range)
                     .with_kind(ExtmarkKind::Highlight { style: ref_style }),
             );
         }
@@ -355,7 +363,7 @@ pub async fn update_locals(
 
         for range in highlighted_ranges {
             buf.add_extmark(
-                ExtmarkBuilder::new_range(namespace, range)
+                ExtmarkBuilder::new_range(NS_DEF, range)
                     .with_kind(ExtmarkKind::Highlight { style: hl_style }),
             );
         }

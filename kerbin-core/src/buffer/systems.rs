@@ -3,6 +3,8 @@ use std::collections::VecDeque;
 use crate::*;
 use ratatui::style::{Color, Style};
 
+const CURSOR_PRIORITY: i32 = i32::MAX;
+
 pub async fn render_cursors_and_selections(
     bufs: ResMut<Buffers>,
     modes: Res<ModeStack>,
@@ -14,6 +16,8 @@ pub async fn render_cursors_and_selections(
         return;
     };
 
+    buf.renderer.set_namespace_priority("inner::cursor", CURSOR_PRIORITY);
+    buf.renderer.set_namespace_priority("inner::selection", CURSOR_PRIORITY);
     buf.renderer.clear_extmark_ns("inner::cursor");
     buf.renderer.clear_extmark_ns("inner::selection");
 

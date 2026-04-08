@@ -67,34 +67,44 @@ pub fn format_diagnostic(path: &str, diag: &Diagnostic) -> String {
     )
 }
 
+const NS_HINT: &str = "lsp::diagnostics::hint";
+const NS_INFO: &str = "lsp::diagnostics::info";
+const NS_WARNING: &str = "lsp::diagnostics::warning";
+const NS_ERROR: &str = "lsp::diagnostics::error";
+
+const PRIORITY_HINT: i32 = 0;
+const PRIORITY_INFO: i32 = 1;
+const PRIORITY_WARNING: i32 = 2;
+const PRIORITY_ERROR: i32 = 3;
+
 fn severity_to_style_ns(severity: Option<DiagnosticSeverity>) -> (Style, &'static str) {
     match severity {
         Some(DiagnosticSeverity::ERROR) | None => (
             Style::default()
                 .underline_color(Color::Red)
                 .add_modifier(Modifier::UNDERLINED),
-            "lsp::diagnostics::error",
+            NS_ERROR,
         ),
         Some(DiagnosticSeverity::WARNING) => (
             Style::default()
                 .underline_color(Color::Yellow)
                 .add_modifier(Modifier::UNDERLINED),
-            "lsp::diagnostics::warning",
+            NS_WARNING,
         ),
         Some(DiagnosticSeverity::INFORMATION) => (
             Style::default()
                 .underline_color(Color::Blue)
                 .add_modifier(Modifier::UNDERLINED),
-            "lsp::diagnostics::info",
+            NS_INFO,
         ),
         Some(DiagnosticSeverity::HINT) => {
-            (Style::default().underline_color(Color::DarkGray), "lsp::diagnostics::hint")
+            (Style::default().underline_color(Color::DarkGray), NS_HINT)
         }
         _ => (
             Style::default()
                 .underline_color(Color::Red)
                 .add_modifier(Modifier::UNDERLINED),
-            "lsp::diagnostics::error",
+            NS_ERROR,
         ),
     }
 }
@@ -139,10 +149,10 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
     let cursor_byte = buf.primary_cursor().get_cursor_byte();
 
     // Register namespace priorities (idempotent).
-    buf.renderer.set_namespace_priority("lsp::diagnostics::hint",    0);
-    buf.renderer.set_namespace_priority("lsp::diagnostics::info",    1);
-    buf.renderer.set_namespace_priority("lsp::diagnostics::warning", 2);
-    buf.renderer.set_namespace_priority("lsp::diagnostics::error",   3);
+    buf.renderer.set_namespace_priority(NS_HINT,    PRIORITY_HINT);
+    buf.renderer.set_namespace_priority(NS_INFO,    PRIORITY_INFO);
+    buf.renderer.set_namespace_priority(NS_WARNING, PRIORITY_WARNING);
+    buf.renderer.set_namespace_priority(NS_ERROR,   PRIORITY_ERROR);
 
     // Only show overlay for the highest-severity diagnostic at cursor.
     let popup_idx = diagnostics
@@ -156,10 +166,10 @@ pub async fn render_diagnostic_highlights(buffers: ResMut<kerbin_core::Buffers>)
         .max_by_key(|(_, rank)| *rank)
         .map(|(i, _)| i);
 
-    buf.renderer.clear_extmark_ns("lsp::diagnostics::hint");
-    buf.renderer.clear_extmark_ns("lsp::diagnostics::info");
-    buf.renderer.clear_extmark_ns("lsp::diagnostics::warning");
-    buf.renderer.clear_extmark_ns("lsp::diagnostics::error");
+    buf.renderer.clear_extmark_ns(NS_HINT);
+    buf.renderer.clear_extmark_ns(NS_INFO);
+    buf.renderer.clear_extmark_ns(NS_WARNING);
+    buf.renderer.clear_extmark_ns(NS_ERROR);
 
     for (i, diagnostic) in diagnostics.iter().enumerate() {
         let start_byte = to_byte(

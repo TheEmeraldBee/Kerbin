@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use kerbin_core::*;
+
+const PRIORITY: i32 = 6;
 use lsp_types::{
     CompletionItem, CompletionParams, CompletionResponse, Position, TextDocumentIdentifier,
     TextDocumentPositionParams, WorkDoneProgressParams,
@@ -973,6 +975,7 @@ pub async fn render_completions(
         info.cached_doc_buffer = Some((idx, buf_arc));
     }
 
+    buf.renderer.set_namespace_priority("lsp::completion", PRIORITY);
     buf.add_extmark(
         ExtmarkBuilder::new("lsp::completion", position)
             .with_kind(ExtmarkKind::Overlay {

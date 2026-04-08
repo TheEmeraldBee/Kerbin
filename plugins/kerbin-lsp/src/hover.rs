@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use kerbin_core::*;
+
+const PRIORITY: i32 = 5;
 use lsp_types::{
     Hover, HoverContents, HoverParams, LanguageString, MarkedString, Position,
     TextDocumentIdentifier, TextDocumentPositionParams, WorkDoneProgressParams,
@@ -235,6 +237,7 @@ pub async fn render_hover(
 
     let window_style = theme.get_fallback_default(["lsp.hover.window", "lsp.hover"]);
 
+    buf.renderer.set_namespace_priority("lsp::hover", PRIORITY);
     buf.add_extmark(
         ExtmarkBuilder::new("lsp::hover", info.position)
             .with_kind(ExtmarkKind::Overlay {

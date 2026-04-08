@@ -111,17 +111,15 @@ impl<'a> TextBufferWidget<'a> {
             if extra_eof_space { base + " " } else { base }
         };
 
-        // Apply whitespace trimming and strip the trim flags for downstream use
+        // Apply whitespace trimming to conceals, producing EffectiveConceal for downstream use.
         let chars: Vec<char> = full_line_text.chars().collect();
         let total_chars = chars.len();
-        let effective_conceals: Vec<(usize, usize, Option<&str>, Option<Style>)> = {
+        let effective_conceals: Vec<EffectiveConceal> = {
             let mut result = Vec::with_capacity(lm.conceals.len());
             let mut prev_end = 0usize;
-            for (i, &(c_start, c_end, replacement, style, trim_before, trim_after)) in
-                lm.conceals.iter().enumerate()
-            {
-                let actual_start = if trim_before {
-                    let mut s = c_start;
+            for (i, cm) in lm.conceals.iter().enumerate() {
+                let actual_start = if cm.trim_before {
+                    let mut s = cm.start;
                     while s > prev_end
                         && chars
                             .get(s.wrapping_sub(1))
@@ -132,15 +130,11 @@ impl<'a> TextBufferWidget<'a> {
                     }
                     s
                 } else {
-                    c_start
+                    cm.start
                 };
-                let next_start = lm
-                    .conceals
-                    .get(i + 1)
-                    .map(|(s, _, _, _, _, _)| *s)
-                    .unwrap_or(total_chars);
-                let actual_end = if trim_after {
-                    let mut e = c_end;
+                let next_start = lm.conceals.get(i + 1).map(|c| c.start).unwrap_or(total_chars);
+                let actual_end = if cm.trim_after {
+                    let mut e = cm.end;
                     while e < next_start
                         && chars
                             .get(e)
@@ -151,9 +145,14 @@ impl<'a> TextBufferWidget<'a> {
                     }
                     e
                 } else {
-                    c_end
+                    cm.end
                 };
-                result.push((actual_start, actual_end, replacement, style));
+                result.push(EffectiveConceal {
+                    start: actual_start,
+                    end: actual_end,
+                    replacement: cm.replacement,
+                    style: cm.style,
+                });
                 prev_end = actual_end;
             }
             result
@@ -182,24 +181,24 @@ impl<'a> TextBufferWidget<'a> {
             });
         }
 
-        lm.inline_marks.sort_by_key(|(col, _)| *col);
-        for (col, chunks) in lm.inline_marks.iter().rev() {
-            let display_col = buffer_to_display(*col, &effective_conceals);
-            segments.insert_at(display_col, chunks);
+        lm.inline_marks.sort_by_key(|m| m.col);
+        for m in lm.inline_marks.iter().rev() {
+            let display_col = buffer_to_display(m.col, &effective_conceals);
+            segments.insert_at(display_col, m.chunks);
         }
 
-        for (col, chunks) in &lm.overlay_marks {
-            let display_col = buffer_to_display(*col, &effective_conceals);
-            segments.overlay_at(display_col, chunks);
+        for m in &lm.overlay_marks {
+            let display_col = buffer_to_display(m.col, &effective_conceals);
+            segments.overlay_at(display_col, m.chunks);
         }
 
         let cursor_display_cols: Vec<(usize, Style)> = lm
             .cursors
             .iter()
-            .map(|&(col, style, _, _)| {
-                let char_col = buffer_to_display(col, &effective_conceals);
+            .map(|cm| {
+                let char_col = buffer_to_display(cm.col, &effective_conceals);
                 let display_col = char_col_to_display_col(&full_line_text, char_col, &self.tab_display_unit);
-                (display_col, style)
+                (display_col, cm.style)
             })
             .collect();
 
@@ -214,7 +213,7 @@ impl<'a> TextBufferWidget<'a> {
         let cursors: Vec<(usize, CursorShape)> = cursor_display_cols
             .iter()
             .zip(lm.cursors.iter())
-            .map(|(&(display_col, _), &(_, _, _, shape))| (display_col, shape))
+            .map(|(&(display_col, _), cm)| (display_col, cm.shape))
             .collect();
 
         append_eol_and_right_align(
@@ -225,9 +224,9 @@ impl<'a> TextBufferWidget<'a> {
         );
 
         let mut popups = Vec::new();
-        for (anchor_col, content, position, z_index) in lm.popups {
-            let display_col = buffer_to_display(anchor_col, &effective_conceals);
-            popups.push((display_col, content, position, z_index));
+        for pm in lm.popups {
+            let display_col = buffer_to_display(pm.col, &effective_conceals);
+            popups.push((display_col, pm.widget, pm.position, pm.priority));
         }
 
         LineRenderResult {
@@ -324,19 +323,16 @@ fn char_col_to_display_col(line_text: &str, char_col: usize, tab_display_unit: &
     display_col
 }
 
-fn buffer_to_display(
-    col: usize,
-    conceals: &[(usize, usize, Option<&str>, Option<Style>)],
-) -> usize {
+fn buffer_to_display(col: usize, conceals: &[EffectiveConceal<'_>]) -> usize {
     let mut shift: isize = 0;
-    for &(c_start, c_end, replacement, _) in conceals {
-        let buf_len = c_end - c_start;
-        let rep_len = replacement.map(|r| r.chars().count()).unwrap_or(0);
+    for ec in conceals {
+        let buf_len = ec.end - ec.start;
+        let rep_len = ec.replacement.map(|r| r.chars().count()).unwrap_or(0);
         let delta = rep_len as isize - buf_len as isize;
-        if col < c_start {
+        if col < ec.start {
             break;
-        } else if col < c_end {
-            return (c_start as isize + shift) as usize;
+        } else if col < ec.end {
+            return (ec.start as isize + shift) as usize;
         } else {
             shift += delta;
         }
@@ -578,19 +574,75 @@ impl SegmentList {
     }
 }
 
-#[allow(clippy::type_complexity)]
+
+struct ConcealMark<'a> {
+    start: usize,
+    end: usize,
+    replacement: Option<&'a str>,
+    style: Option<Style>,
+    trim_before: bool,
+    trim_after: bool,
+    /// Carried during classify for suppression; stripped before passing downstream.
+    ns: &'a str,
+    scope: ConcealScope,
+}
+
+/// A conceal mark with whitespace trimming already applied, ready for segment building.
+struct EffectiveConceal<'a> {
+    start: usize,
+    end: usize,
+    replacement: Option<&'a str>,
+    style: Option<Style>,
+}
+
+struct HighlightMark {
+    start: usize,
+    end: usize,
+    style: Style,
+    priority: i32,
+}
+
+struct CursorMark {
+    col: usize,
+    style: Style,
+    shape: CursorShape,
+}
+
+struct ChunkMark<'a> {
+    chunk: &'a StyledChunk,
+    priority: i32,
+}
+
+struct ColChunksMark<'a> {
+    col: usize,
+    chunks: &'a [StyledChunk],
+}
+
+struct PopupMark {
+    col: usize,
+    widget: Arc<dyn OverlayWidget>,
+    position: OverlayPosition,
+    priority: i32,
+}
+
+struct SuppressRange<'a> {
+    start: usize,
+    end: usize,
+    ns: &'a str,
+}
+
+
 struct LineMarks<'a> {
-    conceals: Vec<(usize, usize, Option<&'a str>, Option<Style>, bool, bool)>,
-    highlights: Vec<(usize, usize, Style, i32)>,
-    cursors: Vec<(usize, Style, i32, CursorShape)>,
+    conceals: Vec<ConcealMark<'a>>,
+    highlights: Vec<HighlightMark>,
+    cursors: Vec<CursorMark>,
     newline_highlights: Vec<(Style, i32)>,
     eol_highlights: Vec<(Style, i32)>,
-    eol_chunks: Vec<(&'a StyledChunk, i32)>,
-    overlay_marks: Vec<(usize, &'a [StyledChunk])>,
-    inline_marks: Vec<(usize, &'a [StyledChunk])>,
-    right_align_chunks: Vec<(&'a StyledChunk, i32)>,
-    /// Floating overlays: (anchor_col, widget, position, z_index)
-    popups: Vec<(usize, Arc<dyn OverlayWidget>, OverlayPosition, i32)>,
+    eol_chunks: Vec<ChunkMark<'a>>,
+    overlay_marks: Vec<ColChunksMark<'a>>,
+    inline_marks: Vec<ColChunksMark<'a>>,
+    right_align_chunks: Vec<ChunkMark<'a>>,
+    popups: Vec<PopupMark>,
 }
 
 impl<'a> LineMarks<'a> {
@@ -616,10 +668,7 @@ impl<'a> LineMarks<'a> {
             popups: Vec::new(),
         };
 
-        // Parallel vecs for namespace-aware conceal suppression
-        let mut conceal_ns: Vec<&'a str> = Vec::new();
-        let mut conceal_scopes: Vec<ConcealScope> = Vec::new();
-        let mut suppress_ranges: Vec<(usize, usize, &'a str)> = Vec::new();
+        let mut suppress_ranges: Vec<SuppressRange<'a>> = Vec::new();
         let mut cursor_on_line = false;
 
         for mark in marks {
@@ -631,8 +680,8 @@ impl<'a> LineMarks<'a> {
                 ExtmarkKind::Cursor { style, shape } => {
                     if mark_start_char >= line_start_char && mark_start_char <= line_end_char {
                         let col = mark_start_char - line_start_char;
-                        result.cursors.push((col, *style, priority, *shape));
-                        suppress_ranges.push((col, col + 1, &mark.namespace));
+                        result.cursors.push(CursorMark { col, style: *style, shape: *shape });
+                        suppress_ranges.push(SuppressRange { start: col, end: col + 1, ns: &mark.namespace });
                         cursor_on_line = true;
                     }
                 }
@@ -651,10 +700,8 @@ impl<'a> LineMarks<'a> {
                     } else if start_col >= visible_len && visible_len > 0 {
                         result.eol_highlights.push((*style, priority));
                     } else if end_col > start_col {
-                        result
-                            .highlights
-                            .push((start_col, end_col, *style, priority));
-                        suppress_ranges.push((start_col, end_col, &mark.namespace));
+                        result.highlights.push(HighlightMark { start: start_col, end: end_col, style: *style, priority });
+                        suppress_ranges.push(SuppressRange { start: start_col, end: end_col, ns: &mark.namespace });
                     }
                 }
                 ExtmarkKind::VirtualText { chunks, pos } => {
@@ -663,97 +710,70 @@ impl<'a> LineMarks<'a> {
                         match pos {
                             VirtTextPos::Eol => {
                                 for chunk in chunks {
-                                    result.eol_chunks.push((chunk, priority));
+                                    result.eol_chunks.push(ChunkMark { chunk, priority });
                                 }
                             }
                             VirtTextPos::Overlay => {
-                                result.overlay_marks.push((col, chunks.as_slice()));
+                                result.overlay_marks.push(ColChunksMark { col, chunks: chunks.as_slice() });
                             }
                             VirtTextPos::Inline => {
-                                result.inline_marks.push((col, chunks.as_slice()));
+                                result.inline_marks.push(ColChunksMark { col, chunks: chunks.as_slice() });
                             }
                             VirtTextPos::RightAlign => {
                                 for chunk in chunks {
-                                    result.right_align_chunks.push((chunk, priority));
+                                    result.right_align_chunks.push(ChunkMark { chunk, priority });
                                 }
                             }
                         }
                     }
                 }
-                ExtmarkKind::Conceal {
-                    replacement,
-                    style,
-                    scope,
-                    trim_before,
-                    trim_after,
-                } => {
+                ExtmarkKind::Conceal { replacement, style, scope, trim_before, trim_after } => {
                     if mark_start_char >= line_start_char && mark_start_char < line_end_char {
                         let start_col = mark_start_char - line_start_char;
                         let end_col = (mark_end_char - line_start_char).min(visible_len);
-                        result.conceals.push((
-                            start_col,
-                            end_col,
-                            replacement.as_deref(),
-                            *style,
-                            *trim_before,
-                            *trim_after,
-                        ));
-                        conceal_ns.push(&mark.namespace);
-                        conceal_scopes.push(*scope);
+                        result.conceals.push(ConcealMark {
+                            start: start_col,
+                            end: end_col,
+                            replacement: replacement.as_deref(),
+                            style: *style,
+                            trim_before: *trim_before,
+                            trim_after: *trim_after,
+                            ns: &mark.namespace,
+                            scope: *scope,
+                        });
                     }
                 }
                 ExtmarkKind::Overlay { widget, position } => {
                     if mark_start_char >= line_start_char && mark_start_char <= line_end_char {
                         let col = mark_start_char - line_start_char;
-                        result
-                            .popups
-                            .push((col, widget.clone(), position.clone(), priority));
+                        result.popups.push(PopupMark { col, widget: widget.clone(), position: position.clone(), priority });
                     }
                 }
             }
         }
 
-        // Drop conceals suppressed by marks from a different namespace
-        if !conceal_ns.is_empty() {
+        // Drop conceals suppressed by marks from a different namespace.
+        if !result.conceals.is_empty() {
             let force_line_scope = reveal_conceal_on_cursor_line && cursor_on_line;
-            let conceals_with_meta: Vec<_> = result
-                .conceals
-                .drain(..)
-                .zip(conceal_ns)
-                .zip(conceal_scopes)
-                .map(|((c, ns), sc)| (c, ns, sc))
-                .collect();
-            result.conceals = conceals_with_meta
-                .into_iter()
-                .filter(|((c_start, c_end, _, _, _, _), c_ns, scope)| {
-                    let effective_scope = if force_line_scope {
-                        ConcealScope::Line
-                    } else {
-                        *scope
-                    };
-                    match effective_scope {
-                        ConcealScope::Byte => {
-                            !suppress_ranges.iter().any(|(s_start, s_end, s_ns)| {
-                                *s_ns != *c_ns && s_start < c_end && s_end > c_start
-                            })
-                        }
-                        ConcealScope::Line => {
-                            !suppress_ranges.iter().any(|(_, _, s_ns)| *s_ns != *c_ns)
-                        }
-                    }
-                })
-                .map(|(conceal, _, _)| conceal)
-                .collect();
+            result.conceals.retain(|cm| {
+                let effective_scope = if force_line_scope { ConcealScope::Line } else { cm.scope };
+                match effective_scope {
+                    ConcealScope::Byte => !suppress_ranges
+                        .iter()
+                        .any(|sr| sr.ns != cm.ns && sr.start < cm.end && sr.end > cm.start),
+                    ConcealScope::Line => !suppress_ranges.iter().any(|sr| sr.ns != cm.ns),
+                }
+            });
         }
 
-        result.conceals.sort_by_key(|(s, _, _, _, _, _)| *s);
+        result.conceals.sort_by_key(|cm| cm.start);
         result
     }
 }
 
 fn build_concealed_segments<'a>(
     line_text: &'a str,
-    conceals: &[(usize, usize, Option<&'a str>, Option<Style>)],
+    conceals: &[EffectiveConceal<'a>],
 ) -> (SegmentList, Vec<(usize, usize)>) {
     let mut segments = SegmentList::new();
     let mut col_ranges: Vec<(usize, usize)> = Vec::new();
@@ -770,14 +790,14 @@ fn build_concealed_segments<'a>(
 
     let chars: Vec<(usize, char)> = line_text.char_indices().collect();
 
-    for &(c_start, c_end, replacement, style) in conceals {
-        if char_pos < c_start && char_pos < total_chars {
+    for ec in conceals {
+        if char_pos < ec.start && char_pos < total_chars {
             let from_byte = chars
                 .get(char_pos)
                 .map(|(b, _)| *b)
                 .unwrap_or(line_text.len());
             let to_byte = chars
-                .get(c_start)
+                .get(ec.start)
                 .map(|(b, _)| *b)
                 .unwrap_or(line_text.len());
             if from_byte < to_byte {
@@ -788,20 +808,20 @@ fn build_concealed_segments<'a>(
             }
         }
 
-        let display_start = char_pos.min(c_start);
-        let rep_len = replacement.map(|r| r.chars().count()).unwrap_or(0);
+        let display_start = char_pos.min(ec.start);
+        let rep_len = ec.replacement.map(|r| r.chars().count()).unwrap_or(0);
 
-        if let Some(rep) = replacement {
+        if let Some(rep) = ec.replacement {
             segments.push(StyledSegment {
                 text: rep.to_string(),
-                style: style.unwrap_or_default(),
+                style: ec.style.unwrap_or_default(),
             });
         }
 
         let display_end = display_start + rep_len;
         col_ranges.push((display_start, display_end));
 
-        char_pos = c_end;
+        char_pos = ec.end;
     }
 
     if char_pos < total_chars {
@@ -821,14 +841,17 @@ fn build_concealed_segments<'a>(
 fn apply_highlights(
     mut segments: SegmentList,
     _col_ranges: &[(usize, usize)],
-    highlights: &mut [(usize, usize, Style, i32)],
-    conceals: &[(usize, usize, Option<&str>, Option<Style>)],
+    highlights: &mut [HighlightMark],
+    conceals: &[EffectiveConceal<'_>],
     newline_highlights: &[(Style, i32)],
     visible_len: usize,
 ) -> SegmentList {
-    highlights.sort_by_key(|(_, _, _, p)| *p);
+    highlights.sort_by_key(|h| h.priority);
 
-    for &(hl_start, hl_end, style, _) in highlights.iter() {
+    for hl in highlights.iter() {
+        let hl_start = hl.start;
+        let hl_end = hl.end;
+        let style = hl.style;
         let display_start = buffer_to_display(hl_start, conceals);
         let display_end = buffer_to_display(hl_end, conceals);
         if display_start >= display_end {
@@ -894,28 +917,25 @@ fn apply_highlights(
 
 fn append_eol_and_right_align(
     spans: &mut Vec<Span<'static>>,
-    eol_chunks: &mut Vec<(&StyledChunk, i32)>,
-    right_align_chunks: &mut Vec<(&StyledChunk, i32)>,
+    eol_chunks: &mut Vec<ChunkMark<'_>>,
+    right_align_chunks: &mut Vec<ChunkMark<'_>>,
     width: usize,
 ) {
-    eol_chunks.sort_by_key(|(_, p)| *p);
-    for (chunk, _) in eol_chunks.iter() {
-        spans.push(Span::styled(chunk.text.clone(), chunk.style));
+    eol_chunks.sort_by_key(|cm| cm.priority);
+    for cm in eol_chunks.iter() {
+        spans.push(Span::styled(cm.chunk.text.clone(), cm.chunk.style));
     }
 
     if !right_align_chunks.is_empty() {
-        right_align_chunks.sort_by_key(|(_, p)| *p);
+        right_align_chunks.sort_by_key(|cm| cm.priority);
         let current_len: usize = spans.iter().map(|s| s.content.chars().count()).sum();
-        let right_len: usize = right_align_chunks
-            .iter()
-            .map(|(c, _)| c.text.chars().count())
-            .sum();
+        let right_len: usize = right_align_chunks.iter().map(|cm| cm.chunk.text.chars().count()).sum();
         if current_len + right_len < width {
             let padding = width - current_len - right_len;
             spans.push(Span::raw(" ".repeat(padding)));
         }
-        for (chunk, _) in right_align_chunks.iter() {
-            spans.push(Span::styled(chunk.text.clone(), chunk.style));
+        for cm in right_align_chunks.iter() {
+            spans.push(Span::styled(cm.chunk.text.clone(), cm.chunk.style));
         }
     }
 }
