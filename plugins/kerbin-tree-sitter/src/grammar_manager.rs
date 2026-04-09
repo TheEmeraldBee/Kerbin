@@ -26,6 +26,7 @@ pub struct GrammarManager {
     pub lang_map: HashMap<String, GrammarDefinition>,
     pub loaded_grammars: HashMap<String, Arc<Grammar>>,
     pub query_map: HashMap<String, HashMap<String, Arc<Query>>>,
+    pub failed_queries: std::collections::HashSet<(String, String)>,
 }
 
 impl GrammarManager {
@@ -264,6 +265,10 @@ impl GrammarManager {
                 config_path, variant, query_name
             ));
             paths.push(format!(
+                "{}/runtime/grammars/tree-sitter-{}/queries/{}/{}.scm",
+                config_path, variant, variant, query_name
+            ));
+            paths.push(format!(
                 "{}/runtime/grammars/tree-sitter-{}/queries/{}.scm",
                 config_path, variant, query_name
             ));
@@ -279,6 +284,10 @@ impl GrammarManager {
         query_name: &str,
     ) -> Option<Arc<Query>> {
         let normalized = normalize_lang_name(lang);
+
+        if self.failed_queries.contains(&(normalized.clone(), query_name.to_string())) {
+            return None;
+        }
 
         if self.query_map.contains_key(&normalized)
             && self
@@ -311,6 +320,7 @@ impl GrammarManager {
                 tracing::error!(
                     "tree-sitter: failed to compile '{query_name}' query for '{lang}': {e}"
                 );
+                self.failed_queries.insert((normalized, query_name.to_string()));
                 return None;
             }
         };

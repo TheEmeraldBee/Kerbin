@@ -178,8 +178,26 @@ fn compile_mixed(
     Ok(())
 }
 
-fn compile_grammar(src_dir: &Path, output_path: &Path) -> Result<(), GrammarInstallError> {
+fn try_generate(grammar_dir: &Path) -> Result<(), GrammarInstallError> {
+    let out = Command::new("tree-sitter")
+        .arg("generate")
+        .current_dir(grammar_dir)
+        .stdin(std::process::Stdio::null())
+        .output()?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(GrammarInstallError::CompileFailed {
+            stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+        })
+    }
+}
+
+fn compile_grammar(src_dir: &Path, grammar_dir: &Path, output_path: &Path) -> Result<(), GrammarInstallError> {
     let parser_c = src_dir.join("parser.c");
+    if !parser_c.exists() {
+        try_generate(grammar_dir)?;
+    }
     if !parser_c.exists() {
         return Err(GrammarInstallError::MissingSourceFiles {
             path: src_dir.display().to_string(),
@@ -241,6 +259,8 @@ pub fn install_language(
             .arg("1")
             .arg(&install_def.url)
             .arg(&repo_clone_dir)
+            .stdin(std::process::Stdio::null())
+            .env("GIT_TERMINAL_PROMPT", "0")
             .output()?;
 
         if !output.status.success() {
@@ -261,7 +281,7 @@ pub fn install_language(
         let output_lib_path = build_dir.join(&output_lib_name);
 
         let src_dir = build_dir.join("src");
-        compile_grammar(&src_dir, &output_lib_path)?;
+        compile_grammar(&src_dir, &build_dir, &output_lib_path)?;
 
         fs::create_dir_all(&temp_final_dir)?;
         fs::copy(&output_lib_path, temp_final_dir.join(&output_lib_name))?;

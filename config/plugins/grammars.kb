@@ -85,9 +85,6 @@ tree-sitter-define haskell --exts [hs] --url https://github.com/tree-sitter/tree
 # Kotlin
 tree-sitter-define kotlin --exts [kt kts] --url https://github.com/fwcd/tree-sitter-kotlin.git
 
-# SQL
-tree-sitter-define sql --exts [sql] --url https://github.com/DerekStride/tree-sitter-sql.git
-
 # Justfile
 tree-sitter-define just --exts [] --url https://github.com/casey/tree-sitter-just.git
 tree-sitter-alias just justfile --exts [just] --filenames [Justfile justfile .justfile]
@@ -101,4 +98,7 @@ tree-sitter-define dockerfile --exts [] --filenames [Dockerfile] --url https://g
 
 # Git
 tree-sitter-define git_commit --exts [] --filenames [COMMIT_EDITMSG] --url https://github.com/the-mikedavis/tree-sitter-git-commit.git
-tree-sitter-define gitconfig --exts [] --filenames [.gitconfig .git/config] --url https://github.com/the-mikedavis/tree-sitter-gitconfig.git
+tree-sitter-define git_config --exts [] --filenames [.gitconfig .git/config] --url https://github.com/the-mikedavis/tree-sitter-git-config.git
+
+# Regex (injection-only, no file extensions)
+tree-sitter-define regex --exts [] --url https://github.com/tree-sitter/tree-sitter-regex.git
