@@ -5,10 +5,14 @@ use lsp_types::{
 };
 use tokio::io::AsyncWriteExt;
 
-use crate::{text_edit::apply_text_edits, FormatterKind, JsonRpcMessage, LspManager, OpenedFile};
+use crate::{
+    text_edit::{apply_text_edits, cursor_adjustment_for_edits},
+    FormatterKind, JsonRpcMessage, LspManager, OpenedFile,
+};
 
 pub struct FormatPending {
     pub request_id: i32,
+    pub format_on_save: bool,
 }
 
 #[derive(State, Default)]
@@ -48,7 +52,7 @@ pub async fn format_current_buffer(state: &mut State) -> bool {
     };
 
     match fmt_config.kind {
-        FormatterKind::Lsp => send_lsp_format_request(&mut buf, &mut lsps, &lang, uri).await,
+        FormatterKind::Lsp => send_lsp_format_request(&mut buf, &mut lsps, &lang, uri, false).await,
         FormatterKind::External(cmd, args) => {
             send_external_format_request(&mut buf, &cmd, &args).await
         }
@@ -60,6 +64,7 @@ pub(crate) async fn send_lsp_format_request(
     lsps: &mut LspManager,
     lang: &str,
     uri: lsp_types::Uri,
+    format_on_save: bool,
 ) -> bool {
     let tab_size = buf.indent_style.tab_width() as u32;
     let insert_spaces = matches!(buf.indent_style, IndentStyle::Spaces(_));
@@ -84,7 +89,7 @@ pub(crate) async fn send_lsp_format_request(
     };
 
     let mut fmt_state = buf.get_or_insert_state_mut(FormatState::default).await;
-    fmt_state.pending = Some(FormatPending { request_id });
+    fmt_state.pending = Some(FormatPending { request_id, format_on_save });
 
     true
 }
@@ -172,6 +177,12 @@ pub async fn handle_format(state: &State, msg: &JsonRpcMessage) {
     let mut buf_guard = buf_arc.write_owned().await;
     let Some(buf) = buf_guard.downcast_mut::<TextBuffer>() else { return; };
 
+    let format_on_save = buf
+        .get_state::<FormatState>()
+        .await
+        .and_then(|s| s.pending.as_ref().map(|p| p.format_on_save))
+        .unwrap_or(false);
+
     if let Some(mut fmt_state) = buf.get_state_mut::<FormatState>().await {
         fmt_state.pending = None;
     }
@@ -185,6 +196,32 @@ pub async fn handle_format(state: &State, msg: &JsonRpcMessage) {
         Err(_) => return,
     };
 
+    if edits.is_empty() {
+        return;
+    }
+
+    let cursor_bytes: Vec<usize> = buf.cursors.iter().map(|c| c.get_cursor_byte()).collect();
+    let adjustments: Vec<isize> = cursor_bytes
+        .iter()
+        .map(|&byte| cursor_adjustment_for_edits(buf, &edits, byte))
+        .collect();
+
     apply_text_edits(buf, edits);
+
+    for ((cursor, &cursor_byte), adjustment) in buf
+        .cursors
+        .iter_mut()
+        .zip(&cursor_bytes)
+        .zip(adjustments)
+    {
+        let new_byte = (cursor_byte as isize + adjustment).max(0) as usize;
+        cursor.set_sel(new_byte..=new_byte);
+    }
+
+    if format_on_save {
+        if let Err(e) = buf.write_file_bare() {
+            tracing::error!("Failed to write formatted file: {e}");
+        }
+    }
 }
 

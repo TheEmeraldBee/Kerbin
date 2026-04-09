@@ -527,6 +527,42 @@ impl TextBuffer {
         Ok(())
     }
 
+    /// Writes the buffer contents to disk and updates dirty/save_point/changed,
+    /// without emitting SaveEvent. Used after format-on-save edits are applied.
+    pub fn write_file_bare(&mut self) -> Result<(), std::io::Error> {
+        if !std::fs::exists(&self.path)? {
+            if let Some(dir_path) = Path::new(&self.path).parent() {
+                std::fs::create_dir_all(dir_path)?;
+            }
+            std::fs::File::create(&self.path)?.flush()?;
+        }
+
+        let write_result = self.rope.write_to(
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .open(&self.path)
+            {
+                Ok(f) => BufWriter::new(f),
+                Err(e) => return Err(e),
+            },
+        );
+
+        if let Err(e) = write_result {
+            return Err(std::io::Error::other(e.to_string()));
+        }
+
+        self.dirty = false;
+        self.save_point = self.undo_stack.len();
+
+        match std::fs::metadata(&self.path) {
+            Ok(metadata) => self.changed = metadata.modified().ok(),
+            Err(_) => self.changed = None,
+        }
+
+        Ok(())
+    }
+
     /// Scrolls the viewport by `lines` rows.  The update loop will clamp the cursor
     /// into the new visible area (with scroll padding) on the next frame.
     pub fn scroll_lines(&mut self, lines: isize) {

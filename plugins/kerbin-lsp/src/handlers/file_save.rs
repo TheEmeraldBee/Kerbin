@@ -46,7 +46,7 @@ pub async fn file_saved(
     {
         match fmt.kind {
             FormatterKind::Lsp => {
-                send_lsp_format_request(cur_buf, &mut lsp_manager, &lang, uri).await;
+                send_lsp_format_request(cur_buf, &mut lsp_manager, &lang, uri, true).await;
             }
             FormatterKind::External(cmd, args) => {
                 send_external_format_request(cur_buf, &cmd, &args).await;
