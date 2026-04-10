@@ -14,7 +14,7 @@ pub async fn apply_changes(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspMana
         return;
     };
 
-    let Some(client) = lsp_manager.get_or_create_client(&file.lang).await else { return; };
+    let Some(client) = lsp_manager.get_or_create_client(&file.lang).await.ok().flatten() else { return; };
 
     file.change_id += 1;
 

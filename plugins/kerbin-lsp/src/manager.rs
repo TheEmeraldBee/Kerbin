@@ -95,6 +95,9 @@ pub struct LspManager {
 
     /// A map for language IDs to Language Information
     pub lang_info_map: HashMap<String, LangInfo>,
+
+    /// Languages whose server failed to spawn; won't retry until lsp-restart
+    pub spawn_failed: std::collections::HashSet<String>,
 }
 
 impl LspManager {
@@ -102,36 +105,70 @@ impl LspManager {
         self.lang_info_map.insert(name.to_string(), language_info);
     }
 
-    /// Retrieves a running client, creating it if non-existant
+    /// Retrieves a running client, creating it if non-existant.
     ///
-    /// Will return None if there is no language description and
-    /// the client isn't already running
+    /// Returns `None` (with no error) if the language is not registered.
+    /// Returns `Err` if the language is registered but the server failed to spawn.
     pub async fn get_or_create_client(
         &mut self,
         lang: impl ToString,
-    ) -> Option<&mut LspClient<ChildStdin>> {
+    ) -> Result<Option<&mut LspClient<ChildStdin>>, std::io::Error> {
         let lang = lang.to_string();
         if self.client_map.contains_key(&lang) {
-            return Some(
+            return Ok(Some(
                 self.client_map
                     .get_mut(&lang)
                     .expect("Client should exist, it was just looked for"),
-            );
+            ));
         }
 
-        let info = self.lang_info_map.get(&lang)?;
+        if self.spawn_failed.contains(&lang) {
+            return Ok(None);
+        }
 
-        let client = LspClient::spawned(&lang, &info.command, info.args.clone())
-            .await
-            .ok()?;
+        let Some(info) = self.lang_info_map.get(&lang) else {
+            return Ok(None);
+        };
+
+        let client = match LspClient::spawned(&lang, &info.command, info.args.clone()).await {
+            Ok(c) => c,
+            Err(e) => {
+                self.spawn_failed.insert(lang);
+                return Err(e);
+            }
+        };
 
         self.client_map.insert(lang.clone(), client);
 
-        Some(
+        Ok(Some(
             self.client_map
                 .get_mut(&lang)
                 .expect("Client should exist, it was just inserted"),
-        )
+        ))
+    }
+
+    /// Returns a human-readable status string for a language.
+    pub fn lang_status(&self, lang: &str) -> &'static str {
+        if let Some(client) = self.client_map.get(lang) {
+            if client.is_initialized() {
+                "running (initialized)"
+            } else {
+                "running (not yet initialized)"
+            }
+        } else if self.spawn_failed.contains(lang) {
+            "spawn failed (use lsp-restart to retry)"
+        } else if self.lang_info_map.contains_key(lang) {
+            "registered (not started)"
+        } else {
+            "unknown language"
+        }
+    }
+
+    /// Removes a running/failed client so it can be respawned. Returns true if anything was removed.
+    pub fn reset_client(&mut self, lang: &str) -> bool {
+        let was_running = self.client_map.remove(lang).is_some();
+        let was_failed = self.spawn_failed.remove(lang);
+        was_running || was_failed
     }
 }
 

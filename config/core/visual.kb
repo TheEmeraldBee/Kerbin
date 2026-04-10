@@ -1,3 +1,3 @@
 bind [v] [pm v] --invalid [v]
 
-bind [v] [sl --extend] --modes [v]
+bind [v] [[mc 1] [sl --extend] [gse]] --modes [v]

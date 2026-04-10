@@ -1,6 +1,19 @@
 use kerbin_core::*;
 
-use crate::manager::{LangInfo, LspManager};
+use crate::{
+    handlers::file_open::OpenedFile,
+    manager::{LangInfo, LspManager},
+};
+
+async fn resolve_target_lang(lang: Option<&str>, state: &State) -> Option<String> {
+    if let Some(l) = lang {
+        return Some(l.to_string());
+    }
+    let bufs = state.lock_state::<Buffers>().await;
+    let buf = bufs.cur_text_buffer().await?;
+    let file = buf.get_state::<OpenedFile>().await?;
+    Some(file.lang.clone())
+}
 
 fn tokens_to_strings(tokens: &[Token]) -> Vec<String> {
     tokens
@@ -35,6 +48,18 @@ pub enum LspCommand {
         lsp_format: bool,
         #[command(flag)]
         external_formatter: Option<Vec<Token>>,
+    },
+
+    /// Show the status of a language server (defaults to current buffer's language).
+    #[command(drop_ident, name = "lsp_status")]
+    Status {
+        lang: Option<String>,
+    },
+
+    /// Kill and respawn a language server (defaults to current buffer's language).
+    #[command(drop_ident, name = "lsp_restart")]
+    Restart {
+        lang: Option<String>,
     },
 }
 
@@ -97,6 +122,43 @@ impl Command<State> for LspCommand {
                     .system(crate::render_hover)
                     .system(crate::update_completions)
                     .system(crate::render_completions);
+            }
+            LspCommand::Status { lang } => {
+                let Some(target_lang) = resolve_target_lang(lang.as_deref(), &state).await else {
+                    state.lock_state::<LogSender>().await.low("lsp", "no LSP language for current buffer");
+                    return false;
+                };
+                let manager = state.lock_state::<LspManager>().await;
+                let status = manager.lang_status(&target_lang);
+                state.lock_state::<LogSender>().await.low("lsp", &format!("{target_lang}: {status}"));
+            }
+            LspCommand::Restart { lang } => {
+                let Some(target_lang) = resolve_target_lang(lang.as_deref(), &state).await else {
+                    state.lock_state::<LogSender>().await.low("lsp", "no LSP language for current buffer");
+                    return false;
+                };
+
+                if !state.lock_state::<LspManager>().await.reset_client(&target_lang) {
+                    state.lock_state::<LogSender>().await.low("lsp", &format!("{target_lang}: no running client to restart"));
+                    return false;
+                }
+
+                // Clear the lsp_opened flag so open_files re-opens all affected buffers
+                let bufs = state.lock_state::<Buffers>().await;
+                for buf in &bufs.buffers {
+                    let mut buf_guard = buf.clone().write_owned().await;
+                    if let Some(text_buf) = buf_guard.downcast_mut::<TextBuffer>() {
+                        let is_match = text_buf
+                            .get_state::<OpenedFile>()
+                            .await
+                            .map_or(false, |f| f.lang == target_lang);
+                        if is_match {
+                            text_buf.flags.remove("lsp_opened");
+                        }
+                    }
+                }
+
+                state.lock_state::<LogSender>().await.low("lsp", &format!("{target_lang}: restarted"));
             }
         }
         false

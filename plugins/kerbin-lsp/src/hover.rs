@@ -97,10 +97,9 @@ impl Command<State> for HoverCommand {
                     return false;
                 };
 
-                let client = lsps
-                    .get_or_create_client(&file.lang)
-                    .await
-                    .expect("Lsp should exist");
+                let Some(client) = lsps.get_or_create_client(&file.lang).await.ok().flatten() else {
+                    return false;
+                };
 
                 let cursor = buf.primary_cursor();
                 let cursor_byte = cursor.get_cursor_byte().min(buf.len());

@@ -69,9 +69,8 @@ pub(crate) async fn send_lsp_format_request(
     let tab_size = buf.indent_style.tab_width() as u32;
     let insert_spaces = matches!(buf.indent_style, IndentStyle::Spaces(_));
 
-    let client = match lsps.get_or_create_client(lang).await {
-        Some(c) => c,
-        None => return false,
+    let Some(client) = lsps.get_or_create_client(lang).await.ok().flatten() else {
+        return false;
     };
 
     let params = DocumentFormattingParams {

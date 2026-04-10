@@ -7,7 +7,7 @@ lsp-register cpp --exts [cc cpp cxx hh hpp] --cmd clangd --roots [compile_comman
 
 # Web
 lsp-register javascript --exts [js mjs cjs jsx] --cmd typescript-language-server --args [--stdio] --roots [package.json tsconfig.json] --lsp_format --format_on_save
-lsp-register typescript --exts [ts mts cts tsx] --cmd typescript-language-server --args [--stdio] --roots [package.json tsconfig.json] --lsp_format --format_on_save
+lsp-register typescript --exts [tsx ts mts cts tsx] --cmd typescript-language-server --args [--stdio] --roots [package.json tsconfig.json] --lsp_format --format_on_save
 lsp-register css --exts [css scss] --cmd vscode-css-language-server --args [--stdio] --roots [package.json]
 
 # Python

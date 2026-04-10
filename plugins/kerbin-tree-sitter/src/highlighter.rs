@@ -242,48 +242,6 @@ pub fn merge_overlapping_spans(mut spans: Vec<HighlightSpan>) -> Vec<HighlightSp
     result
 }
 
-fn calculate_affected_range(
-    byte_changes: &[[((usize, usize), usize); 3]],
-    rope: &ropey::Rope,
-) -> Option<Range<usize>> {
-    if byte_changes.is_empty() {
-        return None;
-    }
-
-    let mut min_start = usize::MAX;
-    let mut max_end = 0;
-
-    for change in byte_changes {
-        let start = change[0].1;
-        let new_end = change[2].1;
-
-        min_start = min_start.min(start);
-        max_end = max_end.max(new_end);
-    }
-
-    // Clamp to rope length to avoid panics
-    min_start = min_start.min(rope.len_bytes());
-    max_end = max_end.min(rope.len_bytes());
-
-    // Expand the range to include complete lines for better context
-    // This helps catch cases where syntax depends on line boundaries
-    let start_line = rope.byte_to_line(min_start);
-    let end_line = rope.byte_to_line(max_end);
-
-    // Add some padding lines for context (e.g., 5 lines before and after)
-    let padding_lines = 5;
-    let start_line_with_padding = start_line.saturating_sub(padding_lines);
-    let end_line_with_padding = (end_line + padding_lines).min(rope.len_lines().saturating_sub(1));
-
-    let range_start = rope.line_to_byte(start_line_with_padding);
-    let range_end = if end_line_with_padding + 1 < rope.len_lines() {
-        rope.line_to_byte(end_line_with_padding + 1)
-    } else {
-        rope.len_bytes()
-    };
-
-    Some(range_start..range_end)
-}
 
 pub async fn highlight_file(
     buffers: ResMut<Buffers>,
@@ -304,128 +262,15 @@ pub async fn highlight_file(
         return;
     };
 
-    let affected_range = calculate_affected_range(&buf.byte_changes, buf.get_rope());
-
     let namespace = "tree-sitter::highlights";
+    buf.renderer.clear_extmark_ns(namespace);
 
-    if let Some(range) = affected_range {
-        // Remove extmarks in the affected range
-        buf.renderer.remove_extmarks_in_range(namespace, &range);
+    let Some(highlighter) =
+        Highlighter::new(&config_path.0, &mut grammars, &state, buf.get_rope())
+    else {
+        return;
+    };
 
-        // Create a highlighter WITHOUT byte range constraint
-        // We need to query the whole file because tree-sitter nodes from outside
-        // the affected range might extend into it
-        let Some((query, injected)) = grammars.get_query_set(&config_path.0, "highlights", &state)
-        else {
-            return;
-        };
-
-        let mut walker = QueryWalkerBuilder::new(&state, buf.get_rope(), query)
-            .with_injected_queries(injected)
-            .build();
-
-        let mut spans = Vec::new();
-        walker.walk(|entry| {
-            let query = &entry.query;
-            let is_conceal = is_conceal_pattern(query, entry.query_match.pattern_index);
-            let conceal_scope = conceal_scope_from_query(query, entry.query_match.pattern_index);
-            let (trim_before, trim_after) =
-                conceal_trim_from_query(query, entry.query_match.pattern_index);
-            for capture in entry.query_match.captures {
-                let capture_name = query.capture_names()[capture.index as usize];
-                let node_range = capture.node.byte_range().start + entry.byte_offset
-                    ..capture.node.byte_range().end + entry.byte_offset;
-
-                // Only collect spans that intersect with our affected range
-                if node_range.start < range.end && node_range.end > range.start {
-                    let base_priority =
-                        get_capture_priority(query, entry.query_match.pattern_index);
-                    let specificity = capture_specificity(capture_name);
-                    let priority = base_priority * 10 + specificity as i64;
-
-                    spans.push(HighlightSpan {
-                        byte_range: node_range,
-                        capture_name: capture_name.to_string(),
-                        priority,
-                        capture_index: capture.index,
-                        is_conceal,
-                        conceal_scope,
-                        trim_before,
-                        trim_after,
-                    });
-                }
-            }
-            true
-        });
-
-        emit_spans(spans, namespace, &mut buf, &theme);
-    } else {
-        // Full re-highlight (fallback for complex changes or first highlight)
-        buf.renderer.clear_extmark_ns(namespace);
-
-        let Some(highlighter) =
-            Highlighter::new(&config_path.0, &mut grammars, &state, buf.get_rope())
-        else {
-            return;
-        };
-
-        emit_spans(highlighter.collect_spans(), namespace, &mut buf, &theme);
-    }
+    emit_spans(highlighter.collect_spans(), namespace, &mut buf, &theme);
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_calculate_affected_range_crash() {
-        // Create a rope.
-        let text = "Hello\nWorld";
-        let _rope = ropey::Rope::from_str(text);
-
-        // len is 11.
-        // lines: "Hello\n" (0..6), "World" (6..11).
-
-        // Simulate an insertion at the very end.        // Inserting "!" at 11.
-        // New rope: "Hello\nWorld!"
-        let rope = ropey::Rope::from_str("Hello\nWorld!");
-
-        // change: start 11, new_end 12.
-        let change = [((1, 5), 11), ((1, 5), 11), ((1, 6), 12)];
-        let byte_changes = vec![change];
-
-        let range = calculate_affected_range(&byte_changes, &rope);
-        assert!(range.is_some());
-    }
-
-    #[test]
-    fn test_calculate_affected_range_crash_with_newline_at_end() {
-        // "Hello\n" -> 2 lines.
-        let _rope = ropey::Rope::from_str("Hello\n");
-        // len 6.
-
-        // Insert "World" at 6.
-        // New rope: "Hello\nWorld"
-        let rope = ropey::Rope::from_str("Hello\nWorld");
-
-        // change: start 6, new_end 11.
-        let change = [((1, 0), 6), ((1, 0), 6), ((1, 5), 11)];
-        let byte_changes = vec![change];
-
-        let range = calculate_affected_range(&byte_changes, &rope);
-        assert!(range.is_some());
-    }
-
-    #[test]
-    fn test_calculate_affected_range_deletion_at_end() {
-        // "Hello World" -> "Hello"
-        let rope = ropey::Rope::from_str("Hello");
-
-        // change: start 5, new_end 5. (Deleted " World")
-        let change = [((0, 5), 5), ((0, 11), 11), ((0, 5), 5)];
-        let byte_changes = vec![change];
-
-        let range = calculate_affected_range(&byte_changes, &rope);
-        assert!(range.is_some());
-    }
-}

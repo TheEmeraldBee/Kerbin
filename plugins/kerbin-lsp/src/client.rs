@@ -117,6 +117,14 @@ impl<W: AsyncWrite + Unpin + Send + 'static> LspClient<W> {
         self.flags.contains(flag)
     }
 
+    pub fn is_initialized(&self) -> bool {
+        self.flags.contains("init")
+    }
+
+    pub fn lang_id(&self) -> &str {
+        &self.lang_id
+    }
+
     async fn log_errors(stderr: impl AsyncRead + std::marker::Unpin) {
         let mut reader = BufReader::new(stderr);
 

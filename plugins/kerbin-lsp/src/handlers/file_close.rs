@@ -12,7 +12,7 @@ pub async fn file_close(event_data: EventData<CloseEvent>, manager: ResMut<LspMa
         return;
     };
 
-    let Some(lsp) = manager.get_or_create_client(&file.lang).await else { return; };
+    let Some(lsp) = manager.get_or_create_client(&file.lang).await.ok().flatten() else { return; };
 
     let _ = lsp
         .notification(

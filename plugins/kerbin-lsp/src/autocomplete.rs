@@ -80,7 +80,7 @@ pub enum CompletionCommand {
 async fn trigger_completion_request(buf: &mut TextBuffer, lsps: &mut LspManager) -> Option<i32> {
     let file = buf.get_state::<OpenedFile>().await?;
 
-    let client = lsps.get_or_create_client(&file.lang).await?;
+    let client = lsps.get_or_create_client(&file.lang).await.ok().flatten()?;
 
     let cursor = buf.primary_cursor();
     let cursor_byte = cursor.get_cursor_byte().min(buf.len());
@@ -113,7 +113,7 @@ async fn trigger_resolve_request(
     item: &CompletionItem,
 ) -> Option<i32> {
     let file = buf.get_state::<OpenedFile>().await?;
-    let client = lsps.get_or_create_client(&file.lang).await?;
+    let client = lsps.get_or_create_client(&file.lang).await.ok().flatten()?;
     client.request("completionItem/resolve", item.clone()).await.ok()
 }
 

@@ -22,8 +22,12 @@ impl OpenedFile {
 }
 
 /// System that automatically opens files in LSP when they're accessed
-pub async fn open_files(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspManager>) {
-    get!(mut buffers, mut lsp_manager);
+pub async fn open_files(
+    buffers: ResMut<Buffers>,
+    lsp_manager: ResMut<LspManager>,
+    log: Res<LogSender>,
+) {
+    get!(mut buffers, mut lsp_manager, log);
 
     let Some(mut current_buffer) = buffers.cur_text_buffer_mut().await else { return; };
     let file_path = current_buffer.path.clone();
@@ -43,8 +47,12 @@ pub async fn open_files(buffers: ResMut<Buffers>, lsp_manager: ResMut<LspManager
     let lang_info = lsp_manager.lang_info_map.get(&lang).cloned();
 
     let client = match lsp_manager.get_or_create_client(&lang).await {
-        Some(client) => client,
-        None => return,
+        Ok(Some(client)) => client,
+        Ok(None) => return,
+        Err(e) => {
+            log.high("lsp", &format!("failed to spawn {lang} server: {e}"));
+            return;
+        }
     };
 
     let Some(root_uri) = find_workspace_root(&file_path, lang_info.as_ref()).or_else(|| {

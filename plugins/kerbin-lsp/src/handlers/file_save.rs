@@ -24,7 +24,7 @@ pub async fn file_saved(
     let lang = client_info.lang.clone();
     let Some(uri) = Uri::file_path(&cur_buf.path).ok() else { return; };
 
-    let Some(client) = lsp_manager.get_or_create_client(&lang).await else { return; };
+    let Some(client) = lsp_manager.get_or_create_client(&lang).await.ok().flatten() else { return; };
 
     let _ = client
         .notification(
