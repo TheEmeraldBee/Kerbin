@@ -36,10 +36,7 @@ pub async fn file_saved(
         )
         .await;
 
-    let fmt_config = lsp_manager
-        .lang_info_map
-        .get(&lang)
-        .and_then(|i| i.format.clone());
+    let fmt_config = lsp_manager.info_for_lang(&lang).and_then(|i| i.format.clone());
 
     if let Some(fmt) = fmt_config
         && fmt.format_on_save

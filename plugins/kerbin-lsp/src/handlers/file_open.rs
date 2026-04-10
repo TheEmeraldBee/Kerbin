@@ -40,17 +40,17 @@ pub async fn open_files(
 
     let Some(lang) = filetype else { return };
 
-    if !lsp_manager.lang_info_map.contains_key(&lang) {
+    if !lsp_manager.lang_to_server.contains_key(&lang) {
         return;
     }
 
-    let lang_info = lsp_manager.lang_info_map.get(&lang).cloned();
+    let lang_info = lsp_manager.info_for_lang(&lang).cloned();
 
     let client = match lsp_manager.get_or_create_client(&lang).await {
         Ok(Some(client)) => client,
         Ok(None) => return,
         Err(e) => {
-            log.high("lsp", &format!("failed to spawn {lang} server: {e}"));
+            log.high("lsp", format!("failed to spawn {lang} server: {e}"));
             return;
         }
     };

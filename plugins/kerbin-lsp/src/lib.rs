@@ -41,43 +41,10 @@ pub use format::*;
 
 pub use lsp_types::*;
 
-/// Register a language with its LSP server
-pub async fn register_lang(
-    state: &mut State,
-    name: impl ToString,
-    extensions: impl IntoIterator<Item = impl ToString>,
-    info: LangInfo,
-) {
-    let name = name.to_string();
-    let exts: Vec<String> = extensions.into_iter().map(|e| e.to_string()).collect();
-
-    state
-        .lock_state::<LspManager>()
-        .await
-        .register_language(&name, info);
-
-    {
-        let mut registry = state.lock_state::<FiletypeRegistry>().await;
-        registry.register(&name, "lsp");
-        for ext in &exts {
-            registry.register_ext(ext.to_lowercase(), &name);
-        }
-    }
-
-    state
-        .on_hook(kerbin_core::hooks::UpdateFiletype::new(&name))
-        .system(open_files)
-        .system(apply_changes)
-        .system(render_diagnostic_highlights)
-        .system(process_lsp_events)
-        .system(render_hover)
-        .system(update_completions)
-        .system(render_completions);
-}
-
 async fn reset_config_state(lsp_manager: ResMut<LspManager>) {
     let mut manager = lsp_manager.get().await;
-    manager.lang_info_map.clear();
+    manager.server_map.clear();
+    manager.lang_to_server.clear();
 }
 
 define_plugin! {

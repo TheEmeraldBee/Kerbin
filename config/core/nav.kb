@@ -12,6 +12,7 @@ bind [g h] [[%ifclear] [sfw --extend] [%ifclear]] --desc "Goto First Non-Whitesp
 bind [g s] [[%ifclear] [slb --extend] [%ifclear]] --desc "Goto Line Start"
 bind [g l] [[%ifclear] [sle --extend] [%ifclear]] --desc "Goto Line End"
 
+bind [g G] [[dialogue --title "Goto" --desc "Goto typed line number" --input-kind "str" --var "line" --commands [[goto 0 %line]] --on-change [[goto %line]]]]
 bind [g g] [[goto 0 0 --extend] [%ifclear]] --desc "Goto File Start"
 bind [G] [[ml 10000000 --extend] [%ifclear]] --desc "Goto File End"
 

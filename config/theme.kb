@@ -114,7 +114,7 @@ theme statusline.mode.c --fg mantle --bg maroon --attrs [bold]
 theme statusline.mode.x --fg mantle --bg lavender --attrs [bold]
 theme statusline.mode.v --fg mantle --bg pink --attrs [bold]
 theme statusline.mode.S --fg mantle --bg mauve --attrs [bold italic]
-theme.statusline.mode.d --fg mantle --bg maroon --attrs [bold]
+theme statusline.mode.d --fg mantle --bg maroon --attrs [bold]
 
 theme lsp.autocomplete.selected --fg sky --bg surface1 --attrs [italic]
 theme lsp.autocomplete.window --fg text --bg surface0

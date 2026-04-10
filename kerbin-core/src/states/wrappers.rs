@@ -125,7 +125,7 @@ impl DerefMut for WindowState {
 #[derive(State, Default)]
 pub struct CrosstermEvents(pub Vec<Event>);
 
-/// Accumulates config load errors for user-visible reporting via `config-errors`.
+/// Accumulates config load errors for user-visible reporting via `config_errors`.
 #[derive(State, Default)]
 pub struct ConfigErrors(pub Vec<KbLoadError>);
 

@@ -1,39 +1,37 @@
-lsp-register rust --exts [rs] --cmd rust-analyzer --roots [Cargo.toml Cargo.lock] --lsp_format --format_on_save
-lsp-register go --exts [go] --cmd gopls --roots [go.mod] --lsp_format --format_on_save
+lsp_register rust-analyzer --langs [rust] --cmd rust-analyzer --roots [Cargo.toml Cargo.lock] --lsp_format --format_on_save
+lsp_register gopls --langs [go] --cmd gopls --roots [go.mod] --lsp_format --format_on_save
 
 # C / C++
-lsp-register c --exts [c h] --cmd clangd --roots [compile_commands.json compile_flags.txt]
-lsp-register cpp --exts [cc cpp cxx hh hpp] --cmd clangd --roots [compile_commands.json compile_flags.txt]
+lsp_register clangd --langs [c cpp] --cmd clangd --roots [compile_commands.json compile_flags.txt]
 
-# Web
-lsp-register javascript --exts [js mjs cjs jsx] --cmd typescript-language-server --args [--stdio] --roots [package.json tsconfig.json] --lsp_format --format_on_save
-lsp-register typescript --exts [tsx ts mts cts tsx] --cmd typescript-language-server --args [--stdio] --roots [package.json tsconfig.json] --lsp_format --format_on_save
-lsp-register css --exts [css scss] --cmd vscode-css-language-server --args [--stdio] --roots [package.json]
+# Web (one typescript-language-server handles JS, JSX, TS, and TSX)
+lsp_register typescript-ls --langs [javascript jsx typescript typescriptreact] --cmd typescript-language-server --args [--stdio] --roots [package.json tsconfig.json] --lsp_format --format_on_save
+lsp_register vscode-css-ls --langs [css scss] --cmd vscode-css-language-server --args [--stdio] --roots [package.json]
 
 # Python
-lsp-register python --exts [py pyi] --cmd pylsp --roots [pyproject.toml setup.py setup.cfg requirements.txt]
+lsp_register pylsp --langs [python] --cmd pylsp --roots [pyproject.toml setup.py setup.cfg requirements.txt]
 
 # JSON / YAML
-lsp-register json --exts [json jsonc] --cmd vscode-json-language-server --args [--stdio] --roots [package.json]
-lsp-register yaml --exts [yaml yml] --cmd yaml-language-server --args [--stdio]
+lsp_register vscode-json-ls --langs [json] --cmd vscode-json-language-server --args [--stdio] --roots [package.json]
+lsp_register yaml-ls --langs [yaml] --cmd yaml-language-server --args [--stdio]
 
 # Lua
-lsp-register lua --exts [lua] --cmd lua-language-server --roots [.luarc.json .luarc.jsonc]
+lsp_register lua-ls --langs [lua] --cmd lua-language-server --roots [.luarc.json .luarc.jsonc]
 
 # Ruby
-lsp-register ruby --exts [rb] --cmd ruby-lsp --roots [Gemfile]
+lsp_register ruby-lsp --langs [ruby] --cmd ruby-lsp --roots [Gemfile]
 
 # C#
-lsp-register c_sharp --exts [cs] --cmd csharp-ls --roots [*.csproj *.sln]
+lsp_register csharp-ls --langs [c_sharp] --cmd csharp-ls --roots [*.csproj *.sln]
 
 # Zig
-lsp-register zig --exts [zig] --cmd zls --roots [build.zig]
+lsp_register zls --langs [zig] --cmd zls --roots [build.zig]
 
 # Elixir
-lsp-register elixir --exts [ex exs] --cmd elixir-ls --roots [mix.exs]
+lsp_register elixir-ls --langs [elixir] --cmd elixir-ls --roots [mix.exs]
 
 # Haskell
-lsp-register haskell --exts [hs] --cmd haskell-language-server-wrapper --args [--lsp] --roots [*.cabal cabal.project stack.yaml package.yaml]
+lsp_register haskell-ls --langs [haskell] --cmd haskell-language-server-wrapper --args [--lsp] --roots [*.cabal cabal.project stack.yaml package.yaml]
 
 # Kotlin
-lsp-register kotlin --exts [kt kts] --cmd kotlin-language-server --roots [build.gradle build.gradle.kts settings.gradle]
+lsp_register kotlin-ls --langs [kotlin] --cmd kotlin-language-server --roots [build.gradle build.gradle.kts settings.gradle]

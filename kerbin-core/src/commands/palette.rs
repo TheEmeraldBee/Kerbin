@@ -55,34 +55,22 @@ impl Command<State> for PaletteCommand {
                 drop(palette);
 
                 let tokens = tokenize(&content).unwrap_or_default();
+
                 let resolver_engine = resolver_engine().await;
                 let resolver = resolver_engine.as_resolver();
 
-                let mut expansion_errors: Vec<String> = Vec::new();
-                let expanded =
-                    resolver.expand_tokens_reporting(tokens, true, &mut expansion_errors);
-
-                let log = state.lock_state::<LogSender>().await;
-                for err in &expansion_errors {
-                    log.high("palette", err);
-                }
-                drop(log);
-
-                if !expansion_errors.is_empty() {
-                    return false;
-                }
-
-                drop(resolver);
-
                 let command = state.lock_state::<CommandRegistry>().await.parse_command(
-                    expanded,
+                    tokens,
                     true,
                     false,
-                    None,
+                    Some(&resolver),
                     true,
                     &*state.lock_state::<CommandPrefixRegistry>().await,
                     &*state.lock_state::<ModeStack>().await,
                 );
+
+                drop(resolver);
+                drop(resolver_engine);
                 if let Some(command) = command {
                     if let Err(e) = state.lock_state::<CommandSender>().await.send(command) {
                         state

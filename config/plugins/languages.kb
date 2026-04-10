@@ -1,0 +1,98 @@
+# Language detection
+# Maps file extensions, filenames, and patterns to language names.
+# Grammar and LSP associations are configured separately.
+
+# Kerbin
+register_language kerbin --exts [kb]
+
+# Bash
+register_language bash --exts [sh bash]
+
+# Go
+register_language go --exts [go]
+
+# Rust
+register_language rust --exts [rs]
+
+# Python
+register_language python --exts [py pyi]
+
+# Toml
+register_language toml --exts [toml]
+
+# Markdown
+register_language markdown --exts [md]
+
+# Nushell
+register_language nu --exts [nu]
+
+# Html
+register_language html --exts [html]
+
+# JavaScript / JSX
+register_language javascript --exts [js mjs cjs]
+register_language jsx --exts [jsx]
+
+# TypeScript / TSX
+register_language typescript --exts [ts mts cts]
+register_language typescriptreact --exts [tsx]
+
+# CSS / SCSS
+register_language css --exts [css]
+register_language scss --exts [scss]
+
+# C / C++
+register_language c --exts [c h]
+register_language cpp --exts [cc cpp cxx hh hpp]
+
+# JSON / YAML
+register_language json --exts [json jsonc]
+register_language yaml --exts [yaml yml]
+
+# Scheme
+register_language scheme --exts [scm ss sls sld]
+
+# Lua
+register_language lua --exts [lua]
+
+# Ruby
+register_language ruby --exts [rb]
+
+# Java
+register_language java --exts [java]
+
+# C#
+register_language c_sharp --exts [cs]
+
+# PHP
+register_language php --exts [php]
+
+# Zig
+register_language zig --exts [zig]
+
+# Elixir
+register_language elixir --exts [ex exs]
+
+# Haskell
+register_language haskell --exts [hs]
+
+# Kotlin
+register_language kotlin --exts [kt kts]
+
+# Justfile
+register_language justfile --exts [just] --filenames [Justfile justfile .justfile]
+
+# Makefile
+register_language make --exts [mk]
+register_language makefile --filenames [Makefile GNUmakefile makefile]
+
+# Dockerfile
+register_language dockerfile --filenames [Dockerfile]
+
+# Git
+register_language git_commit --filenames [COMMIT_EDITMSG]
+register_language git_config --filenames [.gitconfig]
+
+# Special / injection-only language names used by tree-sitter queries
+register_language tutor --filenames [<tutor>]
+register_language markdown_rustdoc

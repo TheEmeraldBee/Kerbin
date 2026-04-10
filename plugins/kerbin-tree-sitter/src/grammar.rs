@@ -17,22 +17,7 @@ pub fn normalize_lang_name(name: &str) -> String {
     name.replace(['-', '.'], "_")
 }
 
-/// Helps to define a Grammar using a default definition as well as aliases
-#[derive(serde::Deserialize, Clone)]
-#[serde(tag = "type")]
-pub enum GrammarEntry {
-    #[serde(rename = "def")]
-    Definition(GrammarDefinition),
-
-    #[serde(rename = "alias")]
-    Alias {
-        base_lang: String,
-        new_name: String,
-        exts: Vec<String>,
-    },
-}
-
-#[derive(serde::Deserialize, Clone)]
+#[derive(Clone)]
 pub struct GrammarDefinition {
     /// Override for the C entry symbol (defaults to `tree_sitter_{normalized_name}`)
     pub entry: Option<String>,
@@ -42,10 +27,6 @@ pub struct GrammarDefinition {
 
     pub name: String,
 
-    #[serde(default)]
-    pub exts: Vec<String>,
-
-    #[serde(flatten)]
     pub install: Option<GrammarInstallDefinition>,
 }
 
@@ -80,7 +61,7 @@ impl GrammarDefinition {
     }
 }
 
-#[derive(serde::Deserialize, Clone)]
+#[derive(Clone)]
 pub struct GrammarInstallDefinition {
     pub url: String,
     pub build_name: Option<String>,
@@ -145,7 +126,6 @@ pub const fn get_platform_extensions() -> &'static [&'static str] {
 
 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 pub const fn get_platform_extensions() -> &'static [&'static str] {
-    // For other Unix-like systems, try .so first
     &["so", "dylib"]
 }
 

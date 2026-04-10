@@ -2,31 +2,14 @@ use std::collections::HashMap;
 
 use crate::*;
 
-#[derive(Clone)]
-pub struct FiletypeInfo {
-    pub name: String,
-    /// The plugin or system that defined this filetype, e.g. "tree-sitter", "lsp"
-    pub source: String,
-}
-
 #[derive(State, Default)]
 pub struct FiletypeRegistry {
-    pub filetypes: HashMap<String, FiletypeInfo>,
     pub ext_map: HashMap<String, String>,
     pub filename_map: HashMap<String, String>,
     pub first_line_patterns: Vec<(String, String)>,
 }
 
 impl FiletypeRegistry {
-    /// Register a filetype with a source. No-op if already registered.
-    pub fn register(&mut self, name: impl Into<String>, source: impl Into<String>) {
-        let name = name.into();
-        self.filetypes.entry(name.clone()).or_insert(FiletypeInfo {
-            name: name.clone(),
-            source: source.into(),
-        });
-    }
-
     /// Map a file extension to a filetype. Existing registrations win.
     pub fn register_ext(&mut self, ext: impl Into<String>, filetype: impl Into<String>) {
         self.ext_map.entry(ext.into()).or_insert(filetype.into());
@@ -55,11 +38,10 @@ impl FiletypeRegistry {
             return Some(ft.clone());
         }
 
-        if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
-            if let Some(ft) = self.ext_map.get(ext) {
+        if let Some(ext) = p.extension().and_then(|e| e.to_str())
+            && let Some(ft) = self.ext_map.get(ext) {
                 return Some(ft.clone());
             }
-        }
 
         if let Some(line) = first_line {
             for (pattern, ft) in &self.first_line_patterns {

@@ -1,3 +1,5 @@
 bind [v] [pm v] --invalid [v]
 
-bind [v] [[mc 1] [sl --extend] [gse]] --modes [v]
+bind [v] [[mc 1 --extend] [sl --extend] [gse]] --modes [v]
+
+bind [,] [[sc] [cm n]] --modes [v]

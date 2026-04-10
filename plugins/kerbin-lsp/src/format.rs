@@ -47,7 +47,7 @@ pub async fn format_current_buffer(state: &mut State) -> bool {
     let lang = file.lang.clone();
     let uri = file.uri.clone();
 
-    let Some(fmt_config) = lsps.lang_info_map.get(&lang).and_then(|i| i.format.clone()) else {
+    let Some(fmt_config) = lsps.info_for_lang(&lang).and_then(|i| i.format.clone()) else {
         return false;
     };
 
@@ -217,10 +217,9 @@ pub async fn handle_format(state: &State, msg: &JsonRpcMessage) {
         cursor.set_sel(new_byte..=new_byte);
     }
 
-    if format_on_save {
-        if let Err(e) = buf.write_file_bare() {
+    if format_on_save
+        && let Err(e) = buf.write_file_bare() {
             tracing::error!("Failed to write formatted file: {e}");
         }
-    }
 }
 

@@ -1,5 +1,4 @@
 use kerbin_core::*;
-use serde_json;
 
 use crate::grammar::{GrammarDefinition, GrammarInstallDefinition, normalize_lang_name};
 use crate::grammar_manager::GrammarManager;
@@ -19,14 +18,13 @@ fn tokens_to_strings(tokens: &[Token]) -> Vec<String> {
 
 #[derive(Debug, Clone, Command)]
 pub enum TreeSitterCommand {
-    /// Define a tree-sitter grammar with a git source.
-    #[command(drop_ident, name = "tree-sitter-define")]
+    /// Define a tree-sitter grammar and the language names it serves.
+    #[command(drop_ident, name = "tree_sitter_define")]
     Define {
         name: String,
+        /// Language names this grammar handles (e.g. [rust] or [typescript, typescriptreact])
         #[command(flag)]
-        exts: Vec<Token>,
-        #[command(flag)]
-        filenames: Option<Vec<Token>>,
+        langs: Option<Vec<Token>>,
         #[command(flag)]
         url: String,
         #[command(flag)]
@@ -34,26 +32,18 @@ pub enum TreeSitterCommand {
         #[command(flag)]
         build_name: Option<String>,
     },
-
-    /// Create an alias pointing an existing grammar at a new language name.
-    #[command(drop_ident, name = "tree-sitter-alias")]
-    Alias {
-        base_lang: String,
-        new_name: String,
-        #[command(flag)]
-        exts: Option<Vec<Token>>,
-        #[command(flag)]
-        filenames: Option<Vec<Token>>,
-    },
 }
 
-fn register_ts_hook(state: &mut State, filetype: &str) {
+fn register_ts_hook(state: &mut State, lang: &str) {
+    if state.has_hook_system(hooks::UpdateFiletype::new(lang), "tree-sitter::open_files") {
+        return;
+    }
     state
-        .on_hook(hooks::UpdateFiletype::new(filetype))
-        .system(crate::state::open_files)
-        .system(crate::state::update_trees)
-        .system(crate::highlighter::highlight_file)
-        .system(crate::locals::update_locals);
+        .on_hook(hooks::UpdateFiletype::new(lang))
+        .system_named("tree-sitter::open_files", crate::state::open_files)
+        .system_named("tree-sitter::update_trees", crate::state::update_trees)
+        .system_named("tree-sitter::highlight_file", crate::highlighter::highlight_file)
+        .system_named("tree-sitter::update_locals", crate::locals::update_locals);
 }
 
 #[async_trait::async_trait]
@@ -62,21 +52,19 @@ impl Command<State> for TreeSitterCommand {
         match self {
             TreeSitterCommand::Define {
                 name,
-                exts,
-                filenames,
+                langs,
                 url,
                 sub_dir,
                 build_name,
             } => {
-                let normalized = normalize_lang_name(name);
-                let ext_strings = tokens_to_strings(exts);
-                let filename_strings = filenames
+                let grammar_name = normalize_lang_name(name);
+                let lang_strings = langs
                     .as_deref()
                     .map(tokens_to_strings)
                     .unwrap_or_default();
+
                 let def = GrammarDefinition {
                     name: name.clone(),
-                    exts: ext_strings.clone(),
                     entry: None,
                     location: None,
                     install: Some(GrammarInstallDefinition {
@@ -86,105 +74,20 @@ impl Command<State> for TreeSitterCommand {
                     }),
                 };
 
-                // Register grammar definition
-                state
-                    .lock_state::<GrammarManager>()
-                    .await
-                    .lang_map
-                    .insert(normalized.clone(), def);
-
-                // Register filetype + extensions + explicit filenames in central registry
                 {
-                    let mut registry = state.lock_state::<FiletypeRegistry>().await;
-                    registry.register(&normalized, "tree-sitter");
-                    for ext in &ext_strings {
-                        registry.register_ext(ext.to_lowercase(), &normalized);
-                    }
-                    for filename in &filename_strings {
-                        registry.register_filename(filename, &normalized);
-                    }
-                }
-
-                // Register the hook once on the filetype name
-                register_ts_hook(state, &normalized);
-
-                // Load package.json detection metadata from installed grammar
-                let config_path = state.lock_state::<ConfigFolder>().await.0.clone();
-                let pkg_path = format!(
-                    "{}/runtime/grammars/tree-sitter-{}/package.json",
-                    config_path, name
-                );
-                if let Ok(src) = std::fs::read_to_string(&pkg_path) {
-                    if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&src) {
-                        if let Some(configs) = pkg["tree-sitter"].as_array() {
-                            let mut registry = state.lock_state::<FiletypeRegistry>().await;
-                            for cfg in configs {
-                                if let Some(types) = cfg["file-types"].as_array() {
-                                    for ft in types {
-                                        let Some(s) = ft.as_str() else { continue };
-                                        if s.starts_with('.')
-                                            || s.chars().any(|c| c.is_uppercase())
-                                        {
-                                            registry.register_filename(s, &normalized);
-                                        } else {
-                                            registry
-                                                .register_ext(s.to_lowercase(), &normalized);
-                                        }
-                                    }
-                                }
-                                if let Some(pattern) = cfg["first-line-match"].as_str() {
-                                    registry.register_first_line(pattern, &normalized);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            TreeSitterCommand::Alias {
-                base_lang,
-                new_name,
-                exts,
-                filenames,
-            } => {
-                let normalized_base = normalize_lang_name(base_lang);
-                let normalized_new = normalize_lang_name(new_name);
-                let ext_strings = exts.as_deref().map(tokens_to_strings).unwrap_or_default();
-                let filename_strings = filenames
-                    .as_deref()
-                    .map(tokens_to_strings)
-                    .unwrap_or_default();
-
-                let mut manager = state.lock_state::<GrammarManager>().await;
-                let Some(mut new_def) = manager.lang_map.get(&normalized_base).cloned() else {
-                    drop(manager);
-                    state.lock_state::<LogSender>().await.critical(
-                        "tree-sitter::alias",
-                        format!(
-                            "Cannot alias '{}' → '{}': base grammar not yet defined",
-                            base_lang, new_name
-                        ),
-                    );
-                    return false;
-                };
-
-                new_def.exts = ext_strings.clone();
-                manager.lang_map.insert(normalized_new.clone(), new_def);
-                drop(manager);
-
-                // Register alias filetype + extensions + explicit filenames
-                {
-                    let mut registry = state.lock_state::<FiletypeRegistry>().await;
-                    registry.register(&normalized_new, "tree-sitter");
-                    for ext in &ext_strings {
-                        registry.register_ext(ext.to_lowercase(), &normalized_new);
-                    }
-                    for filename in &filename_strings {
-                        registry.register_filename(filename, &normalized_new);
+                    let mut manager = state.lock_state::<GrammarManager>().await;
+                    manager.grammar_map.insert(grammar_name.clone(), def);
+                    for lang in &lang_strings {
+                        let normalized_lang = normalize_lang_name(lang);
+                        manager
+                            .lang_to_grammar
+                            .insert(normalized_lang, grammar_name.clone());
                     }
                 }
 
-                register_ts_hook(state, &normalized_new);
+                for lang in &lang_strings {
+                    register_ts_hook(state, lang);
+                }
             }
         }
         false

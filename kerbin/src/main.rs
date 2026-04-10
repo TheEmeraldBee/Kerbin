@@ -456,6 +456,7 @@ async fn main() {
         commands.register::<AutoPairsCommand>();
         commands.register::<SplitCommand>();
         commands.register::<DialogueCommand>();
+        commands.register::<RegisterLanguageCommand>();
     }
 
     {
@@ -505,7 +506,7 @@ async fn main() {
         state.lock_state::<LogSender>().await.critical(
             "core::config_load",
             format!(
-                "{} config error(s) on startup — run `config-errors` to review",
+                "{} config error(s) on startup — run `config_errors` to review",
                 errors.len()
             ),
         );

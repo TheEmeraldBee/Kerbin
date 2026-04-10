@@ -1,3 +1,4 @@
+source languages.kb
 source grammars.kb
 source language-servers.kb
 

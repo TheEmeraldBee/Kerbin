@@ -102,7 +102,7 @@ impl Hook for UpdateCleanup {
     }
 }
 
-/// Fired by `reload-config` immediately before re-loading `.kb` files.
+/// Fired by `reload_config` immediately before re-loading `.kb` files.
 /// Plugins should register a system here to clear any state that is
 /// populated by config commands (e.g. registered languages, grammars).
 pub struct ResetState;

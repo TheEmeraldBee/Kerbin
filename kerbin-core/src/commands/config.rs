@@ -148,16 +148,16 @@ pub enum ConfigCommand {
     Source { path: String },
 
     /// Show all config errors from the last load or reload.
-    #[command(drop_ident, name = "config-errors")]
+    #[command(drop_ident, name = "config_errors")]
     ShowConfigErrors,
 
     /// Reload runtime config (.kb files) without restarting the editor.
-    #[command(drop_ident, name = "reload-config")]
+    #[command(drop_ident, name = "reload_config")]
     ReloadConfig,
 
     /// Bind a command to a mouse event.
     /// Valid event names: left-down, left-up, right-down, right-up, middle, scroll-up, scroll-down
-    #[command(drop_ident, name = "mouse-bind")]
+    #[command(drop_ident, name = "mouse_bind")]
     MouseBind { event: String, #[command(ignore)] cmds: Vec<Token> },
 }
 
@@ -479,7 +479,7 @@ impl Command<State> for ConfigCommand {
                 let errors = state.lock_state::<ConfigErrors>().await.0.clone();
                 let log = state.lock_state::<LogSender>().await;
                 if errors.is_empty() {
-                    log.high("config-errors", "No config errors");
+                    log.high("config_errors", "No config errors");
                 } else {
                     for err in &errors {
                         let msg = if err.line.is_empty() {
@@ -487,7 +487,7 @@ impl Command<State> for ConfigCommand {
                         } else {
                             format!("{}: {:?}: {}", err.path.display(), err.line, err.message)
                         };
-                        log.high("config-errors", msg);
+                        log.high("config_errors", msg);
                     }
                 }
             }
@@ -502,7 +502,7 @@ impl Command<State> for ConfigCommand {
                     "scroll-up" => MouseTrigger::ScrollUp,
                     "scroll-down" => MouseTrigger::ScrollDown,
                     other => {
-                        tracing::error!("mouse-bind: unknown event '{}'", other);
+                        tracing::error!("mouse_bind: unknown event '{}'", other);
                         return false;
                     }
                 };
@@ -554,7 +554,7 @@ impl Command<State> for ConfigCommand {
                     log.critical(
                         "config",
                         format!(
-                            "Config reloaded with {} error(s) — run `config-errors` to review",
+                            "Config reloaded with {} error(s) — run `config_errors` to review",
                             errors.len()
                         ),
                     );

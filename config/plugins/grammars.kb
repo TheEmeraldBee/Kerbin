@@ -1,104 +1,101 @@
 # Tree-sitter grammar definitions
+# Each grammar is identified by its name (determines .so file and query paths).
+# --langs lists the language names this grammar serves (from register_language).
+# Grammars with empty --langs are injection-only and not directly opened as files.
 
 # Kerbin Language
-tree-sitter-define kerbin --exts [kb] --url https://github.com/EmeraldPandaTurtle/tree-sitter-kerbin.git
+tree_sitter_define kerbin --langs [kerbin] --url https://github.com/EmeraldPandaTurtle/tree-sitter-kerbin.git
 
 # Bash
-tree-sitter-define bash --exts [sh bash] --url https://github.com/tree-sitter/tree-sitter-bash.git
+tree_sitter_define bash --langs [bash] --url https://github.com/tree-sitter/tree-sitter-bash.git
 
 # Go
-tree-sitter-define go --exts [go] --url https://github.com/tree-sitter/tree-sitter-go.git
+tree_sitter_define go --langs [go] --url https://github.com/tree-sitter/tree-sitter-go.git
 
 # Rust
-tree-sitter-define rust --exts [rs] --url https://github.com/tree-sitter/tree-sitter-rust.git
-tree-sitter-define rust_format_args --exts [] --url https://github.com/nik-rev/tree-sitter-rust-format-args.git --build_name rust-format-args
-tree-sitter-alias rust rust_format_args_macro
+tree_sitter_define rust --langs [rust rust_format_args_macro] --url https://github.com/tree-sitter/tree-sitter-rust.git
+tree_sitter_define rust_format_args --langs [] --url https://github.com/nik-rev/tree-sitter-rust-format-args.git --build_name rust-format-args
 
 # Python
-tree-sitter-define python --exts [py] --url https://github.com/tree-sitter/tree-sitter-python.git
+tree_sitter_define python --langs [python] --url https://github.com/tree-sitter/tree-sitter-python.git
 
 # Toml
-tree-sitter-define toml --exts [toml] --url https://github.com/ikatyang/tree-sitter-toml.git
+tree_sitter_define toml --langs [toml] --url https://github.com/ikatyang/tree-sitter-toml.git
 
-# Comment
-tree-sitter-define comment --exts [] --url https://github.com/stsewd/tree-sitter-comment.git
+# Comment (injection-only)
+tree_sitter_define comment --langs [] --url https://github.com/stsewd/tree-sitter-comment.git
 
 # Markdown
-tree-sitter-define markdown --exts [md] --url https://github.com/tree-sitter-grammars/tree-sitter-markdown.git --sub_dir tree-sitter-markdown
-tree-sitter-define markdown_inline --exts [] --url https://github.com/tree-sitter-grammars/tree-sitter-markdown.git --sub_dir tree-sitter-markdown-inline --build_name markdown-inline
-tree-sitter-alias markdown markdown_rustdoc
-tree-sitter-alias markdown tutor --exts [<tutor>]
+tree_sitter_define markdown --langs [markdown markdown_rustdoc tutor] --url https://github.com/tree-sitter-grammars/tree-sitter-markdown.git --sub_dir tree-sitter-markdown
+tree_sitter_define markdown_inline --langs [] --url https://github.com/tree-sitter-grammars/tree-sitter-markdown.git --sub_dir tree-sitter-markdown-inline --build_name markdown-inline
 
 # Nushell
-tree-sitter-define nu --exts [nu] --url https://github.com/nushell/tree-sitter-nu.git
+tree_sitter_define nu --langs [nu] --url https://github.com/nushell/tree-sitter-nu.git
 
 # Html
-tree-sitter-define html --exts [html] --url https://github.com/tree-sitter/tree-sitter-html.git
+tree_sitter_define html --langs [html] --url https://github.com/tree-sitter/tree-sitter-html.git
 
-# JavaScript / JSX
-tree-sitter-define javascript --exts [js mjs cjs] --url https://github.com/tree-sitter/tree-sitter-javascript.git
-tree-sitter-alias javascript jsx --exts [jsx]
+# JavaScript / JSX (same grammar handles both)
+tree_sitter_define javascript --langs [javascript jsx] --url https://github.com/tree-sitter/tree-sitter-javascript.git
 
-# TypeScript / TSX
-tree-sitter-define typescript --exts [ts mts cts] --url https://github.com/tree-sitter/tree-sitter-typescript.git --sub_dir typescript
-tree-sitter-define tsx --exts [tsx] --url https://github.com/tree-sitter/tree-sitter-typescript.git --sub_dir tsx
+# TypeScript / TSX (separate grammars from the same repo)
+tree_sitter_define typescript --langs [typescript] --url https://github.com/tree-sitter/tree-sitter-typescript.git --sub_dir typescript
+tree_sitter_define tsx --langs [typescriptreact] --url https://github.com/tree-sitter/tree-sitter-typescript.git --sub_dir tsx
 
 # CSS / SCSS
-tree-sitter-define css --exts [css] --url https://github.com/tree-sitter/tree-sitter-css.git
-tree-sitter-define scss --exts [scss] --url https://github.com/serenadeai/tree-sitter-scss.git
+tree_sitter_define css --langs [css] --url https://github.com/tree-sitter/tree-sitter-css.git
+tree_sitter_define scss --langs [scss] --url https://github.com/serenadeai/tree-sitter-scss.git
 
 # C / C++
-tree-sitter-define c --exts [c h] --url https://github.com/tree-sitter/tree-sitter-c.git
-tree-sitter-define cpp --exts [cc cpp cxx hh hpp] --url https://github.com/tree-sitter/tree-sitter-cpp.git
+tree_sitter_define c --langs [c] --url https://github.com/tree-sitter/tree-sitter-c.git
+tree_sitter_define cpp --langs [cpp] --url https://github.com/tree-sitter/tree-sitter-cpp.git
 
 # JSON / YAML
-tree-sitter-define json --exts [json jsonc] --url https://github.com/tree-sitter/tree-sitter-json.git
-tree-sitter-define yaml --exts [yaml yml] --url https://github.com/ikatyang/tree-sitter-yaml.git
+tree_sitter_define json --langs [json] --url https://github.com/tree-sitter/tree-sitter-json.git
+tree_sitter_define yaml --langs [yaml] --url https://github.com/ikatyang/tree-sitter-yaml.git
 
 # Scheme
-tree-sitter-define scheme --exts [scm ss sls sld] --url https://github.com/6cdh/tree-sitter-scheme.git
+tree_sitter_define scheme --langs [scheme] --url https://github.com/6cdh/tree-sitter-scheme.git
 
 # Lua
-tree-sitter-define lua --exts [lua] --url https://github.com/tree-sitter-grammars/tree-sitter-lua.git
+tree_sitter_define lua --langs [lua] --url https://github.com/tree-sitter-grammars/tree-sitter-lua.git
 
 # Ruby
-tree-sitter-define ruby --exts [rb] --url https://github.com/tree-sitter/tree-sitter-ruby.git
+tree_sitter_define ruby --langs [ruby] --url https://github.com/tree-sitter/tree-sitter-ruby.git
 
 # Java
-tree-sitter-define java --exts [java] --url https://github.com/tree-sitter/tree-sitter-java.git
+tree_sitter_define java --langs [java] --url https://github.com/tree-sitter/tree-sitter-java.git
 
 # C#
-tree-sitter-define c_sharp --exts [cs] --url https://github.com/tree-sitter/tree-sitter-c-sharp.git
+tree_sitter_define c_sharp --langs [c_sharp] --url https://github.com/tree-sitter/tree-sitter-c-sharp.git
 
 # PHP
-tree-sitter-define php --exts [php] --url https://github.com/tree-sitter/tree-sitter-php.git --sub_dir php
+tree_sitter_define php --langs [php] --url https://github.com/tree-sitter/tree-sitter-php.git --sub_dir php
 
 # Zig
-tree-sitter-define zig --exts [zig] --url https://github.com/tree-sitter-grammars/tree-sitter-zig.git
+tree_sitter_define zig --langs [zig] --url https://github.com/tree-sitter-grammars/tree-sitter-zig.git
 
 # Elixir
-tree-sitter-define elixir --exts [ex exs] --url https://github.com/elixir-lang/tree-sitter-elixir.git
+tree_sitter_define elixir --langs [elixir] --url https://github.com/elixir-lang/tree-sitter-elixir.git
 
 # Haskell
-tree-sitter-define haskell --exts [hs] --url https://github.com/tree-sitter/tree-sitter-haskell.git
+tree_sitter_define haskell --langs [haskell] --url https://github.com/tree-sitter/tree-sitter-haskell.git
 
 # Kotlin
-tree-sitter-define kotlin --exts [kt kts] --url https://github.com/fwcd/tree-sitter-kotlin.git
+tree_sitter_define kotlin --langs [kotlin] --url https://github.com/fwcd/tree-sitter-kotlin.git
 
-# Justfile
-tree-sitter-define just --exts [] --url https://github.com/casey/tree-sitter-just.git
-tree-sitter-alias just justfile --exts [just] --filenames [Justfile justfile .justfile]
+# Justfile (grammar name is "just", language name is "justfile")
+tree_sitter_define just --langs [justfile] --url https://github.com/casey/tree-sitter-just.git
 
-# Makefile
-tree-sitter-define make --exts [mk] --url https://github.com/alemuller/tree-sitter-make.git
-tree-sitter-alias make makefile --filenames [Makefile GNUmakefile makefile]
+# Makefile (grammar name is "make", serves both "make" and "makefile" languages)
+tree_sitter_define make --langs [make makefile] --url https://github.com/alemuller/tree-sitter-make.git
 
 # Dockerfile
-tree-sitter-define dockerfile --exts [] --filenames [Dockerfile] --url https://github.com/camdencheek/tree-sitter-dockerfile.git
+tree_sitter_define dockerfile --langs [dockerfile] --url https://github.com/camdencheek/tree-sitter-dockerfile.git
 
 # Git
-tree-sitter-define git_commit --exts [] --filenames [COMMIT_EDITMSG] --url https://github.com/the-mikedavis/tree-sitter-git-commit.git
-tree-sitter-define git_config --exts [] --filenames [.gitconfig .git/config] --url https://github.com/the-mikedavis/tree-sitter-git-config.git
+tree_sitter_define git_commit --langs [git_commit] --url https://github.com/the-mikedavis/tree-sitter-git-commit.git
+tree_sitter_define git_config --langs [git_config] --url https://github.com/the-mikedavis/tree-sitter-git-config.git
 
-# Regex (injection-only, no file extensions)
-tree-sitter-define regex --exts [] --url https://github.com/tree-sitter/tree-sitter-regex.git
+# Regex (injection-only)
+tree_sitter_define regex --langs [] --url https://github.com/tree-sitter/tree-sitter-regex.git

@@ -4,10 +4,7 @@ use kerbin_core::*;
 use tree_sitter::Query;
 
 use crate::{
-    grammar::{
-        Grammar, GrammarDefinition, GrammarEntry, GrammarLoadError, find_library,
-        normalize_lang_name,
-    },
+    grammar::{Grammar, GrammarDefinition, GrammarLoadError, find_library, normalize_lang_name},
     grammar_install::install_language,
     state::TreeSitterState,
 };
@@ -17,23 +14,26 @@ pub enum GrammarManagerError {
     #[error(transparent)]
     LoadError(#[from] GrammarLoadError),
 
-    #[error("Missing definition for grammar {lang}")]
+    #[error("No grammar registered for language '{lang}'")]
     MissingDefinition { lang: String },
 }
 
 #[derive(State, Default)]
 pub struct GrammarManager {
-    pub lang_map: HashMap<String, GrammarDefinition>,
+    /// Grammar name → grammar definition
+    pub grammar_map: HashMap<String, GrammarDefinition>,
     pub loaded_grammars: HashMap<String, Arc<Grammar>>,
     pub query_map: HashMap<String, HashMap<String, Arc<Query>>>,
     pub failed_queries: std::collections::HashSet<(String, String)>,
+    /// Language name → grammar name (many languages can share one grammar)
+    pub lang_to_grammar: HashMap<String, String>,
 }
 
 impl GrammarManager {
     pub async fn register_filetype_handlers(&self, state: &mut State) {
-        for filetype in self.lang_map.keys() {
+        for lang in self.lang_to_grammar.keys() {
             state
-                .on_hook(hooks::UpdateFiletype::new(filetype))
+                .on_hook(hooks::UpdateFiletype::new(lang))
                 .system(crate::state::open_files)
                 .system(crate::state::update_trees)
                 .system(crate::highlighter::highlight_file)
@@ -48,7 +48,7 @@ impl GrammarManager {
         let mut to_load = vec![];
         let mut already_installed = vec![];
 
-        for grammar in self.lang_map.values() {
+        for grammar in self.grammar_map.values() {
             let lib_paths = grammar.get_file_paths(&config_path);
             if find_library(&lib_paths).is_none() {
                 to_load.push(grammar.clone());
@@ -108,78 +108,46 @@ impl GrammarManager {
         }
     }
 
+    /// Resolve a language or grammar name to a loaded Grammar.
+    ///
+    /// Lookup order:
+    /// 1. `lang_to_grammar[name]` → grammar_name (explicit language mapping)
+    /// 2. `grammar_map[name]` directly (grammar name used as-is, e.g. from injection queries)
     #[allow(clippy::result_large_err)]
-    pub fn from_definitions(
-        entries: Vec<GrammarEntry>,
-    ) -> Result<Self, (Self, GrammarManagerError)> {
-        let mut ret = Self::default();
-
-        let mut aliases = vec![];
-
-        for entry in entries {
-            match entry {
-                GrammarEntry::Definition(def) => {
-                    let normalized = normalize_lang_name(&def.name);
-                    ret.lang_map.insert(normalized, def);
-                }
-                GrammarEntry::Alias {
-                    base_lang,
-                    new_name,
-                    exts,
-                } => aliases.push((base_lang, new_name, exts)),
-            }
-        }
-
-        for (lang, new, exts) in aliases {
-            let normalized_lang = normalize_lang_name(&lang);
-            let normalized_new = normalize_lang_name(&new);
-
-            let Some(mut new_grammar) = ret.lang_map.get(&normalized_lang).cloned() else {
-                return Err((
-                    ret,
-                    GrammarManagerError::MissingDefinition { lang: lang.clone() },
-                ));
-            };
-
-            new_grammar.exts = exts;
-            ret.lang_map.insert(normalized_new, new_grammar);
-        }
-
-        Ok(ret)
-    }
-
     pub fn get_grammar(
         &mut self,
         config_path: &str,
-        lang: &str,
+        name: &str,
     ) -> Result<Arc<Grammar>, GrammarManagerError> {
-        let normalized = normalize_lang_name(lang);
+        let normalized_name = normalize_lang_name(name);
 
-        if self.loaded_grammars.contains_key(&normalized) {
-            return Ok(self
-                .loaded_grammars
-                .get(&normalized)
-                .cloned()
-                .expect("Grammar just checked for existing"));
+        let grammar_name = self
+            .lang_to_grammar
+            .get(&normalized_name)
+            .cloned()
+            .unwrap_or_else(|| normalized_name.clone());
+
+        if let Some(grammar) = self.loaded_grammars.get(&grammar_name) {
+            return Ok(grammar.clone());
         }
 
-        // Not found, load it here
         let def = self
-            .lang_map
-            .get(&normalized)
-            .ok_or(GrammarManagerError::MissingDefinition {
-                lang: lang.to_string(),
-            })?;
+            .grammar_map
+            .get(&grammar_name)
+            .ok_or_else(|| GrammarManagerError::MissingDefinition {
+                lang: name.to_string(),
+            })?
+            .clone();
 
-        let grammar = Grammar::from_def(config_path, def)?;
-
+        let grammar = Grammar::from_def(config_path, &def)?;
         self.loaded_grammars
-            .insert(normalized.clone(), Arc::new(grammar));
+            .insert(grammar_name.clone(), Arc::new(grammar));
+
         Ok(self
             .loaded_grammars
-            .get(&normalized)
+            .get(&grammar_name)
             .cloned()
-            .expect("Just inserted language"))
+            .expect("Just inserted"))
     }
 
     #[allow(clippy::type_complexity)]
@@ -204,20 +172,20 @@ impl GrammarManager {
     fn get_query_source(
         &self,
         config_path: &str,
-        lang: &str,
+        grammar_name: &str,
         query_name: &str,
         visited: &mut std::collections::HashSet<String>,
     ) -> Option<String> {
-        if !visited.insert(lang.to_string()) {
+        if !visited.insert(grammar_name.to_string()) {
             return Some(String::new());
         }
 
-        let paths = self.get_query_paths(config_path, lang, query_name);
+        let paths = self.get_query_paths(config_path, grammar_name, query_name);
         let source = match paths.iter().find_map(|path| std::fs::read_to_string(path).ok()) {
             Some(s) => s,
             None => {
                 tracing::debug!(
-                    "tree-sitter: no '{query_name}' query file found for '{lang}', checked: {paths:?}"
+                    "tree-sitter: no '{query_name}' query file found for '{grammar_name}', checked: {paths:?}"
                 );
                 return None;
             }
@@ -252,12 +220,12 @@ impl GrammarManager {
     fn get_query_paths(
         &self,
         config_path: &str,
-        normalized_lang: &str,
+        grammar_name: &str,
         query_name: &str,
     ) -> Vec<String> {
         let mut paths = Vec::new();
 
-        let variants = get_name_variants(normalized_lang);
+        let variants = get_name_variants(grammar_name);
 
         for variant in variants {
             paths.push(format!(
@@ -283,33 +251,29 @@ impl GrammarManager {
         lang: &str,
         query_name: &str,
     ) -> Option<Arc<Query>> {
-        let normalized = normalize_lang_name(lang);
+        let normalized_lang = normalize_lang_name(lang);
 
-        if self.failed_queries.contains(&(normalized.clone(), query_name.to_string())) {
+        // Resolve to the actual grammar name for cache keys and file paths
+        let grammar_name = self
+            .lang_to_grammar
+            .get(&normalized_lang)
+            .cloned()
+            .unwrap_or_else(|| normalized_lang.clone());
+
+        if self
+            .failed_queries
+            .contains(&(grammar_name.clone(), query_name.to_string()))
+        {
             return None;
         }
 
-        if self.query_map.contains_key(&normalized)
-            && self
-                .query_map
-                .get(&normalized)
-                .expect("Lang was just checked to exist")
-                .contains_key(query_name)
-        {
-            return Some(
-                self.query_map
-                    .get(&normalized)
-                    .expect("Lang was just checked to exist")
-                    .get(query_name)
-                    .cloned()
-                    .expect("Query was just checked to exist"),
-            );
-        }
+        if let Some(queries) = self.query_map.get(&grammar_name)
+            && let Some(query) = queries.get(query_name) {
+                return Some(query.clone());
+            }
 
-        let grammar = self.get_grammar(config_path, &normalized).ok()?;
+        let grammar = self.get_grammar(config_path, lang).ok()?;
 
-        // Use the grammar's own name for path resolution so aliases fall through
-        // to the base grammar's query files (e.g. "kerbin" alias → "bash" queries).
         let mut visited = std::collections::HashSet::new();
         let query_source =
             self.get_query_source(config_path, &grammar.name, query_name, &mut visited)?;
@@ -320,17 +284,21 @@ impl GrammarManager {
                 tracing::error!(
                     "tree-sitter: failed to compile '{query_name}' query for '{lang}': {e}"
                 );
-                self.failed_queries.insert((normalized, query_name.to_string()));
+                self.failed_queries
+                    .insert((grammar_name, query_name.to_string()));
                 return None;
             }
         };
 
         self.query_map
-            .entry(normalized.clone())
+            .entry(grammar_name.clone())
             .or_default()
             .insert(query_name.to_string(), Arc::new(query));
 
-        self.query_map.get(&normalized)?.get(query_name).cloned()
+        self.query_map
+            .get(&grammar_name)?
+            .get(query_name)
+            .cloned()
     }
 }
 

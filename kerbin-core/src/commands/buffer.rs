@@ -165,9 +165,7 @@ pub enum BufferCommand {
     /// Scrolls the viewport by the given number of lines, dragging the primary cursor
     /// to the nearest visible line (with scroll padding) if it would leave the screen.
     /// Positive values scroll down, negative values scroll up.
-    ScrollLines {
-        lines: isize,
-    },
+    ScrollLines { lines: isize },
 }
 
 #[async_trait::async_trait]
@@ -182,7 +180,12 @@ impl Command<State> for BufferCommand {
             return true;
         }
 
-        let tab_w = state.lock_state::<CoreConfig>().await.tab_display_unit.chars().count();
+        let tab_w = state
+            .lock_state::<CoreConfig>()
+            .await
+            .tab_display_unit
+            .chars()
+            .count();
 
         let mut buffers = state.lock_state::<Buffers>().await;
 
@@ -196,7 +199,9 @@ impl Command<State> for BufferCommand {
 
         match self {
             BufferCommand::MoveBytes { bytes, extend } => cur_buffer.move_bytes(*bytes, *extend),
-            BufferCommand::MoveLines { lines, extend } => cur_buffer.move_lines(*lines, *extend, tab_w),
+            BufferCommand::MoveLines { lines, extend } => {
+                cur_buffer.move_lines(*lines, *extend, tab_w)
+            }
             BufferCommand::MoveChars { chars, extend } => cur_buffer.move_chars(*chars, *extend),
             BufferCommand::GoTo { row, col, extend } => {
                 let line_byte = cur_buffer.line_to_byte_clamped(*row);
@@ -429,12 +434,14 @@ fn reload_file_inner(buf: &mut TextBuffer, log: &LogSender, force: bool) -> bool
 
     match std::fs::File::open(&path) {
         Ok(f) => match ropey::Rope::from_reader(std::io::BufReader::new(f)) {
-            Ok(rope) => {
-                buf.rope = rope;
+            Ok(_rope) => {
                 buf.dirty = false;
                 buf.undo_stack.clear();
                 buf.redo_stack.clear();
                 buf.save_point = 0;
+
+                buf.states.clear();
+                buf.flags.clear();
 
                 if let Ok(metadata) = std::fs::metadata(&path) {
                     buf.changed = metadata.modified().ok();
@@ -524,11 +531,10 @@ impl Command<State> for BuffersCommand {
                 buffers.set_selected_buffer(buffer_id);
 
                 // Apply explicit filetype override, bypassing auto-detection
-                if let Some(ft) = filetype {
-                    if let Some(mut buf) = buffers.cur_text_buffer_mut().await {
+                if let Some(ft) = filetype
+                    && let Some(mut buf) = buffers.cur_text_buffer_mut().await {
                         buf.filetype = Some(ft.clone());
                     }
-                }
 
                 // Track the opened buffer in the focused pane
                 let mut split = state.lock_state::<SplitState>().await;

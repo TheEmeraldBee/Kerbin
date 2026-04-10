@@ -87,7 +87,7 @@ impl CommandVariant {
         let lines = self.attrs.iter().filter_map(|attr| {
             let nv = attr.meta.require_name_value().ok()?;
             let id = nv.path.require_ident().ok()?;
-            (id.to_string() == "doc").then(|| nv.value.to_token_stream())
+            (*id == "doc").then(|| nv.value.to_token_stream())
         });
         quote!({
             let mut x = vec![];

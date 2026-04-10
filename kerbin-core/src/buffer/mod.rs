@@ -244,6 +244,10 @@ impl TextBuffer {
         self.states.contains_key(&T::static_name())
     }
 
+    pub fn remove_state<T: StateName + StaticState>(&mut self) {
+        self.states.remove(&T::static_name());
+    }
+
     /// Inserts the state produced by `func` only if the type is not already present
     pub fn maybe_insert_state<T: StateName + StaticState>(&mut self, func: impl FnOnce() -> T) {
         if !self.has_state::<T>() {
