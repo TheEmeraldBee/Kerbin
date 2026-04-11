@@ -7,8 +7,8 @@ bind [j] [spfd] --modes [S] --desc "Focus Split Down"
 bind [k] [spfu] --modes [S] --desc "Focus Split Up"
 bind [l] [spfr] --modes [S] --desc "Focus Split Right"
 
-bind [H] [sph] --modes [S] --desc "Split Horizontal"
-bind [V] [spv] --modes [S] --desc "Split Vertical"
+bind [N] [sph] --modes [S] --desc "Split Horizontal"
+bind [n] [spv] --modes [S] --desc "Split Vertical"
 
 bind [Q] [spc] --modes [S] --desc "Close split"
 bind [C] [spd] --modes [S] --desc "Collapse splits into active"

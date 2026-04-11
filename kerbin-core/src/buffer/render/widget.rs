@@ -681,6 +681,13 @@ impl<'a> LineMarks<'a> {
                     if mark_start_char >= line_start_char && mark_start_char <= line_end_char {
                         let col = mark_start_char - line_start_char;
                         result.cursors.push(CursorMark { col, style: *style, shape: *shape });
+                        if col >= visible_len {
+                            if visible_len == 0 {
+                                result.newline_highlights.push((*style, priority));
+                            } else {
+                                result.eol_highlights.push((*style, priority));
+                            }
+                        }
                         suppress_ranges.push(SuppressRange { start: col, end: col + 1, ns: &mark.namespace });
                         cursor_on_line = true;
                     }

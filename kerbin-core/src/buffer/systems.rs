@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use crate::*;
 use ratatui::style::{Color, Style};
 
-const CURSOR_PRIORITY: i32 = i32::MAX;
+const CURSOR_PRIORITY: i32 = 1000;
 
 pub async fn render_cursors_and_selections(
     bufs: ResMut<Buffers>,
@@ -16,8 +16,10 @@ pub async fn render_cursors_and_selections(
         return;
     };
 
-    buf.renderer.set_namespace_priority("inner::cursor", CURSOR_PRIORITY);
-    buf.renderer.set_namespace_priority("inner::selection", CURSOR_PRIORITY);
+    buf.renderer
+        .set_namespace_priority("inner::cursor", CURSOR_PRIORITY + 1);
+    buf.renderer
+        .set_namespace_priority("inner::selection", CURSOR_PRIORITY);
     buf.renderer.clear_extmark_ns("inner::cursor");
     buf.renderer.clear_extmark_ns("inner::selection");
 
@@ -55,8 +57,9 @@ pub async fn render_cursors_and_selections(
     let primary_cursor = buf.primary_cursor;
     for (i, cursor) in buf.cursors.clone().into_iter().enumerate() {
         let caret_byte = cursor.get_cursor_byte();
+        let is_primary = i == primary_cursor;
 
-        if primary_cursor == i {
+        if is_primary {
             let shape = match modes.get_mode() {
                 'i' => CursorShape::BlinkingBar,
                 _ => CursorShape::Block,
@@ -76,11 +79,19 @@ pub async fn render_cursors_and_selections(
             ));
         }
 
-        if cursor.sel().start() != cursor.sel().end() {
+        if cursor.at_start || !is_primary {
             buf.add_extmark(
                 ExtmarkBuilder::new_range(
                     "inner::selection",
-                    *cursor.sel().start()..*cursor.sel().end(),
+                    *cursor.sel().start()..(*cursor.sel().end() + 1),
+                )
+                .with_kind(ExtmarkKind::Highlight { style: sel_style }),
+            );
+        } else {
+            buf.add_extmark(
+                ExtmarkBuilder::new_range(
+                    "inner::selection",
+                    *cursor.sel().start()..(*cursor.sel().end()),
                 )
                 .with_kind(ExtmarkKind::Highlight { style: sel_style }),
             );
@@ -278,7 +289,15 @@ pub async fn handle_mouse_events(
     core_config: Res<CoreConfig>,
     split: Res<SplitState>,
 ) {
-    get!(events, chunks, buffers, mouse_bindings, modes, core_config, split);
+    get!(
+        events,
+        chunks,
+        buffers,
+        mouse_bindings,
+        modes,
+        core_config,
+        split
+    );
 
     if events.0.is_empty() {
         return;
@@ -289,7 +308,9 @@ pub async fn handle_mouse_events(
             continue;
         };
 
-        let Some(trigger) = mouse_trigger(mouse_ev.kind) else { continue; };
+        let Some(trigger) = mouse_trigger(mouse_ev.kind) else {
+            continue;
+        };
 
         let col = mouse_ev.column;
         let row = mouse_ev.row;
@@ -307,11 +328,8 @@ pub async fn handle_mouse_events(
                 {
                     area_opt = Some(pane_rect);
                     clicked_pane_i = Some(pane_i);
-                    let is_focused = split
-                        .leaves()
-                        .get(pane_i)
-                        .map(|p| p.id)
-                        == Some(split.focused_id);
+                    let is_focused =
+                        split.leaves().get(pane_i).map(|p| p.id) == Some(split.focused_id);
                     if !is_focused {
                         let focus_cmd: Box<dyn Command<State>> =
                             Box::new(SplitCommand::FocusPane(pane_i));
@@ -338,32 +356,31 @@ pub async fn handle_mouse_events(
         if let Some(area) = area_opt
             && let Some(buf_arc) = clicked_buf_arc
             && let Ok(buf_guard) = buf_arc.clone().try_read_owned()
-            && let Some(buf) = buf_guard.as_any().downcast_ref::<TextBuffer>() {
-                let line_idx = (row.saturating_sub(area.y) as usize)
-                    .saturating_add(buf.renderer.byte_scroll)
-                    .min(buf.len_lines().saturating_sub(1));
+            && let Some(buf) = buf_guard.as_any().downcast_ref::<TextBuffer>()
+        {
+            let line_idx = (row.saturating_sub(area.y) as usize)
+                .saturating_add(buf.renderer.byte_scroll)
+                .min(buf.len_lines().saturating_sub(1));
 
-                let line_start_byte = buf.line_to_byte_clamped(line_idx);
-                let line_end_byte = buf
-                    .line_to_byte(line_idx + 1)
-                    .unwrap_or(buf.rope.len_bytes());
-                let target_display_col =
-                    (col.saturating_sub(area.x) as usize).saturating_add(buf.renderer.h_scroll);
+            let line_start_byte = buf.line_to_byte_clamped(line_idx);
+            let line_end_byte = buf
+                .line_to_byte(line_idx + 1)
+                .unwrap_or(buf.rope.len_bytes());
+            let target_display_col =
+                (col.saturating_sub(area.x) as usize).saturating_add(buf.renderer.h_scroll);
 
-                let line_text = buf
-                    .slice_to_string(line_start_byte, line_end_byte)
-                    .unwrap_or_default();
+            let line_text = buf
+                .slice_to_string(line_start_byte, line_end_byte)
+                .unwrap_or_default();
 
-                let tab_w = core_config.tab_display_unit.chars().count();
-                let byte_offset =
-                    display_col_to_byte_offset(&line_text, target_display_col, tab_w);
+            let tab_w = core_config.tab_display_unit.chars().count();
+            let byte_offset = display_col_to_byte_offset(&line_text, target_display_col, tab_w);
 
-
-                let mut engine = resolver_engine_mut().await;
-                engine.set_template("mouse_line", line_idx.to_string());
-                engine.set_template("mouse_col", byte_offset.to_string());
-                drop(engine);
-            }
+            let mut engine = resolver_engine_mut().await;
+            engine.set_template("mouse_line", line_idx.to_string());
+            engine.set_template("mouse_col", byte_offset.to_string());
+            drop(engine);
+        }
 
         let Some(commands) = mouse_bindings.bindings.get(&trigger) else {
             continue;
