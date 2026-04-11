@@ -79,7 +79,7 @@ pub async fn render_cursors_and_selections(
             ));
         }
 
-        if cursor.at_start || !is_primary {
+        if (cursor.at_start || !is_primary) && cursor.sel.start() != cursor.sel.end() {
             buf.add_extmark(
                 ExtmarkBuilder::new_range(
                     "inner::selection",

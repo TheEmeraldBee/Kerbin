@@ -1,9 +1,9 @@
 # WORD/word
 bind [w] [[%ifclear] [gse] [rxc %word --advance --extend] [mc 1 --extend]] --desc "Select word"
 bind [W] [[%ifclear] [gse] [rxc %WORD --advance --extend] [mc 1 --extend]] --desc "Select WORD"
-bind [b] [[%ifclear] [gse] [mc -1 --extend] [rxcb %word --extend]] --desc "Select word backwards"
-bind [B] [[%ifclear] [gse] [mc -1 --extend] [rxcb %WORD --extend]] --desc "Select WORD backwards"
+bind [b] [[%ifclear] [gsb] [mc -1 --extend] [rxcb %word --extend]] --desc "Select word backwards"
+bind [B] [[%ifclear] [gsb] [mc -1 --extend] [rxcb %WORD --extend]] --desc "Select WORD backwards"
 
 # END/end
-bind [e] [[%ifclear] [gsb] [rxc %end --advance --extend]] --desc "Select word end"
-bind [E] [[%ifclear] [gsb] [rxc %END --advance --extend]] --desc "Select WORD end"
+bind [e] [[%ifclear] [gse] [rxc %end --advance --extend]] --desc "Select word end"
+bind [E] [[%ifclear] [gse] [rxc %END --advance --extend]] --desc "Select WORD end"

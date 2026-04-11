@@ -2,7 +2,7 @@ prefix "aa" --modes [x] --include [mc mb ml rxc rxcb rxs sl sle slb sfw sc d i a
 
 bind [c] [pm x]
 
-bind [C] [then [cc] [ml 1]] --desc "Create Cursor Down 1 Line"
+bind [C] [then [cc] [ml 1]] --desc "Create Cursor Down 1 Line" --exclude [x]
 
 bind [n] [cac 1] --desc "Select next cursor"
 bind [N] [cac -1] --desc "Select last cursor"

@@ -118,7 +118,7 @@ pub enum BufferCommand {
     /// See `reload_file!` to reload regardless of unsaved changes.
     ReloadFile,
 
-    #[command(drop_ident, name = "reload!", name = "e!")]
+    #[command(drop_ident, name = "reload_file!", name = "reload!", name = "e!")]
     /// Reloads the current buffer from disk, ignoring unsaved changes.
     ///
     /// See `reload_file` to respect unsaved changes.
@@ -434,7 +434,8 @@ fn reload_file_inner(buf: &mut TextBuffer, log: &LogSender, force: bool) -> bool
 
     match std::fs::File::open(&path) {
         Ok(f) => match ropey::Rope::from_reader(std::io::BufReader::new(f)) {
-            Ok(_rope) => {
+            Ok(rope) => {
+                buf.rope = rope;
                 buf.dirty = false;
                 buf.undo_stack.clear();
                 buf.redo_stack.clear();
@@ -532,9 +533,10 @@ impl Command<State> for BuffersCommand {
 
                 // Apply explicit filetype override, bypassing auto-detection
                 if let Some(ft) = filetype
-                    && let Some(mut buf) = buffers.cur_text_buffer_mut().await {
-                        buf.filetype = Some(ft.clone());
-                    }
+                    && let Some(mut buf) = buffers.cur_text_buffer_mut().await
+                {
+                    buf.filetype = Some(ft.clone());
+                }
 
                 // Track the opened buffer in the focused pane
                 let mut split = state.lock_state::<SplitState>().await;

@@ -1,9 +1,8 @@
 use crate::Token;
 
 /// Type alias for a command parsing function generic over state type `S`.
-pub type CommandFn<S> = Box<
-    dyn Fn(&[Token]) -> Option<Result<Box<dyn Command<S>>, String>> + Send + Sync,
->;
+pub type CommandFn<S> =
+    Box<dyn Fn(&[Token]) -> Option<Result<Box<dyn Command<S>>, String>> + Send + Sync>;
 
 /// Represents a set of registered commands, including its parser and command information.
 pub struct RegisteredCommandSet<S: Send + Sync + 'static> {
@@ -73,7 +72,7 @@ pub trait AsCommandInfo: CommandAny + Send + Sync {
         Self: Sized;
 }
 
-/// Allows a command type to be parsed from a token slice for a specific state type `S`.
+/// Allows a command type to be parsed from a token list for a specific state `S`.
 pub trait CommandFromStr<S: Send + Sync + 'static>: Command<S> + AsCommandInfo {
     fn from_str(val: &[Token]) -> Option<Result<Box<dyn Command<S>>, String>>
     where
